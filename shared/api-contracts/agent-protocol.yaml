@@ -1,6 +1,0 @@
-# Host Agent protocol — see docs/08_Host_Agent_Specification.md
-#
-# This file will contain the formal protocol definition for communication
-# between the backend and host agents (registration, heartbeat, commands).
-#
-# TODO: define agent protocol schemas.
