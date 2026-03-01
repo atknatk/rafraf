@@ -1,0 +1,6 @@
+# REST API OpenAPI 3.1 spec — see docs/02_Backend_API_WebSocket_Specification.md
+#
+# This file will contain the OpenAPI 3.1 specification for all REST endpoints
+# exposed by the backend (health, auth, projects, files, admin).
+#
+# TODO: define OpenAPI 3.1 spec.

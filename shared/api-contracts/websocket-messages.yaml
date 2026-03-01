@@ -1,0 +1,6 @@
+# WebSocket message schemas — see docs/02_Backend_API_WebSocket_Specification.md
+#
+# This file will contain the formal schema definitions for all WebSocket
+# messages exchanged between the iOS app, backend, and host agents.
+#
+# TODO: define message schemas (client_message, server_message, agent_message).

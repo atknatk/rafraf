@@ -1,0 +1,21 @@
+{
+  "env": {
+    "MAX_THINKING_TOKENS": "10000"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(gh auth status:*)",
+      "Bash(gh issue *)",
+      "Bash(gh pr *)",
+      "Bash(git *)",
+      "Bash(ruff *)",
+      "Bash(mypy *)",
+      "Bash(python -m pytest *)",
+      "Bash(python -m uvicorn *)",
+      "Bash(xcodebuild *)",
+      "Bash(swiftlint *)",
+      "Bash(docker compose *)",
+      "Bash(cd *)"
+    ]
+  }
+}

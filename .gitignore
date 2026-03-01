@@ -1,0 +1,68 @@
+# ─── Python ───────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.whl
+.venv/
+venv/
+env/
+.tox/
+.nox/
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ─── Swift / Xcode ────────────────────────────────────
+*.xcuserdata
+*.xcworkspace
+DerivedData/
+.build/
+Pods/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+Carthage/Build/
+Package.resolved
+
+# ─── Node ─────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ─── Docker ───────────────────────────────────────────
+docker-compose.override.yml
+
+# ─── Environment & Secrets ────────────────────────────
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ─── IDE ──────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ─── OS ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db

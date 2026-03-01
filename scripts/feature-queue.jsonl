@@ -1,0 +1,46 @@
+{"issue": "OR-1", "title": "Project scaffolding and monorepo setup", "layer": "infra", "status": "done"}
+{"issue": "OR-2", "title": "FastAPI application skeleton with health endpoint", "layer": "backend", "status": "pending"}
+{"issue": "OR-3", "title": "Pydantic settings and environment configuration", "layer": "backend", "status": "pending"}
+{"issue": "OR-4", "title": "PostgreSQL async database layer with SQLAlchemy", "layer": "backend", "status": "pending"}
+{"issue": "OR-5", "title": "Redis connection and caching utilities", "layer": "backend", "status": "pending"}
+{"issue": "OR-6", "title": "JWT authentication and token management", "layer": "backend", "status": "pending"}
+{"issue": "OR-7", "title": "WebSocket endpoint with auth middleware", "layer": "backend", "status": "pending"}
+{"issue": "OR-8", "title": "WebSocket message routing and dispatch", "layer": "backend", "status": "pending"}
+{"issue": "OR-9", "title": "Rate limiter (Redis sliding window)", "layer": "backend", "status": "pending"}
+{"issue": "OR-10", "title": "Claude Agent SDK integration and orchestrator", "layer": "backend", "status": "pending"}
+{"issue": "OR-11", "title": "Tool registry and dispatch system", "layer": "backend", "status": "pending"}
+{"issue": "OR-12", "title": "Human-in-the-loop approval system", "layer": "backend", "status": "pending"}
+{"issue": "OR-13", "title": "Haiku/Sonnet model router", "layer": "backend", "status": "pending"}
+{"issue": "OR-14", "title": "GitHub tool implementation", "layer": "backend", "status": "pending"}
+{"issue": "OR-15", "title": "S3 tool for file uploads and pre-signed URLs", "layer": "backend", "status": "pending"}
+{"issue": "OR-16", "title": "Memory tool with mem0 integration", "layer": "backend", "status": "pending"}
+{"issue": "OR-17", "title": "Cost tracking service and budget alerts", "layer": "backend", "status": "pending"}
+{"issue": "OR-18", "title": "Deepgram STT service integration", "layer": "backend", "status": "pending"}
+{"issue": "OR-19", "title": "OpenAI TTS service integration", "layer": "backend", "status": "pending"}
+{"issue": "OR-20", "title": "APNs push notification service", "layer": "backend", "status": "pending"}
+{"issue": "OR-21", "title": "GitHub webhook receiver with signature verification", "layer": "backend", "status": "pending"}
+{"issue": "OR-22", "title": "Host agent registry and discovery", "layer": "backend", "status": "pending"}
+{"issue": "OR-23", "title": "Agent task dispatcher and load balancing", "layer": "backend", "status": "pending"}
+{"issue": "OR-24", "title": "Agent health monitor and heartbeat tracking", "layer": "backend", "status": "pending"}
+{"issue": "OR-25", "title": "Audit logging and compliance events", "layer": "backend", "status": "pending"}
+{"issue": "OR-26", "title": "Alembic migration setup and initial schema", "layer": "backend", "status": "pending"}
+{"issue": "OR-27", "title": "Host agent WebSocket client with auto-reconnect", "layer": "agent", "status": "pending"}
+{"issue": "OR-28", "title": "Agent authentication and API key exchange", "layer": "agent", "status": "pending"}
+{"issue": "OR-29", "title": "Agent heartbeat sender with system metrics", "layer": "agent", "status": "pending"}
+{"issue": "OR-30", "title": "Command handler and executor dispatch", "layer": "agent", "status": "pending"}
+{"issue": "OR-31", "title": "Docker container executor", "layer": "agent", "status": "pending"}
+{"issue": "OR-32", "title": "Shell command executor with sandboxing", "layer": "agent", "status": "pending"}
+{"issue": "OR-33", "title": "Playwright browser automation executor", "layer": "agent", "status": "pending"}
+{"issue": "OR-34", "title": "Maestro mobile testing executor", "layer": "agent", "status": "pending"}
+{"issue": "OR-35", "title": "S3 artifact uploader", "layer": "agent", "status": "pending"}
+{"issue": "OR-36", "title": "Resource monitor (CPU, memory, disk)", "layer": "agent", "status": "pending"}
+{"issue": "OR-37", "title": "Agent security policies and command allowlist", "layer": "agent", "status": "pending"}
+{"issue": "OR-38", "title": "iOS app project setup (SwiftUI, Clean Architecture)", "layer": "ios", "status": "pending"}
+{"issue": "OR-39", "title": "iOS WebSocket service with reconnection", "layer": "ios", "status": "pending"}
+{"issue": "OR-40", "title": "iOS chat view and message rendering", "layer": "ios", "status": "pending"}
+{"issue": "OR-41", "title": "iOS voice input (STT) integration", "layer": "ios", "status": "pending"}
+{"issue": "OR-42", "title": "iOS approval card and interactive UI", "layer": "ios", "status": "pending"}
+{"issue": "OR-43", "title": "iOS project selector and dashboard", "layer": "ios", "status": "pending"}
+{"issue": "OR-44", "title": "iOS push notification handling", "layer": "ios", "status": "pending"}
+{"issue": "OR-45", "title": "Docker Compose production stack", "layer": "infra", "status": "pending"}
+{"issue": "OR-46", "title": "CI/CD pipeline with GitHub Actions", "layer": "infra", "status": "pending"}
