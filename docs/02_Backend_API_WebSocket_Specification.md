@@ -1,4 +1,4 @@
-# AI Project Supervisor — Backend API & WebSocket Specification
+# RafRaf — Backend API & WebSocket Specification
 
 **Document 2/8** | Version 1.1 | March 2026
 
@@ -15,16 +15,18 @@ Backend, tum sistemin kalbidir. FastAPI uzerinde WebSocket sunucusu olarak calis
 | Framework | FastAPI | 0.100+ |
 | WebSocket | FastAPI WebSocket (Starlette) | Built-in |
 | ASGI Server | Uvicorn | Latest |
-| Task Queue | asyncio (built-in) | Python 3.11+ |
-| Cache | Redis | 7+ |
-| Database | PostgreSQL + pgvector | 16+ |
-| ORM | SQLAlchemy + asyncpg | 2.0+ |
+| Task Queue | asyncio (built-in) | Python 3.12 |
+| Cache | Redis (aioredis) | 7 |
+| Database | PostgreSQL 16 + pgvector | 16 |
+| ORM | SQLAlchemy 2.0+ async (asyncpg) | 2.0+ |
+| Validation | Pydantic v2 | 2.0+ |
+| Python | Python | 3.12 |
 
 ### 1.2 Neden FastAPI?
 
-- Async native: WebSocket ve Claude API cagrilari non-blocking
+- Async native: `async def` tum endpoint ve servisler, asyncpg (DB), aioredis (cache) — WebSocket ve Claude API cagrilari non-blocking
 - Python ekosistemi: Claude Agent SDK, mem0, Docker SDK, Playwright hepsi Python
-- Type-safe: Pydantic modelleri ile veri validasyonu
+- Type-safe: Pydantic v2 modelleri ile veri validasyonu (domain/entity modellerde `frozen=True`)
 - Auto-docs: Swagger/OpenAPI otomatik dokumantasyon
 - Performans: Starlette tabanli, Node.js ile karsilastirilabilir hiz
 
@@ -33,7 +35,7 @@ Backend, tum sistemin kalbidir. FastAPI uzerinde WebSocket sunucusu olarak calis
 ## 2. Proje Yapisi (Dizin Agaci)
 
 ```
-ai-supervisor-backend/
+apps/backend/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py                    # FastAPI app, startup/shutdown
@@ -41,24 +43,51 @@ ai-supervisor-backend/
 │   │
 │   ├── api/
 │   │   ├── __init__.py
-│   │   ├── websocket.py           # WebSocket endpoint ve handler
-│   │   ├── health.py              # Health check endpoint
-│   │   └── webhooks.py            # GitHub webhook receiver
+│   │   └── routes/                # WebSocket, health, webhooks endpoints
+│   │       ├── __init__.py
+│   │       ├── websocket.py       # WebSocket endpoint ve handler
+│   │       ├── health.py          # Health check endpoint
+│   │       └── webhooks.py        # GitHub webhook receiver
 │   │
-│   ├── auth/
+│   ├── core/
 │   │   ├── __init__.py
-│   │   ├── jwt.py                 # JWT token olusturma/dogrulama
-│   │   ├── middleware.py          # WebSocket auth middleware
-│   │   └── rate_limiter.py        # Rate limiting (Redis tabanli)
+│   │   └── security.py            # JWT, auth (token olusturma/dogrulama, rate limiting)
 │   │
-│   ├── orchestrator/
+│   ├── services/                  # Business logic
+│   │   ├── __init__.py
+│   │   ├── stt_service.py         # Deepgram STT entegrasyonu
+│   │   ├── tts_service.py         # OpenAI TTS entegrasyonu
+│   │   ├── notification.py        # Push notification servisi (APNs)
+│   │   └── cost_tracker.py        # API maliyet takibi
+│   │
+│   ├── repositories/              # DB access (SQLAlchemy async)
+│   │   ├── __init__.py
+│   │   ├── project_repo.py
+│   │   ├── session_repo.py
+│   │   └── audit_repo.py
+│   │
+│   ├── schemas/                   # Pydantic v2 request/response models
+│   │   ├── __init__.py
+│   │   ├── messages.py            # WebSocket mesaj modelleri (Pydantic v2)
+│   │   ├── projects.py            # Proje request/response modelleri
+│   │   ├── tools.py               # Tool input/output modelleri
+│   │   └── audit.py               # Audit log modelleri
+│   │
+│   ├── models/                    # SQLAlchemy DB models
+│   │   ├── __init__.py
+│   │   ├── project.py
+│   │   ├── session.py
+│   │   ├── message.py
+│   │   ├── host_agent.py
+│   │   └── audit.py
+│   │
+│   ├── orchestrator/              # Claude Agent SDK integration
 │   │   ├── __init__.py
 │   │   ├── agent.py               # Claude Agent SDK entegrasyonu
 │   │   ├── tool_registry.py       # Tool tanimlari ve dispatch
-│   │   ├── approval.py            # Onay sistemi yonetimi
-│   │   └── model_router.py        # Haiku/Sonnet model secimi
+│   │   └── approval.py            # Onay sistemi yonetimi
 │   │
-│   ├── tools/
+│   ├── tools/                     # Claude tools (github, s3, memory, cost)
 │   │   ├── __init__.py
 │   │   ├── docker_tool.py         # Docker SDK islemleri
 │   │   ├── github_tool.py         # GitHub API islemleri
@@ -67,30 +96,15 @@ ai-supervisor-backend/
 │   │   ├── shell_tool.py          # Shell komut calistirma
 │   │   └── s3_tool.py             # AWS S3 dosya islemleri
 │   │
-│   ├── memory/
+│   ├── memory/                    # mem0 integration
 │   │   ├── __init__.py
 │   │   ├── mem0_client.py         # mem0 SDK entegrasyonu
 │   │   ├── project_memory.py      # Proje bazli hafiza yonetimi
 │   │   └── conversation.py        # Conversation history yonetimi
 │   │
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── messages.py            # WebSocket mesaj modelleri (Pydantic)
-│   │   ├── projects.py            # Proje veri modelleri
-│   │   ├── tools.py               # Tool input/output modelleri
-│   │   └── audit.py               # Audit log modelleri
-│   │
-│   ├── services/
-│   │   ├── __init__.py
-│   │   ├── stt_service.py         # Deepgram STT entegrasyonu
-│   │   ├── tts_service.py         # OpenAI TTS entegrasyonu
-│   │   ├── notification.py        # Push notification servisi (APNs)
-│   │   └── cost_tracker.py        # API maliyet takibi
-│   │
 │   └── db/
 │       ├── __init__.py
-│       ├── database.py            # Async DB baglantisi
-│       ├── models.py              # SQLAlchemy modelleri
+│       ├── database.py            # Async DB baglantisi (asyncpg)
 │       └── migrations/            # Alembic migration dosyalari
 │
 ├── tests/
@@ -100,23 +114,12 @@ ai-supervisor-backend/
 │   ├── test_tools.py
 │   └── test_memory.py
 │
-├── docker/
-│   ├── Dockerfile
-│   ├── docker-compose.yml         # Lokal gelistirme icin
-│   └── docker-compose.test.yml    # Test ortami
-│
-├── k8s/
-│   ├── deployment.yaml
-│   ├── service.yaml
-│   ├── ingress.yaml
-│   ├── configmap.yaml
-│   └── secrets.yaml
-│
-├── requirements.txt
 ├── pyproject.toml
 ├── .env.example
 └── README.md
 ```
+
+> **Not:** Docker ve K8s konfigurasyonlari `infra/` dizininde yer alir (bkz. repo root yapisi).
 
 ---
 
@@ -125,7 +128,7 @@ ai-supervisor-backend/
 ### 3.1 Baglanti Kurulumu
 
 ```
-WSS://api.supervisor.example.com/ws?token={JWT_TOKEN}
+WSS://api.rafraf.example.com/ws?token={JWT_TOKEN}
 ```
 
 **Baglanti Akisi:**
@@ -381,7 +384,7 @@ iOS app ile backend arasindaki iletisime ek olarak, host agent'lar da backend'e 
 ### 4.1 Agent Baglanti Endpoint'i
 
 ```
-WSS://api.supervisor.example.com/ws/agent?api_key={AGENT_API_KEY}&host_id={HOST_ID}
+WSS://api.rafraf.example.com/ws/agent?api_key={AGENT_API_KEY}&host_id={HOST_ID}
 ```
 
 ### 4.2 Agent Registration (Baglanti Kurulumu)
@@ -522,14 +525,14 @@ Backend, 3 ardisik heartbeat kacirilirsa host'u "offline" olarak isaretler ve ku
 
 WebSocket disinda bazi islemler icin REST endpoint'ler de bulunur.
 
-### 4.1 Health & Status
+### 5.1 Health & Status
 
 ```
 GET  /health                    → Sistem saglilk durumu
 GET  /health/detailed           → Tum servislerin detayli durumu
 ```
 
-### 4.2 Authentication
+### 5.2 Authentication
 
 ```
 POST /auth/token                → JWT token olustur (API key ile)
@@ -537,7 +540,7 @@ POST /auth/refresh              → Token yenile
 POST /auth/revoke               → Token iptal et
 ```
 
-### 4.3 Projects
+### 5.3 Projects
 
 ```
 GET  /api/projects              → Tum projelerin listesi
@@ -546,7 +549,7 @@ PUT  /api/projects/{id}         → Proje bilgilerini guncelle
 GET  /api/projects/{id}/status  → Proje canli durumu
 ```
 
-### 4.4 Files (S3 Proxy)
+### 5.4 Files (S3 Proxy)
 
 ```
 POST /api/files/upload-url      → S3 pre-signed upload URL al
@@ -554,13 +557,13 @@ POST /api/files/download-url    → S3 pre-signed download URL al
 GET  /api/files/list            → Paylasilan dosyalari listele
 ```
 
-### 5.5 Webhooks
+### 5.5 Webhooks (GitHub)
 
 ```
 POST /webhooks/github           → GitHub event receiver
 ```
 
-### 5.6 Host Agents
+### 5.6 Host Agents (REST)
 
 ```
 GET  /api/agents                → Bagli tum host agent'larin listesi ve durumu
@@ -579,9 +582,9 @@ GET  /admin/hosts               → Host saglik dashboard
 
 ---
 
-## 5. Veritabani Semasi
+## 6. Veritabani Semasi
 
-### 5.1 PostgreSQL Tablolari
+### 6.1 PostgreSQL Tablolari
 
 **host_agents — Host agent tanimlari:**
 ```sql
@@ -706,9 +709,9 @@ CREATE TABLE approval_requests (
 
 ---
 
-## 6. Konfigürasyon
+## 7. Konfigürasyon
 
-### 6.1 Ortam Degiskenleri (.env)
+### 7.1 Ortam Degiskenleri (.env)
 
 ```env
 # App
@@ -730,7 +733,7 @@ DEEPGRAM_API_KEY=...
 OPENAI_API_KEY=sk-...
 
 # Database
-DATABASE_URL=postgresql+asyncpg://user:pass@postgres:5432/supervisor
+DATABASE_URL=postgresql+asyncpg://user:pass@postgres:5432/rafraf
 
 # Redis
 REDIS_URL=redis://redis:6379/0
@@ -739,7 +742,7 @@ REDIS_URL=redis://redis:6379/0
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 AWS_REGION=eu-west-1
-S3_BUCKET=ai-supervisor-files
+S3_BUCKET=rafraf-files
 
 # GitHub
 GITHUB_TOKEN=ghp_...
@@ -760,7 +763,7 @@ COST_ALERT_MONTHLY_USD=200
 APPROVAL_TIMEOUT_SECONDS=300
 ```
 
-### 6.2 Proje Konfigurasyonu (projects.yaml)
+### 7.2 Proje Konfigurasyonu (projects.yaml)
 
 ```yaml
 projects:
@@ -793,9 +796,9 @@ projects:
 
 ---
 
-## 7. Error Handling Stratejisi
+## 8. Error Handling Stratejisi
 
-### 7.1 Hata Kategorileri
+### 8.1 Hata Kategorileri
 
 | Kategori | Ornek | Aksiyon |
 |----------|-------|---------|
@@ -804,14 +807,14 @@ projects:
 | Approval-needed | Deploy hatasi, veri kaybi riski | Kullaniciya sor |
 | System-critical | DB baglanti kaybi, OOM | Alert gonder, graceful shutdown |
 
-### 7.2 Retry Politikasi
+### 8.2 Retry Politikasi
 
 - **Docker islemleri:** 3 retry, 5 saniye aralikla
 - **API cagrilari (Claude, Deepgram vb.):** 3 retry, exponential backoff (1s, 2s, 4s)
 - **GitHub API:** Rate limit'e takillirsa bekle (X-RateLimit-Reset header)
 - **Playwright:** 2 retry, her retry'da page refresh
 
-### 7.3 Graceful Degradation
+### 8.3 Graceful Degradation
 
 - Claude API erisilemazse: Kullaniciya bildir, kuyruga al
 - Deepgram erisilemazse: Sadece metin modu (ses devredisi)
@@ -822,7 +825,7 @@ projects:
 
 ---
 
-## 8. Performans Gereksinimleri
+## 9. Performans Gereksinimleri
 
 | Metrik | Hedef |
 |--------|-------|
@@ -837,6 +840,6 @@ projects:
 
 ---
 
-*Bu dokuman AI Project Supervisor serisinin 2/8 numarali dokumanidir.*
+*Bu dokuman RafRaf serisinin 2/8 numarali dokumanidir.*
 *Onceki: 01_System_Architecture_Overview.md*
 *Sonraki: 03_AI_Agent_Tool_Layer_Specification.md*

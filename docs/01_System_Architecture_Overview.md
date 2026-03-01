@@ -1,4 +1,4 @@
-# AI Project Supervisor — System Architecture Overview
+# RafRaf — System Architecture Overview
 
 **Document 1/8** | Version 1.1 | March 2026
 
@@ -6,7 +6,7 @@
 
 ## 1. Proje Genel Bakis
 
-AI Project Supervisor, birden fazla yazilim projesini es zamanli olarak izleyen, kod kalitesini degerlendiren, test eden ve raporlayan otonom bir AI asistan sistemidir. Sistem, bir iOS uygulamasi uzerinden sesli ve metin tabanli iletisim kurarak, kullanicinin projelerini 7/24 yonetmesine yardimci olur.
+RafRaf, birden fazla yazilim projesini es zamanli olarak izleyen, kod kalitesini degerlendiren, test eden ve raporlayan otonom bir AI asistan sistemidir. Sistem, bir iOS uygulamasi uzerinden sesli ve metin tabanli iletisim kurarak, kullanicinin projelerini 7/24 yonetmesine yardimci olur.
 
 ### 1.1 Temel Amac
 
@@ -379,5 +379,5 @@ Faz 1 + 1.5 tamamlandiginda backend ve host agent'lar iletisim kurabilir durumda
 
 ---
 
-*Bu dokuman AI Project Supervisor serisinin 1/8 numarali dokumanidir.*
+*Bu dokuman RafRaf serisinin 1/8 numarali dokumanidir.*
 *Sonraki dokuman: 02_Backend_API_WebSocket_Specification.md*

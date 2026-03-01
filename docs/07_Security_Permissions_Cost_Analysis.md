@@ -1,4 +1,4 @@
-# AI Project Supervisor — Security, Permissions & Cost Analysis
+# RafRaf — Security, Permissions & Cost Analysis
 
 **Document 7/8** | Version 1.0 | March 2026
 
@@ -190,11 +190,11 @@ approval_rules:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: ai-supervisor-network
+  name: rafraf-network
 spec:
   podSelector:
     matchLabels:
-      app: ai-supervisor
+      app: rafraf
   policyTypes:
     - Ingress
     - Egress
@@ -258,7 +258,7 @@ Redis tabanli sliding window rate limiter kullanilir.
       "Effect": "Deny",
       "Principal": "*",
       "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::ai-supervisor-files/*",
+      "Resource": "arn:aws:s3:::rafraf-files/*",
       "Condition": {
         "StringNotEquals": {
           "s3:authType": "QueryString"
@@ -585,6 +585,6 @@ CloudWatch veya Grafana ile basit bir dashboard:
 
 ---
 
-*Bu dokuman AI Project Supervisor serisinin 7/8 numarali dokumanidir.*
+*Bu dokuman RafRaf serisinin 7/8 numarali dokumanidir.*
 *Onceki: 06_Testing_Strategy.md*
 *Sonraki: 08_Host_Agent_Specification.md*

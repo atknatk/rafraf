@@ -1,4 +1,4 @@
-# AI Project Supervisor — Memory System Specification
+# RafRaf — Memory System Specification
 
 **Document 5/8** | Version 1.0 | March 2026
 
@@ -6,7 +6,7 @@
 
 ## 1. Genel Bakis
 
-Memory sistemi, AI Supervisor'u "seni taniyan" bir asistana donusturen temel bilesendir. Kullanicinin tercihlerini, projelerin durumunu ve gecmis konusmalardaki onemli bilgileri hatirlayarak, her yeni konusmanin sifirdan baslamasini onler.
+Memory sistemi, RafRaf'i "seni taniyan" bir asistana donusturen temel bilesendir. Kullanicinin tercihlerini, projelerin durumunu ve gecmis konusmalardaki onemli bilgileri hatirlayarak, her yeni konusmanin sifirdan baslamasini onler.
 
 ### 1.1 Neden mem0?
 
@@ -498,6 +498,6 @@ Conversation history, diger sabit iceriklerden kalan alani kullanir. Cok uzun ko
 
 ---
 
-*Bu dokuman AI Project Supervisor serisinin 5/8 numarali dokumanidir.*
+*Bu dokuman RafRaf serisinin 5/8 numarali dokumanidir.*
 *Onceki: 04_iOS_App_Specification.md*
 *Sonraki: 06_Testing_Strategy.md*

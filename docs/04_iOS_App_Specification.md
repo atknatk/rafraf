@@ -1,4 +1,4 @@
-# AI Project Supervisor — iOS App Specification
+# RafRaf — iOS App Specification
 
 **Document 4/8** | Version 1.0 | March 2026
 
@@ -6,7 +6,7 @@
 
 ## 1. Genel Bakis
 
-Native iOS uygulamasi, kullanici ile AI Supervisor arasindaki birincil arayuzdur. SwiftUI ile gelistirilir. Sesli ve metin tabanli iletisim, interaktif soru-cevap, gorsel icerik goruntuleme ve dosya paylasimi saglar.
+Native iOS uygulamasi, kullanici ile RafRaf arasindaki birincil arayuzdur. SwiftUI ile gelistirilir. Sesli ve metin tabanli iletisim, interaktif soru-cevap, gorsel icerik goruntuleme ve dosya paylasimi saglar.
 
 ### 1.1 Hedef Platform
 
@@ -14,8 +14,9 @@ Native iOS uygulamasi, kullanici ile AI Supervisor arasindaki birincil arayuzdur
 |---------|-------|
 | Minimum iOS | 17.0 |
 | Framework | SwiftUI |
-| Dil | Swift 5.9+ |
-| Mimari | MVVM + Combine/async-await |
+| Dil | Swift 6 |
+| IDE | Xcode 16+ |
+| Mimari | Clean Architecture (Data / Domain / Presentation) |
 | Network | URLSession WebSocket + REST |
 | Ses | AVFoundation + Deepgram SDK |
 | Bildirim | APNs (Push Notification) |
@@ -25,95 +26,140 @@ Native iOS uygulamasi, kullanici ile AI Supervisor arasindaki birincil arayuzdur
 
 ## 2. Uygulama Mimarisi
 
-### 2.1 Katmanli Yapi
+### 2.1 Clean Architecture — Katmanli Yapi
+
+Her feature asagidaki uc katmandan olusur:
 
 ```
 ┌──────────────────────────────────┐
-│         UI Layer (SwiftUI)       │
-│  Views, Components, Modifiers    │
+│       Presentation Layer         │
+│  SwiftUI Views (RF* bilesenler)  │
+│  ViewModels (@Observable +       │
+│              @MainActor)         │
 ├──────────────────────────────────┤
-│       ViewModel Layer            │
-│  ChatViewModel, ProjectsVM      │
-│  SettingsVM, VoiceVM             │
+│         Domain Layer             │
+│  Model/ (pure struct, Foundation │
+│          only — dis import YOK)  │
+│  Repository/ (protocol'ler)      │
+│  UseCase/ (is mantigi)           │
 ├──────────────────────────────────┤
-│       Service Layer              │
-│  WebSocketService                │
-│  VoiceService (STT/TTS)         │
-│  S3FileService                   │
-│  NotificationService             │
-│  AuthService                     │
-├──────────────────────────────────┤
-│       Data Layer                 │
-│  SwiftData (local cache)         │
+│          Data Layer              │
+│  DTO/ (Codable DTO'lar)          │
+│  Repository/ (implementasyonlar) │
+│  Mapper/ (DTO <-> Domain)        │
+│  Service/ (RFWebSocketService,   │
+│   RFVoiceService, RFS3Service,   │
+│   RFAuthService, vb.)            │
+│  SwiftData (lokal cache)         │
 │  KeychainManager (auth tokens)   │
-│  UserDefaults (preferences)      │
 └──────────────────────────────────┘
 ```
+
+**Katman Kurallari:**
+- Domain layer, Data veya Presentation katmanindan import EDEMEZ.
+- Presentation layer, Data layer'dan dogrudan import EDEMEZ (Domain uzerinden erisir).
+- Dependency Injection icin **Factory** kutuphanesi kullanilir (`DependencyContainer` deseni).
 
 ### 2.2 Proje Dizin Yapisi
 
 ```
-AISupervisor/
+RafRaf/
 ├── App/
-│   ├── AISupervisorApp.swift          # App entry point
+│   ├── RafRafApp.swift                # App entry point
 │   ├── AppDelegate.swift              # Push notification handling
-│   └── ContentView.swift              # Root navigation
+│   ├── ContentView.swift              # Root navigation
+│   └── DependencyContainer.swift      # Factory DI container
 │
-├── Core/
+├── Core/                              # Paylasilmis altyapi (feature-agnostic)
 │   ├── Network/
-│   │   ├── WebSocketManager.swift     # WebSocket baglanti yonetimi
-│   │   ├── APIClient.swift            # REST API client
-│   │   └── MessageProtocol.swift      # Mesaj encode/decode
+│   │   ├── RFWebSocketService.swift   # WebSocket baglanti yonetimi
+│   │   ├── RFAPIClient.swift          # REST API client
+│   │   └── RFMessageProtocol.swift    # Mesaj encode/decode
 │   │
 │   ├── Voice/
-│   │   ├── SpeechRecognizer.swift     # Deepgram STT entegrasyonu
-│   │   ├── SpeechSynthesizer.swift    # OpenAI TTS playback
-│   │   └── AudioSessionManager.swift  # Ses oturumu yonetimi
+│   │   ├── RFSpeechRecognizer.swift   # Deepgram STT entegrasyonu
+│   │   ├── RFSpeechSynthesizer.swift  # OpenAI TTS playback
+│   │   └── RFAudioSessionManager.swift # Ses oturumu yonetimi
 │   │
 │   ├── Auth/
-│   │   ├── AuthManager.swift          # JWT token yonetimi
-│   │   └── KeychainHelper.swift       # Guvenli token depolama
+│   │   ├── RFAuthManager.swift        # JWT token yonetimi
+│   │   └── RFKeychainHelper.swift     # Guvenli token depolama
 │   │
 │   ├── Storage/
-│   │   ├── S3FileManager.swift        # S3 upload/download
-│   │   └── LocalCacheManager.swift    # Offline cache
+│   │   ├── RFS3FileManager.swift      # S3 upload/download
+│   │   └── RFLocalCacheManager.swift  # Offline cache
 │   │
-│   └── Notifications/
-│       └── PushNotificationManager.swift
+│   ├── Notifications/
+│   │   └── RFPushNotificationManager.swift
+│   │
+│   └── DesignSystem/                  # RF* bilesen kutuphanesi
+│       ├── RFButton.swift
+│       ├── RFCard.swift
+│       ├── RFTextField.swift
+│       ├── RFBanner.swift
+│       ├── RFProgressBar.swift
+│       └── RFTheme.swift
 │
 ├── Features/
 │   ├── Chat/
-│   │   ├── ChatView.swift             # Ana chat ekrani
-│   │   ├── ChatViewModel.swift        # Chat is mantigi
-│   │   ├── MessageBubble.swift        # Mesaj baloncugu
-│   │   ├── VoiceInputButton.swift     # Sesli input butonu
-│   │   ├── QuestionCard.swift         # Interaktif soru karti
-│   │   ├── ScreenshotViewer.swift     # Screenshot goruntuleme
-│   │   ├── StatusCard.swift           # Proje durum karti
-│   │   ├── ProgressIndicator.swift    # Ilerleme gostergesi
-│   │   ├── ActionResultView.swift     # Komut sonucu gorunumu
-│   │   └── ErrorBanner.swift          # Hata bildirimi
+│   │   ├── Data/
+│   │   │   ├── DTO/
+│   │   │   │   └── RFMessageDTO.swift
+│   │   │   ├── Repository/
+│   │   │   │   └── RFChatRepositoryImpl.swift
+│   │   │   └── Mapper/
+│   │   │       └── RFMessageMapper.swift
+│   │   │
+│   │   ├── Domain/
+│   │   │   ├── Model/
+│   │   │   │   ├── RFMessage.swift
+│   │   │   │   └── RFQuestion.swift
+│   │   │   ├── Repository/
+│   │   │   │   └── RFChatRepository.swift      # Protocol
+│   │   │   └── UseCase/
+│   │   │       ├── RFSendMessageUseCase.swift
+│   │   │       └── RFLoadChatHistoryUseCase.swift
+│   │   │
+│   │   └── Presentation/
+│   │       ├── RFChatView.swift                 # Ana chat ekrani
+│   │       ├── RFChatViewModel.swift            # @Observable + @MainActor
+│   │       ├── RFMessageBubble.swift
+│   │       ├── RFVoiceInputButton.swift
+│   │       ├── RFQuestionCard.swift
+│   │       ├── RFScreenshotViewer.swift
+│   │       ├── RFStatusCard.swift
+│   │       ├── RFProgressIndicator.swift
+│   │       ├── RFActionResultView.swift
+│   │       └── RFErrorBanner.swift
 │   │
 │   ├── Projects/
-│   │   ├── ProjectListView.swift      # Proje listesi
-│   │   ├── ProjectDetailView.swift    # Proje detay sayfasi
-│   │   └── ProjectViewModel.swift
+│   │   ├── Data/
+│   │   │   ├── DTO/
+│   │   │   ├── Repository/
+│   │   │   └── Mapper/
+│   │   ├── Domain/
+│   │   │   ├── Model/
+│   │   │   ├── Repository/
+│   │   │   └── UseCase/
+│   │   └── Presentation/
+│   │       ├── RFProjectListView.swift
+│   │       ├── RFProjectDetailView.swift
+│   │       └── RFProjectViewModel.swift
 │   │
 │   ├── Settings/
-│   │   ├── SettingsView.swift         # Ayarlar ekrani
-│   │   ├── VoiceSettingsView.swift    # Ses ayarlari
-│   │   └── NotificationSettingsView.swift
+│   │   ├── Data/
+│   │   ├── Domain/
+│   │   └── Presentation/
+│   │       ├── RFSettingsView.swift
+│   │       ├── RFVoiceSettingsView.swift
+│   │       └── RFNotificationSettingsView.swift
 │   │
 │   └── Onboarding/
-│       ├── OnboardingView.swift       # Ilk kullanim rehberi
-│       └── APIKeySetupView.swift      # API key girisi
-│
-├── Models/
-│   ├── Message.swift                  # Mesaj veri modeli
-│   ├── Project.swift                  # Proje veri modeli
-│   ├── Question.swift                 # Interaktif soru modeli
-│   ├── Attachment.swift               # Ek dosya modeli
-│   └── ServerStatus.swift             # Sunucu durum modeli
+│       ├── Data/
+│       ├── Domain/
+│       └── Presentation/
+│           ├── RFOnboardingView.swift
+│           └── RFAPIKeySetupView.swift
 │
 ├── Utilities/
 │   ├── Constants.swift
@@ -122,12 +168,12 @@ AISupervisor/
 │   │   ├── Color+Theme.swift
 │   │   └── String+Extensions.swift
 │   └── Helpers/
-│       ├── HapticFeedback.swift
-│       └── MarkdownRenderer.swift
+│       ├── RFHapticFeedback.swift
+│       └── RFMarkdownRenderer.swift
 │
 └── Resources/
     ├── Assets.xcassets
-    ├── Localizable.strings (tr, en)
+    ├── Localizable.xcstrings (tr, en)
     └── Info.plist
 ```
 
@@ -141,7 +187,7 @@ Bu uygulamanin ana ekranidir. Tum iletisim buradan yapilir.
 
 ```
 ┌────────────────────────────────────────┐
-│ ◀  AI Supervisor          ⚙️  📊      │  ← Navigation bar
+│ ◀  RafRaf                 ⚙️  📊      │  ← Navigation bar
 ├────────────────────────────────────────┤
 │                                        │
 │  ┌──────────────────────────┐          │
@@ -365,19 +411,18 @@ App Acildi → JWT Token Al → WebSocket Baglan → connection_ack
 ### 5.3 Reconnect Stratejisi
 
 ```swift
-// Exponential backoff ile reconnect
+// Exponential backoff ile reconnect (async/await)
 private var reconnectDelay: TimeInterval = 1.0
 private let maxReconnectDelay: TimeInterval = 30.0
 
-func reconnect() {
-    DispatchQueue.main.asyncAfter(deadline: .now() + reconnectDelay) {
-        self.connect()
-        self.reconnectDelay = min(self.reconnectDelay * 2, self.maxReconnectDelay)
-    }
+func reconnect() async {
+    try? await Task.sleep(for: .seconds(reconnectDelay))
+    await connect()
+    reconnectDelay = min(reconnectDelay * 2, maxReconnectDelay)
 }
 
 func onConnected() {
-    self.reconnectDelay = 1.0  // Reset on successful connection
+    reconnectDelay = 1.0  // Reset on successful connection
 }
 ```
 
@@ -389,14 +434,14 @@ func onConnected() {
 
 | Mesaj Tipi | UI Bilesen | Ozellikler |
 |------------|------------|------------|
-| text | MessageBubble | Markdown render, kod vurgulama |
-| voice | MessageBubble + AudioPlayer | Play/pause butonu, dalga formu |
-| screenshot | ScreenshotViewer | Tam ekran zoom, pinch-to-zoom |
-| question | QuestionCard | Butonlar, geri sayim, haptic feedback |
-| status | StatusCard | Renkli gostergeler, kucuk grafikler |
-| progress | ProgressIndicator | Animasyonlu ilerleme cubugu |
-| action_result | ActionResultView | Basari/hata ikonu, genisletilebilir detay |
-| error | ErrorBanner | Kirmizi banner, retry butonu |
+| text | RFMessageBubble | Markdown render, kod vurgulama |
+| voice | RFMessageBubble + RFAudioPlayer | Play/pause butonu, dalga formu |
+| screenshot | RFScreenshotViewer | Tam ekran zoom, pinch-to-zoom |
+| question | RFQuestionCard | Butonlar, geri sayim, haptic feedback |
+| status | RFStatusCard | Renkli gostergeler, kucuk grafikler |
+| progress | RFProgressIndicator | Animasyonlu ilerleme cubugu |
+| action_result | RFActionResultView | Basari/hata ikonu, genisletilebilir detay |
+| error | RFErrorBanner | Kirmizi banner, retry butonu |
 
 ### 6.2 Markdown Rendering
 
@@ -483,7 +528,7 @@ Backend → APNs (Apple Push Notification Service) → iOS App
 | Success | #34C759 | #30D158 |
 | Warning | #FF9500 | #FFD60A |
 | Error | #FF3B30 | #FF453A |
-| AI Bubble | #E8F0FE | #1E3A5F |
+| RF Bubble (AI) | #E8F0FE | #1E3A5F |
 | User Bubble | #1B2A4A | #5B9BD5 |
 | Text Primary | #000000 | #FFFFFF |
 | Text Secondary | #8E8E93 | #98989D |
@@ -541,6 +586,87 @@ Backend → APNs (Apple Push Notification Service) → iOS App
 
 ---
 
-*Bu dokuman AI Project Supervisor serisinin 4/8 numarali dokumanidir.*
+## 12. Kodlama Standartlari
+
+### 12.1 Genel Kurallar
+
+- **Force unwrap (`!`) YASAK** — `#Preview` ve test kodlari haric hicbir yerde kullanilmaz.
+- **`Any` tipi YASAK** — domain ve presentation katmanlarinda type hint zorunludur.
+- **Immutable modeller** — Domain model'leri `struct` olarak tanimlanir, `class` kullanilmaz.
+- **Async native** — `async/await` tercih edilir, closure-based callback YASAK (eski API adaptasyonu haric).
+- **Structured logging** — `os.Logger` kullanilir.
+
+### 12.2 Observation ve ViewModel
+
+- **`@Observable`** kullanilir (`@ObservableObject` / `@Published` YASAK).
+- Tum ViewModel'ler `@Observable` + `@MainActor` ile isaretlenir.
+
+```swift
+@Observable
+@MainActor
+final class RFChatViewModel {
+    var messages: [RFMessage] = []
+    var isLoading = false
+
+    private let sendMessageUseCase: RFSendMessageUseCase
+
+    func send(_ text: String) async { ... }
+}
+```
+
+### 12.3 Dependency Injection
+
+- **Factory** kutuphanesi kullanilir.
+- Tum bagimliliklar `DependencyContainer` uzerinden cozumlenir.
+
+### 12.4 Localization
+
+- Tum kullaniciya gorunen string'ler `String(localized:)` ile localize edilir.
+- Hardcoded Turkce/Ingilizce metin YASAK.
+
+```swift
+Text(String(localized: "chat.send_button"))
+```
+
+### 12.5 Design System (RF* Bilesenler)
+
+Feature view'larinda raw SwiftUI bilesen kullanimi YASAKTIR. Bunun yerine RF* bilesen kutuphanesi kullanilir:
+
+| RF* Bilesen | Karsiligi |
+| ----------- | --------- |
+| RFButton | Button |
+| RFCard | Ozel card container |
+| RFTextField | TextField |
+| RFBanner | Bildirim/hata banner |
+| RFProgressBar | ProgressView |
+| RFTheme | Renk/tipografi tokenlari |
+
+### 12.6 Preview
+
+- Her ekranin (View) bir `#Preview` blogu olmalidir.
+- Preview'larda mock data veya `.preview` static factory kullanilir.
+
+### 12.7 Test Stratejisi
+
+- **Birim testler:** Swift Testing framework kullanilir (`@Test`, `#expect`).
+- **UI testler:** XCTest (UI testing) kullanilir.
+- Domain layer use case'leri ve ViewModel'ler icin birim test zorunludur.
+
+```swift
+@Test func sendMessage_addsToList() async {
+    let vm = RFChatViewModel(sendMessageUseCase: MockSendMessage())
+    await vm.send("hello")
+    #expect(vm.messages.count == 1)
+}
+```
+
+### 12.8 Linting
+
+- SwiftLint zorunludur.
+- Proje kok dizininde `.swiftlint.yml` konfigurasyonu bulunur.
+
+---
+
+*Bu dokuman RafRaf serisinin 4/8 numarali dokumanidir.*
 *Onceki: 03_AI_Agent_Tool_Layer_Specification.md*
 *Sonraki: 05_Memory_System_Specification.md*

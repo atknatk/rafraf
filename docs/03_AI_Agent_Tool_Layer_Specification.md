@@ -1,4 +1,4 @@
-# AI Project Supervisor — AI Agent & Tool Layer Specification
+# RafRaf — AI Agent & Tool Layer Specification
 
 **Document 3/8** | Version 1.1 | March 2026
 
@@ -553,6 +553,6 @@ System prompt + tool tanimlari + proje config = ~6000 token sabit icerik. Bu her
 
 ---
 
-*Bu dokuman AI Project Supervisor serisinin 3/8 numarali dokumanidir.*
+*Bu dokuman RafRaf serisinin 3/8 numarali dokumanidir.*
 *Onceki: 02_Backend_API_WebSocket_Specification.md*
 *Sonraki: 04_iOS_App_Specification.md*

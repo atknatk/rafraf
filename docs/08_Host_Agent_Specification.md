@@ -1,4 +1,4 @@
-# AI Project Supervisor — Host Agent Specification
+# RafRaf — Host Agent Specification
 
 **Document 8/8** | Version 1.0 | March 2026
 
@@ -72,7 +72,7 @@ Host Agent, fiziksel makinelerde (Mac veya Ubuntu) calisan hafif bir daemon serv
 ### 2.2 Proje Dizin Yapisi
 
 ```
-ai-supervisor-agent/
+rafraf-agent/
 ├── agent/
 │   ├── __init__.py
 │   ├── main.py                    # Entry point, daemon baslat
@@ -113,10 +113,10 @@ ai-supervisor-agent/
 │   └── status.sh                  # Agent durumu
 │
 ├── systemd/
-│   └── ai-supervisor-agent.service  # Ubuntu systemd service
+│   └── rafraf-agent.service  # Ubuntu systemd service
 │
 ├── launchd/
-│   └── com.ai-supervisor.agent.plist  # macOS launchd service
+│   └── com.rafraf.agent.plist  # macOS launchd service
 │
 ├── requirements.txt
 ├── pyproject.toml
@@ -152,12 +152,12 @@ capabilities:
   xcode_build: true                     # Sadece macbook-pro'da true
 
 paths:
-  screenshots_dir: "/tmp/ai-supervisor/screenshots"
-  logs_dir: "/tmp/ai-supervisor/logs"
-  playwright_cache: "/tmp/ai-supervisor/playwright"
+  screenshots_dir: "/tmp/rafraf/screenshots"
+  logs_dir: "/tmp/rafraf/logs"
+  playwright_cache: "/tmp/rafraf/playwright"
 
 s3:
-  bucket: "ai-supervisor-files"
+  bucket: "rafraf-files"
   region: "eu-west-1"
   # AWS credentials: ortam degiskenlerinden veya IAM role'den alinir
 
@@ -561,14 +561,14 @@ class ResourceMonitor:
 #!/bin/bash
 set -e
 
-echo "AI Supervisor Agent - macOS Kurulumu"
+echo "RafRaf Agent - macOS Kurulumu"
 
 # Python 3.11+ kontrolu
 python3 --version || { echo "Python 3.11+ gerekli"; exit 1; }
 
 # Virtual environment
-python3 -m venv ~/.ai-supervisor-agent/venv
-source ~/.ai-supervisor-agent/venv/bin/activate
+python3 -m venv ~/.rafraf-agent/venv
+source ~/.rafraf-agent/venv/bin/activate
 
 # Bagimliliklar
 pip install -r requirements.txt
@@ -585,13 +585,13 @@ fi
 docker --version || echo "UYARI: Docker Desktop kurulu degil"
 
 # Konfigürasyon dosyalari
-mkdir -p ~/.ai-supervisor-agent/config
-cp config/agent.yaml.example ~/.ai-supervisor-agent/config/agent.yaml
-echo "ONEMLI: ~/.ai-supervisor-agent/config/agent.yaml dosyasini duzenleyin"
+mkdir -p ~/.rafraf-agent/config
+cp config/agent.yaml.example ~/.rafraf-agent/config/agent.yaml
+echo "ONEMLI: ~/.rafraf-agent/config/agent.yaml dosyasini duzenleyin"
 
 # LaunchAgent (otomatik baslatma)
-cp launchd/com.ai-supervisor.agent.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.ai-supervisor.agent.plist
+cp launchd/com.rafraf.agent.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.rafraf.agent.plist
 
 echo "Kurulum tamamlandi. Agent otomatik baslatildi."
 ```
@@ -602,15 +602,15 @@ echo "Kurulum tamamlandi. Agent otomatik baslatildi."
 #!/bin/bash
 set -e
 
-echo "AI Supervisor Agent - Ubuntu Kurulumu"
+echo "RafRaf Agent - Ubuntu Kurulumu"
 
 # Python 3.11+
 sudo apt update
 sudo apt install -y python3.11 python3.11-venv python3-pip
 
 # Virtual environment
-python3.11 -m venv /opt/ai-supervisor-agent/venv
-source /opt/ai-supervisor-agent/venv/bin/activate
+python3.11 -m venv /opt/rafraf-agent/venv
+source /opt/rafraf-agent/venv/bin/activate
 
 # Bagimliliklar
 pip install -r requirements.txt
@@ -623,15 +623,15 @@ playwright install-deps chromium
 docker --version || { echo "Docker kurulumu gerekli"; exit 1; }
 
 # Konfigürasyon
-mkdir -p /opt/ai-supervisor-agent/config
-cp config/agent.yaml.example /opt/ai-supervisor-agent/config/agent.yaml
-echo "ONEMLI: /opt/ai-supervisor-agent/config/agent.yaml dosyasini duzenleyin"
+mkdir -p /opt/rafraf-agent/config
+cp config/agent.yaml.example /opt/rafraf-agent/config/agent.yaml
+echo "ONEMLI: /opt/rafraf-agent/config/agent.yaml dosyasini duzenleyin"
 
 # Systemd service
-sudo cp systemd/ai-supervisor-agent.service /etc/systemd/system/
+sudo cp systemd/rafraf-agent.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable ai-supervisor-agent
-sudo systemctl start ai-supervisor-agent
+sudo systemctl enable rafraf-agent
+sudo systemctl start rafraf-agent
 
 echo "Kurulum tamamlandi. Agent systemd servisi olarak baslatildi."
 ```
@@ -644,23 +644,23 @@ echo "Kurulum tamamlandi. Agent systemd servisi olarak baslatildi."
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.ai-supervisor.agent</string>
+    <string>com.rafraf.agent</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/atakan/.ai-supervisor-agent/venv/bin/python</string>
+        <string>/Users/atakan/.rafraf-agent/venv/bin/python</string>
         <string>-m</string>
         <string>agent.main</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/Users/atakan/projects/ai-supervisor-agent</string>
+    <string>/Users/atakan/projects/rafraf-agent</string>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/tmp/ai-supervisor-agent.stdout.log</string>
+    <string>/tmp/rafraf-agent.stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/ai-supervisor-agent.stderr.log</string>
+    <string>/tmp/rafraf-agent.stderr.log</string>
 </dict>
 </plist>
 ```
@@ -669,15 +669,15 @@ echo "Kurulum tamamlandi. Agent systemd servisi olarak baslatildi."
 
 ```ini
 [Unit]
-Description=AI Supervisor Host Agent
+Description=RafRaf Host Agent
 After=network.target docker.service
 Wants=docker.service
 
 [Service]
 Type=simple
 User=atakan
-WorkingDirectory=/opt/ai-supervisor-agent
-ExecStart=/opt/ai-supervisor-agent/venv/bin/python -m agent.main
+WorkingDirectory=/opt/rafraf-agent
+ExecStart=/opt/rafraf-agent/venv/bin/python -m agent.main
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -686,7 +686,7 @@ StandardError=journal
 # Guvenlik
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/tmp/ai-supervisor /home/atakan/projects
+ReadWritePaths=/tmp/rafraf /home/atakan/projects
 
 [Install]
 WantedBy=multi-user.target
@@ -821,5 +821,5 @@ structlog>=24.0
 
 ---
 
-*Bu dokuman AI Project Supervisor serisinin 8/8 numarali ve son dokumanidir.*
+*Bu dokuman RafRaf serisinin 8/8 numarali ve son dokumanidir.*
 *Onceki: 07_Security_Permissions_Cost_Analysis.md*

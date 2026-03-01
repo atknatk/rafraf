@@ -1,4 +1,4 @@
-# AI Project Supervisor — Testing Strategy (Web & Mobile)
+# RafRaf — Testing Strategy (Web & Mobile)
 
 **Document 6/8** | Version 1.0 | March 2026
 
@@ -6,7 +6,7 @@
 
 ## 1. Genel Bakis
 
-Test katmani, AI Supervisor'un "gozleri"dir. Web projelerini Playwright ile, mobil projeleri Maestro ile test eder, screenshot alir ve sonuclari kullaniciya raporlar. Bu dokuman her iki test aracinin detayli konfigurasyonunu, test senaryolarini ve entegrasyon yaklasimini tanimlar.
+Test katmani, RafRaf'in "gozleri"dir. Web projelerini Playwright ile, mobil projeleri Maestro ile test eder, screenshot alir ve sonuclari kullaniciya raporlar. Bu dokuman her iki test aracinin detayli konfigurasyonunu, test senaryolarini ve entegrasyon yaklasimini tanimlar.
 
 ---
 
@@ -657,6 +657,6 @@ Tum test sonuclari standart bir formatta raporlanir:
 
 ---
 
-*Bu dokuman AI Project Supervisor serisinin 6/8 numarali dokumanidir.*
+*Bu dokuman RafRaf serisinin 6/8 numarali dokumanidir.*
 *Onceki: 05_Memory_System_Specification.md*
 *Sonraki: 07_Security_Permissions_Cost_Analysis.md*
