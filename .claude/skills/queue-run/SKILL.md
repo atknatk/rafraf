@@ -107,33 +107,27 @@ Pipeline tipi JSONL dosyasindaki `pipeline` alanindan veya issue label'indan ali
 
 ### Adim 5: Sonuc Degerlendirme
 
-Pipeline sonucuna gore:
+Pipeline-run artik merge'u dahil ediyor (PR olustur -> CI bekle -> merge bekle).
 
-**Basarili**:
-```bash
-# Issue durumunu guncelle
-gh issue edit <ISSUE_NO> --remove-label "status:in-progress" --add-label "status:review" --repo atknatk/rafraf
-```
+**Basarili** (merge tamamlandi):
+- Pipeline-run PR'i olusturdu, CI'i bekledi, merge'u onayladi
+- Issue `status:merged` label'i ile kapandi
+- develop branch'i guncellendi (`git fetch origin develop`)
+- Sonraki adima (Adim 6 — bagimlilik cozme) gec
 
 **Basarisiz**:
-```bash
-# Issue'yu blocked olarak isaretle
-gh issue edit <ISSUE_NO> --remove-label "status:in-progress" --add-label "status:blocked" --repo atknatk/rafraf
+- Pipeline-run `status:blocked` label ekledi
+- Kuyrugu **DURDUR** — basarisizlik durumunda sonraki issue'lara gecme (bagimliliklari etkileyebilir)
 
-# Kuyrugu DURDUR — basarisizlik durumunda sonraki issue'lara gecme
-# (bagimliliklari etkileyebilir)
-```
+### Adim 6: Engelleri Kaldirma (Merge Sonrasi)
 
-### Adim 6: Engelleri Kaldirma (Basarili Pipeline Sonrasi)
+Merge tamamlandiktan sonra, bu issue'ya bagimli olan diger issue'larin
+engellerinin kalkip kalkmedigini kontrol et.
 
-Pipeline basarili olduktan sonra, bu issue'ya bagimli olan diger issue'larin
-engellerinin kalkip kalkmdigini kontrol et:
+**Bagimli issue'lari bul**: JSONL dosyasindan `depends_on` dizisinde `<ISSUE_NO>` iceren satirlari ara.
 
 ```bash
-# JSONL dosyasindan bu issue'ya bagimli issue'lari bul
-# (depends_on dizisinde <ISSUE_NO> iceren satirlari ara)
-
-# Tum bagimliliklari cozulmus issue'lara status:ready ekle
+# Tum bagimliliklari cozulmus issue'lara status:ready ekle, status:blocked kaldir
 for ISSUE in <dependent_issues>; do
   ALL_DEPS_RESOLVED=true
   for DEP in <issue_dependencies>; do
@@ -143,10 +137,18 @@ for ISSUE in <dependent_issues>; do
     fi
   done
   if [ "$ALL_DEPS_RESOLVED" = true ]; then
-    gh issue edit $ISSUE --add-label "status:ready" --repo atknatk/rafraf
+    gh issue edit $ISSUE --remove-label "status:blocked" --add-label "status:ready" --repo atknatk/rafraf
+    echo "Issue #$ISSUE engeli kaldirildi -> status:ready"
   fi
 done
 ```
+
+**Ornek**: F0 issue #6 (Backend scaffold) merge oldu.
+- #7 (FastAPI WS) `depends_on: [6]` → #6 merged ✓ → `status:blocked` -> `status:ready`
+- #8 (JWT auth) `depends_on: [6]` → #6 merged ✓ → `status:blocked` -> `status:ready`
+- #9 (AI Orchestrator) `depends_on: [7]` → #7 henuz merged degil → `status:blocked` kalir
+
+Bu sayede faz gecisleri otomatik olur: F0 task'lari merge oldukca F1 task'lari `status:ready` olur ve kuyruga girer.
 
 ### Adim 7: Sonraki Issue
 

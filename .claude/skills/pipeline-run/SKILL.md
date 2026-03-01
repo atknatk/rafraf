@@ -245,26 +245,77 @@ EOF
 
 **Not**: Pipeline-run kendi PR template'ini kullanir. Pipeline disinda PR olusturmak icin `/create-pr` skill'ini kullanin.
 
-### Adim 9: Issue Durumunu Guncelle
+### Adim 9: Merge Bekle
 
-Status degistirirken once eski status label'ini kaldir:
+PR olusturulduktan sonra CI kontrollerinin gecmesini ve auto-merge'un tamamlanmasini bekle.
+
+`agent:pipeline` label'li PR'lar CI gectikten sonra otomatik squash merge edilir.
 
 ```bash
-gh issue edit <ISSUE_NO> --remove-label "status:in-progress" --add-label "status:review" --repo atknatk/rafraf
+# PR numarasini al
+PR_NUMBER=$(gh pr view --head "$BRANCH_NAME" --json number --jq '.number' --repo atknatk/rafraf)
+
+# Merge durumunu kontrol et (her 30 saniyede, max 15 dakika)
+MAX_WAIT=900
+ELAPSED=0
+
+while [ $ELAPSED -lt $MAX_WAIT ]; do
+  PR_STATE=$(gh pr view $PR_NUMBER --json state --jq '.state' --repo atknatk/rafraf)
+
+  case "$PR_STATE" in
+    MERGED)
+      echo "PR #$PR_NUMBER merged!"
+      break
+      ;;
+    CLOSED)
+      echo "PR #$PR_NUMBER reddedildi/kapatildi"
+      gh issue edit <ISSUE_NO> --remove-label "status:in-progress" --add-label "status:blocked" --repo atknatk/rafraf
+      exit 1
+      ;;
+    *)
+      # CI durumunu kontrol et
+      FAILED_CHECKS=$(gh pr checks $PR_NUMBER --repo atknatk/rafraf 2>/dev/null | grep -c "fail" || true)
+      if [ "$FAILED_CHECKS" -gt 0 ]; then
+        echo "CI basarisiz — PR #$PR_NUMBER"
+        gh issue edit <ISSUE_NO> --remove-label "status:in-progress" --add-label "status:blocked" --repo atknatk/rafraf
+        exit 1
+      fi
+      sleep 30
+      ELAPSED=$((ELAPSED + 30))
+      ;;
+  esac
+done
+
+if [ $ELAPSED -ge $MAX_WAIT ]; then
+  echo "Timeout: PR #$PR_NUMBER 15 dakika icinde merge olmadi"
+  gh issue edit <ISSUE_NO> --remove-label "status:in-progress" --add-label "status:blocked" --repo atknatk/rafraf
+  exit 1
+fi
+
+# develop branch'ini guncelle (sonraki task guncel koddan baslasin)
+git fetch origin develop
 ```
 
-### Adim 10: Worktree Temizle
-
-- **Pipeline basarili**: Worktree, PR merge sonrasi silinir. `git worktree remove "$WORKTREE_DIR"`
-- **Pipeline basarisiz**: Worktree muhafaza edilir. Issue'ya `status:blocked` eklenir. Debug icin worktree korunur.
+### Adim 10: Issue Durumunu Guncelle (Merge Sonrasi)
 
 ```bash
-# Basarili pipeline sonrasi (merge sonrasi)
+# Merge tamamlandi — status:merged label ekle
+gh issue edit <ISSUE_NO> --remove-label "status:in-progress" --remove-label "status:review" --add-label "status:merged" --repo atknatk/rafraf
+
+# Issue'yu kapat
+gh issue close <ISSUE_NO> --repo atknatk/rafraf
+```
+
+### Adim 11: Worktree Temizle
+
+Merge tamamlandiktan sonra worktree'yi temizle:
+
+```bash
+cd "$ORIGINAL_DIR"
 git worktree remove "$WORKTREE_DIR"
-
-# Basarisiz pipeline -> worktree muhafaza et, status:blocked ekle
-gh issue edit <ISSUE_NO> --remove-label "status:in-progress" --add-label "status:blocked" --repo atknatk/rafraf
 ```
+
+Pipeline basarisiz olursa worktree muhafaza edilir (debug icin).
 
 ## Hata Yonetimi
 
