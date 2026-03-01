@@ -95,13 +95,32 @@ Issue label'larindan pipeline tipini al:
 - `pipeline:quick` -> quick
 - Label yoksa -> `standard` (varsayilan)
 
-### Adim 4: Pipeline Calistir
+### Adim 4: Pipeline Calistir (Context-Isolated)
 
-Her issue icin `/pipeline-run` skill'ini calistir:
+**CRITICAL — Memory izolasyonu:** `/pipeline-run`'i skill olarak cagirMA. Bunun yerine
+**Agent subagent** olarak calistir. Boylece tum context (dosya okumalari, build ciktilari,
+git islemleri, subagent orchestration) izole kalir ve bittiginde garbage-collected olur.
+Ana conversation'a sadece kisa ozet doner.
 
 ```
-/pipeline-run <pipeline_tipi> <issue_no>
+Agent(subagent_type="general-purpose", model="opus", mode="bypassPermissions")
+
+Prompt:
+"Load and follow the /pipeline-run skill instructions by reading .claude/skills/pipeline-run/SKILL.md
+
+Run pipeline: /pipeline-run <pipeline_tipi> <issue_no>
+
+Execute ALL steps from the skill file including worktree setup, agent coordination, PR creation, CI wait, and merge.
+At the end, respond with ONLY this summary:
+
+RESULT: SUCCESS or FAILED
+PR: <url or none>
+ISSUE: <issue_no>
+ERROR: <short error description if failed, or none>"
 ```
+
+Parse the subagent's RESULT line to determine success/failure.
+If FAILED, extract ERROR for the issue comment.
 
 Pipeline tipi JSONL dosyasindaki `pipeline` alanindan veya issue label'indan alinir.
 
