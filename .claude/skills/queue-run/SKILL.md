@@ -52,6 +52,16 @@ gh issue list --label "status:ready" --json number,title,labels,milestone --limi
 - `depends_on`: Bagimli issue numaralari dizisi (bos dizi = bagimlilik yok)
 - `status`: Durum (ready, blocked, in-progress, review, merged)
 
+## Pre-flight
+
+Kuyruqa baslamadan once stale worktree'leri temizle:
+
+```bash
+git worktree prune
+rm -rf .claude/worktrees/ 2>/dev/null
+git branch | grep 'worktree-' | xargs -r git branch -D 2>/dev/null
+```
+
 ## Calisma Adimlari
 
 ### Adim 1: Issue Listesini Al
@@ -132,6 +142,12 @@ Pipeline-run artik merge'u dahil ediyor (PR olustur -> CI bekle -> merge bekle).
 - Pipeline-run PR'i olusturdu, CI'i bekledi, merge'u onayladi
 - Issue `status:merged` label'i ile kapandi
 - develop branch'i guncellendi (`git fetch origin develop`)
+- **Stale worktree temizligi**:
+  ```bash
+  git worktree prune
+  rm -rf .claude/worktrees/ 2>/dev/null
+  git branch | grep 'worktree-' | xargs -r git branch -D 2>/dev/null
+  ```
 - Sonraki adima (Adim 6 — bagimlilik cozme) gec
 
 **Basarisiz**:
