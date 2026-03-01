@@ -25,20 +25,45 @@
 ### Branch Naming
 
 ```
-feature/RF-{issue}-short-description
-fix/RF-{issue}-short-description
-chore/RF-{issue}-short-description
+feature/f<faz>/<issue-no>-<slug>
 ```
+
+Ornekler:
+
+```
+feature/f1/7-ws-handler
+feature/f1/42-chat-ekrani-websocket-baglantisi
+feature/f2/15-sesli-komut-entegrasyonu
+```
+
+**Slug olusturma kurallari**:
+
+- Kucuk harf
+- Bosluk -> tire
+- Turkce karakter -> ASCII (c->c, g->g, i->i, o->o, s->s, u->u, C->c, G->g, I->i, O->o, S->s, U->u)
+- Ozel karakter kaldir
+- Max 40 karakter
 
 ### Commit Messages
 
 ```
-feat(scope): short description
+<type>(<scope>): <description> [agent:<agent-name>]
 
 - Detail 1
 - Detail 2
 
-Refs: RF-{issue}
+Refs: #<issue-no>
+```
+
+Ornek:
+
+```
+feat(backend): add websocket auth handler [agent:developer]
+
+- JWT token validation middleware
+- Connection lifecycle management
+
+Refs: #42
 ```
 
 Scopes: `backend`, `ios`, `agent`, `infra`, `docs`, `shared`.

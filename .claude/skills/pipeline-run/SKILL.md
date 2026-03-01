@@ -32,7 +32,7 @@
 ### Adim 1: Issue Metadata Cek
 
 ```bash
-gh issue view <ISSUE_NO> --json title,body,labels,assignees,milestone
+gh issue view <ISSUE_NO> --json title,body,labels,assignees,milestone --repo atknatk/rafraf
 ```
 
 Issue'dan asagidaki bilgileri cikar:
@@ -48,25 +48,36 @@ Pipeline tipi belirtilmemisse issue label'indan al (`pipeline:full`, `pipeline:s
 ### Adim 2: Slug Olustur
 
 Issue title'dan slug olustur:
-- Kucuk harf
-- Bosluk -> tire
-- Turkce karakter -> ASCII (o -> o, u -> u, s -> s, c -> c, g -> g, i -> i)
-- Ozel karakter kaldir
-- Max 40 karakter
+1. Kucuk harfe cevir
+2. Turkce karakterleri ASCII'ye donustur:
+   - `ç` -> `c`, `Ç` -> `c`
+   - `ğ` -> `g`, `Ğ` -> `g`
+   - `ı` -> `i`, `İ` -> `i`
+   - `ö` -> `o`, `Ö` -> `o`
+   - `ş` -> `s`, `Ş` -> `s`
+   - `ü` -> `u`, `Ü` -> `u`
+3. Bosluklari tire (`-`) ile degistir
+4. Alfanumerik olmayan karakterleri kaldir (tire haric)
+5. Ardisik tireleri tek tireye indirge
+6. Bas ve sondaki tireleri kaldir
+7. Maksimum 40 karakter (son tireden kes)
 
-Ornek: "Chat Ekrani WebSocket Baglantisi" -> `chat-ekrani-websocket-baglantisi`
+Ornek: "Chat Ekranı WebSocket Bağlantısı" -> `chat-ekrani-websocket-baglantisi`
 
 ### Adim 3: Faz Numarasini Belirle
 
-Issue label'larindan `phase:f<N>` label'ini bul.
+Issue label'larindan `phase:fX` label'ini bul (ornek: `phase:f1`, `phase:f2`).
 Label yoksa milestone'dan al.
-Ikisi de yoksa `f0` kullan.
+Ikisi de yoksa hata ver ve cik: "FAZ numarasi belirlenemedi. Issue'ya `phase:fX` label'i ekleyin."
 
 ### Adim 4: Worktree Olustur
 
 ```bash
 # develop'u guncelle
 git fetch origin develop
+
+# Worktree dizinini olustur
+mkdir -p .worktrees/
 
 # Worktree olustur
 BRANCH_NAME="feature/f<FAZ>/<ISSUE_NO>-<slug>"
@@ -79,18 +90,26 @@ cd "$WORKTREE_DIR"
 ### Adim 5: Issue Durumunu Guncelle
 
 ```bash
-gh issue edit <ISSUE_NO> --remove-label "status:ready" --add-label "status:in-progress"
+gh issue edit <ISSUE_NO> --remove-label "status:ready" --add-label "status:in-progress" --repo atknatk/rafraf
 ```
 
 ### Adim 6: Pipeline Adimlarini Calistir
 
 Pipeline tipine gore agent'lari sirali olarak calistir.
 
+**Agent calistirma mekanizmasi:**
+- Claude Code `Agent` tool'unu kullan
+- `subagent_type: "general-purpose"`
+- Agent'in `.claude/agents/<name>.md` dosyasini prompt'a dahil et
+- Input olarak issue metadata'sini (title, body, labels, issue number) ver
+- Agent worktree icerisinde calisir
+
 #### 6a. Architect (sadece `full`)
 
 Architect agent'ini calistir. Agent `.claude/agents/architect.md` tanimina gore calisir.
+Claude Code Agent tool ile calistirilir. Pipeline-run skill, Agent tool'u kullanarak `.claude/agents/architect.md` dosyasini okur ve ilgili agent'i baslatir.
 
-**Girdi**: Issue metadata (title, body, labels)
+**Girdi**: Issue metadata (title, body, labels, issue number)
 **Cikti**: Feature spec + API contracts + architect handoff
 
 Dogrulama:
@@ -102,10 +121,11 @@ Basarisizsa: `status:blocked` label ekle, cik.
 #### 6b. Developer (tum pipeline'lar)
 
 Developer agent'ini calistir. Agent `.claude/agents/developer.md` tanimina gore calisir.
+Claude Code Agent tool ile calistirilir. Pipeline-run skill, Agent tool'u kullanarak `.claude/agents/developer.md` dosyasini okur ve ilgili agent'i baslatir.
 
 **Girdi**:
-- full: Architect handoff dosyasi
-- standard/quick: Issue body
+- full: Architect handoff dosyasi + issue metadata (title, body, labels, issue number)
+- standard/quick: Issue body + issue metadata (title, body, labels, issue number)
 
 **Cikti**: Implementasyon kodu + developer handoff
 
@@ -118,8 +138,9 @@ Basarisizsa (3 retry sonrasi): `status:blocked` label ekle, cik.
 #### 6c. Tester (sadece `full` ve `standard`)
 
 Tester agent'ini calistir. Agent `.claude/agents/tester.md` tanimina gore calisir.
+Claude Code Agent tool ile calistirilir. Pipeline-run skill, Agent tool'u kullanarak `.claude/agents/tester.md` dosyasini okur ve ilgili agent'i baslatir.
 
-**Girdi**: Developer handoff dosyasi
+**Girdi**: Developer handoff dosyasi + issue metadata (title, body, labels, issue number)
 **Cikti**: Test kodu + tester handoff + coverage raporu
 
 Dogrulama:
@@ -132,8 +153,9 @@ Basarisizsa: `status:blocked` label ekle, cik.
 #### 6d. Reviewer (sadece `full`)
 
 Reviewer agent'ini calistir. Agent `.claude/agents/reviewer.md` tanimina gore calisir.
+Claude Code Agent tool ile calistirilir. Pipeline-run skill, Agent tool'u kullanarak `.claude/agents/reviewer.md` dosyasini okur ve ilgili agent'i baslatir.
 
-**Girdi**: Tum handoff dosyalari (architect + developer + tester)
+**Girdi**: Tum handoff dosyalari (architect + developer + tester) + issue metadata (title, body, labels, issue number)
 **Cikti**: Review raporu + reviewer handoff
 
 Dogrulama:
@@ -150,22 +172,32 @@ REDDEDILDI durumunda: `status:blocked` label ekle, cik.
 
 ### Adim 7: Final Dogrulama
 
-Tum pipeline adimlari tamamlandiktan sonra son dogrulama yap:
+Tum pipeline adimlari tamamlandiktan sonra son dogrulama yap.
+
+**Katman tespiti**: Hangi katmanlarin dogrulanacagini belirle:
+```bash
+git diff --name-only develop...HEAD
+```
+- `apps/backend/` varsa backend dogrula
+- `apps/ios/` varsa ios dogrula
+- `apps/agent/` varsa agent dogrula
 
 ```bash
 # Backend varsa
 cd apps/backend && ruff check app/ && mypy app/ && python -m pytest --cov=app
 
 # iOS varsa
-cd apps/ios && xcodebuild build -scheme RafRaf && xcodebuild test -scheme RafRaf
+cd apps/ios && xcodebuild build -project apps/ios/RafRaf.xcodeproj -scheme RafRaf && xcodebuild test -project apps/ios/RafRaf.xcodeproj -scheme RafRaf
 
 # Agent varsa
 cd apps/agent && ruff check agent/ && mypy agent/ && python -m pytest --cov=agent
 ```
 
-Basarisizsa: Hata logu ile `status:blocked` label ekle.
+Basarisizsa: Hata logu ile `status:blocked` label ekle (`--repo atknatk/rafraf`).
 
 ### Adim 8: PR Olustur
+
+**Scope belirleme**: Issue label'larindan `layer:*` label'ini oku. Birden fazla layer varsa en kritik olani kullan (oncelik sirasi: backend > ios > agent > infra > docs > shared).
 
 ```bash
 # Branch'i push et
@@ -173,7 +205,7 @@ git push -u origin "$BRANCH_NAME"
 
 # PR olustur
 gh pr create \
-  --title "feat(<scope>): <Feature Adi> #<ISSUE_NO>" \
+  --title "<type>(<scope>): <Feature Adi> #<ISSUE_NO>" \
   --body "$(cat <<'EOF'
 ## Ozet
 <Feature aciklamasi>
@@ -198,29 +230,40 @@ gh pr create \
 - `docs/pipeline/f<FAZ>/<slug>-developer.handoff.md`
 - `docs/pipeline/f<FAZ>/<slug>-tester.handoff.md`
 - `docs/pipeline/f<FAZ>/<slug>-reviewer.handoff.md`
+
+---
+Generated by RafRaf AI Pipeline
 EOF
 )" \
   --base develop \
   --label "agent:pipeline" \
   --label "phase:f<FAZ>" \
   --label "layer:<KATMAN>" \
-  --label "pipeline:<TIP>"
+  --label "pipeline:<TIP>" \
+  --repo atknatk/rafraf
 ```
+
+**Not**: Pipeline-run kendi PR template'ini kullanir. Pipeline disinda PR olusturmak icin `/create-pr` skill'ini kullanin.
 
 ### Adim 9: Issue Durumunu Guncelle
 
+Status degistirirken once eski status label'ini kaldir:
+
 ```bash
-gh issue edit <ISSUE_NO> --remove-label "status:in-progress" --add-label "status:review"
+gh issue edit <ISSUE_NO> --remove-label "status:in-progress" --add-label "status:review" --repo atknatk/rafraf
 ```
 
 ### Adim 10: Worktree Temizle
 
-Pipeline tamamlaninca worktree'yi kaldirmaya GEREK YOK (PR merge sonrasinda temizlenir).
-Ancak basarisizlik durumunda worktree kalabilir:
+- **Pipeline basarili**: Worktree, PR merge sonrasi silinir. `git worktree remove "$WORKTREE_DIR"`
+- **Pipeline basarisiz**: Worktree muhafaza edilir. Issue'ya `status:blocked` eklenir. Debug icin worktree korunur.
 
 ```bash
-# Gerekirse worktree temizleme (manual)
-git worktree remove "$WORKTREE_DIR" --force
+# Basarili pipeline sonrasi (merge sonrasi)
+git worktree remove "$WORKTREE_DIR"
+
+# Basarisiz pipeline -> worktree muhafaza et, status:blocked ekle
+gh issue edit <ISSUE_NO> --remove-label "status:in-progress" --add-label "status:blocked" --repo atknatk/rafraf
 ```
 
 ## Hata Yonetimi

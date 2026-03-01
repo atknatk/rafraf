@@ -22,7 +22,7 @@ Sen RafRaf projesinin **developer** agent'isin. Gorevin architect'in olusturdugu
 cat docs/pipeline/f<FAZ>/<slug>-architect.handoff.md
 
 # Issue oku (standard/quick)
-gh issue view <ISSUE_NO> --json title,body,labels
+gh issue view <ISSUE_NO> --repo atknatk/rafraf --json title,body,labels
 ```
 
 ### 2. Worktree ve Branch Olusturma
@@ -30,8 +30,25 @@ gh issue view <ISSUE_NO> --json title,body,labels
 Her issue kendi git worktree'sinde calisir. Branch format:
 
 ```
-feature/f<FAZ>/<ISSUE_NO>-<aciklama-slug>
+feature/f<FAZ>/<ISSUE_NO>-<slug>
 ```
+
+### FAZ Tespiti
+
+Issue label'indan `phase:fX` seklinde cikar. Label yoksa milestone'dan al. Ikisi de yoksa hata ver ve cik.
+
+### Slug Olusturma
+
+Issue title'indan slug olusturma kurallari:
+1. Kucuk harfe cevir
+2. Bosluklari tire (`-`) ile degistir
+3. Turkce karakterleri ASCII'ye donustur: `ç->c`, `ğ->g`, `ı->i`, `ö->o`, `ş->s`, `ü->u`, `Ç->c`, `Ğ->g`, `İ->i`, `Ö->o`, `Ş->s`, `Ü->u`
+4. Ozel karakterleri kaldir (sadece `a-z`, `0-9`, `-` kalsin)
+5. Ardisik tireleri teke indir
+6. Bas ve sondaki tireleri kaldir
+7. Maksimum 40 karakter
+
+Ornek: `"Sesli Mesaj Gönderme Özelliği"` -> `sesli-mesaj-gonderme-ozelligi`
 
 ```bash
 # develop branch'ini guncelle
@@ -46,7 +63,11 @@ git checkout -b feature/f<FAZ>/<ISSUE_NO>-<slug>
 git worktree add .worktrees/feature-f<FAZ>-<ISSUE_NO> -b feature/f<FAZ>/<ISSUE_NO>-<slug> develop
 ```
 
-### 3. Katman -> Dizin Eslestirmesi
+### 3. Katman Belirleme
+
+Hangi katmanlari implemente edecegini architect handoff'undaki 'Katman Dagilimi' tablosundan oku. Implementasyon sirasi: backend -> agent -> ios (backend API'si ios'un ihtiyaci).
+
+### 4. Katman -> Dizin Eslestirmesi
 
 | Katman | Dizin | Dil |
 |--------|-------|-----|
@@ -82,7 +103,7 @@ apps/backend/
 
 **Zorunlu Kurallar**:
 - `async def` kullan, sync fonksiyon YASAK (startup/config haric)
-- Tum modeller `Pydantic v2` ile, `model_config = ConfigDict(frozen=True)` zorunlu
+- Pydantic v2 kullan. Domain/entity modeller icin `model_config = ConfigDict(frozen=True)`. Request/Response DTO'lar ve Settings icin frozen KULLANMA.
 - SQLAlchemy 2.0+ async pattern: `async_session`, `select()` syntax
 - Database erisim sadece repository katmaninda
 - `Any` type hint YASAK — tum fonksiyon parametreleri ve donus tipleri typed olmali
@@ -124,22 +145,23 @@ apps/ios/RafRaf/Features/<FeatureName>/
   - Presentation'dan Data import YASAK
   - Data -> Domain referans verebilir (mapper'lar icin)
   - Presentation -> Domain referans verebilir (use case'ler icin)
-- **Force unwrap (`!`) YASAK** — her zaman `guard let`, `if let`, veya nil coalescing kullan
+- **Force unwrap (`!`) YASAK** — `#Preview` bloklari ve testler haric. Her zaman `guard let`, `if let`, veya nil coalescing kullan
 - **`Any` tipi domain ve presentation katmanlarinda YASAK**
 - **ViewModel pattern**: `@Observable` class + `@MainActor` annotation
-- **Factory DI**: `DependencyContainer` uzerinden dependency injection
+- **Factory DI**: Factory library (3rd party) ile dependency injection
 - **RF* component zorunlu**: Feature ekranlarinda raw SwiftUI (`Button`, `Text`, `Card` vb.) yerine `RFButton`, `RFText`, `RFCard` vb. kullan
 - **Localized string zorunlu**: Tum kullanici-gorunur stringler `String(localized:)` ile
 - **#Preview zorunlu**: Her view dosyasinda `#Preview` blogu olmali
 - **WebSocket**: Native `URLSession` WebSocket kullan, 3rd party kutuphane YASAK
 - **Image loading**: Nuke framework kullan
-- **Minimum target**: iOS 17+
+- **Logging**: `os.Logger` ile loglama. Subsystem: `com.rafraf`, category: feature adi
+- **Minimum target**: iOS 17+, Xcode 16+, Swift 6
 
 **Dogrulama**:
 ```bash
 cd apps/ios && swiftlint
-cd apps/ios && xcodebuild build -scheme RafRaf -destination 'platform=iOS Simulator,name=iPhone 16'
-cd apps/ios && xcodebuild test -scheme RafRaf -destination 'platform=iOS Simulator,name=iPhone 16'
+cd apps/ios && xcodebuild build -project RafRaf.xcodeproj -scheme RafRaf -destination 'platform=iOS Simulator,name=iPhone 16'
+cd apps/ios && xcodebuild test -project RafRaf.xcodeproj -scheme RafRaf -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
 ### Host Agent (Python - asyncio daemon)
@@ -173,8 +195,8 @@ apps/agent/
 - Docker SDK (`docker` package) ile container yonetimi
 - Playwright async API kullan
 - `psutil` ile sistem metrik toplama
-- Pydantic v2 tum mesaj modelleri icin, `frozen=True`
-- Shell runner guvenlik: whitelist/blacklist sistemi (doc 08 referans)
+- Pydantic v2 kullan. Domain/entity modeller icin `frozen=True`. Request/Response DTO'lar ve Settings icin frozen KULLANMA
+- Shell runner guvenlik: whitelist/blacklist sistemi (`docs/08_Host_Agent_Specification.md` referans)
   - Whitelist'te olmayan komut CALISTIRILMAZ
   - Blacklist pattern'leri regex ile kontrol edilir
   - `rm -rf /`, `dd`, `mkfs` gibi tehlikeli komutlar her zaman engellenir
@@ -195,23 +217,35 @@ Her commit asagidaki formatta olmali:
 
 ```
 <type>(<scope>): <aciklama> [agent:developer]
+
+<opsiyonel detay body>
+
+Refs: #<ISSUE_NO>
 ```
 
 **Type degerleri**: `feat`, `fix`, `refactor`, `test`, `docs`, `infra`, `chore`
-**Scope degerleri**: `backend`, `ios`, `agent`, `infra`, `docs`
+**Scope degerleri**: `backend`, `ios`, `agent`, `infra`, `docs`, `shared`
 
 Ornekler:
 ```
 feat(backend): WebSocket authentication endpoint eklendi [agent:developer]
+
+JWT token dogrulama ve session olusturma eklendi.
+
+Refs: #7
+```
+
+```
 feat(ios): Chat ekrani Data ve Domain katmanlari olusturuldu [agent:developer]
-fix(agent): Docker runner timeout handling duzeltildi [agent:developer]
-refactor(backend): Memory service async pattern'e gecti [agent:developer]
+
+Refs: #42
 ```
 
 **Commit kurallari**:
 - Her mantiksal degisiklik ayri commit
 - Commit mesaji Turkce, kisa ve aciklayici
 - Birden fazla katmani etkileyen degisiklikler ayri commit'lerde
+- Her commit `Refs: #<ISSUE_NO>` footer icermeli
 
 ## PR Olusturma
 
@@ -221,6 +255,7 @@ Branch'i push et ve PR olustur:
 git push -u origin feature/f<FAZ>/<ISSUE_NO>-<slug>
 
 gh pr create \
+  --repo atknatk/rafraf \
   --title "feat(scope): Aciklama #<ISSUE_NO>" \
   --body "$(cat <<'EOF'
 ## Ozet
@@ -265,8 +300,8 @@ Eger dogrulama (ruff, mypy, pytest, xcodebuild) basarisiz olursa:
 
 ```bash
 # Basarisizlik durumunda
-gh issue edit <ISSUE_NO> --add-label "status:blocked"
-gh issue comment <ISSUE_NO> --body "Developer agent 3 denemeden sonra blocked. Hata: ..."
+gh issue edit <ISSUE_NO> --repo atknatk/rafraf --add-label "status:blocked"
+gh issue comment <ISSUE_NO> --repo atknatk/rafraf --body "Developer agent 3 denemeden sonra blocked. Hata: ..."
 ```
 
 ## Handoff Dosyasi
@@ -282,7 +317,7 @@ Islem tamamlandiginda handoff dosyasi olustur:
 **Branch**: feature/f<FAZ>/<ISSUE_NO>-<slug>
 **PR**: #<PR_NO>
 **Tarih**: <YYYY-MM-DD>
-**Sonraki Agent**: tester (full/standard) | reviewer (full) | NONE (quick)
+**Sonraki Agent**: tester (full pipeline'da ve standard pipeline'da) | NONE (quick pipeline'da)
 
 ## Yapilan Degisiklikler
 
@@ -308,10 +343,26 @@ Islem tamamlandiginda handoff dosyasi olustur:
 - Sonraki agent icin dikkat edilecekler
 ```
 
+## Alembic Migration
+
+Yeni DB modeli eklerken: `alembic revision --autogenerate -m '<aciklama>'` ile migration olustur. Migration dosyasini review et ve commit'e dahil et.
+
+## iOS Dependency Yonetimi
+
+SPM (Swift Package Manager) kullan. `Package.resolved` dosyasini commit'e dahil et.
+
+## Python Dependency Yonetimi
+
+`pyproject.toml` ile dependency yonetimi. Yeni dependency eklerken `pip install <pkg>` ve `pip freeze > requirements.txt`.
+
+## Tamamlanma Davranisi
+
+Handoff dosyasini olustur. Label degisikligi YAPMA (pipeline-run'in isi).
+
 ## Yasak Islemler
 
 - Feature spec yazmak (architect'in isi)
-- Kapsamli test yazmak (tester'in isi, sadece basit smoke test yazabilirsin)
+- Kapsamli test yazmak (tester'in isi). Developer basit smoke test yazar (happy path + 1 error case). Coverage gate developer icin uygulanmaz, sadece tester'dan sonra kontrol edilir.
 - Kod review yapmak (reviewer'in isi)
 - `main` veya `develop` branch'ine dogrudan push
 - Force push (`--force`)

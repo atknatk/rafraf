@@ -1,46 +1,46 @@
-{"issue": "OR-1", "title": "Project scaffolding and monorepo setup", "layer": "infra", "status": "done"}
-{"issue": "OR-2", "title": "FastAPI application skeleton with health endpoint", "layer": "backend", "status": "pending"}
-{"issue": "OR-3", "title": "Pydantic settings and environment configuration", "layer": "backend", "status": "pending"}
-{"issue": "OR-4", "title": "PostgreSQL async database layer with SQLAlchemy", "layer": "backend", "status": "pending"}
-{"issue": "OR-5", "title": "Redis connection and caching utilities", "layer": "backend", "status": "pending"}
-{"issue": "OR-6", "title": "JWT authentication and token management", "layer": "backend", "status": "pending"}
-{"issue": "OR-7", "title": "WebSocket endpoint with auth middleware", "layer": "backend", "status": "pending"}
-{"issue": "OR-8", "title": "WebSocket message routing and dispatch", "layer": "backend", "status": "pending"}
-{"issue": "OR-9", "title": "Rate limiter (Redis sliding window)", "layer": "backend", "status": "pending"}
-{"issue": "OR-10", "title": "Claude Agent SDK integration and orchestrator", "layer": "backend", "status": "pending"}
-{"issue": "OR-11", "title": "Tool registry and dispatch system", "layer": "backend", "status": "pending"}
-{"issue": "OR-12", "title": "Human-in-the-loop approval system", "layer": "backend", "status": "pending"}
-{"issue": "OR-13", "title": "Haiku/Sonnet model router", "layer": "backend", "status": "pending"}
-{"issue": "OR-14", "title": "GitHub tool implementation", "layer": "backend", "status": "pending"}
-{"issue": "OR-15", "title": "S3 tool for file uploads and pre-signed URLs", "layer": "backend", "status": "pending"}
-{"issue": "OR-16", "title": "Memory tool with mem0 integration", "layer": "backend", "status": "pending"}
-{"issue": "OR-17", "title": "Cost tracking service and budget alerts", "layer": "backend", "status": "pending"}
-{"issue": "OR-18", "title": "Deepgram STT service integration", "layer": "backend", "status": "pending"}
-{"issue": "OR-19", "title": "OpenAI TTS service integration", "layer": "backend", "status": "pending"}
-{"issue": "OR-20", "title": "APNs push notification service", "layer": "backend", "status": "pending"}
-{"issue": "OR-21", "title": "GitHub webhook receiver with signature verification", "layer": "backend", "status": "pending"}
-{"issue": "OR-22", "title": "Host agent registry and discovery", "layer": "backend", "status": "pending"}
-{"issue": "OR-23", "title": "Agent task dispatcher and load balancing", "layer": "backend", "status": "pending"}
-{"issue": "OR-24", "title": "Agent health monitor and heartbeat tracking", "layer": "backend", "status": "pending"}
-{"issue": "OR-25", "title": "Audit logging and compliance events", "layer": "backend", "status": "pending"}
-{"issue": "OR-26", "title": "Alembic migration setup and initial schema", "layer": "backend", "status": "pending"}
-{"issue": "OR-27", "title": "Host agent WebSocket client with auto-reconnect", "layer": "agent", "status": "pending"}
-{"issue": "OR-28", "title": "Agent authentication and API key exchange", "layer": "agent", "status": "pending"}
-{"issue": "OR-29", "title": "Agent heartbeat sender with system metrics", "layer": "agent", "status": "pending"}
-{"issue": "OR-30", "title": "Command handler and executor dispatch", "layer": "agent", "status": "pending"}
-{"issue": "OR-31", "title": "Docker container executor", "layer": "agent", "status": "pending"}
-{"issue": "OR-32", "title": "Shell command executor with sandboxing", "layer": "agent", "status": "pending"}
-{"issue": "OR-33", "title": "Playwright browser automation executor", "layer": "agent", "status": "pending"}
-{"issue": "OR-34", "title": "Maestro mobile testing executor", "layer": "agent", "status": "pending"}
-{"issue": "OR-35", "title": "S3 artifact uploader", "layer": "agent", "status": "pending"}
-{"issue": "OR-36", "title": "Resource monitor (CPU, memory, disk)", "layer": "agent", "status": "pending"}
-{"issue": "OR-37", "title": "Agent security policies and command allowlist", "layer": "agent", "status": "pending"}
-{"issue": "OR-38", "title": "iOS app project setup (SwiftUI, Clean Architecture)", "layer": "ios", "status": "pending"}
-{"issue": "OR-39", "title": "iOS WebSocket service with reconnection", "layer": "ios", "status": "pending"}
-{"issue": "OR-40", "title": "iOS chat view and message rendering", "layer": "ios", "status": "pending"}
-{"issue": "OR-41", "title": "iOS voice input (STT) integration", "layer": "ios", "status": "pending"}
-{"issue": "OR-42", "title": "iOS approval card and interactive UI", "layer": "ios", "status": "pending"}
-{"issue": "OR-43", "title": "iOS project selector and dashboard", "layer": "ios", "status": "pending"}
-{"issue": "OR-44", "title": "iOS push notification handling", "layer": "ios", "status": "pending"}
-{"issue": "OR-45", "title": "Docker Compose production stack", "layer": "infra", "status": "pending"}
-{"issue": "OR-46", "title": "CI/CD pipeline with GitHub Actions", "layer": "infra", "status": "pending"}
+{"id": "F0-01", "issue": 1, "title": "Repo scaffold + monorepo setup", "phase": "f0", "layer": "infra", "pipeline": "quick", "depends_on": [], "status": "ready"}
+{"id": "F0-02", "issue": 2, "title": "CI/CD GitHub Actions", "phase": "f0", "layer": "infra", "pipeline": "quick", "depends_on": [], "status": "ready"}
+{"id": "F0-03", "issue": 3, "title": ".claude agents + skills + CLAUDE.md setup", "phase": "f0", "layer": "infra", "pipeline": "quick", "depends_on": [], "status": "ready"}
+{"id": "F0-04", "issue": 4, "title": "Dev environment Docker Compose", "phase": "f0", "layer": "infra", "pipeline": "quick", "depends_on": [], "status": "ready"}
+{"id": "F0-05", "issue": 5, "title": "iOS project scaffold", "phase": "f0", "layer": "ios", "pipeline": "quick", "depends_on": [], "status": "ready"}
+{"id": "F0-06", "issue": 6, "title": "Backend project scaffold", "phase": "f0", "layer": "backend", "pipeline": "quick", "depends_on": [], "status": "ready"}
+{"id": "F1-01", "issue": 7, "title": "FastAPI WebSocket server", "phase": "f1", "layer": "backend", "pipeline": "full", "depends_on": [6], "status": "ready"}
+{"id": "F1-02", "issue": 8, "title": "JWT authentication system", "phase": "f1", "layer": "backend", "pipeline": "full", "depends_on": [6], "status": "ready"}
+{"id": "F1-03", "issue": 9, "title": "Claude AI Orchestrator + tool-calling loop", "phase": "f1", "layer": "backend", "pipeline": "full", "depends_on": [7], "status": "blocked"}
+{"id": "F1-04", "issue": 10, "title": "Host Agent registry + health monitoring", "phase": "f1", "layer": "backend", "pipeline": "full", "depends_on": [7], "status": "blocked"}
+{"id": "F1-05", "issue": 11, "title": "Model router", "phase": "f1", "layer": "backend", "pipeline": "standard", "depends_on": [9], "status": "blocked"}
+{"id": "F1-06", "issue": 12, "title": "Approval system", "phase": "f1", "layer": "backend", "pipeline": "full", "depends_on": [7, 9], "status": "blocked"}
+{"id": "F2-01", "issue": 13, "title": "Agent daemon base", "phase": "f2", "layer": "agent", "pipeline": "full", "depends_on": [10], "status": "blocked"}
+{"id": "F2-02", "issue": 14, "title": "Docker runner", "phase": "f2", "layer": "agent", "pipeline": "full", "depends_on": [13], "status": "blocked"}
+{"id": "F2-03", "issue": 15, "title": "Playwright runner", "phase": "f2", "layer": "agent", "pipeline": "full", "depends_on": [13], "status": "blocked"}
+{"id": "F2-04", "issue": 16, "title": "Shell runner", "phase": "f2", "layer": "agent", "pipeline": "full", "depends_on": [13], "status": "blocked"}
+{"id": "F2-05", "issue": 17, "title": "Maestro runner", "phase": "f2", "layer": "agent", "pipeline": "standard", "depends_on": [13], "status": "blocked"}
+{"id": "F2-06", "issue": 18, "title": "S3 upload manager", "phase": "f2", "layer": "agent", "pipeline": "standard", "depends_on": [13], "status": "blocked"}
+{"id": "F2-07", "issue": 19, "title": "Resource monitor", "phase": "f2", "layer": "agent", "pipeline": "standard", "depends_on": [13], "status": "blocked"}
+{"id": "F3-01", "issue": 20, "title": "GitHub manager tool", "phase": "f3", "layer": "backend", "pipeline": "full", "depends_on": [9], "status": "blocked"}
+{"id": "F3-02", "issue": 21, "title": "S3 file manager tool", "phase": "f3", "layer": "backend", "pipeline": "standard", "depends_on": [9], "status": "blocked"}
+{"id": "F3-03", "issue": 22, "title": "Memory manager", "phase": "f3", "layer": "backend", "pipeline": "full", "depends_on": [9], "status": "blocked"}
+{"id": "F3-04", "issue": 23, "title": "Cost tracker", "phase": "f3", "layer": "backend", "pipeline": "standard", "depends_on": [9], "status": "blocked"}
+{"id": "F4-01", "issue": 24, "title": "iOS scaffold + tab nav + design system", "phase": "f4", "layer": "ios", "pipeline": "full", "depends_on": [5], "status": "blocked"}
+{"id": "F4-02", "issue": 25, "title": "WebSocket manager", "phase": "f4", "layer": "ios", "pipeline": "full", "depends_on": [24, 7], "status": "blocked"}
+{"id": "F4-03", "issue": 26, "title": "Auth flow", "phase": "f4", "layer": "ios", "pipeline": "full", "depends_on": [24, 8], "status": "blocked"}
+{"id": "F4-04", "issue": 27, "title": "Chat view + message types", "phase": "f4", "layer": "ios", "pipeline": "full", "depends_on": [25], "status": "blocked"}
+{"id": "F4-05", "issue": 28, "title": "Voice input (Deepgram STT)", "phase": "f4", "layer": "ios", "pipeline": "full", "depends_on": [27], "status": "blocked"}
+{"id": "F4-06", "issue": 29, "title": "Voice output (OpenAI TTS)", "phase": "f4", "layer": "ios", "pipeline": "standard", "depends_on": [27], "status": "blocked"}
+{"id": "F5-01", "issue": 30, "title": "Interactive question cards", "phase": "f5", "layer": "ios", "pipeline": "full", "depends_on": [27, 12], "status": "blocked"}
+{"id": "F5-02", "issue": 31, "title": "Screenshot viewer", "phase": "f5", "layer": "ios", "pipeline": "standard", "depends_on": [27], "status": "blocked"}
+{"id": "F5-03", "issue": 32, "title": "Project status cards", "phase": "f5", "layer": "ios", "pipeline": "full", "depends_on": [27], "status": "blocked"}
+{"id": "F5-04", "issue": 33, "title": "Progress indicators", "phase": "f5", "layer": "ios", "pipeline": "standard", "depends_on": [27], "status": "blocked"}
+{"id": "F5-05", "issue": 34, "title": "File sharing", "phase": "f5", "layer": "ios", "pipeline": "full", "depends_on": [27, 21], "status": "blocked"}
+{"id": "F5-06", "issue": 35, "title": "Settings screen", "phase": "f5", "layer": "ios", "pipeline": "standard", "depends_on": [24], "status": "blocked"}
+{"id": "F5-07", "issue": 36, "title": "Push notifications", "phase": "f5", "layer": "ios", "pipeline": "full", "depends_on": [24], "status": "blocked"}
+{"id": "F6-01", "issue": 37, "title": "Conversation memory", "phase": "f6", "layer": "backend", "pipeline": "full", "depends_on": [22], "status": "blocked"}
+{"id": "F6-02", "issue": 38, "title": "Project memory", "phase": "f6", "layer": "backend", "pipeline": "full", "depends_on": [22], "status": "blocked"}
+{"id": "F6-03", "issue": 39, "title": "Personal memory", "phase": "f6", "layer": "backend", "pipeline": "full", "depends_on": [22], "status": "blocked"}
+{"id": "F6-04", "issue": 40, "title": "Playwright web test scenarios", "phase": "f6", "layer": "backend", "pipeline": "standard", "depends_on": [15], "status": "blocked"}
+{"id": "F6-05", "issue": 41, "title": "Maestro mobile test integration", "phase": "f6", "layer": "backend", "pipeline": "standard", "depends_on": [17], "status": "blocked"}
+{"id": "F7-01", "issue": 42, "title": "Monitoring dashboard", "phase": "f7", "layer": "infra", "pipeline": "standard", "depends_on": [23], "status": "blocked"}
+{"id": "F7-02", "issue": 43, "title": "Cost alerts", "phase": "f7", "layer": "fullstack", "pipeline": "standard", "depends_on": [23, 36], "status": "blocked"}
+{"id": "F7-03", "issue": 44, "title": "Proactive notifications", "phase": "f7", "layer": "fullstack", "pipeline": "full", "depends_on": [36, 20], "status": "blocked"}
+{"id": "F7-04", "issue": 45, "title": "GitHub webhook integration", "phase": "f7", "layer": "backend", "pipeline": "full", "depends_on": [20], "status": "blocked"}
+{"id": "F7-05", "issue": 46, "title": "Disaster recovery", "phase": "f7", "layer": "infra", "pipeline": "standard", "depends_on": [37], "status": "blocked"}

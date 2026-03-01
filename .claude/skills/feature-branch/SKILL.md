@@ -40,10 +40,12 @@ feature/f1/7-auth-jwt-token
 Aciklama metnini slug formatina cevir:
 1. Kucuk harfe cevir
 2. Turkce karakterleri ASCII'ye donustur:
-   - `o` -> `o`, `u` -> `u`, `s` -> `s`
-   - `c` -> `c`, `g` -> `g`, `i` -> `i`
-   - `O` -> `O`, `U` -> `U`, `S` -> `S`
-   - `C` -> `C`, `G` -> `G`, `I` -> `I`
+   - `ç` -> `c`, `Ç` -> `c`
+   - `ğ` -> `g`, `Ğ` -> `g`
+   - `ı` -> `i`, `İ` -> `i`
+   - `ö` -> `o`, `Ö` -> `o`
+   - `ş` -> `s`, `Ş` -> `s`
+   - `ü` -> `u`, `Ü` -> `u`
 3. Bosluklari tire (`-`) ile degistir
 4. Alfanumerik olmayan karakterleri kaldir (tire haric)
 5. Ardisik tireleri tek tireye indirge
@@ -53,8 +55,11 @@ Aciklama metnini slug formatina cevir:
 ### Adim 2: Develop Branch'ini Guncelle
 
 ```bash
+# Uncommitted changes varsa stash yap
+git stash
+
 # Remote'u fetch et
-git fetch origin develop
+git fetch origin
 
 # develop branch'ine gec
 git checkout develop
@@ -65,7 +70,11 @@ git pull origin develop
 
 Eger develop branch'i yoksa:
 ```bash
+# origin/develop varsa ondan olustur
 git checkout -b develop origin/develop
+
+# origin/develop da yoksa origin/main'den olustur
+git checkout -b develop origin/main
 ```
 
 ### Adim 3: Branch Var mi Kontrol Et
@@ -78,15 +87,16 @@ git branch --list "feature/f<FAZ>/<ISSUE_NO>-*"
 git ls-remote --heads origin "feature/f<FAZ>/<ISSUE_NO>-*"
 ```
 
-Eger ayni issue numarasina sahip bir branch zaten varsa:
-- Uyari goster: "Bu issue icin zaten bir branch mevcut: <branch_adi>"
-- Kullanicidan onay iste veya mevcut branch'e gec
+Mevcut branch varsa: uyari goster ve mevcut branch'e gec (`git checkout <branch>`).
 
 ### Adim 4: Branch Olustur
 
 ```bash
 BRANCH_NAME="feature/f<FAZ>/<ISSUE_NO>-<slug>"
 git checkout -b "$BRANCH_NAME"
+
+# Stash varsa geri yukle
+git stash pop 2>/dev/null || true
 ```
 
 ### Adim 5: Dogrulama
@@ -121,9 +131,9 @@ Sonraki adimlar:
 
 | Hata | Aksiyon |
 |------|---------|
-| develop branch'i yok | `origin/develop`'dan olustur |
-| Uncommitted changes var | Uyari goster, stash oner |
-| Branch zaten var | Uyari goster, mevcut branch'e gecmeyi oner |
+| develop branch'i yok | `origin/develop`'dan olustur. O da yoksa `origin/main`'den olustur |
+| Uncommitted changes var | `git stash` yap, branch olustur, `git stash pop` uygula |
+| Branch zaten var | Uyari goster, mevcut branch'e gec (`git checkout <branch>`) |
 | Git repo degil | Hata mesaji, cik |
 | Remote erisim hatasi | `git fetch` hatasini goster |
 
@@ -132,7 +142,7 @@ Sonraki adimlar:
 Issue numarasi verilmisse, issue metadata'sini da kontrol et:
 
 ```bash
-gh issue view <ISSUE_NO> --json title,labels,state
+gh issue view <ISSUE_NO> --json title,labels,state --repo atknatk/rafraf
 ```
 
 - Issue kapali mi? -> Uyari goster

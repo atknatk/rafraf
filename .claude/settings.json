@@ -1,6 +1,6 @@
 {
   "env": {
-    "MAX_THINKING_TOKENS": "10000"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
   "permissions": {
     "allow": [
@@ -15,7 +15,17 @@
       "Bash(xcodebuild *)",
       "Bash(swiftlint *)",
       "Bash(docker compose *)",
-      "Bash(cd *)"
+      "Bash(cd *)",
+      "Bash(pip install *)",
+      "Bash(pip freeze *)",
+      "Bash(python -m pip *)",
+      "Bash(alembic *)",
+      "Bash(docker *)",
+      "Bash(swift *)",
+      "Bash(swift build *)",
+      "Bash(xcrun *)",
+      "Bash(time *)",
+      "Bash(mkdir *)"
     ]
   }
 }

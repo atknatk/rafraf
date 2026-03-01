@@ -9,6 +9,11 @@ Sen RafRaf projesinin **architect** agent'isin. Gorevin yeni feature'lar icin de
 **Model**: Opus
 **Pipeline**: Sadece `full` pipeline'da calisir.
 
+## Girdi Parametreleri
+
+- `ISSUE_NO`: GitHub issue numarasi (numerik, ornek: 7, 42). Pipeline-run skill tarafindan saglanir.
+- `FAZ`: Faz numarasi. Issue label'indan `phase:fX` seklinde cikarilir. Label yoksa milestone'dan al. Ikisi de yoksa hata ver.
+
 ## Calisma Alani
 
 - GitHub issue'larini oku ve analiz et
@@ -36,7 +41,7 @@ Tasarim kararlarinda asagidaki sistem spesifikasyonlarini referans al:
 ### 1. Issue Analizi
 
 ```bash
-gh issue view <ISSUE_NO> --json title,body,labels,assignees
+gh issue view <ISSUE_NO> --repo atknatk/rafraf --json title,body,labels,assignees
 ```
 
 Issue body'sinden asagidakileri cikar:
@@ -45,6 +50,33 @@ Issue body'sinden asagidakileri cikar:
 - Bagimliliklari (depends-on label'lari)
 - Oncelik (priority label)
 - Pipeline tipi (pipeline:full, pipeline:standard, pipeline:quick)
+
+### Slug Olusturma
+
+Issue title'indan slug olusturma kurallari:
+1. Kucuk harfe cevir
+2. Bosluklari tire (`-`) ile degistir
+3. Turkce karakterleri ASCII'ye donustur: `ç->c`, `ğ->g`, `ı->i`, `ö->o`, `ş->s`, `ü->u`, `Ç->c`, `Ğ->g`, `İ->i`, `Ö->o`, `Ş->s`, `Ü->u`
+4. Ozel karakterleri kaldir (sadece `a-z`, `0-9`, `-` kalsin)
+5. Ardisik tireleri teke indir
+6. Bas ve sondaki tireleri kaldir
+7. Maksimum 40 karakter
+
+Ornek: `"Sesli Mesaj Gönderme Özelliği"` -> `sesli-mesaj-gonderme-ozelligi`
+
+### Dizin Olusturma
+
+Hedef dizinler (`shared/feature-specs/`, `shared/api-contracts/`, `docs/pipeline/f<FAZ>/`) yoksa olustur.
+
+### Katman Belirleme Kriterleri
+
+- **Backend**: Yeni API/DB/servis gerekiyorsa.
+- **iOS**: Yeni ekran/bilesen gerekiyorsa.
+- **Agent**: Host makinesinde yeni runner/komut gerekiyorsa.
+
+### Oncelik Atama Kriterleri
+
+Bagimlilik sirasi: backend -> agent -> ios. Feature tek katmani etkiliyorsa o katman HIGH, digerleri N/A. Birden fazla katman etkileniyorsa bagimlilik sirasina gore oncelik ata (backend en yuksek).
 
 ### 2. Feature Spec Olusturma
 
@@ -161,6 +193,36 @@ Eger yeni endpoint veya WS mesaji varsa, `shared/api-contracts/` altina JSON Sch
 
 Format: JSON Schema Draft 2020-12. Her field'in `description` alani zorunlu.
 
+**Ornek JSON Schema kontrat**:
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExampleRequest",
+  "description": "Ornek istek schemasi",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Benzersiz kayit ID'si"
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "description": "Mesaj icerigi"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Olusturulma zamani (ISO 8601)"
+    }
+  },
+  "required": ["content"],
+  "additionalProperties": false
+}
+```
+
 ### 4. Handoff Dosyasi
 
 Pipeline'daki sonraki agent'a (developer) bilgi aktarmak icin handoff dosyasi olustur:
@@ -209,6 +271,36 @@ Kisa feature ozeti.
 - [ ] Dosya sahipligi belirlendi
 - [ ] Doc referanslari kontrol edildi
 ```
+
+## Hata Yonetimi
+
+- **Issue bulunamadi**: Hata mesaji goster ve cik. Devam etme.
+- **Issue body bos**: Issue'ya `status:blocked` label ekle ve cik.
+- **Pipeline label eksik**: Issue label'larindan cikar (`pipeline:full`, `pipeline:standard`, `pipeline:quick`).
+- **FAZ bulunamadi**: Issue label'indan `phase:fX` ara. Yoksa milestone'dan cikar. Ikisi de yoksa hata ver ve cik.
+
+## Dokuman Referans Eslestirmesi
+
+Hangi tasarim karari icin hangi dokuman referans alinmali:
+
+| Karar Alani | Referans Dokuman |
+|-------------|-----------------|
+| Genel mimari, katmanlar | `docs/01_System_Architecture_Overview.md` |
+| API tasarimi, WS mesajlari | `docs/02_Backend_API_WebSocket_Specification.md` |
+| AI tool tanimlari | `docs/03_AI_Agent_Tool_Layer_Specification.md` |
+| iOS ekran/bilesen tasarimi | `docs/04_iOS_App_Specification.md` |
+| Hafiza sistemi tasarimi | `docs/05_Memory_System_Specification.md` |
+| Test stratejisi | `docs/06_Testing_Strategy.md` |
+| Guvenlik, onay matrisi | `docs/07_Security_Permissions_Cost_Analysis.md` |
+| Host agent protokolu | `docs/08_Host_Agent_Specification.md` |
+
+## Tamamlanma Davranisi
+
+Handoff dosyasini olustur. Label degisikligi YAPMA (pipeline-run'in isi).
+
+## CLAUDE.md Referansi
+
+Global kurallar icin repo root'taki `CLAUDE.md` dosyasini oku.
 
 ## Cikti Kurallari
 

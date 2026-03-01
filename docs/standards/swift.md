@@ -4,14 +4,14 @@ Applies to: `apps/ios/`
 
 ## Runtime
 
-- Swift 5.9+ / iOS 17+
+- Swift 6 / iOS 17+ / Xcode 16+ minimum
 - SwiftUI-first, UIKit only when SwiftUI cannot achieve the UX.
 
 ## Architecture
 
 ### Clean Architecture Layers
 
-```
+```text
 Presentation  -->  Domain  -->  Data
 (Views, VMs)      (Use Cases)   (Repositories, Network)
 ```
@@ -27,7 +27,7 @@ Presentation  -->  Domain  -->  Data
 
 ### Dependency Injection
 
-- Factory pattern via a DI container (e.g., `Factory` library).
+- Factory library ile DI. `DependencyContainer` yerine `Factory` kutuphanesi kullan.
 - No singletons except the DI container itself.
 
 ## Naming Conventions
@@ -43,7 +43,7 @@ All project types use the `RF` prefix to avoid collisions:
 | Service    | `RF*Service`         | `RFWebSocketService` |
 | Model      | `RF*Model`           | `RFProjectModel`     |
 | Error      | `RFError`            | `RFError.networkFail`|
-| Component  | `RF*Component`       | `RFApprovalCard`     |
+| UI Element | `RF*`                | `RFButton`, `RFCard` |
 
 ### File Naming
 
@@ -75,7 +75,6 @@ All project types use the `RF` prefix to avoid collisions:
 
 ## Testing
 
-- Framework: XCTest.
-- Coverage target: >= 70%.
+- Framework: Swift Testing (`@Test`, `#expect`). XCTest sadece UI testleri icin. Coverage target: >= 70%.
 - Mock external dependencies with protocols.
-- Snapshot tests for critical UI components.
+- Snapshot tests for critical UI components (swift-snapshot-testing).

@@ -7,7 +7,7 @@
 - **Proje**: RafRaf - AI Project Supervisor
 - **Katmanlar**: Backend (FastAPI) + iOS (SwiftUI) + Host Agent (Python daemon)
 - **Backend**: FastAPI + Python 3.12 + Claude Agent SDK + WebSocket
-- **iOS**: SwiftUI + iOS 17+ + Clean Architecture + Swift 6
+- **iOS**: SwiftUI + iOS 17+ + Clean Architecture + Swift 6 + Xcode 16+
 - **Agent**: Python 3.12 + asyncio daemon + Docker/Playwright/Maestro
 - **Database**: PostgreSQL 16 + pgvector + Redis 7
 - **Memory**: mem0 (3-katmanli hafiza sistemi)
@@ -52,15 +52,15 @@ Runner'lar: Docker, Playwright, Maestro, Shell (guvenlik filtreleri ile).
 ## Temel Kurallar (Tum Agent'lar)
 
 1. **`Any` tipi YASAK** — domain/presentation (iOS), service katmanlari (Python) icin type hint zorunlu
-2. **Force unwrap YASAK** — Swift'te `!` kullanilmaz
-3. **Immutable modeller** — frozen Pydantic (Python), struct (Swift)
+2. **Force unwrap YASAK** — `#Preview` ve test bloklari haric
+3. **Immutable modeller** — frozen Pydantic domain/entity modelleri (Python), struct (Swift)
 4. **Domain layer izolasyonu** (iOS) — data/ veya presentation/'dan import YASAK
 5. **RF* bilesen zorunlu** — iOS feature ekranlarinda sadece RF* componentler
 6. **Tum iOS stringleri localized** — `String(localized:)`
 7. **Her iOS ekranin `#Preview`'u olmali**
 8. **Async native** — Python'da `async def`, Swift'te `async/await`
 9. **Structured logging** — structlog (Python), os.Logger (Swift)
-10. **Guvenlik oncelikli** — onay matrisi (doc 07), shell whitelist/blacklist (doc 08)
+10. **Guvenlik oncelikli** — onay matrisi (`docs/07_Security_Permissions_Cost_Analysis.md`), shell whitelist/blacklist (`docs/08_Host_Agent_Specification.md`)
 
 ## Kodlama Standartlari
 
@@ -76,17 +76,22 @@ Runner'lar: Docker, Playwright, Maestro, Shell (guvenlik filtreleri ile).
 - SwiftLint
 - Clean Architecture: Data/ -> Domain/ -> Presentation/
 - `@Observable` + `@MainActor` ViewModel pattern
-- Factory-based DI (`DependencyContainer`)
+- Factory-based DI (Factory library)
+- Factory library ile dependency injection
 - URLSession WebSocket (native, 3rd party yok)
 - Nuke for async image loading
 - iOS 17+ minimum
+- Xcode 16+ minimum
+- Test framework: Swift Testing (`@Test`, `#expect`), XCTest sadece UI testleri icin
 
 ## Git Workflow
 
-- **Branch**: `feature/f<faz>/<issue-no>-<aciklama>`
+- **Branch**: `feature/f<faz>/<issue-no>-<slug>` (ornek: `feature/f1/7-ws-handler`)
 - **Commit**: `<type>(<scope>): <aciklama> [agent:<agent-adi>]`
+  - Body: detay satirlari
+  - Footer: `Refs: #<issue-no>`
 - **Types**: feat, fix, refactor, test, docs, infra, chore
-- **Scopes**: backend, ios, agent, infra, docs
+- **Scopes**: backend, ios, agent, infra, docs, shared
 - **PR -> develop**: Squash merge
 - **develop -> main**: Merge commit (releases)
 
@@ -138,7 +143,7 @@ docker compose -f infra/docker/docker-compose.dev.yml up -d
 ## Onemli Dosya Konumlari
 
 - `CLAUDE.md` — Bu dosya
-- `docs/01-08` — Sistem spesifikasyon dokumanlari
+- `docs/01-08 (01_System_Architecture_Overview.md ... 08_Host_Agent_Specification.md)` — Sistem spesifikasyon dokumanlari
 - `docs/standards/` — Platform bazli kodlama standartlari
 - `docs/pipeline/` — Agent handoff dosyalari
 - `shared/api-contracts/` — WebSocket + REST API semalari
@@ -146,3 +151,18 @@ docker compose -f infra/docker/docker-compose.dev.yml up -d
 - `scripts/feature-queue.jsonl` — Faz sirali feature kuyrugu
 - `.claude/agents/` — Agent tanimlari (4 agent)
 - `.claude/skills/` — Pipeline skill'leri (5 skill)
+
+## Gerekli Ortam Degiskenleri
+
+- `DATABASE_URL` — PostgreSQL baglanti adresi
+- `REDIS_URL` — Redis baglanti adresi
+- `ANTHROPIC_API_KEY` — Claude API anahtari
+- `DEEPGRAM_API_KEY` — Deepgram STT API anahtari
+- `OPENAI_API_KEY` — OpenAI TTS API anahtari
+- `GITHUB_TOKEN` — GitHub API erisim token'i
+- `AWS_ACCESS_KEY_ID` — AWS erisim anahtari
+- `AWS_SECRET_ACCESS_KEY` — AWS gizli anahtar
+- `AWS_S3_BUCKET` — S3 bucket adi
+- `JWT_SECRET_KEY` — JWT imzalama anahtari
+- `AGENT_API_KEY` — Host Agent kimlik dogrulama anahtari
+- `BACKEND_WS_URL` — Backend WebSocket adresi

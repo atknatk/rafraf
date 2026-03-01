@@ -34,18 +34,19 @@ disallow_any_generics = true
 ```
 
 - No `Any` type in public signatures.
-- Use `pydantic.mypy` plugin for model validation.
+- `pydantic.mypy` plugin zorunlu — `pyproject.toml`'de `plugins = ["pydantic.mypy"]` ekle.
 
 ## Pydantic v2
 
 - All data models inherit from `pydantic.BaseModel`.
 - Use `model_validator` / `field_validator` (not legacy v1 validators).
+- `frozen=True` sadece domain/entity modelleri icin. Request/Response DTO'lari ve Settings siniflari frozen OLMAZ.
 - Config via `pydantic-settings` with `.env` loading.
 
 ## Async Patterns
 
 - Database: `sqlalchemy[asyncio]` + `asyncpg`.
-- HTTP client: `httpx.AsyncClient`.
+- HTTP client: `httpx.AsyncClient` — tum HTTP istekleri icin tercih edilen client.
 - WebSocket: `fastapi.WebSocket` (backend) / `websockets` (agent).
 - Never call blocking I/O from the event loop; use `asyncio.to_thread()` if needed.
 
@@ -53,12 +54,22 @@ disallow_any_generics = true
 
 ```python
 import structlog
-logger = structlog.get_logger()
 
+structlog.configure(
+    processors=[
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.dev.ConsoleRenderer(),  # dev ortaminda
+        # structlog.processors.JSONRenderer(),  # production'da
+    ],
+)
+
+logger = structlog.get_logger()
 logger.info("task_started", task_id=task_id, project=project_name)
 ```
 
-- JSON format in production.
+- JSON format in production (`JSONRenderer`), console format in development (`ConsoleRenderer`).
 - Always bind contextual fields (`request_id`, `session_id`, `user_id`).
 
 ## Docstrings
@@ -78,6 +89,33 @@ Enforced by Ruff (isort):
 ## Testing
 
 - Framework: `pytest` + `pytest-asyncio`.
-- Async tests: `asyncio_mode = "auto"` in pyproject.toml.
+- Async tests: `asyncio_mode = "auto"` in `pyproject.toml`:
+
+```toml
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+```
+
+- Test dizin yapisi:
+
+```text
+tests/
+  unit/            # Birim testleri (network/db/filesystem erisimi YOK)
+  integration/     # Entegrasyon testleri (@pytest.mark.integration)
+  conftest.py      # Paylasilmis fixture'lar
+  fakes/           # Fake implementasyonlari
+  fixtures/        # Statik test verisi (JSON, YAML)
+```
+
 - Coverage: backend >= 80%, agent >= 80%.
 - Mocks: only for external APIs (Claude, GitHub, S3, Deepgram).
+- Integration testlerini `@pytest.mark.integration` ile isaretleyin.
+
+## Ortam Kurulumu
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+```
+
+- Bagimliliklar `pyproject.toml` veya `requirements.txt` ile yonetilir.
+- Her uygulamanin (`apps/backend/`, `apps/agent/`) kendi `pyproject.toml` dosyasi vardir.

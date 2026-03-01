@@ -21,6 +21,8 @@
 
 ## Dogrulama Adimlari
 
+**Zamanlama**: Her kontrol icin `time` komutu ile sure olc. Ornek: `time ruff check app/`
+
 ### Backend Dogrulama (`/verify backend` veya `/verify all`)
 
 Asagidaki adimlari sirali olarak calistir. Her adimda basarisizlik durumunda hatayi raporla ama sonraki adima devam et.
@@ -28,7 +30,7 @@ Asagidaki adimlari sirali olarak calistir. Her adimda basarisizlik durumunda hat
 #### 1. Ruff Lint
 
 ```bash
-cd apps/backend && ruff check app/
+cd apps/backend && time ruff check app/
 ```
 
 Basarisizsa: Hatalari listele, duzeltme onerileri goster.
@@ -41,7 +43,7 @@ cd apps/backend && ruff check app/ --fix
 #### 2. Ruff Format
 
 ```bash
-cd apps/backend && ruff format --check app/
+cd apps/backend && time ruff format --check app/
 ```
 
 Basarisizsa: Formatlanmamis dosyalari listele.
@@ -49,7 +51,7 @@ Basarisizsa: Formatlanmamis dosyalari listele.
 #### 3. MyPy Type Check
 
 ```bash
-cd apps/backend && mypy app/ --strict
+cd apps/backend && time mypy app/ --strict
 ```
 
 Basarisizsa: Type hata listesi goster. Her hata icin dosya:satir:hata formati.
@@ -57,7 +59,7 @@ Basarisizsa: Type hata listesi goster. Her hata icin dosya:satir:hata formati.
 #### 4. Pytest + Coverage
 
 ```bash
-cd apps/backend && python -m pytest tests/ --cov=app --cov-report=term-missing --cov-fail-under=80 -v
+cd apps/backend && time python -m pytest tests/ --cov=app --cov-report=term-missing --cov-fail-under=80 -v
 ```
 
 Basarisizsa: Basarisiz testleri ve coverage raporunu goster.
@@ -69,7 +71,7 @@ Basarisizsa: Basarisiz testleri ve coverage raporunu goster.
 #### 1. SwiftLint
 
 ```bash
-cd apps/ios && swiftlint
+cd apps/ios && time swiftlint
 ```
 
 Basarisizsa: Lint hatalari listele (warning vs error ayir).
@@ -77,7 +79,8 @@ Basarisizsa: Lint hatalari listele (warning vs error ayir).
 #### 2. Xcodebuild Build
 
 ```bash
-cd apps/ios && xcodebuild build \
+cd apps/ios && time xcodebuild build \
+  -project RafRaf.xcodeproj \
   -scheme RafRaf \
   -destination 'platform=iOS Simulator,name=iPhone 16' \
   -quiet
@@ -88,14 +91,24 @@ Basarisizsa: Build hatalari goster.
 #### 3. Xcodebuild Test
 
 ```bash
-cd apps/ios && xcodebuild test \
+cd apps/ios && time xcodebuild test \
+  -project RafRaf.xcodeproj \
   -scheme RafRaf \
   -destination 'platform=iOS Simulator,name=iPhone 16' \
   -enableCodeCoverage YES \
+  -resultBundlePath /tmp/RafRaf-test.xcresult \
   -quiet
 ```
 
 Basarisizsa: Basarisiz testleri listele.
+
+#### 4. iOS Coverage Cikarma
+
+```bash
+# iOS coverage cikarma
+RESULT_BUNDLE=$(find /tmp -name "*.xcresult" -maxdepth 3 | sort -r | head -1)
+xcrun xccov view --report --only-targets "$RESULT_BUNDLE"
+```
 
 **Coverage esigi**: >= 70%
 
@@ -104,25 +117,25 @@ Basarisizsa: Basarisiz testleri listele.
 #### 1. Ruff Lint
 
 ```bash
-cd apps/agent && ruff check agent/
+cd apps/agent && time ruff check agent/
 ```
 
 #### 2. Ruff Format
 
 ```bash
-cd apps/agent && ruff format --check agent/
+cd apps/agent && time ruff format --check agent/
 ```
 
 #### 3. MyPy Type Check
 
 ```bash
-cd apps/agent && mypy agent/ --strict
+cd apps/agent && time mypy agent/ --strict
 ```
 
 #### 4. Pytest + Coverage
 
 ```bash
-cd apps/agent && python -m pytest tests/ --cov=agent --cov-report=term-missing --cov-fail-under=80 -v
+cd apps/agent && time python -m pytest tests/ --cov=agent --cov-report=term-missing --cov-fail-under=80 -v
 ```
 
 **Coverage esigi**: >= 80%
@@ -133,17 +146,23 @@ Tum katmanlarin testlerini calistir (lint/type check olmadan):
 
 ```bash
 # Backend testleri
-cd apps/backend && python -m pytest tests/ --cov=app --cov-report=term-missing -v
+cd apps/backend && time python -m pytest tests/ --cov=app --cov-report=term-missing -v
 
 # iOS testleri
-cd apps/ios && xcodebuild test \
+cd apps/ios && time xcodebuild test \
+  -project RafRaf.xcodeproj \
   -scheme RafRaf \
   -destination 'platform=iOS Simulator,name=iPhone 16' \
   -enableCodeCoverage YES \
+  -resultBundlePath /tmp/RafRaf-test.xcresult \
   -quiet
 
+# iOS coverage
+RESULT_BUNDLE=$(find /tmp -name "*.xcresult" -maxdepth 3 | sort -r | head -1)
+xcrun xccov view --report --only-targets "$RESULT_BUNDLE"
+
 # Agent testleri
-cd apps/agent && python -m pytest tests/ --cov=agent --cov-report=term-missing -v
+cd apps/agent && time python -m pytest tests/ --cov=agent --cov-report=term-missing -v
 ```
 
 ## Cikti Formati
@@ -156,32 +175,32 @@ Dogrulama Sonucu
 
 Backend
 -------
-| Arac           | Durum | Detay                    |
-|----------------|-------|--------------------------|
-| ruff check     | PASS  | 0 hata                   |
-| ruff format    | PASS  | Tum dosyalar formatli    |
-| mypy strict    | PASS  | 0 type error             |
-| pytest         | PASS  | 42 test, 0 fail          |
-| coverage       | PASS  | 85% (esik: 80%)         |
+| Arac           | Durum | Detay                    | Sure    |
+|----------------|-------|--------------------------|---------|
+| ruff check     | PASS  | 0 hata                   | 0.3s    |
+| ruff format    | PASS  | Tum dosyalar formatli    | 0.2s    |
+| mypy strict    | PASS  | 0 type error             | 4.1s    |
+| pytest         | PASS  | 42 test, 0 fail          | 8.5s    |
+| coverage       | PASS  | 85% (esik: 80%)         | -       |
 
 iOS
 ---
-| Arac           | Durum | Detay                    |
-|----------------|-------|--------------------------|
-| swiftlint      | PASS  | 0 error, 2 warning       |
-| xcodebuild     | PASS  | Build basarili           |
-| xcodebuild test| PASS  | 28 test, 0 fail          |
-| coverage       | PASS  | 74% (esik: 70%)         |
+| Arac           | Durum | Detay                    | Sure    |
+|----------------|-------|--------------------------|---------|
+| swiftlint      | PASS  | 0 error, 2 warning       | 1.2s    |
+| xcodebuild     | PASS  | Build basarili           | 45.3s   |
+| xcodebuild test| PASS  | 28 test, 0 fail          | 32.1s   |
+| coverage       | PASS  | 74% (esik: 70%)         | -       |
 
 Agent
 -----
-| Arac           | Durum | Detay                    |
-|----------------|-------|--------------------------|
-| ruff check     | PASS  | 0 hata                   |
-| ruff format    | PASS  | Tum dosyalar formatli    |
-| mypy strict    | PASS  | 0 type error             |
-| pytest         | PASS  | 31 test, 0 fail          |
-| coverage       | PASS  | 82% (esik: 80%)         |
+| Arac           | Durum | Detay                    | Sure    |
+|----------------|-------|--------------------------|---------|
+| ruff check     | PASS  | 0 hata                   | 0.3s    |
+| ruff format    | PASS  | Tum dosyalar formatli    | 0.2s    |
+| mypy strict    | PASS  | 0 type error             | 3.8s    |
+| pytest         | PASS  | 31 test, 0 fail          | 6.2s    |
+| coverage       | PASS  | 82% (esik: 80%)         | -       |
 
 Genel: BASARILI (15/15 kontrol gecti)
 ```
@@ -212,4 +231,4 @@ Basarisiz Kontroller:
 - Coverage raporunda en dusuk coverage'a sahip dosyalari goster
 - SwiftLint warning'lari PASS sayilir, sadece error'lar FAIL
 - Ruff auto-fix uygulanabilirse uygula ve tekrar kontrol et
-- Eger bir katmanin kaynak dizini bossa (henuz kod yazilmadiysa) o katmani SKIP olarak raporla
+- Eger bir katmanin kaynak dizini bossa o katmani SKIP olarak raporla. Kaynak dizini bos = dizin yok VEYA dizinde sadece `__init__.py` / `.gitkeep` var

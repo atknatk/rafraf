@@ -2,11 +2,11 @@
 
 ## Coverage Requirements
 
-| Layer    | Target | Tool             |
-|----------|--------|------------------|
-| Backend  | >= 80% | pytest-cov       |
-| iOS      | >= 70% | Xcode / XCTest   |
-| Agent    | >= 80% | pytest-cov       |
+| Layer   | Target | Tool                             |
+|---------|--------|----------------------------------|
+| Backend | >= 80% | pytest-cov                       |
+| iOS     | >= 70% | Swift Testing + XCTest (UI only) |
+| Agent   | >= 80% | pytest-cov                       |
 
 Coverage is enforced in CI. PRs that drop coverage below the threshold are blocked.
 
@@ -15,14 +15,14 @@ Coverage is enforced in CI. PRs that drop coverage below the threshold are block
 ### Unit Tests
 
 - Test a single function or class in isolation.
-- No network, database, or filesystem access.
-- Fast: the entire unit suite should run in < 30 seconds.
+- No network, database, or filesystem access. Suite should run in < 30 seconds.
 
 ### Integration Tests
 
 - Test interaction between two or more modules (e.g., API + DB).
 - May use Docker containers (PostgreSQL, Redis) via `docker-compose.dev.yml`.
-- Marked with `@pytest.mark.integration` (Python) or a dedicated test plan (Xcode).
+- Python: `@pytest.mark.integration` ile isaretleyin. CI'da ayri step olarak calistirilir.
+- iOS: Dedicated test plan (Xcode).
 
 ### End-to-End Tests
 
@@ -67,23 +67,33 @@ Swift equivalent uses protocol + mock conformance.
 
 ### Python
 
-```
+```text
 tests/
   conftest.py          # shared fixtures
-  test_<module>.py     # mirrors app/<module>.py
+  unit/                # birim testleri (network/db/fs erisimi YOK)
+    test_<module>.py   # mirrors app/<module>.py
+  integration/         # entegrasyon testleri (@pytest.mark.integration)
+    test_<module>.py
   fakes/               # fake implementations
   fixtures/            # static test data (JSON, YAML)
 ```
 
 ### Swift
 
-```
-Tests/
-  <Feature>Tests/
-    <Feature>ViewModelTests.swift
-    <Feature>ServiceTests.swift
+```text
+RafRafTests/
+  Features/
+    <Feature>/
+      Data/
+        <Feature>RepositoryTests.swift
+      Domain/
+        <Feature>UseCaseTests.swift
+      Presentation/
+        <Feature>ViewModelTests.swift
   Mocks/
     Mock<Protocol>.swift
+  Snapshots/
+    <Feature>SnapshotTests.swift   # swift-snapshot-testing
 ```
 
 ## Running Tests
@@ -96,5 +106,11 @@ cd apps/backend && pytest --cov=app --cov-report=term-missing
 cd apps/agent && pytest --cov=agent --cov-report=term-missing
 
 # iOS
-xcodebuild test -project apps/ios/RafRaf.xcodeproj -scheme RafRafTests
+xcodebuild test \
+  -scheme RafRaf \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  -enableCodeCoverage YES
+
+# iOS coverage extraction
+xcrun xccov view --report --only-targets <result-bundle-path>
 ```

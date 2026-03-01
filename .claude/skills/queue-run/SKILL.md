@@ -24,7 +24,7 @@
 `status:ready` label'ina sahip issue'lari sirala:
 
 ```bash
-gh issue list --label "status:ready" --json number,title,labels,milestone --limit 100
+gh issue list --label "status:ready" --json number,title,labels,milestone --limit 100 --repo atknatk/rafraf
 ```
 
 **Siralama onceligi**:
@@ -37,11 +37,20 @@ gh issue list --label "status:ready" --json number,title,labels,milestone --limi
 `scripts/feature-queue.jsonl` dosyasindan oku:
 
 ```jsonl
-{"issue": 1, "phase": "f1", "pipeline": "full", "depends_on": [], "title": "Auth sistemi"}
-{"issue": 2, "phase": "f1", "pipeline": "full", "depends_on": [1], "title": "Chat ekrani"}
-{"issue": 3, "phase": "f1", "pipeline": "standard", "depends_on": [1], "title": "Profil sayfasi"}
-{"issue": 4, "phase": "f2", "pipeline": "full", "depends_on": [2, 3], "title": "Sesli komut"}
+{"id": "F0-01", "issue": 1, "title": "Repo scaffold + monorepo setup", "phase": "f0", "layer": "infra", "pipeline": "quick", "depends_on": [], "status": "ready"}
+{"id": "F1-01", "issue": 7, "title": "FastAPI WebSocket server", "phase": "f1", "layer": "backend", "pipeline": "full", "depends_on": [6], "status": "ready"}
+{"id": "F1-02", "issue": 8, "title": "JWT authentication system", "phase": "f1", "layer": "backend", "pipeline": "full", "depends_on": [6], "status": "ready"}
 ```
+
+**JSONL alan aciklamalari**:
+- `id`: Faz-sira formati (F0-01, F1-02, vb.)
+- `issue`: GitHub issue numarasi (bare number, `#` veya prefix yok)
+- `title`: Feature adi
+- `phase`: Faz kodu (f0, f1, f2, ...)
+- `layer`: Katman (backend, ios, agent, infra, fullstack)
+- `pipeline`: Pipeline tipi (full, standard, quick)
+- `depends_on`: Bagimli issue numaralari dizisi (bos dizi = bagimlilik yok)
+- `status`: Durum (ready, blocked, in-progress, review, merged)
 
 ## Calisma Adimlari
 
@@ -51,7 +60,7 @@ Kaynaga gore issue listesini al ve sirala.
 
 ```bash
 # GitHub Issues
-gh issue list --label "status:ready" --json number,title,labels,milestone --limit 100
+gh issue list --label "status:ready" --json number,title,labels,milestone --limit 100 --repo atknatk/rafraf
 
 # Veya dosyadan
 cat scripts/feature-queue.jsonl
@@ -63,16 +72,16 @@ Her issue icin bagimliliklarin cozulup cozulmedigini kontrol et.
 
 **GitHub Issues icin**:
 - Issue body'sinde `depends-on: #X, #Y` satirini ara
-- Veya `depends-on:X` label'ini kontrol et
 - Bagimliliklarin `status:merged` label'ina sahip olup olmadigini kontrol et
 
 **Queue dosyasi icin**:
-- `depends_on` dizisindeki issue'larin `status:merged` olup olmadigini kontrol et
+- `depends_on` dizisindeki issue numaralarini kontrol et
+- Her bagimli issue'nun `status:merged` label'ina sahip olup olmadigini kontrol et
 
 ```bash
 # Bagimlilik kontrol
 for DEP in <depends_on>; do
-  gh issue view $DEP --json labels | grep "status:merged"
+  gh issue view $DEP --json labels --repo atknatk/rafraf | grep "status:merged"
 done
 ```
 
@@ -88,11 +97,13 @@ Issue label'larindan pipeline tipini al:
 
 ### Adim 4: Pipeline Calistir
 
-`/pipeline-run` skill'ini calistir:
+Her issue icin `/pipeline-run` skill'ini calistir:
 
 ```
 /pipeline-run <pipeline_tipi> <issue_no>
 ```
+
+Pipeline tipi JSONL dosyasindaki `pipeline` alanindan veya issue label'indan alinir.
 
 ### Adim 5: Sonuc Degerlendirme
 
@@ -101,13 +112,13 @@ Pipeline sonucuna gore:
 **Basarili**:
 ```bash
 # Issue durumunu guncelle
-gh issue edit <ISSUE_NO> --remove-label "status:in-progress" --add-label "status:review"
+gh issue edit <ISSUE_NO> --remove-label "status:in-progress" --add-label "status:review" --repo atknatk/rafraf
 ```
 
 **Basarisiz**:
 ```bash
 # Issue'yu blocked olarak isaretle
-gh issue edit <ISSUE_NO> --remove-label "status:in-progress" --add-label "status:blocked"
+gh issue edit <ISSUE_NO> --remove-label "status:in-progress" --add-label "status:blocked" --repo atknatk/rafraf
 
 # Kuyrugu DURDUR — basarisizlik durumunda sonraki issue'lara gecme
 # (bagimliliklari etkileyebilir)
@@ -119,20 +130,20 @@ Pipeline basarili olduktan sonra, bu issue'ya bagimli olan diger issue'larin
 engellerinin kalkip kalkmdigini kontrol et:
 
 ```bash
-# Bu issue'ya bagimli issue'lari bul
-gh issue list --label "depends-on:<ISSUE_NO>" --json number,labels
+# JSONL dosyasindan bu issue'ya bagimli issue'lari bul
+# (depends_on dizisinde <ISSUE_NO> iceren satirlari ara)
 
 # Tum bagimliliklari cozulmus issue'lara status:ready ekle
 for ISSUE in <dependent_issues>; do
   ALL_DEPS_RESOLVED=true
   for DEP in <issue_dependencies>; do
-    if ! gh issue view $DEP --json labels | grep -q "status:merged"; then
+    if ! gh issue view $DEP --json labels --repo atknatk/rafraf | grep -q "status:merged"; then
       ALL_DEPS_RESOLVED=false
       break
     fi
   done
   if [ "$ALL_DEPS_RESOLVED" = true ]; then
-    gh issue edit $ISSUE --add-label "status:ready"
+    gh issue edit $ISSUE --add-label "status:ready" --repo atknatk/rafraf
   fi
 done
 ```

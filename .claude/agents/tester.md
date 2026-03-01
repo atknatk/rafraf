@@ -61,11 +61,39 @@ apps/backend/tests/
 **Coverage esigi**: >= 80%
 
 **Zorunlu kurallar**:
-- Tum async fonksiyonlar `@pytest.mark.asyncio` ile
+- `pyproject.toml`'da `asyncio_mode = "auto"` varsa `@pytest.mark.asyncio` gereksiz. Yoksa tum async fonksiyonlar `@pytest.mark.asyncio` ile.
 - Test isimleri `test_<ne_test_ediliyor>_<senaryo>_<beklenen_sonuc>` formatinda
 - Her test fonksiyonu tek bir seyi test eder (Single Responsibility)
 - Fixture'lar `conftest.py` icerisinde, function scope (izolasyon icin)
 - Factory pattern ile test data olusturma
+- Unit testlerde network, database veya filesystem erisimi YASAK
+- Integration testleri `@pytest.mark.integration` marker ile isaretlenir
+
+**conftest.py temel icerigi**:
+```python
+import pytest
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+
+from app.main import app
+from app.core.config import settings
+
+
+@pytest.fixture
+async def async_client() -> AsyncClient:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+
+@pytest.fixture
+async def db_session() -> AsyncSession:
+    engine = create_async_engine(settings.TEST_DATABASE_URL)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with session_factory() as session:
+        yield session
+        await session.rollback()
+```
 
 **Calistirma**:
 ```bash
@@ -74,21 +102,19 @@ cd apps/backend && python -m pytest tests/ --cov=app --cov-report=term-missing -
 
 ### iOS (Swift Testing + XCTest)
 
-**Araclar**: Swift Testing framework (iOS 17+) + XCTest (UI testleri)
+**Araclar**: Swift Testing framework (`@Test`, `#expect`) birincil test framework'u. XCTest SADECE UI testleri icin kullanilir. Unit ve integration testlerde XCTest KULLANMA.
 
 **Dosya Yapisi**:
 ```
-apps/ios/RafRafTests/
-├── Features/
-│   └── <FeatureName>/
-│       ├── Data/
-│       │   ├── DTOTests.swift
-│       │   ├── RepositoryTests.swift
-│       │   └── MapperTests.swift
-│       ├── Domain/
-│       │   └── UseCaseTests.swift
-│       └── Presentation/
-│           └── ViewModelTests.swift
+apps/ios/RafRafTests/Features/<FeatureName>/
+├── Data/
+│   ├── DTOTests.swift
+│   ├── RepositoryTests.swift
+│   └── MapperTests.swift
+├── Domain/
+│   └── UseCaseTests.swift
+└── Presentation/
+    └── ViewModelTests.swift
 ├── Mocks/
 │   └── Mock<Protocol>.swift
 └── Helpers/
@@ -112,9 +138,16 @@ apps/ios/RafRafUITests/
 **Calistirma**:
 ```bash
 cd apps/ios && xcodebuild test \
+  -project RafRaf.xcodeproj \
   -scheme RafRaf \
   -destination 'platform=iOS Simulator,name=iPhone 16' \
-  -enableCodeCoverage YES
+  -enableCodeCoverage YES \
+  -resultBundlePath TestResults.xcresult
+```
+
+**Coverage raporlama**:
+```bash
+xcrun xccov view --report --only-targets apps/ios/TestResults.xcresult
 ```
 
 ### Host Agent (Python - pytest)
@@ -173,7 +206,7 @@ Factory pattern kullan:
 # Python
 class UserFactory:
     @staticmethod
-    def create(**overrides: Any) -> UserModel:
+    def create(**overrides: str | int | UUID) -> UserModel:
         defaults = {
             "id": uuid4(),
             "name": "Test User",
@@ -195,6 +228,29 @@ enum UserFactory {
     }
 }
 ```
+
+## Docker Compose Test Altyapisi
+
+Integration testler icin: `docker compose -f infra/docker/docker-compose.dev.yml up -d postgres redis`
+
+## Snapshot Test
+
+Kritik UI bilesenler icin `swift-snapshot-testing` ile snapshot test yaz. Snapshot'lar `RafRafTests/__Snapshots__/` dizininde saklanir.
+
+## FAZ Tespiti
+
+Issue label'indan `phase:fX` seklinde cikar. Label yoksa milestone'dan al. Ikisi de yoksa hata ver ve cik.
+
+## Slug Olusturma
+
+Issue title'indan slug olusturma kurallari:
+1. Kucuk harfe cevir
+2. Bosluklari tire (`-`) ile degistir
+3. Turkce karakterleri ASCII'ye donustur: `ç->c`, `ğ->g`, `ı->i`, `ö->o`, `ş->s`, `ü->u`, `Ç->c`, `Ğ->g`, `İ->i`, `Ö->o`, `Ş->s`, `Ü->u`
+4. Ozel karakterleri kaldir (sadece `a-z`, `0-9`, `-` kalsin)
+5. Ardisik tireleri teke indir
+6. Bas ve sondaki tireleri kaldir
+7. Maksimum 40 karakter
 
 ## Commit Formati
 
@@ -276,8 +332,8 @@ Testler basarisiz olursa:
 4. 3 denemeden sonra basarisizsa `status:blocked` label'i ekle
 
 ```bash
-gh issue edit <ISSUE_NO> --add-label "status:blocked"
-gh issue comment <ISSUE_NO> --body "Tester agent: Coverage esigi karsilanamadi. Backend: X%, iOS: Y%, Agent: Z%"
+gh issue edit <ISSUE_NO> --repo atknatk/rafraf --add-label "status:blocked"
+gh issue comment <ISSUE_NO> --repo atknatk/rafraf --body "Tester agent: Coverage esigi karsilanamadi. Backend: X%, iOS: Y%, Agent: Z%"
 ```
 
 ## Yasak Islemler
