@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     # Claude AI Orchestrator
     claude_default_model: str = "claude-sonnet-4-5-20250929"
     claude_simple_model: str = "claude-haiku-4-5-20251001"
+    claude_complex_model: str = "claude-opus-4-5-20250929"
     claude_max_iterations: int = 10
     claude_max_tokens: int = 4096
 
