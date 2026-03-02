@@ -1,33 +1,60 @@
-version: "3.9"
-
 services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: rafraf-postgres
     environment:
-      POSTGRES_USER: rafraf
-      POSTGRES_PASSWORD: rafraf_dev
-      POSTGRES_DB: rafraf
+      POSTGRES_USER: ${POSTGRES_USER:-rafraf}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rafraf_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-rafraf}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rafraf"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rafraf}"]
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
     container_name: rafraf-redis
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  mem0:
+    image: mem0ai/mem0:latest
+    container_name: rafraf-mem0
+    ports:
+      - "${MEM0_PORT:-8070}:8080"
+    environment:
+      MEM0_TELEMETRY: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
 
 volumes:
   pgdata:
+    driver: local
+  redisdata:
+    driver: local
