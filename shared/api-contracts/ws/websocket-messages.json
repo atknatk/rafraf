@@ -1,0 +1,245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WebSocketMessages",
+  "description": "iOS client <-> Backend WebSocket mesaj protokolu",
+  "definitions": {
+    "BaseMessage": {
+      "type": "object",
+      "description": "Tum WebSocket mesajlarinin temel yapisi",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Benzersiz mesaj ID'si (UUID v4)"
+        },
+        "type": {
+          "type": "string",
+          "description": "Mesaj tipi"
+        },
+        "content": {
+          "description": "Mesaj icerigi (string veya object)"
+        },
+        "metadata": {
+          "$ref": "#/definitions/MessageMetadata"
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MessageAttachment"
+          },
+          "description": "Mesaja ekli dosyalar"
+        }
+      },
+      "required": ["id", "type"],
+      "additionalProperties": false
+    },
+    "MessageMetadata": {
+      "type": "object",
+      "description": "Mesaj metadata bilgileri",
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Mesaj zamani (ISO 8601)"
+        },
+        "session_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Oturum ID'si"
+        },
+        "project_id": {
+          "type": "string",
+          "description": "Proje ID'si"
+        },
+        "message_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Mesaj ID'si (referans icin)"
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["client_to_server", "server_to_client"],
+          "description": "Mesaj yonu"
+        }
+      },
+      "required": ["timestamp", "direction"],
+      "additionalProperties": false
+    },
+    "MessageAttachment": {
+      "type": "object",
+      "description": "Mesaj ek dosyasi",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["image", "file", "audio"],
+          "description": "Ek tipi"
+        },
+        "url": {
+          "type": "string",
+          "description": "Dosya URL'i (S3)"
+        },
+        "mime_type": {
+          "type": "string",
+          "description": "MIME tipi"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Dosya boyutu (byte)"
+        }
+      },
+      "required": ["type", "url", "mime_type", "size_bytes"],
+      "additionalProperties": false
+    }
+  },
+  "messages": [
+    {
+      "direction": "server_to_client",
+      "type": "connection_ack",
+      "description": "Baglanti onay mesaji",
+      "content": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "Baglanan kullanici ID'si"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Olusturulan oturum ID'si"
+          },
+          "server_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Sunucu zamani (ISO 8601)"
+          }
+        },
+        "required": ["user_id", "session_id", "server_time"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "client_to_server",
+      "type": "text",
+      "description": "Metin mesaji gonderme",
+      "content": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096,
+        "description": "Mesaj icerigi"
+      }
+    },
+    {
+      "direction": "server_to_client",
+      "type": "text",
+      "description": "AI metin cevabi",
+      "content": {
+        "type": "string",
+        "description": "AI tarafindan uretilen cevap"
+      }
+    },
+    {
+      "direction": "server_to_client",
+      "type": "error",
+      "description": "Hata mesaji",
+      "content": {
+        "type": "object",
+        "properties": {
+          "error_code": {
+            "type": "string",
+            "description": "Hata kodu"
+          },
+          "message": {
+            "type": "string",
+            "description": "Kullaniciya gosterilecek hata mesaji"
+          },
+          "details": {
+            "type": "string",
+            "description": "Detayli hata bilgisi"
+          },
+          "suggestion": {
+            "type": "string",
+            "description": "Cozum onerisi"
+          },
+          "recoverable": {
+            "type": "boolean",
+            "description": "Hatadan kurtulma mumkun mu"
+          }
+        },
+        "required": ["error_code", "message", "recoverable"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "server_to_client",
+      "type": "progress",
+      "description": "Ilerleme bildirimi",
+      "content": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "Gorev aciklamasi"
+          },
+          "step": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Mevcut adim numarasi"
+          },
+          "total_steps": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Toplam adim sayisi"
+          },
+          "percentage": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Tamamlanma yuzdesi"
+          },
+          "details": {
+            "type": "string",
+            "description": "Ek detay bilgisi"
+          }
+        },
+        "required": ["task", "step", "total_steps", "percentage"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "bidirectional",
+      "type": "ping",
+      "description": "Heartbeat ping mesaji",
+      "content": {
+        "type": "object",
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Ping zamani"
+          }
+        },
+        "required": ["timestamp"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "bidirectional",
+      "type": "pong",
+      "description": "Heartbeat pong cevabi",
+      "content": {
+        "type": "object",
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Pong zamani"
+          }
+        },
+        "required": ["timestamp"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

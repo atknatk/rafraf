@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     aws_secret_access_key: str = ""
     aws_s3_bucket: str = ""
 
+    # WebSocket
+    ws_heartbeat_interval: int = 30
+    ws_heartbeat_timeout: int = 10
+
     # Agent
     agent_api_key: str = ""
 
