@@ -144,7 +144,7 @@ class ApprovalService:
             # Process the decision
             return await self._process_decision(approval_id, decision)
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # Timeout - mark as expired
             return await self._expire_approval(approval_id)
 
@@ -204,9 +204,7 @@ class ApprovalService:
 
         now = datetime.now(tz=UTC)
         new_status = (
-            ApprovalStatus.APPROVED
-            if decision.decision == "approved"
-            else ApprovalStatus.REJECTED
+            ApprovalStatus.APPROVED if decision.decision == "approved" else ApprovalStatus.REJECTED
         )
 
         updated = ApprovalRequestRecord(
