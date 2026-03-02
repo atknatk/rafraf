@@ -57,6 +57,9 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Disable anyio pytest plugin to avoid conflicts with pytest-asyncio
+# anyio is installed as a dependency of the anthropic SDK
+addopts = "-p no:anyio"
 
 [tool.setuptools.packages.find]
 include = ["app*"]
