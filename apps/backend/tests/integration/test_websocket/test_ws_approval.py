@@ -84,9 +84,7 @@ class TestWebSocketApprovalResponse:
             assert response["type"] == "error"
             assert response["content"]["error_code"] == "INVALID_APPROVAL_RESPONSE"
 
-    def test_approval_response_missing_decision(
-        self, client: TestClient, valid_token: str
-    ) -> None:
+    def test_approval_response_missing_decision(self, client: TestClient, valid_token: str) -> None:
         """Sending approval_response without decision returns error."""
         with client.websocket_connect(f"/ws?token={valid_token}") as ws:
             ws.receive_json()  # connection_ack
@@ -144,9 +142,7 @@ class TestWebSocketApprovalResponse:
             assert response["type"] == "error"
             assert response["content"]["error_code"] == "APPROVAL_NOT_FOUND"
 
-    def test_approval_response_accepted_values(
-        self, client: TestClient, valid_token: str
-    ) -> None:
+    def test_approval_response_accepted_values(self, client: TestClient, valid_token: str) -> None:
         """Test that both 'approved' and 'rejected' are valid decisions."""
         with client.websocket_connect(f"/ws?token={valid_token}") as ws:
             ws.receive_json()  # connection_ack

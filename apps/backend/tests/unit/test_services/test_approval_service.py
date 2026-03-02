@@ -63,19 +63,13 @@ class TestGetApprovalCategory:
         assert approval_service.get_approval_category("docker_push") == ApprovalCategory.DEPLOY
 
     def test_infrastructure_category(self, approval_service: ApprovalService) -> None:
-        assert (
-            approval_service.get_approval_category("kubectl") == ApprovalCategory.INFRASTRUCTURE
-        )
+        assert approval_service.get_approval_category("kubectl") == ApprovalCategory.INFRASTRUCTURE
 
     def test_write_remote_category(self, approval_service: ApprovalService) -> None:
-        assert (
-            approval_service.get_approval_category("git_push") == ApprovalCategory.WRITE_REMOTE
-        )
+        assert approval_service.get_approval_category("git_push") == ApprovalCategory.WRITE_REMOTE
 
     def test_destructive_category(self, approval_service: ApprovalService) -> None:
-        assert (
-            approval_service.get_approval_category("shell_rm") == ApprovalCategory.DESTRUCTIVE
-        )
+        assert approval_service.get_approval_category("shell_rm") == ApprovalCategory.DESTRUCTIVE
 
     def test_none_for_unknown_tool(self, approval_service: ApprovalService) -> None:
         assert approval_service.get_approval_category("unknown") is None
@@ -207,9 +201,7 @@ class TestSubmitDecision:
         assert result.approved is False  # type: ignore[union-attr]
         assert result.decision == "rejected"  # type: ignore[union-attr]
 
-    async def test_submit_decision_no_waiter(
-        self, approval_service: ApprovalService
-    ) -> None:
+    async def test_submit_decision_no_waiter(self, approval_service: ApprovalService) -> None:
         decision = ApprovalDecision(
             approval_id="nonexistent-id",
             decision="approved",
@@ -268,9 +260,7 @@ class TestGetSessionPending:
         assert pending is not None
         assert pending.id == record.id
 
-    def test_returns_none_for_unknown_session(
-        self, approval_service: ApprovalService
-    ) -> None:
+    def test_returns_none_for_unknown_session(self, approval_service: ApprovalService) -> None:
         pending = approval_service.get_session_pending("unknown-session")
         assert pending is None
 
@@ -287,9 +277,7 @@ class TestApprovalHistory:
 
         async def wait_and_decide() -> None:
             await asyncio.sleep(0.05)
-            decision = ApprovalDecision(
-                approval_id=record.id, decision="approved"
-            )
+            decision = ApprovalDecision(approval_id=record.id, decision="approved")
             await approval_service.submit_decision(decision)
 
         task = asyncio.create_task(wait_and_decide())

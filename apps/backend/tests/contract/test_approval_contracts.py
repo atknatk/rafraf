@@ -101,9 +101,7 @@ class TestQuestionMessageMatchesContract:
         assert "timeout_seconds" in required
         assert "category" in required
 
-    def test_contract_question_direction(
-        self, approval_contract: dict[str, object]
-    ) -> None:
+    def test_contract_question_direction(self, approval_contract: dict[str, object]) -> None:
         """Question messages are server_to_client."""
         question_msg = _find_message(approval_contract, "question")
         assert question_msg is not None
@@ -165,9 +163,7 @@ class TestApprovalResponseMatchesContract:
 class TestApprovalCategoryMatchesContract:
     """Verify approval categories match the contract enum values."""
 
-    def test_contract_category_values(
-        self, approval_contract: dict[str, object]
-    ) -> None:
+    def test_contract_category_values(self, approval_contract: dict[str, object]) -> None:
         """Contract category enum should match ApprovalCategory values."""
         question_msg = _find_message(approval_contract, "question")
         assert question_msg is not None
