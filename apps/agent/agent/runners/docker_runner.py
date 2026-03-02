@@ -16,14 +16,16 @@ from agent.runners.base import BaseRunner
 logger = structlog.get_logger()
 
 # Desteklenen aksiyonlar
-_SUPPORTED_ACTIONS: frozenset[str] = frozenset({
-    "compose_up",
-    "compose_down",
-    "compose_restart",
-    "compose_logs",
-    "health_check",
-    "container_status",
-})
+_SUPPORTED_ACTIONS: frozenset[str] = frozenset(
+    {
+        "compose_up",
+        "compose_down",
+        "compose_restart",
+        "compose_logs",
+        "health_check",
+        "container_status",
+    }
+)
 
 # Varsayilan degerler
 _DEFAULT_TIMEOUT: int = 120
@@ -454,9 +456,7 @@ class DockerRunner(BaseRunner):
                 "error": containers_info[0].get("error", "Bilinmeyen hata"),
             }
 
-        running_count = sum(
-            1 for c in containers_info if c.get("status") == "running"
-        )
+        running_count = sum(1 for c in containers_info if c.get("status") == "running")
         total_count = len(containers_info)
 
         return {

@@ -96,7 +96,8 @@ class TestDockerRunnerInit:
         assert docker_runner.tool_name == "docker"
 
     def test_default_allowed_compose_files(
-        self, projects_dict: dict[str, ProjectEntry],
+        self,
+        projects_dict: dict[str, ProjectEntry],
     ) -> None:
         """Varsayilan izin verilen compose dosyalari dogru ayarlanir."""
         runner = DockerRunner(projects=projects_dict)
@@ -105,7 +106,8 @@ class TestDockerRunnerInit:
         assert "compose.yml" in runner._allowed_compose_files
 
     def test_custom_allowed_compose_files(
-        self, projects_dict: dict[str, ProjectEntry],
+        self,
+        projects_dict: dict[str, ProjectEntry],
     ) -> None:
         """Ozel izin verilen compose dosyalari ayarlanabilir."""
         runner = DockerRunner(
@@ -122,7 +124,9 @@ class TestResolveProject:
     """DockerRunner._resolve_project testleri."""
 
     def test_resolve_existing_project(
-        self, docker_runner: DockerRunner, tmp_project_dir: Path,
+        self,
+        docker_runner: DockerRunner,
+        tmp_project_dir: Path,
     ) -> None:
         """Mevcut proje basariyla resolve edilir."""
         path, compose = docker_runner._resolve_project("test-project")
@@ -130,14 +134,16 @@ class TestResolveProject:
         assert compose == "docker-compose.yml"
 
     def test_resolve_unknown_project_raises_error(
-        self, docker_runner: DockerRunner,
+        self,
+        docker_runner: DockerRunner,
     ) -> None:
         """Bilinmeyen proje slug'i hata firlatir."""
         with pytest.raises(DockerRunnerError, match="Proje bulunamadi"):
             docker_runner._resolve_project("nonexistent")
 
     def test_resolve_disallowed_compose_file_raises_error(
-        self, tmp_project_dir: Path,
+        self,
+        tmp_project_dir: Path,
     ) -> None:
         """Izin verilmeyen compose dosyasi hata firlatir."""
         entry = ProjectEntry(
@@ -169,14 +175,16 @@ class TestDockerRunnerExecute:
     """DockerRunner.execute() metod testleri."""
 
     async def test_unknown_action_raises_error(
-        self, docker_runner: DockerRunner,
+        self,
+        docker_runner: DockerRunner,
     ) -> None:
         """Bilinmeyen aksiyon ValueError firlatir."""
         with pytest.raises(ValueError, match="Bilinmeyen Docker aksiyonu"):
             await docker_runner.execute("invalid_action", {"project_slug": "test-project"})
 
     async def test_missing_project_slug_returns_error(
-        self, docker_runner: DockerRunner,
+        self,
+        docker_runner: DockerRunner,
     ) -> None:
         """project_slug olmadan hata dondurur."""
         result = await docker_runner.execute("compose_up", {})
@@ -184,14 +192,16 @@ class TestDockerRunnerExecute:
         assert "project_slug" in str(result.get("error", ""))
 
     async def test_empty_project_slug_returns_error(
-        self, docker_runner: DockerRunner,
+        self,
+        docker_runner: DockerRunner,
     ) -> None:
         """Bos project_slug ile hata dondurur."""
         result = await docker_runner.execute("compose_up", {"project_slug": ""})
         assert result["success"] is False
 
     async def test_nonexistent_project_returns_error(
-        self, docker_runner: DockerRunner,
+        self,
+        docker_runner: DockerRunner,
     ) -> None:
         """Bulunamayan proje icin DockerRunnerError yakalanir."""
         result = await docker_runner.execute(
