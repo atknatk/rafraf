@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MemoryEndpoints",
+  "description": "Memory manager REST API endpoints for admin/debug operations",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/v1/memory/project/{project_id}",
+      "description": "Proje hafizasini listele (opsiyonel category ve key filtresi)",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "project_id": { "type": "string", "format": "uuid", "description": "Proje ID" }
+        },
+        "required": ["project_id"]
+      },
+      "queryParams": {
+        "type": "object",
+        "properties": {
+          "category": { "type": "string", "maxLength": 50, "description": "Kategori filtresi (tech_stack, known_issues, deployment, vb.)" },
+          "key": { "type": "string", "maxLength": 100, "description": "Anahtar filtresi" }
+        },
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "format": "uuid", "description": "Hafiza kayit ID" },
+                "project_id": { "type": "string", "format": "uuid", "description": "Proje ID" },
+                "category": { "type": "string", "description": "Hafiza kategorisi" },
+                "key": { "type": "string", "description": "Hafiza anahtari" },
+                "value": { "type": "object", "description": "Hafiza degeri (JSONB)" },
+                "confidence": { "type": "number", "minimum": 0, "maximum": 1, "description": "Guvenilirlik skoru" },
+                "source": { "type": "string", "description": "Kaynak (user_stated, ai_inferred, tool_result)" },
+                "last_verified_at": { "type": "string", "format": "date-time", "nullable": true, "description": "Son dogrulama zamani" },
+                "created_at": { "type": "string", "format": "date-time", "description": "Olusturulma zamani" },
+                "updated_at": { "type": "string", "format": "date-time", "description": "Son guncelleme zamani" }
+              }
+            }
+          },
+          "total": { "type": "integer", "description": "Toplam kayit sayisi" }
+        },
+        "required": ["items", "total"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/memory/project/{project_id}",
+      "description": "Proje hafizasi ekle veya guncelle (UPSERT: project_id + category + key unique)",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "project_id": { "type": "string", "format": "uuid", "description": "Proje ID" }
+        },
+        "required": ["project_id"]
+      },
+      "requestBody": {
+        "type": "object",
+        "properties": {
+          "category": { "type": "string", "maxLength": 50, "description": "Hafiza kategorisi (tech_stack, known_issues, deployment, vb.)" },
+          "key": { "type": "string", "maxLength": 100, "description": "Hafiza anahtari" },
+          "value": { "type": "object", "description": "Hafiza degeri (JSONB)" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1, "default": 1.0, "description": "Guvenilirlik skoru" },
+          "source": { "type": "string", "default": "user_stated", "description": "Kaynak (user_stated, ai_inferred, tool_result)" }
+        },
+        "required": ["category", "key", "value"],
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "description": "Hafiza kayit ID" },
+          "project_id": { "type": "string", "format": "uuid", "description": "Proje ID" },
+          "category": { "type": "string", "description": "Hafiza kategorisi" },
+          "key": { "type": "string", "description": "Hafiza anahtari" },
+          "value": { "type": "object", "description": "Hafiza degeri" },
+          "confidence": { "type": "number", "description": "Guvenilirlik skoru" },
+          "source": { "type": "string", "description": "Kaynak" },
+          "last_verified_at": { "type": "string", "format": "date-time", "nullable": true, "description": "Son dogrulama zamani" },
+          "created_at": { "type": "string", "format": "date-time", "description": "Olusturulma zamani" },
+          "updated_at": { "type": "string", "format": "date-time", "description": "Son guncelleme zamani" }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/memory/project/{project_id}/{memory_id}",
+      "description": "Proje hafizasi sil",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "project_id": { "type": "string", "format": "uuid", "description": "Proje ID" },
+          "memory_id": { "type": "string", "format": "uuid", "description": "Hafiza kayit ID" }
+        },
+        "required": ["project_id", "memory_id"]
+      },
+      "responseBody": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/memory/personal/{user_id}",
+      "description": "Kisisel hafiza ara (mem0 semantic search)",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string", "description": "Kullanici ID" }
+        },
+        "required": ["user_id"]
+      },
+      "queryParams": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "description": "Arama sorgusu (semantic search)" },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 50, "default": 10, "description": "Maksimum sonuc sayisi" }
+        },
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "description": "Hafiza ID (mem0)" },
+                "memory": { "type": "string", "description": "Hafiza icerigi" },
+                "score": { "type": "number", "nullable": true, "description": "Benzerlik skoru" },
+                "metadata": { "type": "object", "nullable": true, "description": "Ek metadata" }
+              }
+            }
+          },
+          "total": { "type": "integer", "description": "Donen kayit sayisi" }
+        },
+        "required": ["items", "total"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/memory/personal/{user_id}/{memory_id}",
+      "description": "Kisisel hafiza sil",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string", "description": "Kullanici ID" },
+          "memory_id": { "type": "string", "description": "Hafiza ID (mem0)" }
+        },
+        "required": ["user_id", "memory_id"]
+      },
+      "responseBody": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/memory/context/{user_id}",
+      "description": "Mesaj icin tam memory context olustur (personal + project + conversation)",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string", "description": "Kullanici ID" }
+        },
+        "required": ["user_id"]
+      },
+      "queryParams": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string", "minLength": 1, "description": "Kullanici mesaji (context olusturmak icin)" },
+          "project_id": { "type": "string", "format": "uuid", "description": "Opsiyonel proje ID" }
+        },
+        "required": ["message"],
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "personal_memories": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Ilgili kisisel hafizalar"
+          },
+          "project_summary": {
+            "type": "object",
+            "description": "Proje hafiza ozeti"
+          },
+          "conversation_summary": {
+            "type": "string",
+            "nullable": true,
+            "description": "Onceki oturum ozeti"
+          },
+          "token_count": {
+            "type": "integer",
+            "description": "Toplam context token sayisi"
+          }
+        },
+        "required": ["personal_memories", "project_summary", "token_count"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
