@@ -66,8 +66,7 @@ _S3_TOOL_SCHEMA: dict[str, object] = {
         "expiration": {
             "type": "integer",
             "description": (
-                "Pre-signed URL gecerlilik suresi saniye cinsinden "
-                "(varsayilan: 3600 = 1 saat)"
+                "Pre-signed URL gecerlilik suresi saniye cinsinden (varsayilan: 3600 = 1 saat)"
             ),
             "default": 3600,
         },
@@ -145,9 +144,7 @@ class S3Tool(BaseTool):
             )
             return f'{{"error": "Beklenmeyen hata: {exc}"}}'
 
-    async def _dispatch(
-        self, action: str, project_id: str, params: dict[str, object]
-    ) -> str:
+    async def _dispatch(self, action: str, project_id: str, params: dict[str, object]) -> str:
         """Dispatch to the appropriate action handler.
 
         Args:
@@ -223,9 +220,7 @@ class S3Tool(BaseTool):
         max_keys_raw = params.get("max_keys", 100)
         max_keys = int(max_keys_raw) if isinstance(max_keys_raw, (int, float)) else 100
 
-        files = await self._service.list_files(
-            project_id, prefix=prefix, max_keys=max_keys
-        )
+        files = await self._service.list_files(project_id, prefix=prefix, max_keys=max_keys)
         return S3Service.format_result(files)
 
     async def _delete_file(self, project_id: str, params: dict[str, object]) -> str:
@@ -245,9 +240,7 @@ class S3Tool(BaseTool):
 
         content_type = str(params.get("content_type", "application/octet-stream"))
         expiration_raw = params.get("expiration", 3600)
-        expiration = (
-            int(expiration_raw) if isinstance(expiration_raw, (int, float)) else 3600
-        )
+        expiration = int(expiration_raw) if isinstance(expiration_raw, (int, float)) else 3600
 
         result = await self._service.generate_presigned_upload_url(
             project_id, path, content_type=content_type, expiration=expiration
@@ -262,9 +255,7 @@ class S3Tool(BaseTool):
             return '{"error": "path parametresi zorunludur"}'
 
         expiration_raw = params.get("expiration", 3600)
-        expiration = (
-            int(expiration_raw) if isinstance(expiration_raw, (int, float)) else 3600
-        )
+        expiration = int(expiration_raw) if isinstance(expiration_raw, (int, float)) else 3600
 
         result = await self._service.generate_presigned_download_url(
             project_id, path, expiration=expiration
