@@ -7,17 +7,23 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            Tab(String(localized: "tab.home"), systemImage: "house.fill", value: .home) {
-                HomeView()
-            }
+            HomeView()
+                .tabItem {
+                    Label(String(localized: "tab.home"), systemImage: "house.fill")
+                }
+                .tag(AppTab.home)
 
-            Tab(String(localized: "tab.chat"), systemImage: "message.fill", value: .chat) {
-                ChatView()
-            }
+            ChatView()
+                .tabItem {
+                    Label(String(localized: "tab.chat"), systemImage: "message.fill")
+                }
+                .tag(AppTab.chat)
 
-            Tab(String(localized: "tab.settings"), systemImage: "gearshape.fill", value: .settings) {
-                SettingsView()
-            }
+            SettingsView()
+                .tabItem {
+                    Label(String(localized: "tab.settings"), systemImage: "gearshape.fill")
+                }
+                .tag(AppTab.settings)
         }
     }
 }
