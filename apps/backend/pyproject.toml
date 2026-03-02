@@ -18,6 +18,7 @@ dependencies = [
     "passlib[bcrypt]>=1.7.4",
     "bcrypt>=4.0.1,<4.1.0",
     "anthropic>=0.42.0",
+    "aioboto3>=13.0.0",
 ]
 
 [project.optional-dependencies]
@@ -52,6 +53,10 @@ module = [
     "jose.*",
     "passlib.*",
     "anthropic.*",
+    "aioboto3.*",
+    "aiobotocore.*",
+    "botocore.*",
+    "boto3.*",
 ]
 ignore_missing_imports = true
 
