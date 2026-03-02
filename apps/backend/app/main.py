@@ -13,6 +13,7 @@ from app.api.routes.agent_ws import router as agent_ws_router
 from app.api.routes.agents import router as agents_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.health import router as health_router
+from app.api.routes.webhooks import router as webhooks_router
 from app.api.routes.websocket import router as websocket_router
 from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
@@ -69,6 +70,7 @@ def create_app() -> FastAPI:
     application.include_router(websocket_router)
     application.include_router(agent_ws_router)
     application.include_router(agents_router)
+    application.include_router(webhooks_router)
 
     return application
 

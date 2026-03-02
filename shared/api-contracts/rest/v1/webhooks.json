@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WebhookEndpoints",
+  "description": "GitHub webhook receiver REST endpoint'leri",
+  "endpoints": [
+    {
+      "method": "POST",
+      "path": "/api/v1/webhooks/github",
+      "description": "GitHub webhook event'lerini alir ve isler (PR merge, issue update, push vb.)",
+      "requestBody": {
+        "type": "object",
+        "description": "GitHub webhook payload - event tipine gore degisir",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Webhook action (opened, closed, edited, labeled, vb.)"
+          },
+          "repository": {
+            "type": "object",
+            "properties": {
+              "full_name": {
+                "type": "string",
+                "description": "Repo tam adi (owner/repo)"
+              }
+            },
+            "description": "Kaynak repository bilgisi"
+          },
+          "sender": {
+            "type": "object",
+            "properties": {
+              "login": {
+                "type": "string",
+                "description": "Event'i tetikleyen kullanici"
+              }
+            },
+            "description": "Event'i tetikleyen kullanici bilgisi"
+          }
+        },
+        "additionalProperties": true
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["accepted", "ignored", "error"],
+            "description": "Webhook isleme durumu"
+          },
+          "message": {
+            "type": "string",
+            "description": "Islem aciklamasi"
+          }
+        },
+        "required": ["status", "message"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
