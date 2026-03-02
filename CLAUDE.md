@@ -119,6 +119,7 @@ Runner'lar: Docker, Playwright, Maestro, Shell (guvenlik filtreleri ile).
 - **Auto-merge**: `agent:pipeline` etiketli PR'lar CI gectikten sonra squash merge
 - **Source of truth**: GitHub Issues (label + body + state)
 - **Durum takibi**: `status:ready`, `status:in-progress`, `status:blocked`, `status:review`, `status:merged`
+- **API Kontrat Uyumu**: `shared/api-contracts/` dosyalari backend ve iOS arasindaki tek dogru kaynak (source of truth). Backend endpoint'leri, iOS API cagrilari ve Pydantic schema'lari bu kontratlara uyumlu OLMALIDIR. Uyumsuzluk CI'da kontrat testleri ile yakalanir.
 
 ## Komutlar
 

@@ -304,6 +304,43 @@ gh issue edit <ISSUE_NO> --repo atknatk/rafraf --add-label "status:blocked"
 gh issue comment <ISSUE_NO> --repo atknatk/rafraf --body "Developer agent 3 denemeden sonra blocked. Hata: ..."
 ```
 
+## API Kontrat Dogrulama (ZORUNLU)
+
+Kod yazmadan ONCE ve PR olusturmadan ONCE asagidaki kontrolleri yap:
+
+### 1. Kontrat Dosyasini Oku
+```bash
+# Ilgili kontrat dosyasini bul
+ls shared/api-contracts/rest/v1/
+ls shared/api-contracts/ws/
+```
+
+### 2. Backend Dogrulama
+Her endpoint icin kontrat dosyasindaki tanimla kodu karsilastir:
+- **Path**: Kontrat'taki `path` ile router'daki path birebir ayni mi?
+- **Method**: Kontrat'taki `method` ile endpoint decorator ayni mi? (GET, POST, PATCH, vb.)
+- **Query Params**: Kontrat'taki `queryParams` ile Pydantic schema field isimleri ayni mi? Fazla veya eksik param var mi?
+- **Request Body**: Kontrat'taki `requestBody.properties` ile Pydantic request schema field isimleri ve tipleri ayni mi?
+- **Response Body**: Kontrat'taki `responseBody` ile response schema uyumlu mu?
+
+### 3. iOS Dogrulama
+Her API cagrisi icin:
+- **URL path**: Kontrat'taki `path` ile iOS'taki URL ayni mi?
+- **HTTP method**: Kontrat'taki `method` ile iOS'taki method ayni mi?
+- **Query param isimleri**: Kontrat'taki `queryParams` field isimleri ile iOS'taki URLQueryItem key'leri ayni mi?
+- **Request body field isimleri**: Kontrat'taki `requestBody` field isimleri ile iOS DTO property isimleri ayni mi? (camelCase vs snake_case farki dahil)
+
+### 4. Uyumsuzluk Bulunursa
+- Kontrat dosyasi DOGRU kabul edilir (architect'in olusturdugu source of truth)
+- Kodu kontrata uyacak sekilde duzelt
+- Eger kontrat hatali gorunuyorsa, `status:blocked` label'i ekle ve aciklama yaz
+
+### Handoff'ta Belirtme
+Handoff dosyasinda "API Kontrat Uyumu" bolumu ekle ve su bilgileri yaz:
+- Hangi kontrat dosyalari referans alindi
+- Dogrulanan endpoint sayisi
+- Varsa yapilan duzeltmeler
+
 ## Handoff Dosyasi
 
 Islem tamamlandiginda handoff dosyasi olustur:

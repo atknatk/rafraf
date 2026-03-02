@@ -96,6 +96,73 @@ RafRafTests/
     <Feature>SnapshotTests.swift   # swift-snapshot-testing
 ```
 
+## Contract Tests (API Kontrat Testleri)
+
+Contract testleri, frontend (iOS) API cagrilarinin backend endpoint tanimlariyla uyumlu oldugunu dogrular. `shared/api-contracts/` dosyalari tek dogru kaynaktir (source of truth).
+
+### Neden Gerekli?
+
+Frontend-backend uyumsuzluklari uretim ortaminda 400/404/405 hatalarina yol acar. Tipik sorunlar:
+- **Yanlis URL path**: Frontend `/api/v1/sessions/list` cagirir, backend `/api/v1/sessions` bekler
+- **Yanlis HTTP method**: Frontend PATCH gonderir, backend POST bekler
+- **Yanlis query param ismi**: Frontend `dateFrom` gonderir, backend `start_date` bekler → Pydantic `forbidNonWhitelisted` ile 400 doner
+- **Eksik DTO field**: Frontend `hotelId` filtresi gonderir, backend DTO'sunda bu field yok → 400 doner
+
+### Kontrat Kaynak Dosyalari
+
+```
+shared/api-contracts/
+├── rest/v1/           # REST endpoint kontratlari (JSON Schema)
+│   ├── sessions.json
+│   ├── projects.json
+│   └── ...
+└── ws/                # WebSocket mesaj kontratlari
+    ├── chat.json
+    └── ...
+```
+
+### Backend Kontrat Testleri (pytest)
+
+```
+apps/backend/tests/contract/
+└── test_api_contracts.py
+```
+
+Kontrat dosyalarini okur, her endpoint icin:
+1. Backend'de bu path + method tanimli mi? (yoksa FAIL)
+2. Query param isimleri Pydantic schema'daki field'larla eslesir mi? (eslesmezse FAIL)
+3. Request body field isimleri Pydantic schema ile uyumlu mu? (uyumsuzsa FAIL)
+
+### iOS Kontrat Testleri (Swift Testing)
+
+```
+apps/ios/RafRafTests/Contract/
+└── APIContractTests.swift
+```
+
+iOS API service fonksiyonlarini kontrat dosyalariyla karsilastirir:
+1. URL path dogru mu?
+2. HTTP method dogru mu?
+3. Query param isimleri (URLQueryItem key'leri) dogru mu?
+4. Request body DTO property isimleri dogru mu?
+
+### Ne Zaman Yazilir?
+
+- Yeni API endpoint olusturuldugunda
+- Mevcut endpoint'in path, method veya param isimleri degistiginde
+- Tester agent, her feature icin kontrat testlerini ZORUNLU olarak yazar
+
+### CI Entegrasyonu
+
+Kontrat testleri normal test suite'ine dahildir ve ayri bir step gerektirmez:
+```bash
+# Backend
+cd apps/backend && pytest tests/contract/ -v
+
+# iOS
+xcodebuild test -scheme RafRaf  # contract testleri normal test target'inda
+```
+
 ## Running Tests
 
 ```bash

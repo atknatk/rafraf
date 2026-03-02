@@ -318,10 +318,73 @@ Global kurallar icin repo root'taki `CLAUDE.md` dosyasini oku.
 - PR olusturmak
 - `full` disindaki pipeline'larda calismak
 
+## API Kontrat Kurallari (KRITIK)
+
+API kontratlar (`shared/api-contracts/`) backend ve iOS arasindaki **tek dogru kaynak**tir. Kontratlar olmadan developer ve tester agent'lar uyumsuzluklari yakalayamaz.
+
+### Kontrat Dosyasi Zorunluluklari
+
+1. **Her yeni endpoint** icin `shared/api-contracts/rest/v1/<resource>.json` olustur
+2. **Her yeni WS mesaj tipi** icin `shared/api-contracts/ws/<message-type>.json` olustur
+3. Kontrat dosyalarinda su bilgiler **ZORUNLU**:
+   - `method`: HTTP method (GET, POST, PUT, PATCH, DELETE)
+   - `path`: Tam endpoint yolu (path parametreleri dahil, ornek: `/api/v1/sessions/{session_id}`)
+   - `queryParams`: Izin verilen query parametreleri ve tipleri (GET endpoint'leri icin)
+   - `requestBody`: Request body schema'si (POST/PUT/PATCH icin)
+   - `responseBody`: Response body schema'si
+   - `additionalProperties: false`: Bilinmeyen field'lari yasaklar (backend validation ile uyum)
+
+4. **Kontrat ornegi** (genisletilmis):
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SessionEndpoints",
+  "endpoints": [
+    {
+      "method": "POST",
+      "path": "/api/v1/sessions",
+      "description": "Yeni session olustur",
+      "requestBody": {
+        "type": "object",
+        "properties": {
+          "project_id": { "type": "string", "format": "uuid" }
+        },
+        "required": ["project_id"],
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "status": { "type": "string", "enum": ["active", "ended"] }
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/sessions",
+      "description": "Session listesi",
+      "queryParams": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer", "minimum": 1 },
+          "page_size": { "type": "integer", "minimum": 1, "maximum": 100 },
+          "status": { "type": "string", "enum": ["active", "ended"] }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}
+```
+
+5. **Mevcut endpoint'leri degistirmek yasak**: Eger mevcut bir endpoint'in path, method veya param adi degisecekse, once kontrat dosyasini guncelle ve handoff'ta bu breaking change'i belirt.
+
 ## Basari Kriterleri
 
 - Feature spec dosyasi `shared/feature-specs/` altinda olusturuldu
-- Gerekli API kontratlar `shared/api-contracts/` altinda olusturuldu
+- Gerekli API kontratlar `shared/api-contracts/` altinda olusturuldu (method, path, queryParams, requestBody, responseBody dahil)
 - Handoff dosyasi `docs/pipeline/` altinda olusturuldu
 - Tum referans dokumanlarla uyum saglandi
 - Dosya sahipligi tablosu eksiksiz
+- Kontrat dosyalari `additionalProperties: false` iceriyor (bilinmeyen field'lari yasaklamak icin)

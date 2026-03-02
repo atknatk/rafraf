@@ -89,7 +89,7 @@ PR'daki her degisen dosyayi dikkatlice oku ve asagidaki checklist'e gore degerle
 | C4 | Memory sistemi `docs/05_Memory_System_Specification.md` ile uyumlu mu? | `docs/05_Memory_System_Specification.md` |
 | C5 | Guvenlik onay matrisi `docs/07_Security_Permissions_Cost_Analysis.md` ile uyumlu mu? | `docs/07_Security_Permissions_Cost_Analysis.md` |
 | C6 | Agent protokolu `docs/08_Host_Agent_Specification.md` ile uyumlu mu? | `docs/08_Host_Agent_Specification.md` |
-| C7 | API kontratlar `shared/api-contracts/` ile uyumlu mu? | Feature spec |
+| C7 | API kontratlar `shared/api-contracts/` ile uyumlu mu? (KRITIK — asagidaki detayli kontrolu yap) | `shared/api-contracts/` |
 | C8 | Feature spec dosya listesi ile PR diff genel olarak uyumlu mu? | Feature spec dosya listesi ile PR diff tam eslesme gerekmez. Developer ek helper dosya olusturabilir veya spec'teki dosyalari birlestirip ayirabilir. |
 
 ### D. Guvenlik
@@ -107,6 +107,22 @@ PR'daki her degisen dosyayi dikkatlice oku ve asagidaki checklist'e gore degerle
 | D9 | Environment variable'lar hardcode edilmemis mi? | YUKSEK |
 | D10 | Error response'larda internal bilgi sizdirilmiyor mu? | YUKSEK |
 
+### C7 Detay: API Kontrat Uyumluluk Kontrolu
+
+Bu kontrol BLOCKER'dir. PR'daki her endpoint icin `shared/api-contracts/` dosyasini bul ve su eslesmeleri dogrula:
+
+| Kontrol | Backend | iOS |
+|---------|---------|-----|
+| URL path | Router path == kontrat path | API service URL == kontrat path |
+| HTTP method | Endpoint decorator == kontrat method | URLRequest method == kontrat method |
+| Query param isimleri | Pydantic schema fields == kontrat queryParams keys | URLQueryItem keys == kontrat queryParams keys |
+| Request body fields | Pydantic request schema fields == kontrat requestBody properties | Codable DTO properties == kontrat requestBody properties |
+| Response body | Response schema == kontrat responseBody | Codable response DTO == kontrat responseBody |
+
+Uyumsuzluk bulunursa **BLOCKER** olarak raporla ve hangi tarafin (backend mi, iOS mu) kontrata uyumsuz oldugunu belirt.
+
+Kontrat testi handoff'ta raporlanmamissa, tester agent'a geri gonder.
+
 ### E. Test ve Coverage
 
 | # | Kontrol | Referans |
@@ -118,6 +134,7 @@ PR'daki her degisen dosyayi dikkatlice oku ve asagidaki checklist'e gore degerle
 | E5 | Mock kurallari dogru uygulanmis mi? (DB/Redis/WS mock YASAK) | `.claude/agents/tester.md` |
 | E6 | Test isimleri aciklayici mi? | `docs/standards/testing.md` |
 | E7 | Flaky test riski var mi? (time-dependent, race condition) | Test kalitesi |
+| E8 | API kontrat testleri yazilmis mi? (yeni/degisen endpoint varsa ZORUNLU) | `docs/standards/testing.md` |
 
 ## Degerlendirme Formati
 

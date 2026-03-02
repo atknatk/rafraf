@@ -36,6 +36,114 @@ git pull origin feature/f<FAZ>/<ISSUE_NO>-<slug>
 
 Hangi katmanlarda degisiklik yapildigini belirle ve her katman icin uygun test stratejisini uygula.
 
+## API Kontrat Testleri (ZORUNLU)
+
+Her feature'da yeni veya degisen API endpoint'leri varsa, asagidaki kontrat testlerini yaz:
+
+### Nedir?
+Kontrat testleri, backend endpoint'leri ve iOS API cagrilarinin `shared/api-contracts/` dosyalarindaki tanimlarla uyumlu oldugunu dogrular. Bu testler frontend-backend uyumsuzluklarini (yanlis URL, yanlis HTTP method, eksik/fazla query param, yanlis field ismi) CI'da yakalar.
+
+### Backend Kontrat Testleri (pytest)
+
+`apps/backend/tests/contract/` dizinine yaz:
+
+```python
+# tests/contract/test_api_contracts.py
+"""
+API Contract Tests — shared/api-contracts/ ile backend endpoint uyumunu dogrular.
+
+Bu testler:
+1. Her kontrat'taki endpoint'in backend'de tanimli oldugunu dogrular
+2. HTTP method'un dogru oldugunu dogrular
+3. Query param ve request body field isimlerinin Pydantic schema ile uyumlu oldugunu dogrular
+4. Response schema'nin kontrat ile esledigini dogrular
+"""
+import json
+from pathlib import Path
+
+import pytest
+
+
+CONTRACT_DIR = Path("shared/api-contracts/rest/v1")
+
+
+def load_contracts() -> list[dict]:
+    """Tum REST kontrat dosyalarini yukle."""
+    contracts = []
+    if CONTRACT_DIR.exists():
+        for f in CONTRACT_DIR.glob("*.json"):
+            with open(f) as fp:
+                data = json.load(fp)
+                if "endpoints" in data:
+                    for ep in data["endpoints"]:
+                        ep["_source"] = f.name
+                    contracts.extend(data["endpoints"])
+    return contracts
+
+
+@pytest.mark.parametrize("endpoint", load_contracts(), ids=lambda e: f"{e.get('method')} {e.get('path')}")
+def test_endpoint_matches_contract(endpoint: dict, async_client) -> None:
+    """Her kontrat endpoint'inin backend'de kayitli oldugunu dogrula."""
+    # Bu test asagidaki uyumsuzluklari yakalar:
+    # - Backend'de olmayan endpoint (404)
+    # - Yanlis HTTP method (405)
+    # - Bilinmeyen query param (400 — Pydantic forbidNonWhitelisted)
+    # - Eksik zorunlu field (422)
+    ...  # Implementasyonu feature'a gore yaz
+```
+
+### iOS Kontrat Testleri (Swift Testing)
+
+`apps/ios/RafRafTests/Contract/` dizinine yaz:
+
+```swift
+// RafRafTests/Contract/APIContractTests.swift
+import Testing
+@testable import RafRaf
+
+/// API kontrat testleri — iOS API cagrilarinin shared/api-contracts/ ile uyumunu dogrular.
+/// Frontend'in yanlis URL, yanlis method veya yanlis param ismi kullanmasini yakalar.
+struct APIContractTests {
+    @Test("Endpoint URL'leri kontrat ile eslesir")
+    func endpointURLsMatchContract() throws {
+        // Her API service fonksiyonunun olusturdugu URL'i kontrat'taki path ile karsilastir
+        ...
+    }
+
+    @Test("HTTP method'lari kontrat ile eslesir")
+    func httpMethodsMatchContract() throws {
+        // Her API cagrisi icin kullanilan HTTP method'u kontrat'taki method ile karsilastir
+        ...
+    }
+
+    @Test("Query param isimleri kontrat ile eslesir")
+    func queryParamNamesMatchContract() throws {
+        // URLQueryItem key'lerinin kontrat'taki queryParams.properties key'leri ile ayni oldugunu dogrula
+        ...
+    }
+}
+```
+
+### Kontrat Test Kurallari
+
+1. **Yeni endpoint = yeni kontrat testi**: Developer yeni endpoint eklediyse, tester o endpoint icin kontrat testi YAZMALIDIR
+2. **Kontrat dosyasi yoksa**: Architect kontrat olusturmayi atlamissa, `status:blocked` label'i ekle ve aciklama yaz
+3. **Kontrat testi CI'da calisir**: Coverage testleri ile birlikte calistirilir
+4. **Kontrat testi basarisizsa**: PR merge edilemez
+
+### Handoff'ta Belirtme
+
+Tester handoff dosyasinda "Kontrat Test Sonuclari" bolumu ekle:
+
+```markdown
+## Kontrat Test Sonuclari
+
+| Platform | Kontrat Dosyasi | Test Sayisi | Durum |
+|----------|----------------|-------------|-------|
+| Backend | sessions.json | 3 | PASS |
+| iOS | sessions.json | 3 | PASS |
+```
+
 ## Platform Bazli Test Kurallari
 
 ### Backend (Python - pytest)
