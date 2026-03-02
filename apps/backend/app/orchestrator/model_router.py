@@ -226,10 +226,10 @@ def compute_complexity_score(message: str) -> int:
     msg_len = len(message)
     if msg_len < 20:
         score -= 10  # Very short -> likely simple
-    elif msg_len > 200:
-        score += 10  # Long -> likely complex
     elif msg_len > 500:
         score += 20  # Very long -> likely very complex
+    elif msg_len > 200:
+        score += 10  # Long -> likely complex
 
     # 4. Code block detection (triple backticks)
     code_block_count = message.count("```")

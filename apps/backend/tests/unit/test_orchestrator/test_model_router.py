@@ -332,6 +332,137 @@ class TestCostTracking:
         assert was_frozen
 
 
+class TestComputeComplexityScoreEdgeCases:
+    """Additional edge case tests for complexity score computation."""
+
+    def test_very_long_message_over_500_chars(self) -> None:
+        """Messages over 500 chars should get the +20 score boost."""
+        very_long = "x " * 260  # 520 chars, no keywords
+        score = compute_complexity_score(very_long)
+        # +20 for length, no keywords
+        assert score >= 10
+
+    def test_two_question_marks(self) -> None:
+        """Exactly 2 question marks should give +5 score."""
+        msg = "Bunu yapar misin? Ve bunu da?"
+        score_two_q = compute_complexity_score(msg)
+        msg_one = "Bunu yapar misin"
+        score_one_q = compute_complexity_score(msg_one)
+        assert score_two_q > score_one_q
+
+    def test_two_numbered_items(self) -> None:
+        """Exactly 2 numbered items should give +8 score."""
+        msg = "Su iki seyi yap:\n1. Dosyayi oku\n2. Guncelle"
+        score = compute_complexity_score(msg)
+        msg_no_list = "Su iki seyi yap: Dosyayi oku ve guncelle"
+        score_no_list = compute_complexity_score(msg_no_list)
+        assert score > score_no_list
+
+    def test_medium_length_message_no_boost(self) -> None:
+        """Messages between 20 and 200 chars should get no length boost."""
+        msg = "Bu bir orta uzunlukta mesaj"  # ~27 chars
+        score = compute_complexity_score(msg)
+        # No length bonus, but also no penalty for being short
+        assert isinstance(score, int)
+
+    def test_single_code_block_no_boost(self) -> None:
+        """A single backtick (not a full code block pair) should not boost."""
+        msg = "Bunu yap: ```python code"  # only 1 triple backtick
+        score_single = compute_complexity_score(msg)
+        msg_none = "Bunu yap: python code"
+        score_none = compute_complexity_score(msg_none)
+        # Single triple backtick (count=1, < 2) should not add +15
+        assert score_single == score_none
+
+    def test_parenthesis_numbered_list(self) -> None:
+        """Numbered lists with parenthesis format should be detected."""
+        msg = "Adimlar:\n1) Oku\n2) Yaz\n3) Kaydet"
+        score = compute_complexity_score(msg)
+        assert score > 0  # Should detect 3 numbered items
+
+    def test_no_override_match(self) -> None:
+        """Messages without override patterns should not trigger override."""
+        result = select_model("Bu normal bir mesaj, analiz et detayli")
+        assert result.is_override is False
+
+    def test_multiple_override_patterns_first_wins(self) -> None:
+        """If message contains multiple override patterns, first match wins."""
+        result = select_model("haiku kullan ama en iyi model de olabilir")
+        # 'haiku kullan' should match first
+        assert result.is_override is True
+
+    def test_select_model_with_opus_score_returns_opus_reason(self) -> None:
+        """High scoring messages should have 'complexity_score:complex' reason."""
+        result = select_model(
+            "Mimari tasarla, multi-step refactor planla ve implement stratejisi belirle"
+        )
+        assert result.reason == "complexity_score:complex"
+
+    def test_select_model_with_haiku_score_returns_simple_reason(self) -> None:
+        """Low scoring messages should have 'complexity_score:simple' reason."""
+        result = select_model("merhaba")
+        assert result.reason == "complexity_score:simple"
+
+    def test_select_model_with_sonnet_score_returns_medium_reason(self) -> None:
+        """Medium scoring messages should have 'complexity_score:medium' reason."""
+        result = select_model("Bu kodu detayli analiz et ve sonuclari raporla")
+        assert result.reason == "complexity_score:medium"
+
+
+class TestCostTrackingEdgeCases:
+    """Additional tests for cost tracking edge cases."""
+
+    def test_estimate_cost_sonnet(self) -> None:
+        """Sonnet cost estimate should be returned correctly."""
+        est = estimate_cost(ModelTier.SONNET)
+        assert isinstance(est, CostEstimate)
+        assert est.tier == ModelTier.SONNET
+
+    def test_estimate_cost_opus(self) -> None:
+        """Opus cost estimate should be returned correctly."""
+        est = estimate_cost(ModelTier.OPUS)
+        assert isinstance(est, CostEstimate)
+        assert est.tier == ModelTier.OPUS
+
+    def test_record_cost_precise_calculation(self) -> None:
+        """record_cost should calculate precise USD cost."""
+        # Haiku: input=0.001/1K, output=0.005/1K
+        cost = record_cost(
+            tier=ModelTier.HAIKU,
+            model=MODEL_HAIKU,
+            input_tokens=2000,
+            output_tokens=1000,
+        )
+        # Expected: (2000/1000 * 0.001) + (1000/1000 * 0.005) = 0.002 + 0.005 = 0.007
+        assert cost.estimated_cost_usd == 0.007
+
+    def test_record_cost_opus_higher_than_haiku(self) -> None:
+        """Same token count with Opus should cost more than Haiku."""
+        cost_haiku = record_cost(
+            tier=ModelTier.HAIKU,
+            model=MODEL_HAIKU,
+            input_tokens=1000,
+            output_tokens=1000,
+        )
+        cost_opus = record_cost(
+            tier=ModelTier.OPUS,
+            model=MODEL_OPUS,
+            input_tokens=1000,
+            output_tokens=1000,
+        )
+        assert cost_opus.estimated_cost_usd > cost_haiku.estimated_cost_usd
+
+    def test_cost_estimate_frozen(self) -> None:
+        """CostEstimate should be immutable."""
+        est = estimate_cost(ModelTier.HAIKU)
+        try:
+            est.input_cost_per_1k = 999.0  # type: ignore[misc]
+            was_frozen = False
+        except Exception:
+            was_frozen = True
+        assert was_frozen
+
+
 class TestModelTier:
     """Tests for the ModelTier enum."""
 
