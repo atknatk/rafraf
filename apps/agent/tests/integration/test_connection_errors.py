@@ -80,15 +80,17 @@ class TestConnectionErrors:
                 await asyncio.sleep(0.5)
                 await ws.close()
             else:
-                ack = json.dumps({
-                    "type": "agent_register_ack",
-                    "content": {
-                        "host_id": "error-test",
-                        "registered": True,
-                        "server_time": "2026-03-02T10:00:00Z",
-                        "heartbeat_interval": 60,
-                    },
-                })
+                ack = json.dumps(
+                    {
+                        "type": "agent_register_ack",
+                        "content": {
+                            "host_id": "error-test",
+                            "registered": True,
+                            "server_time": "2026-03-02T10:00:00Z",
+                            "heartbeat_interval": 60,
+                        },
+                    }
+                )
                 await ws.send(ack)
                 try:
                     await asyncio.sleep(2.0)
@@ -177,17 +179,20 @@ class TestConnectionErrors:
 
     async def test_server_sends_invalid_json_during_listen(self) -> None:
         """Listen sirasinda gecersiz JSON mesaj gonderilirse hata loglanir."""
+
         async def handler(ws: ServerConnection) -> None:
             await ws.recv()
-            ack = json.dumps({
-                "type": "agent_register_ack",
-                "content": {
-                    "host_id": "error-test",
-                    "registered": True,
-                    "server_time": "2026-03-02T10:00:00Z",
-                    "heartbeat_interval": 60,
-                },
-            })
+            ack = json.dumps(
+                {
+                    "type": "agent_register_ack",
+                    "content": {
+                        "host_id": "error-test",
+                        "registered": True,
+                        "server_time": "2026-03-02T10:00:00Z",
+                        "heartbeat_interval": 60,
+                    },
+                }
+            )
             await ws.send(ack)
             # Gecersiz JSON gonder
             await ws.send("not-valid-json{}")
@@ -212,6 +217,7 @@ class TestConnectionErrors:
 
     async def test_register_ack_timeout(self) -> None:
         """Register ack mesaji gelmezse timeout olur."""
+
         async def handler(ws: ServerConnection) -> None:
             await ws.recv()
             # Ack gondermeden bekle

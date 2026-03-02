@@ -53,15 +53,17 @@ class TestWSConnection:
             received_messages.append(data)
 
             # Register ack gonder
-            ack = json.dumps({
-                "type": "agent_register_ack",
-                "content": {
-                    "host_id": "integration-test",
-                    "registered": True,
-                    "server_time": "2026-03-02T10:00:00Z",
-                    "heartbeat_interval": 60,
-                },
-            })
+            ack = json.dumps(
+                {
+                    "type": "agent_register_ack",
+                    "content": {
+                        "host_id": "integration-test",
+                        "registered": True,
+                        "server_time": "2026-03-02T10:00:00Z",
+                        "heartbeat_interval": 60,
+                    },
+                }
+            )
             await ws.send(ack)
             await asyncio.sleep(0.5)
             await ws.close()
@@ -96,15 +98,17 @@ class TestWSConnection:
             received_messages.append(data)
 
             # Register ack gonder - heartbeat_interval=1 (server tarafli override)
-            ack = json.dumps({
-                "type": "agent_register_ack",
-                "content": {
-                    "host_id": "integration-test",
-                    "registered": True,
-                    "server_time": "2026-03-02T10:00:00Z",
-                    "heartbeat_interval": 1,
-                },
-            })
+            ack = json.dumps(
+                {
+                    "type": "agent_register_ack",
+                    "content": {
+                        "host_id": "integration-test",
+                        "registered": True,
+                        "server_time": "2026-03-02T10:00:00Z",
+                        "heartbeat_interval": 1,
+                    },
+                }
+            )
             await ws.send(ack)
 
             # Heartbeat mesajlarini al
@@ -150,15 +154,17 @@ class TestWSConnection:
             connection_count += 1
 
             await ws.recv()
-            ack = json.dumps({
-                "type": "agent_register_ack",
-                "content": {
-                    "host_id": "integration-test",
-                    "registered": True,
-                    "server_time": "2026-03-02T10:00:00Z",
-                    "heartbeat_interval": 60,
-                },
-            })
+            ack = json.dumps(
+                {
+                    "type": "agent_register_ack",
+                    "content": {
+                        "host_id": "integration-test",
+                        "registered": True,
+                        "server_time": "2026-03-02T10:00:00Z",
+                        "heartbeat_interval": 60,
+                    },
+                }
+            )
             await ws.send(ack)
 
             if connection_count == 1:
@@ -187,17 +193,20 @@ class TestWSConnection:
 
     async def test_graceful_shutdown(self) -> None:
         """Graceful shutdown temiz bir sekilde kapanir."""
+
         async def handler(ws: ServerConnection) -> None:
             await ws.recv()
-            ack = json.dumps({
-                "type": "agent_register_ack",
-                "content": {
-                    "host_id": "integration-test",
-                    "registered": True,
-                    "server_time": "2026-03-02T10:00:00Z",
-                    "heartbeat_interval": 60,
-                },
-            })
+            ack = json.dumps(
+                {
+                    "type": "agent_register_ack",
+                    "content": {
+                        "host_id": "integration-test",
+                        "registered": True,
+                        "server_time": "2026-03-02T10:00:00Z",
+                        "heartbeat_interval": 60,
+                    },
+                }
+            )
             await ws.send(ack)
             try:
                 await asyncio.sleep(10.0)
@@ -236,15 +245,17 @@ class TestWSConnection:
 
             registered = attempt_count >= 2
 
-            ack = json.dumps({
-                "type": "agent_register_ack",
-                "content": {
-                    "host_id": "integration-test",
-                    "registered": registered,
-                    "server_time": "2026-03-02T10:00:00Z",
-                    "heartbeat_interval": 60,
-                },
-            })
+            ack = json.dumps(
+                {
+                    "type": "agent_register_ack",
+                    "content": {
+                        "host_id": "integration-test",
+                        "registered": registered,
+                        "server_time": "2026-03-02T10:00:00Z",
+                        "heartbeat_interval": 60,
+                    },
+                }
+            )
             await ws.send(ack)
 
             if registered:

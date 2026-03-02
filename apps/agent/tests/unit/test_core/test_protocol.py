@@ -213,11 +213,13 @@ class TestParseServerMessage:
 
     def test_preserves_all_fields(self) -> None:
         """Tum alanlar korunur."""
-        raw = json.dumps({
-            "type": "test",
-            "content": {"key": "value"},
-            "extra": 42,
-        })
+        raw = json.dumps(
+            {
+                "type": "test",
+                "content": {"key": "value"},
+                "extra": 42,
+            }
+        )
         data = parse_server_message(raw)
         assert data["content"]["key"] == "value"
         assert data["extra"] == 42
