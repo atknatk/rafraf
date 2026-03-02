@@ -1,0 +1,183 @@
+"""WebSocket endpoint for Host Agent connections.
+
+Agents authenticate with an API key, register their capabilities,
+and send periodic heartbeat messages.
+"""
+
+from datetime import UTC, datetime
+from uuid import uuid4
+
+import structlog
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+
+from app.core.config import get_settings
+from app.core.websocket import ConnectionManager
+from app.schemas.agent import (
+    AgentHeartbeatPayload,
+    AgentRegisterAckPayload,
+    AgentRegisterPayload,
+)
+from app.services.agent_registry_service import agent_registry
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+router = APIRouter()
+
+# Dedicated connection manager for agent connections (separate from iOS clients)
+agent_manager = ConnectionManager(heartbeat_interval=30, heartbeat_timeout=10)
+
+
+def _build_agent_message(
+    msg_type: str,
+    content: dict[str, object],
+) -> dict[str, object]:
+    """Build a server-to-agent WebSocket message dict."""
+    return {
+        "id": str(uuid4()),
+        "type": msg_type,
+        "content": content,
+        "metadata": {
+            "timestamp": datetime.now(tz=UTC).isoformat(),
+            "direction": "server_to_agent",
+        },
+    }
+
+
+@router.websocket("/ws/agent")
+async def agent_websocket_endpoint(
+    websocket: WebSocket,
+    api_key: str = Query(..., alias="api_key"),
+) -> None:
+    """Handle Host Agent WebSocket connections.
+
+    Authenticates via API key query parameter, waits for agent_register,
+    then processes heartbeat messages.
+    """
+    settings = get_settings()
+
+    # --- API key authentication ---
+    if api_key != settings.agent_api_key:
+        await logger.awarning("agent_ws_auth_failed", reason="invalid_api_key")
+        await websocket.close(code=4008, reason="Invalid API key")
+        return
+
+    # --- Connection setup (use a placeholder user_id / session_id) ---
+    connection_id = await agent_manager.connect(
+        websocket=websocket,
+        user_id="agent",
+        session_id=str(uuid4()),
+    )
+
+    await logger.ainfo("agent_ws_connected", connection_id=connection_id)
+
+    registered_host_id: str | None = None
+
+    try:
+        while True:
+            raw_data: dict[str, object] = await websocket.receive_json()
+            msg_type = raw_data.get("type")
+
+            if msg_type == "agent_register":
+                registered_host_id = await _handle_register(
+                    raw_data, connection_id, settings.ws_heartbeat_interval
+                )
+            elif msg_type == "agent_heartbeat":
+                await _handle_heartbeat(raw_data, connection_id)
+            else:
+                await logger.awarning(
+                    "agent_ws_unknown_message",
+                    connection_id=connection_id,
+                    message_type=msg_type,
+                )
+    except WebSocketDisconnect:
+        await logger.ainfo(
+            "agent_ws_client_disconnected",
+            connection_id=connection_id,
+            host_id=registered_host_id,
+        )
+    except Exception:
+        await logger.aexception(
+            "agent_ws_unexpected_error",
+            connection_id=connection_id,
+        )
+    finally:
+        if registered_host_id is not None:
+            await agent_registry.mark_disconnected(registered_host_id)
+        else:
+            await agent_registry.unregister_by_connection(connection_id)
+        await agent_manager.disconnect(connection_id)
+
+
+async def _handle_register(
+    raw_data: dict[str, object],
+    connection_id: str,
+    heartbeat_interval: int,
+) -> str:
+    """Process an agent_register message and return the host_id."""
+    content = raw_data.get("content", {})
+    if not isinstance(content, dict):
+        content = {}
+
+    payload = AgentRegisterPayload(
+        host_id=str(content.get("host_id", "")),
+        capabilities=content.get("capabilities", []),
+        os_info=str(content.get("os_info", "")),
+        version=str(content.get("version", "")),
+    )
+
+    await agent_registry.register_agent(payload, connection_id)
+
+    ack = AgentRegisterAckPayload(
+        host_id=payload.host_id,
+        registered=True,
+        server_time=datetime.now(tz=UTC).isoformat(),
+        heartbeat_interval=heartbeat_interval,
+    )
+
+    ack_msg = _build_agent_message(
+        "agent_register_ack",
+        ack.model_dump(),
+    )
+    await agent_manager.send_json(connection_id, ack_msg)
+
+    await logger.ainfo(
+        "agent_registered_via_ws",
+        host_id=payload.host_id,
+        connection_id=connection_id,
+    )
+    return payload.host_id
+
+
+async def _handle_heartbeat(
+    raw_data: dict[str, object],
+    connection_id: str,
+) -> None:
+    """Process an agent_heartbeat message."""
+    content = raw_data.get("content", {})
+    if not isinstance(content, dict):
+        content = {}
+
+    resources_raw = content.get("resources", {})
+    if not isinstance(resources_raw, dict):
+        resources_raw = {}
+
+    payload = AgentHeartbeatPayload(
+        host_id=str(content.get("host_id", "")),
+        status=content.get("status", "online"),
+        uptime_seconds=int(content.get("uptime_seconds", 0)),
+        active_tasks=int(content.get("active_tasks", 0)),
+        resources={
+            "cpu_usage_percent": float(resources_raw.get("cpu_usage_percent", 0)),
+            "memory_usage_percent": float(resources_raw.get("memory_usage_percent", 0)),
+            "disk_usage_percent": float(resources_raw.get("disk_usage_percent", 0)),
+            "disk_free_gb": float(resources_raw.get("disk_free_gb", 0)),
+        },
+    )
+
+    found = await agent_registry.process_heartbeat(payload)
+    if not found:
+        await logger.awarning(
+            "agent_heartbeat_unknown",
+            host_id=payload.host_id,
+            connection_id=connection_id,
+        )
