@@ -13,11 +13,13 @@ from app.api.routes.agent_ws import router as agent_ws_router
 from app.api.routes.agents import router as agents_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.health import router as health_router
+from app.api.routes.memory import router as memory_router
 from app.api.routes.webhooks import router as webhooks_router
 from app.api.routes.websocket import router as websocket_router
 from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import setup_logging
+from app.core.redis import redis_client
 from app.services.agent_registry_service import agent_registry
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -32,6 +34,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await agent_registry.start_stale_checker()
     yield
     await agent_registry.stop_stale_checker()
+    await redis_client.close()
     await logger.ainfo("app_shutting_down")
 
 
@@ -71,6 +74,7 @@ def create_app() -> FastAPI:
     application.include_router(agent_ws_router)
     application.include_router(agents_router)
     application.include_router(webhooks_router)
+    application.include_router(memory_router)
 
     return application
 
