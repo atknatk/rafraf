@@ -11,6 +11,7 @@ import structlog
 
 from agent.core.config import AgentConfig
 from agent.core.connection import ConnectionManager
+from agent.monitoring.resource_monitor import ResourceMonitor
 
 logger = structlog.get_logger()
 
@@ -39,6 +40,7 @@ async def main() -> None:
 
     config = AgentConfig()
     connection = ConnectionManager(config)
+    resource_monitor = ResourceMonitor(config)
 
     # Signal handler'lar
     loop = asyncio.get_running_loop()
@@ -57,13 +59,25 @@ async def main() -> None:
         capabilities=config.get_capabilities(),
     )
 
+    # Resource monitor'u baglantiya bagla
+    async def _send_via_ws(message: str) -> None:
+        """WebSocket uzerinden mesaj gonderir."""
+        if connection.is_connected and connection._ws is not None:
+            await connection._ws.send(message)
+
+    resource_monitor.set_send_callback(_send_via_ws)
+
     # Baglanti task'ini basla
     connect_task = asyncio.create_task(connection.connect())
+
+    # Resource monitor'u basla
+    await resource_monitor.start()
 
     # Shutdown sinyali bekle
     await shutdown_event.wait()
 
     await logger.ainfo("Shutdown sinyali alindi")
+    await resource_monitor.stop()
     await connection.shutdown()
 
     # Connect task'i iptal et

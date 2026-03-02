@@ -50,6 +50,32 @@ class AgentConfig(BaseSettings):
         description="Agent yazilim surumu",
     )
 
+    # Resource monitor settings
+    resource_report_interval: int = Field(
+        default=60,
+        ge=10,
+        le=600,
+        description="Kaynak raporu gonderme araligi (saniye)",
+    )
+    alarm_cpu_threshold: float = Field(
+        default=90.0,
+        ge=0.0,
+        le=100.0,
+        description="CPU alarm esik degeri (%)",
+    )
+    alarm_memory_threshold: float = Field(
+        default=85.0,
+        ge=0.0,
+        le=100.0,
+        description="Memory alarm esik degeri (%)",
+    )
+    alarm_disk_threshold: float = Field(
+        default=90.0,
+        ge=0.0,
+        le=100.0,
+        description="Disk alarm esik degeri (%)",
+    )
+
     # Capability flags
     capability_docker: bool = Field(default=False, description="Docker destegi")
     capability_playwright: bool = Field(default=False, description="Playwright destegi")

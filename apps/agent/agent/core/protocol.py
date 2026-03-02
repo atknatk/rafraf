@@ -6,6 +6,7 @@ shared/api-contracts/ws/agent-messages.json kontratina uyumlu.
 from __future__ import annotations
 
 import json
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -20,6 +21,63 @@ class ResourceMetrics(BaseModel):
     memory_usage_percent: float
     disk_usage_percent: float
     disk_free_gb: float
+
+
+class AlarmLevel(StrEnum):
+    """Alarm seviyesi."""
+
+    WARNING = "warning"
+    CRITICAL = "critical"
+
+
+class ResourceAlarm(BaseModel):
+    """Kaynak kullanim alarmi - frozen domain model."""
+
+    model_config = ConfigDict(frozen=True)
+
+    source: str
+    level: AlarmLevel
+    current_value: float
+    threshold: float
+    message: str
+
+
+class ResourceReportMessage(BaseModel):
+    """Periyodik kaynak rapor mesaji (agent -> server)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    type: str = "resource_report"
+    host_id: str
+    content: ResourceReportContent
+
+
+class ResourceReportContent(BaseModel):
+    """resource_report mesaj icerigi."""
+
+    model_config = ConfigDict(frozen=True)
+
+    host_id: str
+    metrics: ResourceMetrics
+
+
+class ResourceAlarmMessage(BaseModel):
+    """Kaynak alarm mesaji (agent -> server)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    type: str = "resource_alarm"
+    host_id: str
+    content: ResourceAlarmContent
+
+
+class ResourceAlarmContent(BaseModel):
+    """resource_alarm mesaj icerigi."""
+
+    model_config = ConfigDict(frozen=True)
+
+    host_id: str
+    alarm: ResourceAlarm
 
 
 class RegisterMessage(BaseModel):
@@ -156,3 +214,35 @@ def parse_register_ack(data: dict[str, Any]) -> RegisterAckPayload:
         raise ValueError(msg)
 
     return RegisterAckPayload(**content)
+
+
+def build_resource_report_message(
+    host_id: str,
+    metrics: ResourceMetrics,
+) -> str:
+    """resource_report mesaji olusturur ve JSON string olarak dondurur."""
+    content = ResourceReportContent(
+        host_id=host_id,
+        metrics=metrics,
+    )
+    message = ResourceReportMessage(
+        host_id=host_id,
+        content=content,
+    )
+    return message.model_dump_json()
+
+
+def build_resource_alarm_message(
+    host_id: str,
+    alarm: ResourceAlarm,
+) -> str:
+    """resource_alarm mesaji olusturur ve JSON string olarak dondurur."""
+    content = ResourceAlarmContent(
+        host_id=host_id,
+        alarm=alarm,
+    )
+    message = ResourceAlarmMessage(
+        host_id=host_id,
+        content=content,
+    )
+    return message.model_dump_json()
