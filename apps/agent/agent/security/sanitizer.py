@@ -50,9 +50,7 @@ class Sanitizer:
 
     def __init__(self, patterns: tuple[str, ...] | None = None) -> None:
         self._patterns = patterns or DEFAULT_INJECTION_PATTERNS
-        self._compiled: list[re.Pattern[str]] = [
-            re.compile(p) for p in self._patterns
-        ]
+        self._compiled: list[re.Pattern[str]] = [re.compile(p) for p in self._patterns]
 
     @property
     def patterns(self) -> tuple[str, ...]:

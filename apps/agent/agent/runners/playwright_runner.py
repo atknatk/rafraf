@@ -222,7 +222,7 @@ class PlaywrightRunner(BaseRunner):
         if self._s3_uploader is not None:
             try:
                 s3_key = f"screenshots/{int(time.time())}.png"
-                screenshot_url = await self._s3_uploader.upload_bytes(
+                upload_result = await self._s3_uploader.upload_bytes(
                     data=screenshot_bytes,
                     key=s3_key,
                 )
@@ -233,7 +233,7 @@ class PlaywrightRunner(BaseRunner):
                 )
                 return {
                     "success": True,
-                    "screenshot_url": screenshot_url,
+                    "screenshot_url": upload_result.url,
                     "page_title": page_title,
                 }
             except S3UploadError as exc:

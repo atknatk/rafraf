@@ -95,8 +95,7 @@ class ShellRunner(BaseRunner):
         """
         if action not in _SUPPORTED_ACTIONS:
             msg = (
-                f"Bilinmeyen Shell aksiyonu: {action}. "
-                f"Desteklenenler: {sorted(_SUPPORTED_ACTIONS)}"
+                f"Bilinmeyen Shell aksiyonu: {action}. Desteklenenler: {sorted(_SUPPORTED_ACTIONS)}"
             )
             raise ValueError(msg)
 
