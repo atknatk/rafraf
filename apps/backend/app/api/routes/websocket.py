@@ -13,7 +13,9 @@ from app.schemas.messages import (
     ErrorPayload,
     MessageDirection,
     MessageType,
+    ProgressPayload,
 )
+from app.services.orchestrator_service import OrchestratorService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -218,25 +220,25 @@ async def _handle_text(
     session_id: str,
     user_id: str,
 ) -> None:
-    """Process a text message from the client.
-
-    Currently echoes the message content back. Future: route to AI orchestrator.
-    """
+    """Process a text message from the client via AI orchestrator."""
     content = raw_data.get("content", "")
+    if not isinstance(content, str):
+        content = str(content)
+
     await logger.ainfo(
         "text_message_received",
         connection_id=connection_id,
         user_id=user_id,
-        content_length=len(str(content)),
+        content_length=len(content),
     )
 
-    # Echo response (placeholder until AI orchestrator is implemented)
-    response = _build_message(
-        MessageType.TEXT,
-        {"text": f"Mesaj alindi: {content}"},
+    # Route through AI orchestrator
+    await _process_with_orchestrator(
+        message=content,
+        connection_id=connection_id,
         session_id=session_id,
+        user_id=user_id,
     )
-    await manager.send_json(connection_id, response)
 
 
 async def _handle_voice(
@@ -245,21 +247,77 @@ async def _handle_voice(
     session_id: str,
     user_id: str,
 ) -> None:
-    """Process a voice message from the client.
+    """Process a voice message from the client via AI orchestrator.
 
-    Currently acknowledges receipt. Future: route to STT -> AI orchestrator.
+    Voice content is assumed to already be transcribed (STT done client-side or
+    by a separate service). The transcribed text is routed to the orchestrator.
     """
     content = raw_data.get("content", "")
+    if not isinstance(content, str):
+        content = str(content)
+
     await logger.ainfo(
         "voice_message_received",
         connection_id=connection_id,
         user_id=user_id,
     )
 
-    # Acknowledgment (placeholder until STT integration is implemented)
-    response = _build_message(
+    # Route through AI orchestrator (transcribed text)
+    await _process_with_orchestrator(
+        message=content,
+        connection_id=connection_id,
+        session_id=session_id,
+        user_id=user_id,
+    )
+
+
+async def _process_with_orchestrator(
+    *,
+    message: str,
+    connection_id: str,
+    session_id: str,
+    user_id: str,
+) -> None:
+    """Process a message through the AI orchestrator and send the response.
+
+    Sends progress updates during tool execution and the final AI response.
+    """
+    orchestrator = OrchestratorService()
+
+    async def _progress_callback(tool_name: str, step: int, total_steps: int) -> None:
+        """Send progress update to the client during tool execution."""
+        progress_payload = ProgressPayload(
+            task=f"Tool calisiyor: {tool_name}",
+            step=step,
+            total_steps=total_steps,
+            percentage=int((step / total_steps) * 100),
+            details=f"Executing {tool_name}",
+        )
+        progress_msg = _build_message(
+            MessageType.PROGRESS,
+            progress_payload.model_dump(exclude_none=True),
+            session_id=session_id,
+        )
+        await manager.send_json(connection_id, progress_msg)
+
+    response = await orchestrator.process_user_message(
+        session_id=session_id,
+        user_id=user_id,
+        message=message,
+        progress_callback=_progress_callback,
+    )
+
+    # Send AI response to client
+    response_msg = _build_message(
         MessageType.TEXT,
-        {"text": f"Ses mesaji alindi: {content}"},
+        {
+            "text": response.response_text,
+            "model_used": response.model_used,
+            "tokens_used": {
+                "input": response.tokens_input,
+                "output": response.tokens_output,
+            },
+        },
         session_id=session_id,
     )
-    await manager.send_json(connection_id, response)
+    await manager.send_json(connection_id, response_msg)

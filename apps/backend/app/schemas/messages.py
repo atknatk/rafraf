@@ -23,6 +23,10 @@ class MessageType(StrEnum):
     PROGRESS = "progress"
     PING = "ping"
     PONG = "pong"
+    ACTION_RESULT = "action_result"
+    QUESTION = "question"
+    STATUS = "status"
+    APPROVAL_RESPONSE = "approval_response"
 
 
 class MessageAttachment(BaseModel):
@@ -100,3 +104,60 @@ class PingPongPayload(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     timestamp: str
+
+
+class ActionResultPayload(BaseModel):
+    """Payload for tool action result messages."""
+
+    model_config = ConfigDict(frozen=True)
+
+    tool: str
+    action: str
+    success: bool
+    output: str
+    duration_seconds: float | None = None
+    details: dict[str, object] | None = None
+
+
+class QuestionOptionPayload(BaseModel):
+    """A single option in a question message."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    label: str
+    style: str
+
+
+class QuestionPayload(BaseModel):
+    """Payload for approval question messages."""
+
+    model_config = ConfigDict(frozen=True)
+
+    approval_id: str
+    question: str
+    context: str | None = None
+    options: list[QuestionOptionPayload]
+    timeout_seconds: int
+    category: str
+
+
+class StatusPayload(BaseModel):
+    """Payload for project status messages."""
+
+    model_config = ConfigDict(frozen=True)
+
+    project_id: str
+    project_name: str
+    overall_status: str
+    details: dict[str, object] | None = None
+
+
+class ApprovalResponsePayload(BaseModel):
+    """Payload for client approval response messages."""
+
+    model_config = ConfigDict(frozen=True)
+
+    approval_id: str
+    decision: str
+    note: str | None = None
