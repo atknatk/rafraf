@@ -4,12 +4,8 @@ from __future__ import annotations
 
 import abc
 import time
-from typing import TYPE_CHECKING
 
 import structlog
-
-if TYPE_CHECKING:
-    pass
 
 logger = structlog.get_logger()
 
