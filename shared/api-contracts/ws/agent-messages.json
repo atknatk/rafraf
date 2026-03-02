@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentWebSocketMessages",
+  "description": "Host Agent WebSocket mesaj semalari - kayit, heartbeat ve komut mesajlari",
+  "messages": [
+    {
+      "direction": "agent_to_server",
+      "type": "agent_register",
+      "description": "Agent kayit ve yetenek bildirimi",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "host_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Benzersiz host kimlik bilgisi"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["docker", "playwright", "maestro_ios", "maestro_android", "shell", "xcode_build", "android_build", "git", "python", "nodejs"]
+            },
+            "description": "Agent'in destekledigi yetenekler listesi"
+          },
+          "os_info": {
+            "type": "string",
+            "description": "Isletim sistemi bilgisi (ornek: macOS 15.0, Ubuntu 22.04)"
+          },
+          "version": {
+            "type": "string",
+            "description": "Agent yazilim surumu"
+          }
+        },
+        "required": ["host_id", "capabilities", "os_info", "version"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "server_to_agent",
+      "type": "agent_register_ack",
+      "description": "Agent kayit onay mesaji",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "host_id": {
+            "type": "string",
+            "description": "Onaylanan host kimlik bilgisi"
+          },
+          "registered": {
+            "type": "boolean",
+            "description": "Kayit basarili mi?"
+          },
+          "server_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Sunucu zamani (ISO 8601)"
+          },
+          "heartbeat_interval": {
+            "type": "integer",
+            "description": "Heartbeat gonderme araligi (saniye)"
+          }
+        },
+        "required": ["host_id", "registered", "server_time", "heartbeat_interval"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "agent_to_server",
+      "type": "agent_heartbeat",
+      "description": "Periyodik saglik raporu (30 saniye aralikla)",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "host_id": {
+            "type": "string",
+            "description": "Host kimlik bilgisi"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["online", "busy"],
+            "description": "Agent durumu"
+          },
+          "uptime_seconds": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Agent calisma suresi (saniye)"
+          },
+          "active_tasks": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Aktif gorev sayisi"
+          },
+          "resources": {
+            "type": "object",
+            "properties": {
+              "cpu_usage_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "CPU kullanim yuzdesi"
+              },
+              "memory_usage_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "RAM kullanim yuzdesi"
+              },
+              "disk_usage_percent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "Disk kullanim yuzdesi"
+              },
+              "disk_free_gb": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Bos disk alani (GB)"
+              }
+            },
+            "required": ["cpu_usage_percent", "memory_usage_percent", "disk_usage_percent", "disk_free_gb"],
+            "additionalProperties": false,
+            "description": "Sistem kaynak bilgileri"
+          }
+        },
+        "required": ["host_id", "status", "uptime_seconds", "active_tasks", "resources"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

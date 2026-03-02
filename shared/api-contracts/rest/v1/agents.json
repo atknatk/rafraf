@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentEndpoints",
+  "description": "Host Agent registry ve durum sorgulama REST endpoint'leri",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/v1/agents",
+      "description": "Kayitli agent listesi ve durumlari",
+      "queryParams": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["online", "offline", "busy"],
+            "description": "Agent durumuna gore filtrele"
+          }
+        },
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "host_id": {
+                  "type": "string",
+                  "description": "Benzersiz host kimlik bilgisi"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["online", "offline", "busy"],
+                  "description": "Agent'in guncel durumu"
+                },
+                "capabilities": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": ["docker", "playwright", "maestro_ios", "maestro_android", "shell", "xcode_build", "android_build", "git", "python", "nodejs"]
+                  },
+                  "description": "Agent'in destekledigi yetenekler"
+                },
+                "last_heartbeat_at": {
+                  "type": ["string", "null"],
+                  "format": "date-time",
+                  "description": "Son heartbeat zamani (ISO 8601)"
+                },
+                "os_info": {
+                  "type": ["string", "null"],
+                  "description": "Isletim sistemi bilgisi"
+                },
+                "uptime_seconds": {
+                  "type": ["integer", "null"],
+                  "description": "Agent calisma suresi (saniye)"
+                },
+                "active_tasks": {
+                  "type": ["integer", "null"],
+                  "description": "Aktif gorev sayisi"
+                },
+                "resources": {
+                  "type": ["object", "null"],
+                  "properties": {
+                    "cpu_usage_percent": { "type": "number", "description": "CPU kullanim yuzdesi" },
+                    "memory_usage_percent": { "type": "number", "description": "RAM kullanim yuzdesi" },
+                    "disk_usage_percent": { "type": "number", "description": "Disk kullanim yuzdesi" },
+                    "disk_free_gb": { "type": "number", "description": "Bos disk alani (GB)" }
+                  },
+                  "description": "Agent kaynak kullanim bilgileri"
+                }
+              },
+              "required": ["host_id", "status", "capabilities"]
+            },
+            "description": "Agent listesi"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Toplam agent sayisi"
+          },
+          "online_count": {
+            "type": "integer",
+            "description": "Online agent sayisi"
+          }
+        },
+        "required": ["agents", "total", "online_count"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/agents/{host_id}",
+      "description": "Tek agent detay bilgisi",
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "host_id": {
+            "type": "string",
+            "description": "Benzersiz host kimlik bilgisi"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["online", "offline", "busy"],
+            "description": "Agent'in guncel durumu"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Agent'in destekledigi yetenekler"
+          },
+          "last_heartbeat_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "Son heartbeat zamani (ISO 8601)"
+          },
+          "registered_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Ilk kayit zamani (ISO 8601)"
+          },
+          "os_info": {
+            "type": ["string", "null"],
+            "description": "Isletim sistemi bilgisi"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Agent ek metadata bilgileri"
+          },
+          "uptime_seconds": {
+            "type": ["integer", "null"],
+            "description": "Agent calisma suresi (saniye)"
+          },
+          "active_tasks": {
+            "type": ["integer", "null"],
+            "description": "Aktif gorev sayisi"
+          },
+          "resources": {
+            "type": ["object", "null"],
+            "properties": {
+              "cpu_usage_percent": { "type": "number", "description": "CPU kullanim yuzdesi" },
+              "memory_usage_percent": { "type": "number", "description": "RAM kullanim yuzdesi" },
+              "disk_usage_percent": { "type": "number", "description": "Disk kullanim yuzdesi" },
+              "disk_free_gb": { "type": "number", "description": "Bos disk alani (GB)" }
+            },
+            "description": "Agent kaynak kullanim bilgileri"
+          }
+        },
+        "required": ["host_id", "status", "capabilities", "registered_at"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
