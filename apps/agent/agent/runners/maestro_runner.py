@@ -343,11 +343,11 @@ class MaestroRunner(BaseRunner):
                 try:
                     screenshot_bytes = screenshot_file.read_bytes()
                     s3_key = f"screenshots/maestro/{slug}/{timestamp}_{screenshot_file.name}"
-                    url = await self._s3_uploader.upload_bytes(
+                    result = await self._s3_uploader.upload_bytes(
                         data=screenshot_bytes,
                         key=s3_key,
                     )
-                    screenshot_urls.append(url)
+                    screenshot_urls.append(result.url)
                 except Exception as exc:
                     await logger.awarning(
                         "Screenshot yukleme hatasi",
@@ -670,13 +670,13 @@ class MaestroRunner(BaseRunner):
             try:
                 screenshot_bytes_data = screenshot_path.read_bytes()
                 s3_key = f"screenshots/maestro/{project_slug}/{timestamp}.png"
-                url = await self._s3_uploader.upload_bytes(
+                upload_result = await self._s3_uploader.upload_bytes(
                     data=screenshot_bytes_data,
                     key=s3_key,
                 )
                 return {
                     "success": True,
-                    "screenshot_url": url,
+                    "screenshot_url": upload_result.url,
                     "platform": platform,
                 }
             except Exception as exc:

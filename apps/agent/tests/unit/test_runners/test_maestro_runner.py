@@ -11,7 +11,7 @@ from agent.runners.maestro_runner import (
     MaestroRunner,
     MaestroRunnerError,
 )
-from agent.upload.s3_uploader import S3Uploader
+from agent.upload.s3_uploader import S3Uploader, UploadResult
 
 # --- Fixtures ---
 
@@ -21,7 +21,14 @@ def mock_s3_uploader() -> AsyncMock:
     """Mock S3Uploader olusturur."""
     uploader = AsyncMock(spec=S3Uploader)
     uploader.upload_bytes = AsyncMock(
-        return_value="https://test-bucket.s3.eu-west-1.amazonaws.com/screenshots/test.png",
+        return_value=UploadResult(
+            url="https://test-bucket.s3.eu-west-1.amazonaws.com/screenshots/test.png",
+            key="screenshots/test.png",
+            bucket="test-bucket",
+            size_bytes=1024,
+            content_type="image/png",
+            multipart=False,
+        ),
     )
     return uploader
 
