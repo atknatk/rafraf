@@ -8,6 +8,7 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 from app.core.security import SecurityError, verify_access_token
 from app.core.websocket import ConnectionManager
+from app.schemas.approval import ApprovalDecision
 from app.schemas.messages import (
     ConnectionAckPayload,
     ErrorPayload,
@@ -15,6 +16,7 @@ from app.schemas.messages import (
     MessageType,
     ProgressPayload,
 )
+from app.services.approval_service import get_approval_service
 from app.services.orchestrator_service import OrchestratorService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -179,6 +181,8 @@ async def _handle_message(
         await _handle_text(raw_data, connection_id, session_id, user_id)
     elif msg_type == MessageType.VOICE:
         await _handle_voice(raw_data, connection_id, session_id, user_id)
+    elif msg_type == MessageType.APPROVAL_RESPONSE:
+        await _handle_approval_response(raw_data, connection_id, session_id)
     else:
         error_msg = _build_error_message(
             error_code="UNSUPPORTED_CLIENT_MESSAGE",
@@ -321,3 +325,72 @@ async def _process_with_orchestrator(
         session_id=session_id,
     )
     await manager.send_json(connection_id, response_msg)
+
+
+async def _handle_approval_response(
+    raw_data: dict[str, object],
+    connection_id: str,
+    session_id: str,
+) -> None:
+    """Process an approval response from the client.
+
+    Extracts the decision payload and submits it to the approval service.
+    """
+    content = raw_data.get("content")
+    if not isinstance(content, dict):
+        error_msg = _build_error_message(
+            error_code="INVALID_APPROVAL_RESPONSE",
+            message="approval_response content must be a JSON object",
+            session_id=session_id,
+        )
+        await manager.send_json(connection_id, error_msg)
+        return
+
+    approval_id = content.get("approval_id")
+    decision_str = content.get("decision")
+
+    if not isinstance(approval_id, str) or not isinstance(decision_str, str):
+        error_msg = _build_error_message(
+            error_code="INVALID_APPROVAL_RESPONSE",
+            message="approval_response must contain 'approval_id' and 'decision' strings",
+            session_id=session_id,
+        )
+        await manager.send_json(connection_id, error_msg)
+        return
+
+    if decision_str not in ("approved", "rejected"):
+        error_msg = _build_error_message(
+            error_code="INVALID_APPROVAL_DECISION",
+            message=f"Invalid decision: {decision_str}. Must be 'approved' or 'rejected'",
+            session_id=session_id,
+        )
+        await manager.send_json(connection_id, error_msg)
+        return
+
+    note = content.get("note")
+    note_str = str(note) if note is not None else None
+
+    decision = ApprovalDecision(
+        approval_id=approval_id,
+        decision=decision_str,
+        note=note_str,
+    )
+
+    approval_service = get_approval_service()
+    submitted = await approval_service.submit_decision(decision)
+
+    if not submitted:
+        error_msg = _build_error_message(
+            error_code="APPROVAL_NOT_FOUND",
+            message=f"No pending approval found with ID: {approval_id}",
+            session_id=session_id,
+        )
+        await manager.send_json(connection_id, error_msg)
+
+    await logger.ainfo(
+        "approval_response_received",
+        connection_id=connection_id,
+        approval_id=approval_id,
+        decision=decision_str,
+        submitted=submitted,
+    )

@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ApprovalMessages",
+  "description": "WebSocket mesajlari: Approval sistemi soru-cevap akisi",
+  "messages": [
+    {
+      "direction": "server_to_client",
+      "type": "question",
+      "description": "Kullaniciya onay sorusu gonder (tool calistirmadan once)",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "approval_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Benzersiz onay talebi ID'si"
+          },
+          "question": {
+            "type": "string",
+            "description": "Kullaniciya gosterilecek soru metni"
+          },
+          "context": {
+            "type": "string",
+            "description": "Soruya ek bilgi/baglan (opsiyonel)"
+          },
+          "options": {
+            "type": "array",
+            "description": "Kullanicinin secebilecegi secenek listesi",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Secenek tanimlayicisi (approve/reject/detail)"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Kullaniciya gosterilen etiket"
+                },
+                "style": {
+                  "type": "string",
+                  "enum": ["primary", "danger", "secondary"],
+                  "description": "Buton stili"
+                }
+              },
+              "required": ["id", "label", "style"],
+              "additionalProperties": false
+            }
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 600,
+            "description": "Onay bekleme suresi (saniye)"
+          },
+          "category": {
+            "type": "string",
+            "enum": ["deploy", "destructive", "infrastructure", "write_remote"],
+            "description": "Onay kategorisi"
+          }
+        },
+        "required": ["approval_id", "question", "options", "timeout_seconds", "category"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "client_to_server",
+      "type": "approval_response",
+      "description": "Kullanici onay karari cevabi",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "approval_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Cevaplanan onay talebi ID'si"
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["approved", "rejected"],
+            "description": "Kullanici karari"
+          },
+          "note": {
+            "type": "string",
+            "description": "Kullanici notu (opsiyonel)"
+          }
+        },
+        "required": ["approval_id", "decision"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
