@@ -22,7 +22,7 @@ defaults:
 jobs:
   lint:
     name: Lint (Ruff)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, rafraf-runner]
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +44,7 @@ jobs:
 
   typecheck:
     name: Type Check (MyPy)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, rafraf-runner]
     steps:
       - uses: actions/checkout@v4
 
@@ -63,7 +63,7 @@ jobs:
 
   test:
     name: Test (Pytest)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, rafraf-runner]
     steps:
       - uses: actions/checkout@v4
 

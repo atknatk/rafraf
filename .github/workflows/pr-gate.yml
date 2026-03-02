@@ -10,7 +10,7 @@ permissions:
 jobs:
   changes:
     name: Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, rafraf-runner]
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       ios: ${{ steps.filter.outputs.ios }}
@@ -34,7 +34,7 @@ jobs:
     name: Backend Gate
     needs: changes
     if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, rafraf-runner]
     timeout-minutes: 10
     defaults:
       run:
@@ -143,7 +143,7 @@ jobs:
     name: Agent Gate
     needs: changes
     if: needs.changes.outputs.agent == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, rafraf-runner]
     defaults:
       run:
         working-directory: apps/agent
@@ -174,7 +174,7 @@ jobs:
 
   gate-result:
     name: PR Gate Result
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, rafraf-runner]
     needs: [changes, backend-gate, ios-gate, agent-gate]
     if: always()
     steps:
