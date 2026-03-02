@@ -326,12 +326,14 @@ class TestOrchestratorAgent:
         agent.clear_conversation("sess_1")
         assert "sess_1" not in agent._conversations
 
+    @patch("app.orchestrator.agent.asyncio.sleep", new_callable=AsyncMock)
     @patch("app.orchestrator.agent.get_settings")
     @patch("app.orchestrator.agent.anthropic.AsyncAnthropic")
     async def test_claude_api_retry_on_rate_limit(
         self,
         mock_anthropic_cls: MagicMock,
         mock_settings: MagicMock,
+        _mock_sleep: AsyncMock,
     ) -> None:
         """Rate limit errors should trigger retries."""
         import anthropic as anthropic_mod
@@ -367,12 +369,14 @@ class TestOrchestratorAgent:
         assert response.response_text == "Success after retry"
         assert mock_client.messages.create.await_count == 2
 
+    @patch("app.orchestrator.agent.asyncio.sleep", new_callable=AsyncMock)
     @patch("app.orchestrator.agent.get_settings")
     @patch("app.orchestrator.agent.anthropic.AsyncAnthropic")
     async def test_claude_api_all_retries_exhausted(
         self,
         mock_anthropic_cls: MagicMock,
         mock_settings: MagicMock,
+        _mock_sleep: AsyncMock,
     ) -> None:
         """Exhausting all retries should raise ClaudeAPIError."""
         import anthropic as anthropic_mod
