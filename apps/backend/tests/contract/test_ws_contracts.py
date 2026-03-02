@@ -18,7 +18,8 @@ from app.schemas.messages import (
     ProgressPayload,
 )
 
-CONTRACT_FILE = Path(__file__).resolve().parents[4] / "shared" / "api-contracts" / "ws" / "websocket-messages.json"
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+CONTRACT_FILE = _REPO_ROOT / "shared" / "api-contracts" / "ws" / "websocket-messages.json"
 
 
 @pytest.fixture
@@ -30,9 +31,7 @@ def ws_contract() -> dict[str, object]:
         return json.load(f)  # type: ignore[no-any-return]
 
 
-def _get_message_def(
-    contract: dict[str, object], msg_type: str
-) -> dict[str, object] | None:
+def _get_message_def(contract: dict[str, object], msg_type: str) -> dict[str, object] | None:
     """Find a message definition by type in the contract."""
     messages = contract.get("messages", [])
     if not isinstance(messages, list):
@@ -150,33 +149,25 @@ class TestPingPongMatchesContract:
 class TestDirectionMatchesContract:
     """Verify message directions match contract definitions."""
 
-    def test_connection_ack_is_server_to_client(
-        self, ws_contract: dict[str, object]
-    ) -> None:
+    def test_connection_ack_is_server_to_client(self, ws_contract: dict[str, object]) -> None:
         """connection_ack should be server_to_client in contract."""
         msg_def = _get_message_def(ws_contract, "connection_ack")
         assert msg_def is not None
         assert msg_def.get("direction") == "server_to_client"
 
-    def test_error_is_server_to_client(
-        self, ws_contract: dict[str, object]
-    ) -> None:
+    def test_error_is_server_to_client(self, ws_contract: dict[str, object]) -> None:
         """error should be server_to_client in contract."""
         msg_def = _get_message_def(ws_contract, "error")
         assert msg_def is not None
         assert msg_def.get("direction") == "server_to_client"
 
-    def test_progress_is_server_to_client(
-        self, ws_contract: dict[str, object]
-    ) -> None:
+    def test_progress_is_server_to_client(self, ws_contract: dict[str, object]) -> None:
         """progress should be server_to_client in contract."""
         msg_def = _get_message_def(ws_contract, "progress")
         assert msg_def is not None
         assert msg_def.get("direction") == "server_to_client"
 
-    def test_ping_is_bidirectional(
-        self, ws_contract: dict[str, object]
-    ) -> None:
+    def test_ping_is_bidirectional(self, ws_contract: dict[str, object]) -> None:
         """ping should be bidirectional in contract."""
         msg_def = _get_message_def(ws_contract, "ping")
         assert msg_def is not None
