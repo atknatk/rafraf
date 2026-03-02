@@ -14,6 +14,8 @@ dependencies = [
     "redis>=5.2.0",
     "structlog>=24.4.0",
     "httpx>=0.28.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
 ]
 
 [project.optional-dependencies]
@@ -30,8 +32,8 @@ target-version = "py312"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "ANN", "B", "A", "COM", "C4", "PT", "RET", "SIM", "ARG"]
-ignore = ["ANN101", "ANN102", "ANN401"]
+select = ["E", "F", "I", "N", "W", "UP", "B", "A", "COM", "C4", "PT", "RET", "SIM", "ARG"]
+ignore = ["COM812"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
@@ -40,11 +42,22 @@ known-first-party = ["app"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
+exclude = ["alembic/"]
+
+[[tool.mypy.overrides]]
+module = [
+    "jose.*",
+    "passlib.*",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 
+[tool.setuptools.packages.find]
+include = ["app*"]
+
 [build-system]
-requires = ["setuptools>=75.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+requires = ["setuptools>=69.0"]
+build-backend = "setuptools.build_meta"
