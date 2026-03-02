@@ -323,9 +323,10 @@ class TestShellRunnerEdgeCases:
             {"command": "nonexistent_binary_xyz_abc_123"},
         )
         assert result["success"] is False
-        assert "bulunamadi" in str(result.get("error", "")).lower() or "not found" in str(
-            result.get("error", "")
-        ).lower()
+        assert (
+            "bulunamadi" in str(result.get("error", "")).lower()
+            or "not found" in str(result.get("error", "")).lower()
+        )
 
     async def test_shlex_parse_error(self) -> None:
         """Kotu formatli komut parse hatasi donmeli."""

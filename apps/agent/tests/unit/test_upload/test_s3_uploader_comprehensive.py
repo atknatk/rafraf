@@ -176,8 +176,12 @@ class TestUploadResultModel:
     def test_frozen_dataclass(self) -> None:
         """UploadResult immutable."""
         result = UploadResult(
-            url="url", key="key", bucket="b", size_bytes=0,
-            content_type="ct", multipart=False,
+            url="url",
+            key="key",
+            bucket="b",
+            size_bytes=0,
+            content_type="ct",
+            multipart=False,
         )
         with pytest.raises(AttributeError):
             result.url = "new"  # type: ignore[misc]
@@ -280,7 +284,9 @@ class TestValidateFileEdgeCases:
             test_file = tmp_path / filename
             test_file.write_bytes(b"data")
             _, content_type = s3_uploader.validate_file(test_file)
-            assert content_type == expected_type, f"{filename}: expected {expected_type}, got {content_type}"
+            assert content_type == expected_type, (
+                f"{filename}: expected {expected_type}, got {content_type}"
+            )
 
 
 # --- Validate Bytes Edge Cases ---
@@ -342,7 +348,10 @@ class TestSingleUploadProgress:
     ) -> None:
         """Callback verilmediginde hata olmaz."""
         url = await s3_uploader._single_upload(
-            b"data", "key.png", "image/png", progress_callback=None,
+            b"data",
+            "key.png",
+            "image/png",
+            progress_callback=None,
         )
         assert "key.png" in url
 

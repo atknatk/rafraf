@@ -37,30 +37,32 @@ _DEFAULT_RETRY_DELAY: float = 1.0
 _DEFAULT_PRESIGNED_EXPIRY: int = 3600  # 1 saat
 
 # Izin verilen dosya uzantilari
-ALLOWED_EXTENSIONS: frozenset[str] = frozenset({
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".gif",
-    ".webp",
-    ".svg",
-    ".bmp",
-    ".txt",
-    ".log",
-    ".json",
-    ".xml",
-    ".csv",
-    ".html",
-    ".pdf",
-    ".zip",
-    ".tar",
-    ".gz",
-    ".mp4",
-    ".mov",
-    ".avi",
-    ".yml",
-    ".yaml",
-})
+ALLOWED_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".webp",
+        ".svg",
+        ".bmp",
+        ".txt",
+        ".log",
+        ".json",
+        ".xml",
+        ".csv",
+        ".html",
+        ".pdf",
+        ".zip",
+        ".tar",
+        ".gz",
+        ".mp4",
+        ".mov",
+        ".avi",
+        ".yml",
+        ".yaml",
+    },
+)
 
 
 # --- Hata Siniflari ---
@@ -265,10 +267,7 @@ class S3Uploader:
         if file_size > self._config.max_file_size:
             max_mb = self._config.max_file_size / (1024 * 1024)
             actual_mb = file_size / (1024 * 1024)
-            msg = (
-                f"Dosya boyutu siniri asildi: {actual_mb:.1f}MB "
-                f"(maks: {max_mb:.0f}MB)"
-            )
+            msg = f"Dosya boyutu siniri asildi: {actual_mb:.1f}MB (maks: {max_mb:.0f}MB)"
             raise FileValidationError(msg)
 
         ext = file_path.suffix.lower()
@@ -308,10 +307,7 @@ class S3Uploader:
         if size > self._config.max_file_size:
             max_mb = self._config.max_file_size / (1024 * 1024)
             actual_mb = size / (1024 * 1024)
-            msg = (
-                f"Veri boyutu siniri asildi: {actual_mb:.1f}MB "
-                f"(maks: {max_mb:.0f}MB)"
-            )
+            msg = f"Veri boyutu siniri asildi: {actual_mb:.1f}MB (maks: {max_mb:.0f}MB)"
             raise FileValidationError(msg)
 
         return size
@@ -366,10 +362,7 @@ class S3Uploader:
                     await asyncio.sleep(delay)
                     delay = min(delay * retry_cfg.backoff_factor, retry_cfg.max_delay)
 
-        msg = (
-            f"{operation_name} {retry_cfg.max_retries} denemeden sonra basarisiz: "
-            f"{last_error}"
-        )
+        msg = f"{operation_name} {retry_cfg.max_retries} denemeden sonra basarisiz: {last_error}"
         raise RetryExhaustedError(msg) from last_error
 
     async def _single_upload(
@@ -397,12 +390,14 @@ class S3Uploader:
         total_size = len(data)
 
         if progress_callback:
-            progress_callback(UploadProgress(
-                bytes_sent=0,
-                total_bytes=total_size,
-                percentage=0.0,
-                status=UploadStatus.IN_PROGRESS,
-            ))
+            progress_callback(
+                UploadProgress(
+                    bytes_sent=0,
+                    total_bytes=total_size,
+                    percentage=0.0,
+                    status=UploadStatus.IN_PROGRESS,
+                ),
+            )
 
         try:
             await client.put_object(
@@ -413,22 +408,26 @@ class S3Uploader:
             )
         except Exception as exc:
             if progress_callback:
-                progress_callback(UploadProgress(
-                    bytes_sent=0,
-                    total_bytes=total_size,
-                    percentage=0.0,
-                    status=UploadStatus.FAILED,
-                ))
+                progress_callback(
+                    UploadProgress(
+                        bytes_sent=0,
+                        total_bytes=total_size,
+                        percentage=0.0,
+                        status=UploadStatus.FAILED,
+                    ),
+                )
             msg = f"S3 upload basarisiz (key={key}): {exc}"
             raise S3UploadError(msg) from exc
 
         if progress_callback:
-            progress_callback(UploadProgress(
-                bytes_sent=total_size,
-                total_bytes=total_size,
-                percentage=100.0,
-                status=UploadStatus.COMPLETED,
-            ))
+            progress_callback(
+                UploadProgress(
+                    bytes_sent=total_size,
+                    total_bytes=total_size,
+                    percentage=100.0,
+                    status=UploadStatus.COMPLETED,
+                ),
+            )
 
         return f"https://{self._config.bucket}.s3.{self._config.region}.amazonaws.com/{key}"
 
@@ -459,14 +458,16 @@ class S3Uploader:
         total_parts = (total_size + chunk_size - 1) // chunk_size
 
         if progress_callback:
-            progress_callback(UploadProgress(
-                bytes_sent=0,
-                total_bytes=total_size,
-                percentage=0.0,
-                status=UploadStatus.IN_PROGRESS,
-                part_number=0,
-                total_parts=total_parts,
-            ))
+            progress_callback(
+                UploadProgress(
+                    bytes_sent=0,
+                    total_bytes=total_size,
+                    percentage=0.0,
+                    status=UploadStatus.IN_PROGRESS,
+                    part_number=0,
+                    total_parts=total_parts,
+                ),
+            )
 
         upload_id: str | None = None
 
@@ -495,23 +496,27 @@ class S3Uploader:
                     Body=chunk,
                 )
 
-                parts.append({
-                    "ETag": part_resp["ETag"],
-                    "PartNumber": part_num,
-                })
+                parts.append(
+                    {
+                        "ETag": part_resp["ETag"],
+                        "PartNumber": part_num,
+                    },
+                )
 
                 bytes_sent += len(chunk)
                 percentage = (bytes_sent / total_size) * 100.0
 
                 if progress_callback:
-                    progress_callback(UploadProgress(
-                        bytes_sent=bytes_sent,
-                        total_bytes=total_size,
-                        percentage=percentage,
-                        status=UploadStatus.IN_PROGRESS,
-                        part_number=part_num,
-                        total_parts=total_parts,
-                    ))
+                    progress_callback(
+                        UploadProgress(
+                            bytes_sent=bytes_sent,
+                            total_bytes=total_size,
+                            percentage=percentage,
+                            status=UploadStatus.IN_PROGRESS,
+                            part_number=part_num,
+                            total_parts=total_parts,
+                        ),
+                    )
 
                 await logger.adebug(
                     "Multipart parca yuklendi",
@@ -530,14 +535,16 @@ class S3Uploader:
             )
 
             if progress_callback:
-                progress_callback(UploadProgress(
-                    bytes_sent=total_size,
-                    total_bytes=total_size,
-                    percentage=100.0,
-                    status=UploadStatus.COMPLETED,
-                    part_number=total_parts,
-                    total_parts=total_parts,
-                ))
+                progress_callback(
+                    UploadProgress(
+                        bytes_sent=total_size,
+                        total_bytes=total_size,
+                        percentage=100.0,
+                        status=UploadStatus.COMPLETED,
+                        part_number=total_parts,
+                        total_parts=total_parts,
+                    ),
+                )
 
         except S3UploadError:
             raise
@@ -558,14 +565,16 @@ class S3Uploader:
                     )
 
             if progress_callback:
-                progress_callback(UploadProgress(
-                    bytes_sent=0,
-                    total_bytes=total_size,
-                    percentage=0.0,
-                    status=UploadStatus.FAILED,
-                    part_number=0,
-                    total_parts=total_parts,
-                ))
+                progress_callback(
+                    UploadProgress(
+                        bytes_sent=0,
+                        total_bytes=total_size,
+                        percentage=0.0,
+                        status=UploadStatus.FAILED,
+                        part_number=0,
+                        total_parts=total_parts,
+                    ),
+                )
 
             msg = f"Multipart upload basarisiz (key={key}): {exc}"
             raise S3UploadError(msg) from exc
