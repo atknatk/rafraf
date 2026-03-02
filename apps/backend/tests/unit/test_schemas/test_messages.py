@@ -49,7 +49,19 @@ class TestMessageType:
 
     def test_all_types_exist(self) -> None:
         """All expected message types should exist."""
-        expected = {"text", "voice", "connection_ack", "error", "progress", "ping", "pong"}
+        expected = {
+            "text",
+            "voice",
+            "connection_ack",
+            "error",
+            "progress",
+            "ping",
+            "pong",
+            "status",
+            "question",
+            "action_result",
+            "approval_response",
+        }
         actual = {t.value for t in MessageType}
         assert actual == expected
 

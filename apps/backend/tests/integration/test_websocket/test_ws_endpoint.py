@@ -1,11 +1,36 @@
 """Integration tests for WebSocket endpoint."""
 
+from collections.abc import Generator
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from app.core.security import create_access_token
 from app.main import app
+from app.schemas.orchestrator import OrchestratorResponse
+
+
+@pytest.fixture
+def mock_orchestrator() -> Generator[AsyncMock, None, None]:
+    """Mock OrchestratorService to avoid real Anthropic API calls in CI."""
+    mock_response = OrchestratorResponse(
+        session_id="test-session",
+        response_text="Mocked AI response",
+        model_used="claude-haiku-4-5-20251001",
+        tokens_input=10,
+        tokens_output=5,
+        tool_calls_count=0,
+    )
+    with patch(
+        "app.api.routes.websocket.OrchestratorService",
+        autospec=True,
+    ) as mock_cls:
+        mock_instance = AsyncMock()
+        mock_instance.process_user_message.return_value = mock_response
+        mock_cls.return_value = mock_instance
+        yield mock_instance
 
 
 @pytest.fixture
@@ -75,7 +100,7 @@ class TestWebSocketMessaging:
     """Integration tests for WebSocket message exchange."""
 
     def test_send_text_message_receives_response(
-        self, client: TestClient, valid_token: str
+        self, client: TestClient, valid_token: str, mock_orchestrator: AsyncMock
     ) -> None:
         """Sending a text message should receive a text response."""
         with client.websocket_connect(f"/ws?token={valid_token}") as ws:
@@ -95,7 +120,7 @@ class TestWebSocketMessaging:
             assert "content" in response
 
     def test_send_voice_message_receives_response(
-        self, client: TestClient, valid_token: str
+        self, client: TestClient, valid_token: str, mock_orchestrator: AsyncMock
     ) -> None:
         """Sending a voice message should receive an acknowledgment."""
         with client.websocket_connect(f"/ws?token={valid_token}") as ws:
@@ -183,7 +208,9 @@ class TestWebSocketPingPong:
             assert "content" in response
             assert "timestamp" in response["content"]
 
-    def test_client_pong_is_accepted(self, client: TestClient, valid_token: str) -> None:
+    def test_client_pong_is_accepted(
+        self, client: TestClient, valid_token: str, mock_orchestrator: AsyncMock
+    ) -> None:
         """Client-sent pong should be accepted without error."""
         with client.websocket_connect(f"/ws?token={valid_token}") as ws:
             ws.receive_json()  # connection_ack
@@ -211,7 +238,9 @@ class TestWebSocketPingPong:
 class TestWebSocketMultipleMessages:
     """Tests for sending multiple messages in sequence."""
 
-    def test_multiple_text_messages(self, client: TestClient, valid_token: str) -> None:
+    def test_multiple_text_messages(
+        self, client: TestClient, valid_token: str, mock_orchestrator: AsyncMock
+    ) -> None:
         """Multiple text messages should each receive a response."""
         with client.websocket_connect(f"/ws?token={valid_token}") as ws:
             ws.receive_json()  # connection_ack
@@ -227,7 +256,9 @@ class TestWebSocketMultipleMessages:
                 response = ws.receive_json()
                 assert response["type"] == "text"
 
-    def test_response_has_unique_ids(self, client: TestClient, valid_token: str) -> None:
+    def test_response_has_unique_ids(
+        self, client: TestClient, valid_token: str, mock_orchestrator: AsyncMock
+    ) -> None:
         """Each response should have a unique message ID."""
         with client.websocket_connect(f"/ws?token={valid_token}") as ws:
             ws.receive_json()  # connection_ack
@@ -246,7 +277,9 @@ class TestWebSocketMultipleMessages:
 
             assert len(ids) == 3
 
-    def test_response_metadata_direction(self, client: TestClient, valid_token: str) -> None:
+    def test_response_metadata_direction(
+        self, client: TestClient, valid_token: str, mock_orchestrator: AsyncMock
+    ) -> None:
         """Response metadata should have server_to_client direction."""
         with client.websocket_connect(f"/ws?token={valid_token}") as ws:
             ws.receive_json()  # connection_ack

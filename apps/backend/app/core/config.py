@@ -49,6 +49,15 @@ class Settings(BaseSettings):
     # Agent
     agent_api_key: str = ""
 
+    # Claude AI Orchestrator
+    claude_default_model: str = "claude-sonnet-4-5-20250929"
+    claude_simple_model: str = "claude-haiku-4-5-20251001"
+    claude_max_iterations: int = 10
+    claude_max_tokens: int = 4096
+
+    # Approval
+    approval_timeout_seconds: int = 300
+
 
 def get_settings() -> Settings:
     """Return application settings singleton."""

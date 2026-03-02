@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrchestratorWebSocketMessages",
+  "description": "Claude AI Orchestrator WebSocket mesaj kontratları",
+  "messages": [
+    {
+      "direction": "server_to_client",
+      "type": "action_result",
+      "description": "Tool calisma sonucu bildirimi",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string",
+            "description": "Calisan tool adi"
+          },
+          "action": {
+            "type": "string",
+            "description": "Yapilan islem"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Islem basarili mi"
+          },
+          "output": {
+            "type": "string",
+            "description": "Islem cikti mesaji"
+          },
+          "duration_seconds": {
+            "type": "number",
+            "description": "Islem suresi (saniye)"
+          },
+          "details": {
+            "type": "object",
+            "description": "Ek detay bilgileri"
+          }
+        },
+        "required": ["tool", "action", "success", "output"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "server_to_client",
+      "type": "question",
+      "description": "Kullaniciya onay sorusu",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "approval_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Onay talep ID'si"
+          },
+          "question": {
+            "type": "string",
+            "description": "Kullaniciya sorulacak soru"
+          },
+          "context": {
+            "type": "string",
+            "description": "Sorunun baglami"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Secenek ID'si"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Secenek etiketi"
+                },
+                "style": {
+                  "type": "string",
+                  "enum": ["primary", "danger", "secondary"],
+                  "description": "Secenek gorsel stili"
+                }
+              },
+              "required": ["id", "label", "style"],
+              "additionalProperties": false
+            },
+            "description": "Secenekler listesi"
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "description": "Onay zaman asimi (saniye)"
+          },
+          "category": {
+            "type": "string",
+            "enum": ["deploy", "destructive", "infrastructure", "write_remote"],
+            "description": "Onay kategorisi"
+          }
+        },
+        "required": ["approval_id", "question", "options", "timeout_seconds", "category"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "server_to_client",
+      "type": "status",
+      "description": "Proje durum karti",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "Proje ID'si"
+          },
+          "project_name": {
+            "type": "string",
+            "description": "Proje adi"
+          },
+          "overall_status": {
+            "type": "string",
+            "enum": ["healthy", "degraded", "down", "unknown"],
+            "description": "Genel proje durumu"
+          },
+          "details": {
+            "type": "object",
+            "description": "Detayli durum bilgileri"
+          }
+        },
+        "required": ["project_id", "project_name", "overall_status"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "client_to_server",
+      "type": "approval_response",
+      "description": "Kullanici onay cevabi",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "approval_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Onay talep ID'si"
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["approved", "rejected"],
+            "description": "Kullanici karari"
+          },
+          "note": {
+            "type": "string",
+            "description": "Opsiyonel kullanici notu"
+          }
+        },
+        "required": ["approval_id", "decision"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
