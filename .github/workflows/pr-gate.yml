@@ -67,38 +67,74 @@ jobs:
     name: iOS Gate
     needs: changes
     if: needs.changes.outputs.ios == 'true'
-    runs-on: macos-latest
+    runs-on: macos-15
     defaults:
       run:
         working-directory: apps/ios
     env:
       SCHEME: RafRaf
-      DESTINATION: "platform=iOS Simulator,name=iPhone 16,OS=18.2"
+      BUILD_DESTINATION: "generic/platform=iOS Simulator"
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode 16
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+      - name: Select Xcode
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using Xcode: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          xcodebuild -version
+
+      - name: Install iOS Simulator runtime
+        run: |
+          xcodebuild -downloadPlatform iOS || true
+          xcrun simctl list runtimes
 
       - name: Resolve SPM dependencies
         run: |
           xcodebuild -resolvePackageDependencies \
             -scheme "$SCHEME" \
-            -destination "$DESTINATION"
+            -destination "$BUILD_DESTINATION"
 
       - name: Build
         run: |
           xcodebuild build \
             -scheme "$SCHEME" \
-            -destination "$DESTINATION" \
+            -destination "$BUILD_DESTINATION" \
             -skipMacroValidation \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Determine test destination
+        id: dest
+        run: |
+          RUNTIME=$(xcrun simctl list runtimes iOS -j | python3 -c "
+          import json, sys
+          runtimes = json.load(sys.stdin)['runtimes']
+          available = [r for r in runtimes if r.get('isAvailable', False)]
+          if available:
+              print(available[-1]['identifier'])
+          " 2>/dev/null || true)
+          if [ -z "$RUNTIME" ]; then
+            echo "dest=generic/platform=iOS Simulator" >> "$GITHUB_OUTPUT"
+          else
+            DEVICE=$(xcrun simctl list devices "$RUNTIME" -j | python3 -c "
+          import json, sys
+          devices = json.load(sys.stdin)['devices']
+          for runtime, devs in devices.items():
+              for d in devs:
+                  if d.get('isAvailable', False) and 'iPhone' in d['name']:
+                      print(d['name']); sys.exit()
+          print('iPhone 16')
+          " 2>/dev/null || echo "iPhone 16")
+            OS_VER=$(echo "$RUNTIME" | grep -oE '[0-9]+-[0-9]+$' | tr '-' '.')
+            echo "dest=platform=iOS Simulator,name=$DEVICE,OS=$OS_VER" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Test destination: $(cat "$GITHUB_OUTPUT")"
 
       - name: Test
         run: |
           xcodebuild test \
             -scheme "$SCHEME" \
-            -destination "$DESTINATION" \
+            -destination "${{ steps.dest.outputs.dest }}" \
             -skipMacroValidation \
             CODE_SIGNING_ALLOWED=NO
 
