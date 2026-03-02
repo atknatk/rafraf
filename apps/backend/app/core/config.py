@@ -26,7 +26,11 @@ class Settings(BaseSettings):
     # Security
     jwt_secret_key: str = "dev-secret-change-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_access_token_expire_minutes: int = 30
+    jwt_access_token_expire_minutes: int = 15
+    jwt_refresh_token_expire_days: int = 7
+
+    # Rate Limiting
+    rate_limit_requests_per_minute: int = 10
 
     # External APIs
     anthropic_api_key: str = ""
