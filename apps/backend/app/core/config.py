@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
     aws_s3_bucket: str = ""
+    aws_region: str = "eu-central-1"
 
     # WebSocket
     ws_heartbeat_interval: int = 30
