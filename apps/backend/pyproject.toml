@@ -25,6 +25,7 @@ dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
+    "pytest-timeout>=2.3.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
 ]
@@ -57,9 +58,10 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-# Disable anyio pytest plugin to avoid conflicts with pytest-asyncio
-# anyio is installed as a dependency of the anthropic SDK
-addopts = "-p no:anyio"
+# Disable anyio pytest plugin to avoid conflicts with pytest-asyncio.
+# anyio is installed as a dependency of the anthropic SDK.
+# Set per-test timeout to catch infinite hangs in CI.
+addopts = "-p no:anyio --timeout=30"
 
 [tool.setuptools.packages.find]
 include = ["app*"]
