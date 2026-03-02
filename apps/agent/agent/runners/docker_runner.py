@@ -17,14 +17,14 @@ logger = structlog.get_logger()
 
 # Desteklenen aksiyonlar
 _SUPPORTED_ACTIONS: frozenset[str] = frozenset(
-    {
+    [
         "compose_up",
         "compose_down",
         "compose_restart",
         "compose_logs",
         "health_check",
         "container_status",
-    }
+    ],
 )
 
 # Varsayilan degerler
