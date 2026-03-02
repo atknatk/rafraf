@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     ws_heartbeat_interval: int = 30
     ws_heartbeat_timeout: int = 10
 
+    # GitHub
+    github_token: str = ""
+    github_webhook_secret: str = ""
+
     # Agent
     agent_api_key: str = ""
 
