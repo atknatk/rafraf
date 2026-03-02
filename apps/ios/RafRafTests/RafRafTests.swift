@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import RafRaf
 
@@ -19,7 +20,7 @@ struct RafRafTests {
 
         #expect(project.id == "test-1")
         #expect(project.name == "Test Proje")
-        #expect(project.status == .active)
+        #expect(project.status == ProjectStatus.active)
     }
 
     @Test("Chat mesaji domain modeli olusturulabilmeli")
@@ -27,15 +28,15 @@ struct RafRafTests {
         let message = ChatMessage(
             id: "msg-1",
             content: "Merhaba",
-            sender: .user,
+            sender: MessageSender.user,
             timestamp: Date(),
-            type: .text
+            type: MessageType.text
         )
 
         #expect(message.id == "msg-1")
         #expect(message.content == "Merhaba")
-        #expect(message.sender == .user)
-        #expect(message.type == .text)
+        #expect(message.sender == MessageSender.user)
+        #expect(message.type == MessageType.text)
     }
 
     @Test("Kullanici profil domain modeli olusturulabilmeli")
@@ -68,13 +69,13 @@ struct RafRafTests {
 
         #expect(project.id == "test-1")
         #expect(project.name == "Test Proje")
-        #expect(project.status == .active)
+        #expect(project.status == ProjectStatus.active)
     }
 
     @Test("AppEnvironment development ortamini dondurmeli")
     func appEnvironmentDevelopment() {
         let env = AppEnvironment.current
         // DEBUG modda development olmali
-        #expect(env == .development)
+        #expect(env == AppEnvironment.development)
     }
 }
