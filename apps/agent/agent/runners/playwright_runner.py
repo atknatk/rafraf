@@ -478,10 +478,7 @@ class PlaywrightRunner(BaseRunner):
                             continue
                         field_selector = field.get("selector")
                         field_value = field.get("value")
-                        if (
-                            not isinstance(field_selector, str)
-                            or not isinstance(field_value, str)
-                        ):
+                        if not isinstance(field_selector, str) or not isinstance(field_value, str):
                             continue
 
                         await page.fill(field_selector, field_value)
