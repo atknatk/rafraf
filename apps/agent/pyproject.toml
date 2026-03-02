@@ -20,6 +20,7 @@ dev = [
     "pytest-cov>=6.0.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
+    "types-psutil>=6.1.0",
 ]
 
 [tool.ruff]
@@ -43,5 +44,5 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [build-system]
-requires = ["setuptools>=75.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+requires = ["setuptools>=69.0"]
+build-backend = "setuptools.build_meta"
