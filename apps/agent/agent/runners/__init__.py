@@ -7,6 +7,7 @@ BaseRunner abstract sinifi tum runner'lar icin ortak arayuzu saglar.
 from agent.runners.base import BaseRunner
 from agent.runners.docker_runner import DockerRunner, DockerRunnerError, ProjectEntry
 from agent.runners.maestro_runner import MaestroRunner, MaestroRunnerError
+from agent.runners.playwright_runner import PlaywrightRunner, PlaywrightRunnerError
 from agent.runners.shell_runner import ShellRunner, ShellRunnerError
 
 __all__ = [
@@ -15,6 +16,8 @@ __all__ = [
     "DockerRunnerError",
     "MaestroRunner",
     "MaestroRunnerError",
+    "PlaywrightRunner",
+    "PlaywrightRunnerError",
     "ProjectEntry",
     "ShellRunner",
     "ShellRunnerError",
