@@ -1,13 +1,13 @@
 """Pydantic schemas for push notification endpoints."""
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class NotificationType(str, Enum):
+class NotificationType(StrEnum):
     """Push notification category types."""
 
     task_complete = "task_complete"

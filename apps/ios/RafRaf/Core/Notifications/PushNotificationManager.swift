@@ -1,6 +1,6 @@
 import os
 import UIKit
-import UserNotifications
+@preconcurrency import UserNotifications
 
 /// APNs push bildirim yonetimi.
 /// Token kaydi, izin isteme ve bildirim ayarlari.
