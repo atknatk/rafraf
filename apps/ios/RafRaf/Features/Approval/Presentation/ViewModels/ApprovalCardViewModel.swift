@@ -24,7 +24,8 @@ final class ApprovalCardViewModel {
     // MARK: - Private
 
     private let submitDecisionUseCase: SubmitApprovalDecisionUseCase
-    private var timerTask: Task<Void, Never>?
+    /// nonisolated(unsafe) — deinit'te erisilebilmesi icin gerekli (Swift 6 concurrency).
+    nonisolated(unsafe) private var timerTask: Task<Void, Never>?
     private let logger = AppLogger.logger(for: "ApprovalCard")
 
     // MARK: - Init
