@@ -286,9 +286,7 @@ class CostService:
         """
         today = datetime.now(tz=UTC).date()
         daily_cost = await repo.get_total_cost_for_date(today, user_id=user_id)
-        monthly_cost = await repo.get_total_cost_for_month(
-            today.year, today.month, user_id=user_id
-        )
+        monthly_cost = await repo.get_total_cost_for_month(today.year, today.month, user_id=user_id)
 
         daily_limit = daily_limit_usd if daily_limit_usd is not None else _DEFAULT_DAILY_LIMIT_USD
         monthly_limit = (
@@ -332,11 +330,13 @@ class CostService:
         """
         models: list[dict[str, object]] = []
         for model_name, pricing in _MODEL_PRICING.items():
-            models.append({
-                "model": model_name,
-                "input_price_per_1m": pricing["input"],
-                "output_price_per_1m": pricing["output"],
-            })
+            models.append(
+                {
+                    "model": model_name,
+                    "input_price_per_1m": pricing["input"],
+                    "output_price_per_1m": pricing["output"],
+                }
+            )
         return models
 
     @staticmethod

@@ -10,9 +10,9 @@ enum ProjectMapper {
             id: dto.id,
             name: dto.name,
             description: dto.description,
+            status: ProjectStatus(rawValue: dto.status) ?? .active,
             createdAt: dateFormatter.date(from: dto.createdAt) ?? Date(),
-            updatedAt: dateFormatter.date(from: dto.updatedAt) ?? Date(),
-            status: ProjectStatus(rawValue: dto.status) ?? .active
+            updatedAt: dateFormatter.date(from: dto.updatedAt) ?? Date()
         )
     }
 
