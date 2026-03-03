@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NotificationEndpoints",
+  "description": "Push notification yonetim endpoint'leri",
+  "endpoints": [
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications/device-token",
+      "description": "APNs device token kaydi",
+      "requestBody": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "APNs device token"
+          },
+          "platform": {
+            "type": "string",
+            "enum": ["ios"],
+            "default": "ios",
+            "description": "Platform (ios)"
+          },
+          "app_version": {
+            "type": "string",
+            "description": "Uygulama versiyonu"
+          }
+        },
+        "required": ["token"],
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Kayit ID'si"
+          },
+          "registered_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Kayit zamani (ISO 8601)"
+          }
+        },
+        "required": ["id", "registered_at"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/notifications/device-token",
+      "description": "Device token silme (logout)",
+      "requestBody": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Silinecek APNs device token"
+          }
+        },
+        "required": ["token"],
+        "additionalProperties": false
+      },
+      "responseBody": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/notifications/settings",
+      "description": "Bildirim ayarlarini getir",
+      "queryParams": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "task_complete_enabled": {
+            "type": "boolean",
+            "description": "Gorev tamamlandi bildirimi aktif mi"
+          },
+          "approval_needed_enabled": {
+            "type": "boolean",
+            "description": "Onay gerekli bildirimi aktif mi"
+          },
+          "error_enabled": {
+            "type": "boolean",
+            "description": "Hata bildirimi aktif mi"
+          },
+          "info_enabled": {
+            "type": "boolean",
+            "description": "Bilgi bildirimi aktif mi"
+          }
+        },
+        "required": ["task_complete_enabled", "approval_needed_enabled", "error_enabled", "info_enabled"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/notifications/settings",
+      "description": "Bildirim ayarlarini guncelle",
+      "requestBody": {
+        "type": "object",
+        "properties": {
+          "task_complete_enabled": {
+            "type": "boolean",
+            "description": "Gorev tamamlandi bildirimi aktif mi"
+          },
+          "approval_needed_enabled": {
+            "type": "boolean",
+            "description": "Onay gerekli bildirimi aktif mi"
+          },
+          "error_enabled": {
+            "type": "boolean",
+            "description": "Hata bildirimi aktif mi"
+          },
+          "info_enabled": {
+            "type": "boolean",
+            "description": "Bilgi bildirimi aktif mi"
+          }
+        },
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "task_complete_enabled": {
+            "type": "boolean",
+            "description": "Gorev tamamlandi bildirimi aktif mi"
+          },
+          "approval_needed_enabled": {
+            "type": "boolean",
+            "description": "Onay gerekli bildirimi aktif mi"
+          },
+          "error_enabled": {
+            "type": "boolean",
+            "description": "Hata bildirimi aktif mi"
+          },
+          "info_enabled": {
+            "type": "boolean",
+            "description": "Bilgi bildirimi aktif mi"
+          }
+        },
+        "required": ["task_complete_enabled", "approval_needed_enabled", "error_enabled", "info_enabled"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
