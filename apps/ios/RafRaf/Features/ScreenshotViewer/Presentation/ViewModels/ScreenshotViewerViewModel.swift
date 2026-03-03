@@ -70,7 +70,7 @@ final class ScreenshotViewerViewModel {
         if !isFullScreen {
             resetZoom()
         }
-        logger.info("Tam ekran modu: \(isFullScreen)")
+        logger.info("Tam ekran modu: \(self.isFullScreen)")
     }
 
     /// Tam ekran modunu kapatir.
