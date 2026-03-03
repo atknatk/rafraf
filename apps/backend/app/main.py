@@ -15,6 +15,7 @@ from app.api.routes.auth import router as auth_router
 from app.api.routes.cost import router as cost_router
 from app.api.routes.health import router as health_router
 from app.api.routes.memory import router as memory_router
+from app.api.routes.projects import router as projects_router
 from app.api.routes.webhooks import router as webhooks_router
 from app.api.routes.websocket import router as websocket_router
 from app.core.config import get_settings
@@ -76,6 +77,7 @@ def create_app() -> FastAPI:
     application.include_router(agents_router)
     application.include_router(webhooks_router)
     application.include_router(memory_router)
+    application.include_router(projects_router)
     application.include_router(cost_router)
 
     return application
