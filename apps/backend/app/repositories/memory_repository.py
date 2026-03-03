@@ -1,8 +1,9 @@
 """Repository for ProjectMemory database operations."""
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import String, delete, func, or_, select, type_coerce
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +13,8 @@ from app.models.memory import ProjectMemory
 class MemoryRepository:
     """Database access layer for project_memory table.
 
-    Supports listing, UPSERT (insert on conflict update), and deletion.
+    Supports listing, UPSERT (insert on conflict update), search,
+    stale detection, and deletion.
     """
 
     def __init__(self, session: AsyncSession) -> None:
@@ -68,6 +70,7 @@ class MemoryRepository:
         Returns:
             The upserted ProjectMemory row.
         """
+        now = datetime.now(tz=UTC)
         stmt = (
             pg_insert(ProjectMemory)
             .values(
@@ -77,6 +80,7 @@ class MemoryRepository:
                 value=value,
                 confidence=confidence,
                 source=source,
+                last_verified_at=now,
             )
             .on_conflict_do_update(
                 constraint="uq_project_memory_pckey",
@@ -84,6 +88,7 @@ class MemoryRepository:
                     "value": value,
                     "confidence": confidence,
                     "source": source,
+                    "last_verified_at": now,
                 },
             )
             .returning(ProjectMemory)
@@ -137,6 +142,130 @@ class MemoryRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none() is not None
 
+    async def search(
+        self,
+        project_id: uuid.UUID,
+        query: str | None = None,
+        category: str | None = None,
+        min_confidence: float = 0.0,
+    ) -> list[ProjectMemory]:
+        """Search project memories with text query and filters.
+
+        Searches in key (ILIKE) and value JSONB (cast to text, ILIKE).
+
+        Args:
+            project_id: Project UUID.
+            query: Optional text query (searches key and value).
+            category: Optional category filter.
+            min_confidence: Minimum confidence threshold.
+
+        Returns:
+            List of matching ProjectMemory rows.
+        """
+        stmt = select(ProjectMemory).where(
+            ProjectMemory.project_id == project_id,
+            ProjectMemory.confidence >= min_confidence,
+        )
+        if category:
+            stmt = stmt.where(ProjectMemory.category == category)
+        if query:
+            pattern = f"%{query}%"
+            stmt = stmt.where(
+                or_(
+                    ProjectMemory.key.ilike(pattern),
+                    type_coerce(ProjectMemory.value, String).ilike(pattern),
+                )
+            )
+        stmt = stmt.order_by(ProjectMemory.confidence.desc(), ProjectMemory.updated_at.desc())
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_stale_entries(
+        self,
+        project_id: uuid.UUID,
+        days_threshold: int = 30,
+    ) -> list[ProjectMemory]:
+        """Find stale project memory entries.
+
+        An entry is stale if last_verified_at is older than the threshold
+        or if last_verified_at is NULL.
+
+        Args:
+            project_id: Project UUID.
+            days_threshold: Number of days to consider stale.
+
+        Returns:
+            List of stale ProjectMemory rows.
+        """
+        cutoff = datetime.now(tz=UTC) - timedelta(days=days_threshold)
+        stmt = select(ProjectMemory).where(
+            ProjectMemory.project_id == project_id,
+            or_(
+                ProjectMemory.last_verified_at.is_(None),
+                ProjectMemory.last_verified_at < cutoff,
+            ),
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def delete_stale_entries(
+        self,
+        project_id: uuid.UUID,
+        days_threshold: int = 30,
+    ) -> int:
+        """Delete stale project memory entries.
+
+        Args:
+            project_id: Project UUID.
+            days_threshold: Number of days to consider stale.
+
+        Returns:
+            Number of deleted rows.
+        """
+        cutoff = datetime.now(tz=UTC) - timedelta(days=days_threshold)
+        stmt = (
+            delete(ProjectMemory)
+            .where(
+                ProjectMemory.project_id == project_id,
+                or_(
+                    ProjectMemory.last_verified_at.is_(None),
+                    ProjectMemory.last_verified_at < cutoff,
+                ),
+            )
+            .returning(ProjectMemory.id)
+        )
+        result = await self._session.execute(stmt)
+        return len(list(result.scalars().all()))
+
+    async def count_stale_entries(
+        self,
+        project_id: uuid.UUID,
+        days_threshold: int = 30,
+    ) -> int:
+        """Count stale entries for a project.
+
+        Args:
+            project_id: Project UUID.
+            days_threshold: Number of days to consider stale.
+
+        Returns:
+            Number of stale entries.
+        """
+        cutoff = datetime.now(tz=UTC) - timedelta(days=days_threshold)
+        stmt = (
+            select(func.count())
+            .select_from(ProjectMemory)
+            .where(
+                ProjectMemory.project_id == project_id,
+                or_(
+                    ProjectMemory.last_verified_at.is_(None),
+                    ProjectMemory.last_verified_at < cutoff,
+                ),
+            )
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one()
+
     async def get_project_summary(
         self,
         project_id: uuid.UUID,
@@ -158,3 +287,44 @@ class MemoryRepository:
                 summary[row.category] = {}
             summary[row.category][row.key] = row.value
         return summary
+
+    async def get_all_grouped_by_category(
+        self,
+        project_id: uuid.UUID,
+    ) -> dict[str, list[ProjectMemory]]:
+        """Get all memories grouped by category.
+
+        Args:
+            project_id: Project UUID.
+
+        Returns:
+            Dict with category keys and lists of ProjectMemory rows.
+        """
+        rows = await self.list_by_project(project_id)
+        grouped: dict[str, list[ProjectMemory]] = {}
+        for row in rows:
+            if row.category not in grouped:
+                grouped[row.category] = []
+            grouped[row.category].append(row)
+        return grouped
+
+    async def verify_entry(
+        self,
+        memory_id: uuid.UUID,
+        project_id: uuid.UUID,
+    ) -> bool:
+        """Update last_verified_at to current time.
+
+        Args:
+            memory_id: Memory UUID.
+            project_id: Project UUID (for ownership validation).
+
+        Returns:
+            True if updated, False if not found.
+        """
+        row = await self.get_by_id(memory_id, project_id)
+        if row is None:
+            return False
+        row.last_verified_at = datetime.now(tz=UTC)
+        await self._session.flush()
+        return True

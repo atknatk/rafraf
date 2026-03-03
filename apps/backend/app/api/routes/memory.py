@@ -12,14 +12,19 @@ from app.api.deps import get_db
 from app.core.exceptions import NotFoundError
 from app.repositories.memory_repository import MemoryRepository
 from app.schemas.memory import (
+    FactExtractionRequest,
+    FactExtractionResponse,
     MemoryContextResponse,
     PersonalMemoryItem,
     PersonalMemoryListResponse,
     ProjectMemoryCreateRequest,
     ProjectMemoryListResponse,
     ProjectMemoryResponse,
+    ProjectSummaryResponse,
+    StaleCleanupResponse,
 )
 from app.services.memory_service import memory_service
+from app.services.project_memory_service import project_memory_service
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -48,7 +53,7 @@ async def list_project_memories(
             value=row.value,
             confidence=row.confidence,
             source=row.source,
-            last_verified_at=None,
+            last_verified_at=row.last_verified_at,
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -85,7 +90,7 @@ async def create_or_update_project_memory(
         value=row.value,
         confidence=row.confidence,
         source=row.source,
-        last_verified_at=None,
+        last_verified_at=row.last_verified_at,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -105,6 +110,84 @@ async def delete_project_memory(
     deleted = await repo.delete_by_id(memory_id, project_id)
     if not deleted:
         raise NotFoundError(message=f"Memory '{memory_id}' not found")
+
+
+@router.get(
+    "/project/{project_id}/search",
+    response_model=ProjectMemoryListResponse,
+)
+async def search_project_memories(
+    project_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    q: Annotated[
+        str | None, Query(description="Arama sorgusu (key ve value icinde aranir)")
+    ] = None,
+    category: Annotated[str | None, Query(max_length=50, description="Kategori filtresi")] = None,
+    min_confidence: Annotated[
+        float, Query(ge=0.0, le=1.0, description="Minimum guvenilirlik skoru")
+    ] = 0.0,
+) -> ProjectMemoryListResponse:
+    """Search project memories with text query and filters."""
+    items = await project_memory_service.search_project_memories(
+        repo=MemoryRepository(session),
+        project_id=project_id,
+        query=q,
+        category=category,
+        min_confidence=min_confidence,
+    )
+    return ProjectMemoryListResponse(items=items, total=len(items))
+
+
+@router.get(
+    "/project/{project_id}/summary",
+    response_model=ProjectSummaryResponse,
+)
+async def get_project_memory_summary(
+    project_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> ProjectSummaryResponse:
+    """Get a comprehensive project memory summary grouped by category."""
+    return await project_memory_service.get_project_summary(
+        repo=MemoryRepository(session),
+        project_id=project_id,
+    )
+
+
+@router.post(
+    "/project/{project_id}/extract",
+    response_model=FactExtractionResponse,
+)
+async def extract_project_facts(
+    project_id: uuid.UUID,
+    body: FactExtractionRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> FactExtractionResponse:
+    """Extract and save structured project facts from conversation messages."""
+    return await project_memory_service.extract_and_save_facts(
+        repo=MemoryRepository(session),
+        project_id=project_id,
+        messages=body.messages,
+        source=body.source,
+    )
+
+
+@router.delete(
+    "/project/{project_id}/stale",
+    response_model=StaleCleanupResponse,
+)
+async def cleanup_stale_memories(
+    project_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    days_threshold: Annotated[
+        int, Query(ge=1, description="Stale esik gun sayisi (varsayilan: 30)")
+    ] = 30,
+) -> StaleCleanupResponse:
+    """Delete stale (outdated) project memory entries."""
+    return await project_memory_service.cleanup_stale_entries(
+        repo=MemoryRepository(session),
+        project_id=project_id,
+        days_threshold=days_threshold,
+    )
 
 
 # --- Personal Memory Endpoints ---

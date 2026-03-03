@@ -111,3 +111,35 @@ class TestMemoryContractResponseFields:
         """GET /api/v1/memory/context/{user_id} should be registered."""
         matching = _find_route_by_path("/api/v1/memory/context/{user_id}")
         assert len(matching) > 0
+
+    def test_project_search_endpoint_exists(self) -> None:
+        """GET /api/v1/memory/project/{project_id}/search should exist."""
+        path = "/api/v1/memory/project/{project_id}/search"
+        matching = _find_route_by_path(path)
+        assert len(matching) > 0
+
+    def test_project_summary_endpoint_exists(self) -> None:
+        """GET /api/v1/memory/project/{project_id}/summary should exist."""
+        path = "/api/v1/memory/project/{project_id}/summary"
+        matching = _find_route_by_path(path)
+        assert len(matching) > 0
+
+    def test_project_extract_endpoint_exists(self) -> None:
+        """POST /api/v1/memory/project/{project_id}/extract should exist."""
+        path = "/api/v1/memory/project/{project_id}/extract"
+        matching = _find_route_by_path(path)
+        assert len(matching) > 0
+        all_methods: set[str] = set()
+        for route in matching:
+            all_methods.update(route.methods)
+        assert "POST" in all_methods
+
+    def test_project_stale_endpoint_exists(self) -> None:
+        """DELETE /api/v1/memory/project/{project_id}/stale should exist."""
+        path = "/api/v1/memory/project/{project_id}/stale"
+        matching = _find_route_by_path(path)
+        assert len(matching) > 0
+        all_methods: set[str] = set()
+        for route in matching:
+            all_methods.update(route.methods)
+        assert "DELETE" in all_methods

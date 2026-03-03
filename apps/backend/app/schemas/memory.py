@@ -48,6 +48,17 @@ class MemoryContext(BaseModel):
     token_count: int = 0
 
 
+class ExtractedFact(BaseModel):
+    """Single extracted fact from conversation analysis."""
+
+    model_config = ConfigDict(frozen=True)
+
+    category: str
+    key: str
+    value: dict[str, object]
+    confidence: float
+
+
 # --- Request schemas ---
 
 
@@ -59,6 +70,13 @@ class ProjectMemoryCreateRequest(BaseModel):
     value: dict[str, object]
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     source: str = Field(default="user_stated", max_length=50)
+
+
+class FactExtractionRequest(BaseModel):
+    """Request for automatic fact extraction from conversation messages."""
+
+    messages: list[dict[str, str]] = Field(min_length=1)
+    source: str = Field(default="ai_inferred", max_length=50)
 
 
 # --- Response schemas ---
@@ -100,3 +118,32 @@ class MemoryContextResponse(BaseModel):
     project_summary: dict[str, object]
     conversation_summary: str | None = None
     token_count: int
+
+
+class FactExtractionResponse(BaseModel):
+    """Response for automatic fact extraction."""
+
+    model_config = ConfigDict(frozen=True)
+
+    extracted_facts: list[ExtractedFact]
+    total: int
+
+
+class ProjectSummaryResponse(BaseModel):
+    """Project memory summary response grouped by category."""
+
+    model_config = ConfigDict(frozen=True)
+
+    project_id: str
+    categories: dict[str, list[ProjectMemoryResponse]]
+    total_memories: int
+    stale_count: int
+
+
+class StaleCleanupResponse(BaseModel):
+    """Response for stale entry cleanup."""
+
+    model_config = ConfigDict(frozen=True)
+
+    deleted_count: int
+    threshold_days: int

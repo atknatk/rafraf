@@ -7,6 +7,9 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.memory import (
+    ExtractedFact,
+    FactExtractionRequest,
+    FactExtractionResponse,
     MemoryContext,
     MemoryContextResponse,
     PersonalMemoryItem,
@@ -15,6 +18,8 @@ from app.schemas.memory import (
     ProjectMemoryEntity,
     ProjectMemoryListResponse,
     ProjectMemoryResponse,
+    ProjectSummaryResponse,
+    StaleCleanupResponse,
 )
 
 
@@ -265,3 +270,141 @@ class TestMemoryContextResponse:
         )
         assert resp.token_count == 500
         assert resp.conversation_summary is None
+
+
+class TestExtractedFact:
+    """Tests for ExtractedFact frozen model."""
+
+    def test_create_valid(self) -> None:
+        """Should create a valid extracted fact."""
+        fact = ExtractedFact(
+            category="tech_stack",
+            key="frontend",
+            value={"framework": "Next.js"},
+            confidence=0.9,
+        )
+        assert fact.category == "tech_stack"
+        assert fact.confidence == 0.9
+
+    def test_frozen_cannot_modify(self) -> None:
+        """Extracted fact should be immutable."""
+        fact = ExtractedFact(
+            category="tech_stack",
+            key="db",
+            value={"type": "postgres"},
+            confidence=0.8,
+        )
+        with pytest.raises(ValidationError):
+            fact.category = "deployment"  # type: ignore[misc]
+
+
+class TestFactExtractionRequest:
+    """Tests for FactExtractionRequest validation."""
+
+    def test_valid_request(self) -> None:
+        """Should accept valid request with messages."""
+        req = FactExtractionRequest(
+            messages=[{"role": "user", "content": "test"}],
+        )
+        assert len(req.messages) == 1
+        assert req.source == "ai_inferred"
+
+    def test_empty_messages_rejected(self) -> None:
+        """Should reject empty messages list."""
+        with pytest.raises(ValidationError):
+            FactExtractionRequest(messages=[])
+
+    def test_custom_source(self) -> None:
+        """Should accept custom source."""
+        req = FactExtractionRequest(
+            messages=[{"role": "user", "content": "test"}],
+            source="tool_result",
+        )
+        assert req.source == "tool_result"
+
+
+class TestFactExtractionResponse:
+    """Tests for FactExtractionResponse frozen model."""
+
+    def test_create_response(self) -> None:
+        """Should create a valid response."""
+        fact = ExtractedFact(
+            category="tech_stack",
+            key="db",
+            value={"type": "postgres"},
+            confidence=0.9,
+        )
+        resp = FactExtractionResponse(
+            extracted_facts=[fact],
+            total=1,
+        )
+        assert resp.total == 1
+        assert len(resp.extracted_facts) == 1
+
+    def test_empty_response(self) -> None:
+        """Should accept empty facts."""
+        resp = FactExtractionResponse(
+            extracted_facts=[],
+            total=0,
+        )
+        assert resp.total == 0
+
+
+class TestProjectSummaryResponse:
+    """Tests for ProjectSummaryResponse frozen model."""
+
+    def test_create_summary(self) -> None:
+        """Should create a valid summary response."""
+        now = datetime.now(tz=UTC)
+        item = ProjectMemoryResponse(
+            id=uuid.uuid4(),
+            project_id=uuid.uuid4(),
+            category="tech_stack",
+            key="frontend",
+            value={"framework": "React"},
+            confidence=1.0,
+            source="user_stated",
+            last_verified_at=now,
+            created_at=now,
+            updated_at=now,
+        )
+        resp = ProjectSummaryResponse(
+            project_id=str(uuid.uuid4()),
+            categories={"tech_stack": [item]},
+            total_memories=1,
+            stale_count=0,
+        )
+        assert resp.total_memories == 1
+        assert resp.stale_count == 0
+
+    def test_empty_summary(self) -> None:
+        """Should accept empty summary."""
+        resp = ProjectSummaryResponse(
+            project_id=str(uuid.uuid4()),
+            categories={},
+            total_memories=0,
+            stale_count=0,
+        )
+        assert resp.total_memories == 0
+
+
+class TestStaleCleanupResponse:
+    """Tests for StaleCleanupResponse frozen model."""
+
+    def test_create_response(self) -> None:
+        """Should create a valid cleanup response."""
+        resp = StaleCleanupResponse(
+            deleted_count=5,
+            threshold_days=30,
+        )
+        assert resp.deleted_count == 5
+        assert resp.threshold_days == 30
+
+    def test_frozen_cannot_modify(self) -> None:
+        """Response should be immutable."""
+        resp = StaleCleanupResponse(
+            deleted_count=0,
+            threshold_days=30,
+        )
+        with pytest.raises(ValidationError):
+            resp.deleted_count = 10  # type: ignore[misc]
