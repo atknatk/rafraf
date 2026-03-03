@@ -137,4 +137,39 @@ extension Container {
             )
         }
     }
+
+    // MARK: - Voice Output Feature
+
+    /// TTS ses cache yoneticisi.
+    var ttsAudioCache: Factory<TTSAudioCache> {
+        self { TTSAudioCache() }
+            .singleton
+    }
+
+    /// Voice output repository.
+    var voiceOutputRepository: Factory<VoiceOutputRepositoryProtocol> {
+        self {
+            VoiceOutputRepositoryImpl(
+                networkClient: self.networkClient(),
+                cache: self.ttsAudioCache()
+            )
+        }
+    }
+
+    /// Ses oynatici.
+    var voiceAudioPlayer: Factory<VoiceAudioPlayerProtocol> {
+        self { VoiceAudioPlayer() }
+    }
+
+    /// Voice output ViewModel.
+    var voiceOutputViewModel: Factory<VoiceOutputViewModel> {
+        self { @MainActor in
+            let repository = self.voiceOutputRepository()
+            let player = self.voiceAudioPlayer()
+            return VoiceOutputViewModel(
+                synthesizeSpeechUseCase: SynthesizeSpeechUseCase(repository: repository),
+                audioPlayer: player
+            )
+        }
+    }
 }
