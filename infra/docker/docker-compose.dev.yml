@@ -34,7 +34,7 @@ services:
     restart: unless-stopped
 
   mem0:
-    image: mem0ai/mem0:latest
+    image: mem0/mem0-api-server:latest
     container_name: rafraf-mem0
     ports:
       - "${MEM0_PORT:-8070}:8080"

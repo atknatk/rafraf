@@ -97,6 +97,7 @@ class TestOrchestratorAgent:
         mock_settings: MagicMock,
     ) -> None:
         """Processing a text message should return an OrchestratorResponse."""
+        mock_settings.return_value.use_bedrock = False
         mock_settings.return_value.anthropic_api_key = "test-key"
         mock_client = MagicMock()
         mock_anthropic_cls.return_value = mock_client
@@ -128,6 +129,7 @@ class TestOrchestratorAgent:
         mock_settings: MagicMock,
     ) -> None:
         """Processing should execute tool calls and continue the loop."""
+        mock_settings.return_value.use_bedrock = False
         mock_settings.return_value.anthropic_api_key = "test-key"
         mock_client = MagicMock()
         mock_anthropic_cls.return_value = mock_client
@@ -162,6 +164,7 @@ class TestOrchestratorAgent:
         mock_settings: MagicMock,
     ) -> None:
         """Calling an unregistered tool should return an error result."""
+        mock_settings.return_value.use_bedrock = False
         mock_settings.return_value.anthropic_api_key = "test-key"
         mock_client = MagicMock()
         mock_anthropic_cls.return_value = mock_client
@@ -193,6 +196,7 @@ class TestOrchestratorAgent:
         mock_settings: MagicMock,
     ) -> None:
         """Progress callback should be called during tool execution."""
+        mock_settings.return_value.use_bedrock = False
         mock_settings.return_value.anthropic_api_key = "test-key"
         mock_client = MagicMock()
         mock_anthropic_cls.return_value = mock_client
@@ -225,6 +229,7 @@ class TestOrchestratorAgent:
         mock_settings: MagicMock,
     ) -> None:
         """Tool execution errors should be returned as error results."""
+        mock_settings.return_value.use_bedrock = False
         mock_settings.return_value.anthropic_api_key = "test-key"
         mock_client = MagicMock()
         mock_anthropic_cls.return_value = mock_client
@@ -263,6 +268,7 @@ class TestOrchestratorAgent:
         mock_settings: MagicMock,
     ) -> None:
         """Tools requiring approval should return an error result."""
+        mock_settings.return_value.use_bedrock = False
         mock_settings.return_value.anthropic_api_key = "test-key"
         mock_client = MagicMock()
         mock_anthropic_cls.return_value = mock_client
@@ -302,6 +308,7 @@ class TestOrchestratorAgent:
         mock_settings: MagicMock,
     ) -> None:
         """Clearing conversation should remove session history."""
+        mock_settings.return_value.use_bedrock = False
         mock_settings.return_value.anthropic_api_key = "test-key"
         mock_client = MagicMock()
         mock_anthropic_cls.return_value = mock_client
@@ -338,6 +345,7 @@ class TestOrchestratorAgent:
         """Rate limit errors should trigger retries."""
         import anthropic as anthropic_mod
 
+        mock_settings.return_value.use_bedrock = False
         mock_settings.return_value.anthropic_api_key = "test-key"
         mock_client = MagicMock()
         mock_anthropic_cls.return_value = mock_client
@@ -381,6 +389,7 @@ class TestOrchestratorAgent:
         """Exhausting all retries should raise ClaudeAPIError."""
         import anthropic as anthropic_mod
 
+        mock_settings.return_value.use_bedrock = False
         mock_settings.return_value.anthropic_api_key = "test-key"
         mock_client = MagicMock()
         mock_anthropic_cls.return_value = mock_client

@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     aws_s3_bucket: str = ""
     aws_region: str = "eu-central-1"
 
+    # Bedrock
+    use_bedrock: bool = True
+
     # WebSocket
     ws_heartbeat_interval: int = 30
     ws_heartbeat_timeout: int = 10
