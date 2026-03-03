@@ -79,6 +79,8 @@ struct ProjectListView: View {
             return String(localized: "project.filter.pending")
         case .completed:
             return String(localized: "project.filter.completed")
+        case .archived:
+            return String(localized: "project.filter.archived")
         }
     }
 
@@ -182,7 +184,7 @@ struct ProjectListView: View {
 }
 
 /// Preview icin mock repository.
-final class PreviewProjectRepository: ProjectRepositoryProtocol, @unchecked Sendable {
+final class PreviewProjectRepository: ProjectStatusRepositoryProtocol, @unchecked Sendable {
     func getProjects(
         status: ProjectStatus?,
         page: Int,

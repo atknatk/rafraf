@@ -3,9 +3,9 @@ import Foundation
 /// Proje detay use case.
 /// Tek projenin detay bilgisini getirir.
 final class GetProjectDetailUseCase: Sendable {
-    private let repository: ProjectRepositoryProtocol
+    private let repository: ProjectStatusRepositoryProtocol
 
-    init(repository: ProjectRepositoryProtocol) {
+    init(repository: ProjectStatusRepositoryProtocol) {
         self.repository = repository
     }
 

@@ -3,7 +3,7 @@ import os
 
 /// Proje repository implementasyonu.
 /// REST API uzerinden proje verilerini getirir.
-final class ProjectRepositoryImpl: ProjectRepositoryProtocol, @unchecked Sendable {
+final class ProjectRepositoryImpl: ProjectStatusRepositoryProtocol, @unchecked Sendable {
     private let networkClient: NetworkClient
     private let logger = AppLogger.logger(for: "ProjectRepository")
 
@@ -32,7 +32,7 @@ final class ProjectRepositoryImpl: ProjectRepositoryProtocol, @unchecked Sendabl
 
         logger.info("Proje listesi alindi: \(dto.projects.count) proje, toplam: \(dto.total)")
 
-        return ProjectMapper.toDomain(from: dto)
+        return ProjectStatusMapper.toDomain(from: dto)
     }
 
     func getProject(id projectId: String) async throws -> Project {
@@ -42,6 +42,6 @@ final class ProjectRepositoryImpl: ProjectRepositoryProtocol, @unchecked Sendabl
 
         logger.info("Proje detayi alindi: \(dto.name)")
 
-        return ProjectMapper.toDomain(from: dto)
+        return ProjectStatusMapper.toDomain(from: dto)
     }
 }

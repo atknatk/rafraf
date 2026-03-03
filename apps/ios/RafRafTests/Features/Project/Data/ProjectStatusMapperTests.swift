@@ -1,8 +1,8 @@
 import Testing
 @testable import RafRaf
 
-/// ProjectMapper DTO -> Domain model donusum testleri.
-struct ProjectMapperTests {
+/// ProjectStatusMapper DTO -> Domain model donusum testleri.
+struct ProjectStatusMapperTests {
     @Test("ProjectSummaryDTO domain modele dogru donusur")
     func summaryDTOToDomain() {
         let dto = ProjectSummaryDTO(
@@ -14,7 +14,7 @@ struct ProjectMapperTests {
             techStack: ["Swift", "Python"]
         )
 
-        let project = ProjectMapper.toDomain(from: dto)
+        let project = ProjectStatusMapper.toDomain(from: dto)
 
         #expect(project.id == "test-id")
         #expect(project.name == "Test Project")
@@ -39,7 +39,7 @@ struct ProjectMapperTests {
             updatedAt: "2026-03-03T10:00:00Z"
         )
 
-        let project = ProjectMapper.toDomain(from: dto)
+        let project = ProjectStatusMapper.toDomain(from: dto)
 
         #expect(project.id == "detail-id")
         #expect(project.name == "Detail Project")
@@ -75,7 +75,7 @@ struct ProjectMapperTests {
             pageSize: 20
         )
 
-        let result = ProjectMapper.toDomain(from: dto)
+        let result = ProjectStatusMapper.toDomain(from: dto)
 
         #expect(result.projects.count == 2)
         #expect(result.total == 2)
@@ -95,7 +95,7 @@ struct ProjectMapperTests {
             techStack: []
         )
 
-        let project = ProjectMapper.toDomain(from: dto)
+        let project = ProjectStatusMapper.toDomain(from: dto)
 
         #expect(project.status == .active)
     }

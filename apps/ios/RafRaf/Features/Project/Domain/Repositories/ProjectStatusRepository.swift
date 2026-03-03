@@ -2,7 +2,7 @@ import Foundation
 
 /// Proje repository protokolu.
 /// Domain katmani Data katmanindan izole kalir; bu protokol uzerinden iletisir.
-protocol ProjectRepositoryProtocol: Sendable {
+protocol ProjectStatusRepositoryProtocol: Sendable {
     /// Proje listesini getirir.
     /// - Parameters:
     ///   - status: Opsiyonel durum filtresi

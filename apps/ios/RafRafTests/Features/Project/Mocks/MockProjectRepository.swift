@@ -2,7 +2,7 @@ import Foundation
 @testable import RafRaf
 
 /// Test icin mock proje repository.
-final class MockProjectRepository: ProjectRepositoryProtocol, @unchecked Sendable {
+final class MockProjectRepository: ProjectStatusRepositoryProtocol, @unchecked Sendable {
     // MARK: - Call Tracking
 
     var getProjectsCallCount = 0

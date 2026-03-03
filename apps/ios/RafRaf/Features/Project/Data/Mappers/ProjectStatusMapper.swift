@@ -1,7 +1,7 @@
 import Foundation
 
 /// Proje DTO -> Domain model donusturucusu.
-enum ProjectMapper {
+enum ProjectStatusMapper {
     /// ProjectSummaryDTO'yu Project domain modeline donusturur.
     static func toDomain(from dto: ProjectSummaryDTO) -> Project {
         Project(

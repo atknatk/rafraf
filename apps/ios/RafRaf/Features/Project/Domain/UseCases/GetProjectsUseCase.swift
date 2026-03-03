@@ -3,9 +3,9 @@ import Foundation
 /// Proje listesi use case.
 /// Projeleri filtre ve sayfalama ile getirir.
 final class GetProjectsUseCase: Sendable {
-    private let repository: ProjectRepositoryProtocol
+    private let repository: ProjectStatusRepositoryProtocol
 
-    init(repository: ProjectRepositoryProtocol) {
+    init(repository: ProjectStatusRepositoryProtocol) {
         self.repository = repository
     }
 

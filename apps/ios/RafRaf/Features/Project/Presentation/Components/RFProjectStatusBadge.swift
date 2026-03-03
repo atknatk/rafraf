@@ -29,6 +29,8 @@ struct RFProjectStatusBadge: View {
             return RFColors.warning
         case .completed:
             return RFColors.info
+        case .archived:
+            return RFColors.textSecondary
         }
     }
 
@@ -40,6 +42,8 @@ struct RFProjectStatusBadge: View {
             return String(localized: "project.status.pending")
         case .completed:
             return String(localized: "project.status.completed")
+        case .archived:
+            return String(localized: "project.status.archived")
         }
     }
 }
