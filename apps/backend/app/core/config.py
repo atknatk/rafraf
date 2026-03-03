@@ -64,6 +64,10 @@ class Settings(BaseSettings):
     # Approval
     approval_timeout_seconds: int = 300
 
+    # Conversation Memory
+    conversation_ttl_seconds: int = 86400  # 24 hours
+    conversation_max_tokens: int = 50000  # Context window token limit
+
 
 def get_settings() -> Settings:
     """Return application settings singleton."""

@@ -45,6 +45,16 @@ class ValidationError(AppError):
         )
 
 
+class ConflictError(AppError):
+    """Conflict error (e.g., trying to modify an ended resource)."""
+
+    def __init__(self, message: str = "Conflict") -> None:
+        super().__init__(
+            message=message,
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register global exception handlers on the FastAPI app."""
 
