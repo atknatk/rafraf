@@ -20,6 +20,10 @@ enum DebugSetup {
         injectDeepgramKey(keychain: keychain)
     }
 
+    /// Deepgram API key — fiziksel cihaz icin buraya yazin.
+    /// Simulator'da Xcode scheme environment variable kullanilir.
+    private static let deepgramKeyOverride: String = ""
+
     private static func injectDeepgramKey(keychain: KeychainHelper) {
         // Zaten varsa atla
         if let existing = keychain.readString(for: RFSpeechRecognizer.deepgramAPIKeyKeychainKey),
@@ -28,16 +32,20 @@ enum DebugSetup {
             return
         }
 
-        guard let envKey = ProcessInfo.processInfo.environment["DEEPGRAM_API_KEY"],
-              !envKey.isEmpty else {
+        // 1) Xcode scheme env var (simulator)
+        // 2) Hardcoded override (fiziksel cihaz)
+        let key = ProcessInfo.processInfo.environment["DEEPGRAM_API_KEY"]
+            ?? (deepgramKeyOverride.isEmpty ? nil : deepgramKeyOverride)
+
+        guard let apiKey = key, !apiKey.isEmpty else {
             logger.warning(
-                "DEEPGRAM_API_KEY bulunamadi — Xcode scheme > Run > Environment Variables'a ekleyin"
+                "DEEPGRAM_API_KEY bulunamadi — scheme env var veya deepgramKeyOverride kullanin"
             )
             return
         }
 
         do {
-            try keychain.saveString(envKey, for: RFSpeechRecognizer.deepgramAPIKeyKeychainKey)
+            try keychain.saveString(apiKey, for: RFSpeechRecognizer.deepgramAPIKeyKeychainKey)
             logger.info("Deepgram API key Keychain'e enjekte edildi")
         } catch {
             logger.error("Deepgram API key kaydedilemedi: \(error)")
