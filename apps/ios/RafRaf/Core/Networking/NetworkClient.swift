@@ -28,6 +28,7 @@ actor NetworkClient {
     private let baseURL: URL
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
+    private let authInterceptor: AuthInterceptor?
     private let logger = Logger(
         subsystem: "com.rafraf",
         category: "NetworkClient"
@@ -35,10 +36,12 @@ actor NetworkClient {
 
     init(
         baseURL: URL = AppEnvironment.current.apiBaseURL,
-        session: URLSession = .shared
+        session: URLSession = .shared,
+        authInterceptor: AuthInterceptor? = nil
     ) {
         self.baseURL = baseURL
         self.session = session
+        self.authInterceptor = authInterceptor
 
         let jsonDecoder = JSONDecoder()
         jsonDecoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -94,6 +97,12 @@ actor NetworkClient {
 
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
+
+        // Auth interceptor ile token injection
+        if let authInterceptor {
+            request = authInterceptor.intercept(request)
+        }
+
         return request
     }
 
