@@ -1,8 +1,9 @@
 """ProjectMemory SQLAlchemy model for structured project-level memory."""
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import Float, Index, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Float, Index, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -49,8 +50,8 @@ class ProjectMemory(Base, UUIDMixin, TimestampMixin):
         default="ai_inferred",
         nullable=False,
     )
-    last_verified_at: Mapped[str | None] = mapped_column(
-        Text,
+    last_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         nullable=True,
         default=None,
     )
