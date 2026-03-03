@@ -25,7 +25,8 @@ let package = Package(
                 .product(name: "Nuke", package: "Nuke"),
                 .product(name: "NukeUI", package: "Nuke"),
             ],
-            path: "RafRaf"
+            path: "RafRaf",
+            exclude: ["App/RafRafApp.swift"]
         ),
         .testTarget(
             name: "RafRafTests",

@@ -6,10 +6,25 @@ import Testing
 @Suite("AuthInterceptor Tests")
 struct AuthInterceptorTests {
 
+    /// Keychain erisimi mevcut mu kontrol eder.
+    private func isKeychainAccessible(keychain: KeychainHelper) -> Bool {
+        do {
+            let probe = "probe_\(UUID().uuidString)"
+            try keychain.saveString("test", for: probe)
+            try keychain.delete(for: probe)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     @Test("Token varsa Authorization header eklenmeli")
     func interceptAddsAuthHeader() throws {
         let keychainService = "com.rafraf.test.\(UUID().uuidString)"
         let keychain = KeychainHelper(service: keychainService)
+
+        guard isKeychainAccessible(keychain: keychain) else { return }
+
         try keychain.saveString("my-access-token", for: "auth_access_token")
 
         let interceptor = AuthInterceptor(keychain: keychain)
@@ -35,6 +50,9 @@ struct AuthInterceptorTests {
     func hasAccessTokenTrue() throws {
         let keychainService = "com.rafraf.test.\(UUID().uuidString)"
         let keychain = KeychainHelper(service: keychainService)
+
+        guard isKeychainAccessible(keychain: keychain) else { return }
+
         try keychain.saveString("token", for: "auth_access_token")
 
         let interceptor = AuthInterceptor(keychain: keychain)

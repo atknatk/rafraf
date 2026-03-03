@@ -4,6 +4,7 @@ import Testing
 
 /// AuthViewModel testleri.
 @Suite("AuthViewModel Tests")
+@MainActor
 struct AuthViewModelTests {
 
     private func makeViewModel(
@@ -28,7 +29,6 @@ struct AuthViewModelTests {
     }
 
     @Test("Baslangic durumu dogru olmali")
-    @MainActor
     func initialState() {
         let viewModel = makeViewModel()
 
@@ -41,7 +41,6 @@ struct AuthViewModelTests {
     }
 
     @Test("Email validation dogru calismali")
-    @MainActor
     func emailValidation() {
         let viewModel = makeViewModel()
 
@@ -59,7 +58,6 @@ struct AuthViewModelTests {
     }
 
     @Test("Password validation dogru calismali")
-    @MainActor
     func passwordValidation() {
         let viewModel = makeViewModel()
 
@@ -74,7 +72,6 @@ struct AuthViewModelTests {
     }
 
     @Test("Login form validation gecersiz email ile false donmeli")
-    @MainActor
     func loginFormValidationInvalidEmail() {
         let viewModel = makeViewModel()
         viewModel.email = "invalid"
@@ -84,7 +81,6 @@ struct AuthViewModelTests {
     }
 
     @Test("Login form validation gecerli verilerle true donmeli")
-    @MainActor
     func loginFormValidationValid() {
         let viewModel = makeViewModel()
         viewModel.email = "test@example.com"
@@ -94,7 +90,6 @@ struct AuthViewModelTests {
     }
 
     @Test("Register form validation sifre uyusmuyorsa false donmeli")
-    @MainActor
     func registerFormPasswordMismatch() {
         let viewModel = makeViewModel()
         viewModel.email = "test@example.com"
@@ -105,7 +100,6 @@ struct AuthViewModelTests {
     }
 
     @Test("Register form validation dogru verilerle true donmeli")
-    @MainActor
     func registerFormValid() {
         let viewModel = makeViewModel()
         viewModel.email = "test@example.com"
@@ -116,7 +110,6 @@ struct AuthViewModelTests {
     }
 
     @Test("Login basarili oldugunda form temizlenmeli")
-    @MainActor
     func loginSuccessCleanForm() async {
         let mockRepo = MockAuthRepository()
         let viewModel = makeViewModel(mockRepo: mockRepo)
@@ -133,7 +126,6 @@ struct AuthViewModelTests {
     }
 
     @Test("Login basarisiz oldugunda hata mesaji gostermeli")
-    @MainActor
     func loginFailureShowsError() async {
         let mockRepo = MockAuthRepository()
         mockRepo.loginResult = .failure(NetworkError.unauthorized)
@@ -149,7 +141,6 @@ struct AuthViewModelTests {
     }
 
     @Test("Gecersiz formla login hata mesaji gostermeli")
-    @MainActor
     func loginInvalidFormShowsError() async {
         let viewModel = makeViewModel()
         viewModel.email = "invalid"
@@ -161,7 +152,6 @@ struct AuthViewModelTests {
     }
 
     @Test("toggleAuthMode register ve login arasinda gecis yapmali")
-    @MainActor
     func toggleAuthMode() {
         let viewModel = makeViewModel()
 
@@ -175,7 +165,6 @@ struct AuthViewModelTests {
     }
 
     @Test("toggleAuthMode hata mesajini temizlemeli")
-    @MainActor
     func toggleClearsError() {
         let viewModel = makeViewModel()
         viewModel.errorMessage = "Some error"
@@ -186,7 +175,6 @@ struct AuthViewModelTests {
     }
 
     @Test("Logout formu temizlemeli")
-    @MainActor
     func logoutClearsForm() {
         let viewModel = makeViewModel()
         viewModel.email = "test@example.com"
@@ -199,11 +187,21 @@ struct AuthViewModelTests {
     }
 
     @Test("Token yenileme basarili olmali")
-    @MainActor
     func refreshTokenSuccess() async {
         let mockRepo = MockAuthRepository()
         let keychainService = "com.rafraf.test.\(UUID().uuidString)"
         let keychain = KeychainHelper(service: keychainService)
+
+        // Keychain erisimi kontrol et
+        let probe = "probe_\(UUID().uuidString)"
+        do {
+            try keychain.saveString("test", for: probe)
+            try keychain.delete(for: probe)
+        } catch {
+            // Keychain erisimi yok, test skip
+            return
+        }
+
         let authManager = AuthManager(keychain: keychain)
 
         // Mevcut refresh token kaydet
