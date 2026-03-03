@@ -10,8 +10,13 @@ struct VoiceInputViewModelTests {
 
     @MainActor
     private func makeSUT(
-        repository: MockVoiceInputRepository = MockVoiceInputRepository()
+        repository: MockVoiceInputRepository = MockVoiceInputRepository(),
+        clearLanguagePreference: Bool = true
     ) -> (VoiceInputViewModel, MockVoiceInputRepository) {
+        // Test izolasyonu: onceki test'den kalan dil tercihini temizle
+        if clearLanguagePreference {
+            UserDefaults.standard.removeObject(forKey: VoiceLanguage.storageKey)
+        }
         let audioManager = RFAudioSessionManager()
         let vm = VoiceInputViewModel(
             startRecordingUseCase: StartVoiceRecordingUseCase(repository: repository),
