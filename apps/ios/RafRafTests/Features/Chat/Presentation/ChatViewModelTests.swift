@@ -8,6 +8,7 @@ struct ChatViewModelTests {
 
     // MARK: - Helpers
 
+    @MainActor
     private func makeSUT(
         repository: MockChatRepository = MockChatRepository()
     ) -> (ChatViewModel, MockChatRepository) {
