@@ -1,5 +1,5 @@
-import Foundation
 import os
+import UIKit
 import UserNotifications
 
 /// APNs push bildirim yonetimi.
@@ -38,27 +38,29 @@ final class PushNotificationManager: NSObject {
             )
             if granted {
                 logger.info("Bildirim izni verildi")
-                await registerForRemoteNotifications()
+                registerForRemoteNotifications()
             } else {
                 logger.info("Bildirim izni reddedildi")
             }
-            await refreshAuthorizationStatus()
+            refreshAuthorizationStatus()
         } catch {
             logger.error("Bildirim izni hatasi: \(error.localizedDescription)")
         }
     }
 
     /// Mevcut izin durumunu kontrol eder.
-    func refreshAuthorizationStatus() async {
-        let settings = await UNUserNotificationCenter.current().notificationSettings()
-        authorizationStatus = settings.authorizationStatus
+    nonisolated func refreshAuthorizationStatus() {
+        Task { @MainActor in
+            let center = UNUserNotificationCenter.current()
+            let settings = await center.notificationSettings()
+            let status = settings.authorizationStatus
+            self.authorizationStatus = status
+        }
     }
 
     /// APNs icin remote notification kaydini baslatir.
-    func registerForRemoteNotifications() async {
-        await MainActor.run {
-            UIApplication.shared.registerForRemoteNotifications()
-        }
+    func registerForRemoteNotifications() {
+        UIApplication.shared.registerForRemoteNotifications()
         logger.info("Remote notification kaydi baslatildi")
     }
 
