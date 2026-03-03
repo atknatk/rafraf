@@ -172,4 +172,28 @@ extension Container {
             )
         }
     }
+
+    // MARK: - Approval Feature
+
+    /// Approval repository.
+    var approvalRepository: Factory<ApprovalRepositoryProtocol> {
+        self {
+            ApprovalRepositoryImpl(
+                webSocketClient: self.webSocketClient(),
+                messageRouter: self.webSocketMessageRouter()
+            )
+        }
+    }
+
+    /// Approval card ViewModel.
+    var approvalCardViewModel: Factory<ApprovalCardViewModel> {
+        self { @MainActor in
+            let repository = self.approvalRepository()
+            return ApprovalCardViewModel(
+                submitDecisionUseCase: SubmitApprovalDecisionUseCase(
+                    repository: repository
+                )
+            )
+        }
+    }
 }
