@@ -12,6 +12,7 @@ from app.api.middleware.request_logging import RequestLoggingMiddleware
 from app.api.routes.agent_ws import router as agent_ws_router
 from app.api.routes.agents import router as agents_router
 from app.api.routes.auth import router as auth_router
+from app.api.routes.conversation_memory import router as conversation_memory_router
 from app.api.routes.cost import router as cost_router
 from app.api.routes.files import router as files_router
 from app.api.routes.health import router as health_router
@@ -79,6 +80,7 @@ def create_app() -> FastAPI:
     application.include_router(agents_router)
     application.include_router(webhooks_router)
     application.include_router(memory_router)
+    application.include_router(conversation_memory_router)
     application.include_router(projects_router)
     application.include_router(cost_router)
     application.include_router(files_router)

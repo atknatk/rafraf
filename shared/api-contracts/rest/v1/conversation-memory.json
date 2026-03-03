@@ -1,0 +1,380 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ConversationMemoryEndpoints",
+  "description": "Conversation memory (Redis, session management) REST API kontrati",
+  "endpoints": [
+    {
+      "method": "POST",
+      "path": "/api/v1/conversations",
+      "description": "Yeni conversation session olustur",
+      "requestBody": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Kullanici kimlik bilgisi"
+          },
+          "project_id": {
+            "type": "string",
+            "description": "Opsiyonel proje ID (UUID formatinda)"
+          },
+          "ttl_seconds": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 172800,
+            "description": "Session TTL suresi (saniye). Varsayilan: 86400 (24 saat)"
+          }
+        },
+        "required": ["user_id"],
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Olusturulan session ID"
+          },
+          "user_id": {
+            "type": "string",
+            "description": "Kullanici ID"
+          },
+          "project_id": {
+            "type": "string",
+            "description": "Proje ID (varsa)"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "ended", "summarized"],
+            "description": "Session durumu"
+          },
+          "message_count": {
+            "type": "integer",
+            "description": "Toplam mesaj sayisi"
+          },
+          "total_tokens": {
+            "type": "integer",
+            "description": "Toplam token sayisi"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Olusturulma zamani (ISO 8601)"
+          },
+          "last_activity_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Son aktivite zamani"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Session ozeti (varsa)"
+          }
+        },
+        "required": ["session_id", "user_id", "status", "message_count", "total_tokens", "created_at"]
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/{session_id}",
+      "description": "Session bilgisi getir",
+      "queryParams": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Session ID"
+          },
+          "user_id": {
+            "type": "string",
+            "description": "Kullanici ID"
+          },
+          "project_id": {
+            "type": "string",
+            "description": "Proje ID (varsa)"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "ended", "summarized"],
+            "description": "Session durumu"
+          },
+          "message_count": {
+            "type": "integer",
+            "description": "Toplam mesaj sayisi"
+          },
+          "total_tokens": {
+            "type": "integer",
+            "description": "Toplam token sayisi"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Olusturulma zamani"
+          },
+          "last_activity_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Son aktivite zamani"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Session ozeti (varsa)"
+          }
+        },
+        "required": ["session_id", "user_id", "status", "message_count", "total_tokens", "created_at"]
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/conversations/{session_id}",
+      "description": "Session sonlandir (ozet olustur, temizle)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/{session_id}/messages",
+      "description": "Mesaj gecmisi getir",
+      "queryParams": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "description": "Maksimum mesaj sayisi (varsayilan: 50)"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Baslangic pozisyonu (varsayilan: 0)"
+          }
+        },
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Mesaj ID"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": ["user", "assistant", "tool", "system"],
+                  "description": "Mesaj rolu"
+                },
+                "content": {
+                  "type": "string",
+                  "description": "Mesaj icerigi"
+                },
+                "timestamp": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Mesaj zamani"
+                },
+                "token_count": {
+                  "type": "integer",
+                  "description": "Mesaj token sayisi"
+                },
+                "metadata": {
+                  "type": "object",
+                  "description": "Opsiyonel ek bilgiler"
+                }
+              },
+              "required": ["id", "role", "content", "timestamp", "token_count"]
+            },
+            "description": "Mesaj listesi"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Toplam mesaj sayisi"
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Daha fazla mesaj var mi"
+          }
+        },
+        "required": ["messages", "total", "has_more"]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/conversations/{session_id}/messages",
+      "description": "Mesaj ekle",
+      "requestBody": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["user", "assistant", "tool", "system"],
+            "description": "Mesaj rolu"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000,
+            "description": "Mesaj icerigi"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Opsiyonel ek bilgiler (ornegin model_used, tool_call_id)"
+          }
+        },
+        "required": ["role", "content"],
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Mesaj ID"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["user", "assistant", "tool", "system"],
+            "description": "Mesaj rolu"
+          },
+          "content": {
+            "type": "string",
+            "description": "Mesaj icerigi"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Mesaj zamani"
+          },
+          "token_count": {
+            "type": "integer",
+            "description": "Mesaj token sayisi"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Ek bilgiler"
+          },
+          "context_window_usage": {
+            "type": "object",
+            "properties": {
+              "total_tokens": {
+                "type": "integer",
+                "description": "Toplam token sayisi"
+              },
+              "max_tokens": {
+                "type": "integer",
+                "description": "Maksimum token limiti"
+              },
+              "usage_percent": {
+                "type": "number",
+                "description": "Kullanim yuzdesi"
+              }
+            },
+            "description": "Context window kullanim durumu"
+          }
+        },
+        "required": ["id", "role", "content", "timestamp", "token_count"]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/conversations/{session_id}/summarize",
+      "description": "Session ozetini olustur",
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Session ID"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Olusturulan ozet metni"
+          },
+          "original_message_count": {
+            "type": "integer",
+            "description": "Ozetlenen mesaj sayisi"
+          },
+          "original_token_count": {
+            "type": "integer",
+            "description": "Ozetlenen toplam token sayisi"
+          },
+          "summary_token_count": {
+            "type": "integer",
+            "description": "Ozet token sayisi"
+          }
+        },
+        "required": ["session_id", "summary", "original_message_count", "original_token_count", "summary_token_count"]
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/conversations/{session_id}/context",
+      "description": "Context window icin optimize edilmis mesaj gecmisi",
+      "queryParams": {
+        "type": "object",
+        "properties": {
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 100000,
+            "description": "Maksimum token limiti (varsayilan: 50000)"
+          }
+        },
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "description": "Mesaj rolu"
+                },
+                "content": {
+                  "type": "string",
+                  "description": "Mesaj icerigi"
+                }
+              },
+              "required": ["role", "content"]
+            },
+            "description": "Context window icin kesilmis mesaj listesi"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Eski mesajlarin ozeti (varsa)"
+          },
+          "total_tokens": {
+            "type": "integer",
+            "description": "Toplam context token sayisi"
+          },
+          "messages_included": {
+            "type": "integer",
+            "description": "Dahil edilen mesaj sayisi"
+          },
+          "messages_summarized": {
+            "type": "integer",
+            "description": "Ozetlenen mesaj sayisi"
+          }
+        },
+        "required": ["messages", "total_tokens", "messages_included", "messages_summarized"]
+      }
+    }
+  ]
+}

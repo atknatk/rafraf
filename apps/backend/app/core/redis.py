@@ -123,6 +123,149 @@ class RedisClient:
         messages.append(message)
         await self.save_conversation(session_id, messages, ttl=ttl)
 
+    # --- Session-based conversation memory (hash + list) ---
+
+    async def hset_mapping(self, key: str, mapping: dict[str, str], ttl: int = 0) -> None:
+        """Set multiple hash fields from a mapping.
+
+        Args:
+            key: Redis key.
+            mapping: Field-value mapping.
+            ttl: Optional TTL in seconds (0 = no expiry).
+        """
+        client = await self._get_client()
+        await client.hset(key, mapping=mapping)  # type: ignore[misc]
+        if ttl > 0:
+            await client.expire(key, ttl)
+
+    async def hset_field(self, key: str, field: str, value: str) -> None:
+        """Set a single hash field.
+
+        Args:
+            key: Redis key.
+            field: Hash field name.
+            value: Field value.
+        """
+        client = await self._get_client()
+        await client.hset(key, field, value)  # type: ignore[misc]
+
+    async def hgetall(self, key: str) -> dict[str, str]:
+        """Get all hash fields.
+
+        Args:
+            key: Redis key.
+
+        Returns:
+            Dict of field-value pairs (empty if key doesn't exist).
+        """
+        client = await self._get_client()
+        result: dict[str, str] = await client.hgetall(key)  # type: ignore[misc]
+        return result
+
+    async def rpush(self, key: str, value: str, ttl: int = 0) -> int:
+        """Append a value to a list (right push).
+
+        Args:
+            key: Redis key.
+            value: Value to push.
+            ttl: Optional TTL in seconds (0 = no expiry).
+
+        Returns:
+            Length of the list after push.
+        """
+        client = await self._get_client()
+        length: int = await client.rpush(key, value)  # type: ignore[misc]
+        if ttl > 0:
+            await client.expire(key, ttl)
+        return length
+
+    async def llen(self, key: str) -> int:
+        """Get the length of a list.
+
+        Args:
+            key: Redis key.
+
+        Returns:
+            Length of the list.
+        """
+        client = await self._get_client()
+        result: int = await client.llen(key)  # type: ignore[misc]
+        return result
+
+    async def lrange(self, key: str, start: int, stop: int) -> list[str]:
+        """Get a range of elements from a list.
+
+        Args:
+            key: Redis key.
+            start: Start index.
+            stop: Stop index (-1 for all).
+
+        Returns:
+            List of string values.
+        """
+        client = await self._get_client()
+        result: list[str] = await client.lrange(key, start, stop)  # type: ignore[misc]
+        return result
+
+    async def sadd(self, key: str, member: str, ttl: int = 0) -> None:
+        """Add a member to a set.
+
+        Args:
+            key: Redis key.
+            member: Set member.
+            ttl: Optional TTL in seconds (0 = no expiry).
+        """
+        client = await self._get_client()
+        await client.sadd(key, member)  # type: ignore[misc]
+        if ttl > 0:
+            await client.expire(key, ttl)
+
+    async def srem(self, key: str, member: str) -> None:
+        """Remove a member from a set.
+
+        Args:
+            key: Redis key.
+            member: Set member.
+        """
+        client = await self._get_client()
+        await client.srem(key, member)  # type: ignore[misc]
+
+    async def smembers(self, key: str) -> set[str]:
+        """Get all members of a set.
+
+        Args:
+            key: Redis key.
+
+        Returns:
+            Set of string members.
+        """
+        client = await self._get_client()
+        result: set[str] = await client.smembers(key)  # type: ignore[misc]
+        return result
+
+    async def expire(self, key: str, ttl: int) -> None:
+        """Set a TTL on a key.
+
+        Args:
+            key: Redis key.
+            ttl: Time-to-live in seconds.
+        """
+        client = await self._get_client()
+        await client.expire(key, ttl)
+
+    async def delete_key(self, key: str) -> bool:
+        """Delete a key.
+
+        Args:
+            key: Redis key.
+
+        Returns:
+            True if deleted, False if not found.
+        """
+        client = await self._get_client()
+        deleted = await client.delete(key)
+        return bool(deleted)
+
     # --- Generic cache operations ---
 
     async def set_cache(self, key: str, value: str, ttl: int = 300) -> None:
