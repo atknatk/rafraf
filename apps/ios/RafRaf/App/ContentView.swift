@@ -36,7 +36,7 @@ struct ContentView: View {
                 }
                 .tag(AppTab.home)
 
-            ChatView()
+            ChatView(viewModel: Container.shared.chatViewModel())
                 .tabItem {
                     Label(String(localized: "tab.chat"), systemImage: "message.fill")
                 }

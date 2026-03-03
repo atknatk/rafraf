@@ -1,0 +1,274 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ChatMessages",
+  "description": "Chat feature WebSocket mesaj kontrati - iOS client ile backend arasindaki chat mesajlasma protokolu",
+  "messages": [
+    {
+      "direction": "client_to_server",
+      "type": "chat.send",
+      "description": "Kullanici mesaj gonderir",
+      "content": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": "Mesaj metni"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Aktif oturum ID'si"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/ChatAttachment"
+            },
+            "description": "Mesaj ekleri (opsiyonel)"
+          }
+        },
+        "required": ["text", "session_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "server_to_client",
+      "type": "chat.message",
+      "description": "AI tam mesaj cevabi (non-streaming)",
+      "content": {
+        "type": "object",
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Mesaj benzersiz ID'si"
+          },
+          "text": {
+            "type": "string",
+            "description": "Mesaj icerigi"
+          },
+          "sender": {
+            "type": "string",
+            "enum": ["user", "assistant", "system"],
+            "description": "Mesaj gonderici tipi"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["text", "code", "image", "file", "system"],
+            "description": "Mesaj icerik tipi"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Mesaj zamani (ISO 8601)"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/ChatAttachment"
+            },
+            "description": "Mesaj ekleri"
+          }
+        },
+        "required": ["message_id", "text", "sender", "type", "timestamp"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "server_to_client",
+      "type": "chat.stream",
+      "description": "AI streaming parca cevabi",
+      "content": {
+        "type": "object",
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Streaming mesaj ID'si"
+          },
+          "delta": {
+            "type": "string",
+            "description": "Streaming metin parcasi"
+          },
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Parca sirasi"
+          }
+        },
+        "required": ["message_id", "delta", "index"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "server_to_client",
+      "type": "chat.stream_end",
+      "description": "AI streaming tamamlandi",
+      "content": {
+        "type": "object",
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Tamamlanan mesaj ID'si"
+          },
+          "full_text": {
+            "type": "string",
+            "description": "Tam mesaj icerigi"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["text", "code", "image", "file", "system"],
+            "description": "Mesaj icerik tipi"
+          }
+        },
+        "required": ["message_id", "full_text", "type"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "server_to_client",
+      "type": "chat.typing",
+      "description": "AI yaziyor gostergesi",
+      "content": {
+        "type": "object",
+        "properties": {
+          "is_typing": {
+            "type": "boolean",
+            "description": "AI yaziyor mu"
+          }
+        },
+        "required": ["is_typing"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "client_to_server",
+      "type": "chat.history",
+      "description": "Mesaj gecmisi istegi (pagination)",
+      "content": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Oturum ID'si"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Sayfalama imleci (son mesaj ID'si)"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "description": "Sayfa basina mesaj sayisi (default: 20)"
+          }
+        },
+        "required": ["session_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "server_to_client",
+      "type": "chat.history_response",
+      "description": "Mesaj gecmisi cevabi",
+      "content": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/ChatHistoryMessage"
+            },
+            "description": "Mesaj listesi"
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Daha fazla mesaj var mi"
+          },
+          "next_cursor": {
+            "type": "string",
+            "description": "Sonraki sayfa imleci"
+          }
+        },
+        "required": ["messages", "has_more"],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "definitions": {
+    "ChatAttachment": {
+      "type": "object",
+      "description": "Chat mesaj eki",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Ek benzersiz ID'si"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["image", "file", "audio"],
+          "description": "Ek tipi"
+        },
+        "url": {
+          "type": "string",
+          "description": "Dosya URL'i (S3 pre-signed)"
+        },
+        "mime_type": {
+          "type": "string",
+          "description": "MIME tipi"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Dosya boyutu (byte)"
+        }
+      },
+      "required": ["id", "type", "url", "mime_type", "size_bytes"],
+      "additionalProperties": false
+    },
+    "ChatHistoryMessage": {
+      "type": "object",
+      "description": "Gecmis mesaj kaydi",
+      "properties": {
+        "message_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Mesaj benzersiz ID'si"
+        },
+        "text": {
+          "type": "string",
+          "description": "Mesaj icerigi"
+        },
+        "sender": {
+          "type": "string",
+          "enum": ["user", "assistant", "system"],
+          "description": "Gonderici"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["text", "code", "image", "file", "system"],
+          "description": "Mesaj tipi"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Mesaj zamani"
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ChatAttachment"
+          },
+          "description": "Mesaj ekleri"
+        }
+      },
+      "required": ["message_id", "text", "sender", "type", "timestamp"],
+      "additionalProperties": false
+    }
+  }
+}
