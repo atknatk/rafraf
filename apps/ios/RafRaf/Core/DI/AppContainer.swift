@@ -101,4 +101,40 @@ extension Container {
             )
         }
     }
+
+    // MARK: - Voice Input Feature
+
+    /// Ses oturumu yoneticisi.
+    var audioSessionManager: Factory<RFAudioSessionManager> {
+        self { RFAudioSessionManager() }
+            .singleton
+    }
+
+    /// Deepgram STT tanici.
+    var speechRecognizer: Factory<RFSpeechRecognizer> {
+        self { RFSpeechRecognizer(keychainHelper: self.keychainHelper()) }
+            .singleton
+    }
+
+    /// Voice input repository.
+    var voiceInputRepository: Factory<VoiceInputRepositoryProtocol> {
+        self {
+            VoiceInputRepositoryImpl(
+                speechRecognizer: self.speechRecognizer(),
+                audioSessionManager: self.audioSessionManager()
+            )
+        }
+    }
+
+    /// Voice input ViewModel.
+    var voiceInputViewModel: Factory<VoiceInputViewModel> {
+        self { @MainActor in
+            let repository = self.voiceInputRepository()
+            return VoiceInputViewModel(
+                startRecordingUseCase: StartVoiceRecordingUseCase(repository: repository),
+                stopRecordingUseCase: StopVoiceRecordingUseCase(repository: repository),
+                audioSessionManager: self.audioSessionManager()
+            )
+        }
+    }
 }

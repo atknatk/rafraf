@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VoiceInputMessages",
+  "description": "Voice input (Deepgram STT streaming) WebSocket mesajlari. iOS dogrudan Deepgram WS API'a baglanir.",
+  "deepgramConnection": {
+    "url": "wss://api.deepgram.com/v1/listen",
+    "description": "Deepgram streaming STT WebSocket endpoint'i",
+    "queryParams": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string",
+          "enum": ["nova-2"],
+          "description": "Deepgram STT modeli"
+        },
+        "language": {
+          "type": "string",
+          "enum": ["tr", "en"],
+          "description": "Transkripsiyon dili"
+        },
+        "smart_format": {
+          "type": "boolean",
+          "const": true,
+          "description": "Akilli format (noktalama, buyuk harf)"
+        },
+        "punctuate": {
+          "type": "boolean",
+          "const": true,
+          "description": "Otomatik noktalama"
+        },
+        "interim_results": {
+          "type": "boolean",
+          "const": true,
+          "description": "Ara sonuclari dondur"
+        },
+        "endpointing": {
+          "type": "integer",
+          "const": 500,
+          "description": "Konusma bitisi algilama suresi (ms)"
+        },
+        "vad_events": {
+          "type": "boolean",
+          "const": true,
+          "description": "Voice Activity Detection olaylari"
+        },
+        "encoding": {
+          "type": "string",
+          "const": "linear16",
+          "description": "Ses encoding formati"
+        },
+        "sample_rate": {
+          "type": "integer",
+          "const": 16000,
+          "description": "Ornekleme hizi (Hz)"
+        },
+        "channels": {
+          "type": "integer",
+          "const": 1,
+          "description": "Kanal sayisi (mono)"
+        }
+      },
+      "required": ["model", "language", "encoding", "sample_rate", "channels"],
+      "additionalProperties": false
+    },
+    "authHeader": "Token <DEEPGRAM_API_KEY>"
+  },
+  "messages": [
+    {
+      "direction": "client_to_server",
+      "type": "binary",
+      "description": "Ham ses verisi (Linear PCM, 16kHz, mono, 16-bit)",
+      "payload": {
+        "type": "binary",
+        "format": "Linear PCM",
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitDepth": 16
+      }
+    },
+    {
+      "direction": "client_to_server",
+      "type": "json",
+      "description": "Baglanti kapatma mesaji",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "CloseStream",
+            "description": "Stream kapatma komutu"
+          }
+        },
+        "required": ["type"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "server_to_client",
+      "type": "json",
+      "description": "Transkripsiyon sonucu (interim veya final)",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "Results",
+            "description": "Mesaj tipi"
+          },
+          "channel_index": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "description": "Kanal indeksi"
+          },
+          "duration": {
+            "type": "number",
+            "description": "Ses suresi (saniye)"
+          },
+          "start": {
+            "type": "number",
+            "description": "Baslangic zamani (saniye)"
+          },
+          "is_final": {
+            "type": "boolean",
+            "description": "Final sonuc mu (true) yoksa interim mi (false)"
+          },
+          "speech_final": {
+            "type": "boolean",
+            "description": "Konusma sonu tespit edildi mi"
+          },
+          "channel": {
+            "type": "object",
+            "description": "Kanal transkripsiyon verisi",
+            "properties": {
+              "alternatives": {
+                "type": "array",
+                "description": "Alternatif transkripsiyon sonuclari",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "transcript": {
+                      "type": "string",
+                      "description": "Transkripsiyon metni"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "Guven skoru (0-1)"
+                    },
+                    "words": {
+                      "type": "array",
+                      "description": "Kelime bazli detay",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "word": {
+                            "type": "string",
+                            "description": "Kelime"
+                          },
+                          "start": {
+                            "type": "number",
+                            "description": "Kelime baslangic zamani"
+                          },
+                          "end": {
+                            "type": "number",
+                            "description": "Kelime bitis zamani"
+                          },
+                          "confidence": {
+                            "type": "number",
+                            "description": "Kelime guven skoru"
+                          },
+                          "punctuated_word": {
+                            "type": "string",
+                            "description": "Noktali kelime"
+                          }
+                        },
+                        "required": ["word", "start", "end", "confidence"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["transcript", "confidence"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["alternatives"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["type", "is_final", "speech_final", "channel"],
+        "additionalProperties": true
+      }
+    }
+  ]
+}
