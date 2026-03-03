@@ -42,20 +42,16 @@ final class PushNotificationManager: NSObject {
             } else {
                 logger.info("Bildirim izni reddedildi")
             }
-            refreshAuthorizationStatus()
+            await refreshAuthorizationStatus()
         } catch {
             logger.error("Bildirim izni hatasi: \(error.localizedDescription)")
         }
     }
 
     /// Mevcut izin durumunu kontrol eder.
-    nonisolated func refreshAuthorizationStatus() {
-        Task { @MainActor in
-            let center = UNUserNotificationCenter.current()
-            let settings = await center.notificationSettings()
-            let status = settings.authorizationStatus
-            self.authorizationStatus = status
-        }
+    func refreshAuthorizationStatus() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        self.authorizationStatus = settings.authorizationStatus
     }
 
     /// APNs icin remote notification kaydini baslatir.

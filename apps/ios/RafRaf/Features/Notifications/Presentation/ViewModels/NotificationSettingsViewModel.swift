@@ -63,9 +63,7 @@ final class NotificationSettingsViewModel {
 
     /// Bildirim izni ister ve ayarlari yukler.
     func onAppear() async {
-        notificationManager.refreshAuthorizationStatus()
-        // Kisa bekleme - status guncellenmesi icin
-        try? await Task.sleep(for: .milliseconds(100))
+        await notificationManager.refreshAuthorizationStatus()
         updatePermissionStatus()
         await loadSettings()
     }
