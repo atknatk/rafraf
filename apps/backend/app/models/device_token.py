@@ -13,9 +13,7 @@ class DeviceToken(Base, UUIDMixin, TimestampMixin):
     """Stores APNs device tokens for push notification delivery."""
 
     __tablename__ = "device_tokens"
-    __table_args__ = (
-        UniqueConstraint("user_id", "token", name="uq_device_tokens_user_token"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "token", name="uq_device_tokens_user_token"),)
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

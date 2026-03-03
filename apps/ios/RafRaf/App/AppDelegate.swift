@@ -69,7 +69,9 @@ private final class NotificationDelegate: NSObject, UNUserNotificationCenterDele
             UNNotificationPresentationOptions
         ) -> Void
     ) {
-        let userInfo = notification.request.content.userInfo
+        // userInfo [AnyHashable: Any] Sendable degil; ancak burada tek
+        // thread'den MainActor'a guvenli transfer yapiyoruz.
+        nonisolated(unsafe) let userInfo = notification.request.content.userInfo
         Task { @MainActor in
             manager.handleReceivedNotification(userInfo: userInfo)
         }
@@ -83,7 +85,9 @@ private final class NotificationDelegate: NSObject, UNUserNotificationCenterDele
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        let userInfo = response.notification.request.content.userInfo
+        // userInfo [AnyHashable: Any] Sendable degil; ancak burada tek
+        // thread'den MainActor'a guvenli transfer yapiyoruz.
+        nonisolated(unsafe) let userInfo = response.notification.request.content.userInfo
         Task { @MainActor in
             manager.handleReceivedNotification(userInfo: userInfo)
         }
