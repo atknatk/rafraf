@@ -13,9 +13,9 @@ struct RafRafTests {
             id: "test-1",
             name: "Test Proje",
             description: "Test aciklama",
+            status: .active,
             createdAt: Date(),
-            updatedAt: Date(),
-            status: .active
+            updatedAt: Date()
         )
 
         #expect(project.id == "test-1")
