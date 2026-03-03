@@ -33,25 +33,6 @@ services:
       retries: 5
     restart: unless-stopped
 
-  mem0:
-    image: mem0/mem0-api-server:latest
-    container_name: rafraf-mem0
-    ports:
-      - "${MEM0_PORT:-8070}:8080"
-    environment:
-      MEM0_TELEMETRY: "false"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
-    restart: unless-stopped
 
 volumes:
   pgdata:
