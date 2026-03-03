@@ -11,9 +11,21 @@ extension Container {
             .singleton
     }
 
+    /// WebSocket mesaj yonlendiricisi.
+    var webSocketMessageRouter: Factory<WebSocketMessageRouter> {
+        self { WebSocketMessageRouter() }
+            .singleton
+    }
+
     /// WebSocket istemcisi.
     var webSocketClient: Factory<WebSocketClient> {
-        self { WebSocketClient() }
+        self { WebSocketClient(messageRouter: self.webSocketMessageRouter()) }
+            .singleton
+    }
+
+    /// WebSocket baglanti yoneticisi.
+    var webSocketConnectionManager: Factory<WebSocketConnectionManager> {
+        self { @MainActor in WebSocketConnectionManager(webSocketClient: self.webSocketClient()) }
             .singleton
     }
 }
