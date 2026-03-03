@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FileEndpoints",
+  "description": "Dosya paylasimi REST endpoint kontrati - pre-signed URL olusturma",
+  "endpoints": [
+    {
+      "method": "POST",
+      "path": "/api/v1/files/upload-url",
+      "description": "Pre-signed upload URL olustur - iOS dosya yukleme icin",
+      "requestBody": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Proje benzersiz ID"
+          },
+          "file_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Dosya adi (uzanti dahil)"
+          },
+          "content_type": {
+            "type": "string",
+            "description": "Dosya MIME tipi (ornek: application/pdf, image/png)"
+          },
+          "file_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 52428800,
+            "description": "Dosya boyutu bytes cinsinden (max 50MB = 52428800)"
+          }
+        },
+        "required": ["project_id", "file_name", "content_type", "file_size"],
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "upload_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "S3 pre-signed upload URL (PUT method ile kullanilir)"
+          },
+          "file_key": {
+            "type": "string",
+            "description": "S3 object key (indirme isteklerinde kullanilir)"
+          },
+          "expiration_seconds": {
+            "type": "integer",
+            "description": "URL gecerlilik suresi saniye cinsinden"
+          }
+        },
+        "required": ["upload_url", "file_key", "expiration_seconds"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/files/download-url",
+      "description": "Pre-signed download URL olustur - iOS dosya indirme icin",
+      "requestBody": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Proje benzersiz ID"
+          },
+          "file_key": {
+            "type": "string",
+            "minLength": 1,
+            "description": "S3 object key (upload sonrasi donen key)"
+          }
+        },
+        "required": ["project_id", "file_key"],
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "download_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "S3 pre-signed download URL (GET method ile kullanilir)"
+          },
+          "file_key": {
+            "type": "string",
+            "description": "S3 object key"
+          },
+          "expiration_seconds": {
+            "type": "integer",
+            "description": "URL gecerlilik suresi saniye cinsinden"
+          }
+        },
+        "required": ["download_url", "file_key", "expiration_seconds"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
