@@ -389,6 +389,35 @@ class MemoryService:
                 operation="delete_personal_memory",
             ) from exc
 
+    async def update_personal_memory(
+        self,
+        memory_id: str,
+        data: str,
+    ) -> bool:
+        """Update an existing personal memory in mem0.
+
+        Args:
+            memory_id: mem0 memory ID.
+            data: New memory content text.
+
+        Returns:
+            True if update succeeded.
+
+        Raises:
+            MemoryServiceError: If update fails.
+        """
+        mem0 = self._get_mem0()
+        try:
+            mem0.update(memory_id=memory_id, data=data)  # type: ignore[attr-defined]
+            await logger.ainfo("personal_memory_updated", memory_id=memory_id)
+            return True
+        except Exception as exc:
+            await logger.aexception("personal_memory_update_error", memory_id=memory_id)
+            raise MemoryServiceError(
+                f"Hafiza guncelleme basarisiz: {exc}",
+                operation="update_personal_memory",
+            ) from exc
+
     async def get_all_personal_memories(
         self,
         user_id: str,
