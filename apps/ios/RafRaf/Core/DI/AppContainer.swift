@@ -196,4 +196,23 @@ extension Container {
             )
         }
     }
+
+    // MARK: - Screenshot Viewer Feature
+
+    /// Screenshot repository.
+    var screenshotRepository: Factory<ScreenshotRepositoryProtocol> {
+        self { ScreenshotRepositoryImpl(networkClient: self.networkClient()) }
+    }
+
+    /// Screenshot viewer ViewModel.
+    var screenshotViewerViewModel: Factory<ScreenshotViewerViewModel> {
+        self { @MainActor in
+            let repository = self.screenshotRepository()
+            return ScreenshotViewerViewModel(
+                loadScreenshotUseCase: LoadScreenshotUseCase(
+                    repository: repository
+                )
+            )
+        }
+    }
 }
