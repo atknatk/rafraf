@@ -29,24 +29,16 @@ class FileUploadURLResponse(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    upload_url: str = Field(
-        ..., description="S3 pre-signed upload URL (PUT method ile kullanilir)"
-    )
-    file_key: str = Field(
-        ..., description="S3 object key (indirme isteklerinde kullanilir)"
-    )
-    expiration_seconds: int = Field(
-        ..., description="URL gecerlilik suresi saniye cinsinden"
-    )
+    upload_url: str = Field(..., description="S3 pre-signed upload URL (PUT method ile kullanilir)")
+    file_key: str = Field(..., description="S3 object key (indirme isteklerinde kullanilir)")
+    expiration_seconds: int = Field(..., description="URL gecerlilik suresi saniye cinsinden")
 
 
 class FileDownloadURLRequest(BaseModel):
     """POST /api/v1/files/download-url request body."""
 
     project_id: str = Field(..., description="Proje benzersiz ID (UUID)")
-    file_key: str = Field(
-        ..., min_length=1, description="S3 object key (upload sonrasi donen key)"
-    )
+    file_key: str = Field(..., min_length=1, description="S3 object key (upload sonrasi donen key)")
 
 
 class FileDownloadURLResponse(BaseModel):
@@ -58,6 +50,4 @@ class FileDownloadURLResponse(BaseModel):
         ..., description="S3 pre-signed download URL (GET method ile kullanilir)"
     )
     file_key: str = Field(..., description="S3 object key")
-    expiration_seconds: int = Field(
-        ..., description="URL gecerlilik suresi saniye cinsinden"
-    )
+    expiration_seconds: int = Field(..., description="URL gecerlilik suresi saniye cinsinden")
