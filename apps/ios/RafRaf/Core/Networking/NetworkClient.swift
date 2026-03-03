@@ -78,6 +78,18 @@ actor NetworkClient {
         return try await execute(request)
     }
 
+    /// POST istegi gonderir ve ham veri dondurur (JSON decode yapmaz).
+    /// TTS gibi binary response donen endpoint'ler icin kullanilir.
+    func postRawData<B: Encodable & Sendable>(
+        path: String,
+        body: B
+    ) async throws -> Data {
+        var request = try buildRequest(path: path, method: .post)
+        request.httpBody = try encoder.encode(body)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        return try await executeRaw(request)
+    }
+
     // MARK: - Private
 
     private func buildRequest(
@@ -126,6 +138,29 @@ actor NetworkClient {
             } catch {
                 throw NetworkError.decodingError(error)
             }
+        case 401:
+            throw NetworkError.unauthorized
+        default:
+            throw NetworkError.httpError(statusCode: httpResponse.statusCode)
+        }
+    }
+
+    private func executeRaw(
+        _ request: URLRequest
+    ) async throws -> Data {
+        logger.debug("Request (raw): \(request.httpMethod ?? "?") \(request.url?.absoluteString ?? "?")")
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.invalidResponse
+        }
+
+        logger.debug("Response (raw): \(httpResponse.statusCode) - \(data.count) bytes")
+
+        switch httpResponse.statusCode {
+        case 200...299:
+            return data
         case 401:
             throw NetworkError.unauthorized
         default:
