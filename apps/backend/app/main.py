@@ -16,6 +16,7 @@ from app.api.routes.conversation_memory import router as conversation_memory_rou
 from app.api.routes.cost import router as cost_router
 from app.api.routes.files import router as files_router
 from app.api.routes.health import router as health_router
+from app.api.routes.maestro import router as maestro_router
 from app.api.routes.memory import router as memory_router
 from app.api.routes.notifications import router as notifications_router
 from app.api.routes.personal_memory import router as personal_memory_router
@@ -87,6 +88,7 @@ def create_app() -> FastAPI:
     application.include_router(files_router)
     application.include_router(notifications_router)
     application.include_router(personal_memory_router)
+    application.include_router(maestro_router)
 
     return application
 
