@@ -131,9 +131,14 @@ final class RFSpeechRecognizer: NSObject, @unchecked Sendable {
             URLQueryItem(name: "channels", value: "1"),
         ]
 
+        // URLComponents ile olusturulan URL her zaman gecerli olmalidir.
+        // Yine de guvenli erisim sagliyoruz.
         guard let url = components.url else {
-            // Fallback URL — should never happen with valid components
-            return URL(string: "wss://api.deepgram.com/v1/listen")!
+            // Static URL her zaman gecerlidir, guard sadece guvenlik icin
+            guard let fallback = URL(string: "wss://api.deepgram.com/v1/listen") else {
+                fatalError("Sabit Deepgram URL'i olusturulamadi — bu bir programlama hatasidir")
+            }
+            return fallback
         }
         return url
     }

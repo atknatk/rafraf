@@ -203,8 +203,7 @@ final class VoiceInputViewModel {
     private func handleStartError(_ error: Error) {
         logger.error("Kayit baslatma hatasi: \(error.localizedDescription)")
 
-        if error is VoiceInputRepositoryError {
-            let repoError = error as! VoiceInputRepositoryError
+        if let repoError = error as? VoiceInputRepositoryError {
             switch repoError {
             case .microphonePermissionDenied:
                 state = .error(.microphonePermissionDenied)
