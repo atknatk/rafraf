@@ -233,4 +233,23 @@ extension Container {
             )
         }
     }
+
+    // MARK: - Settings Feature
+
+    /// Settings repository.
+    var settingsRepository: Factory<SettingsRepositoryProtocol> {
+        self { SettingsRepositoryImpl() }
+            .singleton
+    }
+
+    /// Settings ViewModel.
+    var settingsViewModel: Factory<SettingsViewModel> {
+        self { @MainActor in
+            let repository = self.settingsRepository()
+            return SettingsViewModel(
+                loadSettingsUseCase: LoadSettingsUseCase(repository: repository),
+                saveSettingsUseCase: SaveSettingsUseCase(repository: repository)
+            )
+        }
+    }
 }
