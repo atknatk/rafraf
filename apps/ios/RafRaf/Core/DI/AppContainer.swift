@@ -83,4 +83,22 @@ extension Container {
             )
         }
     }
+
+    // MARK: - Chat Feature
+
+    /// Chat repository.
+    var chatRepository: Factory<ChatRepositoryProtocol> {
+        self { ChatRepositoryImpl(webSocketClient: self.webSocketClient()) }
+    }
+
+    /// Chat ViewModel.
+    var chatViewModel: Factory<ChatViewModel> {
+        self { @MainActor in
+            let repository = self.chatRepository()
+            return ChatViewModel(
+                sendMessageUseCase: SendMessageUseCase(repository: repository),
+                loadHistoryUseCase: LoadChatHistoryUseCase(repository: repository)
+            )
+        }
+    }
 }
