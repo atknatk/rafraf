@@ -215,4 +215,22 @@ extension Container {
             )
         }
     }
+
+    // MARK: - File Sharing Feature
+
+    /// File sharing repository.
+    var fileRepository: Factory<FileRepositoryProtocol> {
+        self { FileRepositoryImpl(networkClient: self.networkClient()) }
+    }
+
+    /// File picker ViewModel.
+    var filePickerViewModel: Factory<FilePickerViewModel> {
+        self { @MainActor in
+            let repository = self.fileRepository()
+            return FilePickerViewModel(
+                uploadFileUseCase: UploadFileUseCase(repository: repository),
+                downloadFileUseCase: DownloadFileUseCase(repository: repository)
+            )
+        }
+    }
 }
