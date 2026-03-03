@@ -1,4 +1,4 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import Foundation
 import os
 
@@ -54,7 +54,7 @@ final class RFSpeechRecognizer: NSObject, @unchecked Sendable {
 
         let stream = AsyncStream<DeepgramTranscriptDTO> { [weak self] continuation in
             self?.transcriptionContinuation = continuation
-            continuation.onTermination = { @Sendable _ in
+            continuation.onTermination = { @Sendable [weak self] _ in
                 self?.logger.info("Transkripsiyon stream sonlandirildi")
             }
         }

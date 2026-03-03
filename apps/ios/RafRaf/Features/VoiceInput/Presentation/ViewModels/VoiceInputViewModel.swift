@@ -48,7 +48,7 @@ final class VoiceInputViewModel {
 
         // Kaydedilmis dil tercihini yukle
         loadSavedLanguage()
-        logger.info("VoiceInputViewModel baslatildi - dil: \(selectedLanguage.rawValue)")
+        logger.info("VoiceInputViewModel baslatildi - dil: \(self.selectedLanguage.rawValue)")
     }
 
     // MARK: - Actions
@@ -56,7 +56,7 @@ final class VoiceInputViewModel {
     /// Ses kaydini baslatir.
     func startRecording() async {
         guard state == .idle || isErrorState else {
-            logger.warning("Kayit baslatma reddedildi - mevcut durum: \(String(describing: state))")
+            logger.warning("Kayit baslatma reddedildi - mevcut durum: \(String(describing: self.state))")
             return
         }
 
@@ -87,7 +87,7 @@ final class VoiceInputViewModel {
     /// Ses kaydini durdurur ve final transkripsiyon'u gonderir.
     func stopRecording() async {
         guard state == .recording else {
-            logger.warning("Kayit durdurma reddedildi - mevcut durum: \(String(describing: state))")
+            logger.warning("Kayit durdurma reddedildi - mevcut durum: \(String(describing: self.state))")
             return
         }
 

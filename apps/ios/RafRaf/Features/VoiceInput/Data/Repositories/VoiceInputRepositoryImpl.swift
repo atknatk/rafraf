@@ -29,9 +29,9 @@ final class VoiceInputRepositoryImpl: VoiceInputRepositoryProtocol, @unchecked S
         activeLanguage = language
 
         // Mikrofon izni kontrolu
-        guard audioSessionManager.hasPermission else {
+        if !audioSessionManager.hasPermission {
             let granted = await audioSessionManager.requestPermission()
-            guard granted else {
+            if !granted {
                 logger.error("Mikrofon izni reddedildi")
                 throw VoiceInputRepositoryError.microphonePermissionDenied
             }
