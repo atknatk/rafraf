@@ -1,15 +1,25 @@
 """Application configuration via Pydantic Settings."""
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# .env dosyasini repo root'ta veya CWD'de ara
+_ENV_FILES: list[str] = []
+_repo_root_env = Path(__file__).resolve().parents[4] / ".env"
+if _repo_root_env.exists():
+    _ENV_FILES.append(str(_repo_root_env))
+_ENV_FILES.append(".env")
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_ENV_FILES,
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
     # Application

@@ -6,35 +6,39 @@ struct RFLoginView: View {
     @Bindable var viewModel: AuthViewModel
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: RFSpacing.xl) {
-                // Logo ve baslik
-                headerSection
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: RFSpacing.xl) {
+                    // Logo ve baslik
+                    headerSection
 
-                // Giris formu
-                loginFormSection
+                    // Giris formu
+                    loginFormSection
 
-                // Giris butonu
-                loginButtonSection
+                    // Giris butonu
+                    loginButtonSection
 
-                // Biyometrik giris
-                if viewModel.isBiometricAvailable {
-                    biometricSection
+                    // Biyometrik giris
+                    if viewModel.isBiometricAvailable {
+                        biometricSection
+                    }
+
+                    // Hata mesaji
+                    if let errorMessage = viewModel.errorMessage {
+                        RFText(
+                            errorMessage,
+                            style: .caption,
+                            color: RFColors.error
+                        )
+                    }
+
+                    // Register yonlendirmesi
+                    registerLinkSection
                 }
-
-                // Hata mesaji
-                if let errorMessage = viewModel.errorMessage {
-                    RFText(
-                        errorMessage,
-                        style: .caption,
-                        color: RFColors.error
-                    )
-                }
-
-                // Register yonlendirmesi
-                registerLinkSection
+                .padding(.horizontal, RFSpacing.xl)
+                .frame(minHeight: geometry.size.height)
+                .frame(maxWidth: .infinity)
             }
-            .padding(RFSpacing.xl)
         }
     }
 
@@ -58,7 +62,7 @@ struct RFLoginView: View {
                 color: RFColors.fallbackTextSecondary
             )
         }
-        .padding(.top, RFSpacing.xxl)
+        .padding(.top, RFSpacing.md)
     }
 
     @ViewBuilder

@@ -1,2448 +1,2682 @@
 {
-  "sourceLanguage" : "tr",
-  "strings" : {
-    "tab.home" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ana Sayfa"
+  "sourceLanguage": "tr",
+  "strings": {
+    "%@%%": {
+      "extractionState": "manual"
+    },
+    "chat.empty.message": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send a message to start chatting with AI assistant."
           }
         },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Home"
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI asistan ile sohbete baslamak icin bir mesaj gonderin."
           }
         }
       }
     },
-    "tab.chat" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sohbet"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chat"
-          }
-        }
-      }
-    },
-    "tab.settings" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ayarlar"
+    "chat.empty.title": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No messages yet"
           }
         },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Settings"
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Henuz mesaj yok"
           }
         }
       }
     },
-    "home.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ana Sayfa"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Home"
-          }
-        }
-      }
-    },
-    "home.loading" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yukleniyor..."
+    "chat.input.placeholder": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type your message..."
           }
         },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Loading..."
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesajinizi yazin..."
           }
         }
       }
     },
-    "home.welcome.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hosgeldiniz"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Welcome"
-          }
-        }
-      }
-    },
-    "home.welcome.subtitle" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Projelerinizi yonetin ve AI asistan ile calisin."
+    "chat.loading": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading..."
           }
         },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Manage your projects and work with AI assistant."
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yukleniyor..."
           }
         }
       }
     },
-    "home.empty.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Henuz proje yok"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No projects yet"
-          }
-        }
-      }
-    },
-    "home.empty.message" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yeni bir proje olusturarak baslayin."
+    "chat.send": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send"
           }
         },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Get started by creating a new project."
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gonder"
           }
         }
       }
     },
-    "home.empty.action" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Proje Olustur"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Create Project"
-          }
-        }
-      }
-    },
-    "chat.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sohbet"
+    "chat.title": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chat"
           }
         },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chat"
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sohbet"
           }
         }
       }
     },
-    "chat.loading" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yukleniyor..."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Loading..."
-          }
-        }
-      }
-    },
-    "chat.empty.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Henuz mesaj yok"
+    "home.empty.action": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create Project"
           }
         },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No messages yet"
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proje Olustur"
           }
         }
       }
     },
-    "chat.empty.message" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI asistan ile sohbete baslamak icin bir mesaj gonderin."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Send a message to start chatting with AI assistant."
-          }
-        }
-      }
-    },
-    "chat.input.placeholder" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mesajinizi yazin..."
+    "home.empty.message": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get started by creating a new project."
           }
         },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Type your message..."
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni bir proje olusturarak baslayin."
           }
         }
       }
     },
-    "chat.send" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gonder"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Send"
-          }
-        }
-      }
-    },
-    "settings.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ayarlar"
+    "home.empty.title": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No projects yet"
           }
         },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Settings"
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Henuz proje yok"
           }
         }
       }
     },
-    "settings.section.profile" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Profil"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Profile"
-          }
-        }
-      }
-    },
-    "settings.section.app" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uygulama"
+    "home.loading": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading..."
           }
         },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Application"
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yukleniyor..."
           }
         }
       }
     },
-    "settings.version" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Surum"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Version"
-          }
-        }
-      }
-    },
-    "settings.logout" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cikis Yap"
+    "home.title": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Home"
           }
         },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Log Out"
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ana Sayfa"
           }
         }
       }
     },
-    "loading.message" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yukleniyor..."
+    "home.welcome.subtitle": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manage your projects and work with AI assistant."
           }
         },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Loading..."
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projelerinizi yonetin ve AI asistan ile calisin."
           }
         }
       }
     },
-    "auth.login.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Giris Yap"
+    "home.welcome.title": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Welcome"
           }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hosgeldiniz"
+          }
         }
       }
     },
-    "auth.login.subtitle" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hesabiniza giris yapin"
+    "loading.message": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading..."
           }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yukleniyor..."
+          }
         }
       }
     },
-    "auth.login.button" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Giris Yap"
+    "settings.logout": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Log Out"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cikis Yap"
           }
         }
       }
     },
-    "auth.login.orDivider" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "veya"
+    "settings.section.app": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Application"
           }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulama"
+          }
         }
       }
     },
-    "auth.login.noAccount" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hesabiniz yok mu?"
+    "settings.section.profile": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profile"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profil"
           }
         }
       }
     },
-    "auth.login.registerLink" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kayit Ol"
+    "settings.title": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
           }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarlar"
+          }
         }
       }
     },
-    "auth.register.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kayit Ol"
+    "settings.version": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Surum"
           }
         }
       }
     },
-    "auth.register.subtitle" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yeni hesap olusturun"
+    "tab.chat": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chat"
           }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sohbet"
+          }
         }
       }
     },
-    "auth.register.button" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kayit Ol"
+    "tab.home": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Home"
           }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ana Sayfa"
+          }
         }
       }
     },
-    "auth.register.hasAccount" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zaten hesabiniz var mi?"
+    "tab.settings": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarlar"
           }
         }
       }
     },
-    "auth.register.loginLink" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Giris Yap"
+    "auth.login.title": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giris Yap"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "auth.field.email" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "E-posta"
+    "auth.login.subtitle": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabiniza giris yapin"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "auth.field.password" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sifre"
+    "auth.login.button": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giris Yap"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "auth.field.confirmPassword" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sifre Tekrar"
+    "auth.login.orDivider": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "veya"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "auth.checking" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dogrulaniyor..."
+    "auth.login.noAccount": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabiniz yok mu?"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "auth.error.loginFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Giris basarisiz"
+    "auth.login.registerLink": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kayit Ol"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "auth.error.invalidForm" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lutfen tum alanlari doldurun"
+    "auth.register.title": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kayit Ol"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "auth.error.passwordMismatch" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sifreler eslesmiyor"
+    "auth.register.subtitle": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni hesap olusturun"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "auth.error.biometricFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Biyometrik dogrulama basarisiz"
+    "auth.register.button": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kayit Ol"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "auth.error.biometricNotAvailable" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Biyometrik dogrulama kullanilabilir degil"
+    "auth.register.hasAccount": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zaten hesabiniz var mi?"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "auth.biometric.reason" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hesabiniza giris yapmak icin dogrulayin"
+    "auth.register.loginLink": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giris Yap"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "auth.biometric.faceID" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Face ID ile Giris"
+    "auth.field.email": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-posta"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "auth.biometric.touchID" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Touch ID ile Giris"
+    "auth.field.password": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sifre"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "auth.biometric.opticID" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Optic ID ile Giris"
+    "auth.field.confirmPassword": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sifre Tekrar"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "auth.biometric.unavailable" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Biyometrik dogrulama kullanilabilir degil"
+    "auth.checking": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dogrulaniyor..."
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "approval.action.approve" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Onayla"
+    "auth.error.loginFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giris basarisiz"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "approval.action.reject" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reddet"
+    "auth.error.invalidForm": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lutfen tum alanlari doldurun"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "approval.action.detail" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Detay"
+    "auth.error.passwordMismatch": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sifreler eslesmiyor"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "approval.card.accessibilityLabel" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Onay karti"
+    "auth.error.biometricFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biyometrik dogrulama basarisiz"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "approval.category.deploy" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Da\u011f\u0131t\u0131m"
+    "auth.error.biometricNotAvailable": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biyometrik dogrulama kullanilabilir degil"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "approval.category.destructive" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yikici islem"
+    "auth.biometric.reason": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hesabiniza giris yapmak icin dogrulayin"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "approval.category.infrastructure" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Altyapi"
+    "auth.biometric.faceID": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Face ID ile Giris"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "approval.category.writeRemote" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uzak yazma"
+    "auth.biometric.touchID": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touch ID ile Giris"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "approval.countdown.remaining %lld" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld saniye kaldi"
+    "auth.biometric.opticID": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optic ID ile Giris"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "approval.decided" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Karar verildi"
+    "auth.biometric.unavailable": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biyometrik dogrulama kullanilabilir degil"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "approval.error.submitFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Onay gonderilemedi"
+    "approval.action.approve": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onayla"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "approval.error.timeoutFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sure doldu"
+    "approval.action.reject": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reddet"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "approval.option.hint %@" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ secenegi"
+    "approval.action.detail": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detay"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "error.default.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hata"
+    "approval.card.accessibilityLabel": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onay karti"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "error.network.message" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ag baglantisi kurulamadi"
+    "approval.category.deploy": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dağıtım"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "error.retry" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tekrar Dene"
+    "approval.category.destructive": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yikici islem"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "error.server.message" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sunucu hatasi olustu"
+    "approval.category.infrastructure": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Altyapi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "error.server.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sunucu Hatasi"
+    "approval.category.writeRemote": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uzak yazma"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "fileSharing.selectFile" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dosya Sec"
+    "approval.countdown.remaining %lld": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld saniye kaldi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "fileSharing.error.accessDenied" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dosya erisimi reddedildi"
+    "approval.decided": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karar verildi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "fileSharing.error.downloadFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dosya indirilemedi"
+    "approval.error.submitFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onay gonderilemedi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "fileSharing.error.fileReadFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dosya okunamadi"
+    "approval.error.timeoutFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sure doldu"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "fileSharing.error.fileTooLarge %lld" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dosya cok buyuk (maks %lld MB)"
+    "approval.option.hint %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ secenegi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "fileSharing.error.fileTooLargeForType %@ %lld" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ dosyasi cok buyuk (maks %lld MB)"
+    "error.default.title": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hata"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "fileSharing.error.unsupportedType %@" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Desteklenmeyen dosya tipi: %@"
+    "error.network.message": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ag baglantisi kurulamadi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "fileSharing.error.uploadFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dosya yuklenemedi"
+    "error.retry": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tekrar Dene"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "fileSharing.attachment.accessibilityHint" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dosya ekini acmak icin dokunun"
+    "error.server.message": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunucu hatasi olustu"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "fileSharing.attachment.accessibilityLabel %@" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ dosya eki"
+    "error.server.title": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunucu Hatasi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "fileSharing.preview.accessibilityLabel %@" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ onizlemesi"
+    "fileSharing.selectFile": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosya Sec"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "fileSharing.preview.close" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kapat"
+    "fileSharing.error.accessDenied": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosya erisimi reddedildi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "fileSharing.preview.noLocalFile" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yerel dosya bulunamadi"
+    "fileSharing.error.downloadFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosya indirilemedi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "fileSharing.upload.accessibilityLabel %@" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ yukleniyor"
+    "fileSharing.error.fileReadFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosya okunamadi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "fileSharing.upload.accessibilityValue %lld" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yuzde %lld tamamlandi"
+    "fileSharing.error.fileTooLarge %lld": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosya cok buyuk (maks %lld MB)"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.banner.dismiss" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kapat"
+    "fileSharing.error.fileTooLargeForType %@ %lld": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ dosyasi cok buyuk (maks %lld MB)"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.category.approvalNeeded" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Onay Gerekli"
+    "fileSharing.error.unsupportedType %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desteklenmeyen dosya tipi: %@"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.category.error" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hata"
+    "fileSharing.error.uploadFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosya yuklenemedi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.category.info" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bilgi"
+    "fileSharing.attachment.accessibilityHint": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosya ekini acmak icin dokunun"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.category.taskComplete" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gorev Tamamlandi"
+    "fileSharing.attachment.accessibilityLabel %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ dosya eki"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.error.loadSettings" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ayarlar yuklenemedi"
+    "fileSharing.preview.accessibilityLabel %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ onizlemesi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.error.tokenRegistration" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bildirim kaydi basarisiz"
+    "fileSharing.preview.close": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kapat"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.error.updateSettings" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ayarlar guncellenemedi"
+    "fileSharing.preview.noLocalFile": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yerel dosya bulunamadi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.permission.authorized" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bildirimler aktif"
+    "fileSharing.upload.accessibilityLabel %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ yukleniyor"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.permission.denied" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bildirimler kapatildi"
+    "fileSharing.upload.accessibilityValue %lld": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yuzde %lld tamamlandi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.permission.deniedDescription" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bildirimleri acmak icin Ayarlar'a gidin"
+    "notification.banner.dismiss": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kapat"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.permission.enable" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bildirimleri Ac"
+    "notification.category.approvalNeeded": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onay Gerekli"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.permission.notDetermined" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bildirim izni istenmedi"
+    "notification.category.error": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hata"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.permission.openSettings" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ayarlari Ac"
+    "notification.category.info": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilgi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.section.categories" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bildirim Kategorileri"
+    "notification.category.taskComplete": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gorev Tamamlandi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.section.categoriesFooter" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hangi bildirimleri almak istediginizi secin"
+    "notification.error.loadSettings": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarlar yuklenemedi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.section.permission" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bildirim Izni"
+    "notification.error.tokenRegistration": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirim kaydi basarisiz"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.settings.loading" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yukleniyor..."
+    "notification.error.updateSettings": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarlar guncellenemedi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "notification.settings.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bildirim Ayarlari"
+    "notification.permission.authorized": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirimler aktif"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "chat.code.copied" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kopyalandi"
+    "notification.permission.denied": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirimler kapatildi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "chat.code.copy" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kopyala"
+    "notification.permission.deniedDescription": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirimleri acmak icin Ayarlar'a gidin"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "chat.error.dismiss" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kapat"
+    "notification.permission.enable": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirimleri Ac"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "chat.error.loadFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mesajlar yuklenemedi"
+    "notification.permission.notDetermined": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirim izni istenmedi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "chat.error.sendFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mesaj gonderilemedi"
+    "notification.permission.openSettings": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarlari Ac"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "chat.file.unknown" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bilinmeyen dosya"
+    "notification.section.categories": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirim Kategorileri"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "chat.image.loadError" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gorsel yuklenemedi"
+    "notification.section.categoriesFooter": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hangi bildirimleri almak istediginizi secin"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "chat.loadMore" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Daha Fazla Yukle"
+    "notification.section.permission": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirim Izni"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "chat.message.copy" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mesaji Kopyala"
+    "notification.settings.loading": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yukleniyor..."
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.completed.message" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tamamlandi"
+    "notification.settings.title": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirim Ayarlari"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.duration.lessThanSecond" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 saniyeden az"
+    "chat.code.copied": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopyalandi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.duration.minutes.%lld.%lld" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld dk %lld sn"
+    "chat.code.copy": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopyala"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.duration.seconds.%lld" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld saniye"
+    "chat.error.dismiss": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kapat"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.percentage.%lld" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yuzde %lld"
+    "chat.error.loadFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesajlar yuklenemedi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.preview.building" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Derleniyor..."
+    "chat.error.sendFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesaj gonderilemedi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.preview.step1" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Analiz ediliyor"
+    "chat.file.unknown": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilinmeyen dosya"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.preview.step2" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kod yaziliyor"
+    "chat.image.loadError": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gorsel yuklenemedi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.preview.step3" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Test ediliyor"
+    "chat.loadMore": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daha Fazla Yukle"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.preview.step4" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dogrulaniyor"
+    "chat.message.copy": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesaji Kopyala"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.preview.thinking" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dusunuyor..."
+    "progress.completed.message": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tamamlandi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.status.cancelled" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Iptal edildi"
+    "progress.duration.lessThanSecond": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 saniyeden az"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.status.completed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tamamlandi"
+    "progress.duration.minutes.%lld.%lld": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld dk %lld sn"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.status.failed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Basarisiz"
+    "progress.duration.seconds.%lld": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld saniye"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.status.processing" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Isleniyor"
+    "progress.percentage.%lld": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yuzde %lld"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.status.running" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Calisiyor"
+    "progress.preview.building": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Derleniyor..."
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.step.%lld of %lld" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Adim %lld / %lld"
+    "progress.preview.step1": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analiz ediliyor"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.step.count.%lld.%lld" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld / %lld adim"
+    "progress.preview.step2": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kod yaziliyor"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.step.label.%lld" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Adim %lld"
+    "progress.preview.step3": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Test ediliyor"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.type.generating" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Olusturuluyor"
+    "progress.preview.step4": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dogrulaniyor"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.type.thinking" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dusunuyor"
+    "progress.preview.thinking": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dusunuyor..."
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.type.toolCalling" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Arac calistiriliyor"
+    "progress.status.cancelled": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iptal edildi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "progress.type.waitingApproval" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Onay bekleniyor"
+    "progress.status.completed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tamamlandi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.detail.createdAt" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Olusturulma"
+    "progress.status.failed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Basarisiz"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.detail.description" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aciklama"
+    "progress.status.processing": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Isleniyor"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.detail.info" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Proje Bilgisi"
+    "progress.status.running": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calisiyor"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.detail.lastActivity" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Son Aktivite"
+    "progress.step.%lld of %lld": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adim %lld / %lld"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.detail.loading" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yukleniyor..."
+    "progress.step.count.%lld.%lld": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / %lld adim"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.detail.recentActivity" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Son Aktiviteler"
+    "progress.step.label.%lld": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adim %lld"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.detail.repository" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Repository"
+    "progress.type.generating": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Olusturuluyor"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.detail.status" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Durum"
+    "progress.type.thinking": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dusunuyor"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.detail.techStack" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Teknoloji Yigini"
+    "progress.type.toolCalling": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arac calistiriliyor"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.detail.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Proje Detayi"
+    "progress.type.waitingApproval": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onay bekleniyor"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.detail.updatedAt" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Guncelleme"
+    "project.detail.createdAt": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Olusturulma"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.empty.message" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Henuz proje bulunmuyor"
+    "project.detail.description": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aciklama"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.empty.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Proje Yok"
+    "project.detail.info": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proje Bilgisi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.error.detailFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Proje detayi yuklenemedi"
+    "project.detail.lastActivity": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Son Aktivite"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.error.dismiss" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kapat"
+    "project.detail.loading": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yukleniyor..."
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.error.loadFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Projeler yuklenemedi"
+    "project.detail.recentActivity": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Son Aktiviteler"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.error.refreshFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yenileme basarisiz"
+    "project.detail.repository": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repository"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.filter.active" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aktif"
+    "project.detail.status": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durum"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.filter.all" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tumu"
+    "project.detail.techStack": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teknoloji Yigini"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.filter.archived" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Arsivlenmis"
+    "project.detail.title": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proje Detayi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.filter.completed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tamamlanmis"
+    "project.detail.updatedAt": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guncelleme"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.filter.pending" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Beklemede"
+    "project.empty.message": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Henuz proje bulunmuyor"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.list.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Projeler"
+    "project.empty.title": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proje Yok"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.loadMore" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Daha Fazla Yukle"
+    "project.error.detailFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proje detayi yuklenemedi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.loading" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yukleniyor..."
+    "project.error.dismiss": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kapat"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.status.active" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aktif"
+    "project.error.loadFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projeler yuklenemedi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.status.archived" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Arsivlenmis"
+    "project.error.refreshFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yenileme basarisiz"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.status.completed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tamamlanmis"
+    "project.filter.active": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktif"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "project.status.pending" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Beklemede"
+    "project.filter.all": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tumu"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "screenshotViewer.close" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kapat"
+    "project.filter.archived": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arsivlenmis"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "screenshotViewer.error.imageLoadFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gorsel yuklenemedi"
+    "project.filter.completed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tamamlanmis"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "screenshotViewer.error.invalidURL" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gecersiz URL"
+    "project.filter.pending": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beklemede"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "screenshotViewer.error.loadFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ekran goruntusu yuklenemedi"
+    "project.list.title": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projeler"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "screenshotViewer.loading" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yukleniyor..."
+    "project.loadMore": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daha Fazla Yukle"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "screenshotViewer.retry" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tekrar Dene"
+    "project.loading": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yukleniyor..."
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.appearance.dark" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Karanlik"
+    "project.status.active": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktif"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.appearance.fontSize" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yazi Boyutu"
+    "project.status.archived": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arsivlenmis"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.appearance.light" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aydinlik"
+    "project.status.completed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tamamlanmis"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.appearance.mode" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gorunum Modu"
+    "project.status.pending": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beklemede"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.appearance.system" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sistem"
+    "screenshotViewer.close": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kapat"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.fontSize.large" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Buyuk"
+    "screenshotViewer.error.imageLoadFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gorsel yuklenemedi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.fontSize.medium" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Orta"
+    "screenshotViewer.error.invalidURL": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gecersiz URL"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.fontSize.small" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kucuk"
+    "screenshotViewer.error.loadFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ekran goruntusu yuklenemedi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.logout.cancel" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Iptal"
+    "screenshotViewer.loading": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yukleniyor..."
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.logout.confirmAction" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cikis Yap"
+    "screenshotViewer.retry": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tekrar Dene"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.logout.confirmMessage" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cikis yapmak istediginize emin misiniz?"
+    "settings.appearance.dark": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karanlik"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.logout.confirmTitle" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cikis"
+    "settings.appearance.fontSize": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yazi Boyutu"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.notification.approvalRequests" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Onay Istekleri"
+    "settings.appearance.light": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aydinlik"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.notification.push" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Push Bildirimleri"
+    "settings.appearance.mode": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gorunum Modu"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.notification.systemAlerts" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sistem Uyarilari"
+    "settings.appearance.system": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistem"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.notification.taskUpdates" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gorev Guncellemeleri"
+    "settings.fontSize.large": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buyuk"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.section.appearance" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gorunum"
+    "settings.fontSize.medium": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orta"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.section.notifications" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bildirimler"
+    "settings.fontSize.small": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kucuk"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.section.voice" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ses"
+    "settings.logout.cancel": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iptal"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.tts.language.english" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ingilizce"
+    "settings.logout.confirmAction": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cikis Yap"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.tts.language.turkish" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Turkce"
+    "settings.logout.confirmMessage": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cikis yapmak istediginize emin misiniz?"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.voice.autoPlay" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Otomatik Oynat"
+    "settings.logout.confirmTitle": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cikis"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.voice.language" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ses Dili"
+    "settings.notification.approvalRequests": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onay Istekleri"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "settings.voice.speed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Konusma Hizi"
+    "settings.notification.push": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Push Bildirimleri"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceInput.button.hint" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sesli giris icin dokunun"
+    "settings.notification.systemAlerts": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistem Uyarilari"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceInput.button.startRecording" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kaydi Baslat"
+    "settings.notification.taskUpdates": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gorev Guncellemeleri"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceInput.button.stopRecording" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kaydi Durdur"
+    "settings.section.appearance": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gorunum"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceInput.cancel" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Iptal"
+    "settings.section.notifications": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildirimler"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceInput.error.audioSession" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ses oturumu baslatilamadi"
+    "settings.section.voice": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceInput.error.connectionFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Baglanti kurulamadi"
+    "settings.tts.language.english": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ingilizce"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceInput.error.emptyTranscription" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transkripsiyon bos"
+    "settings.tts.language.turkish": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turkce"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceInput.error.microphonePermissionDenied" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mikrofon izni reddedildi"
+    "settings.voice.autoPlay": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otomatik Oynat"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceInput.error.networkUnavailable" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ag baglantisi yok"
+    "settings.voice.language": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses Dili"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceInput.error.transcriptionFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transkripsiyon basarisiz"
+    "settings.voice.speed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konusma Hizi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceInput.language.english" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "English"
+    "voiceInput.button.hint": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesli giris icin dokunun"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceInput.language.turkish" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Turkce"
+    "voiceInput.button.startRecording": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydi Baslat"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceInput.languageSelector.label" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dil"
+    "voiceInput.button.stopRecording": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaydi Durdur"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceInput.listening" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dinleniyor..."
+    "voiceInput.cancel": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iptal"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceInput.processing" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Isleniyor..."
+    "voiceInput.error.audioSession": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses oturumu baslatilamadi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.autoPlay" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Otomatik Oynat"
+    "voiceInput.error.connectionFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baglanti kurulamadi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.button.loading" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yukleniyor..."
+    "voiceInput.error.emptyTranscription": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transkripsiyon bos"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.button.pause" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Duraklat"
+    "voiceInput.error.microphonePermissionDenied": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mikrofon izni reddedildi"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.button.play" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Oynat"
+    "voiceInput.error.networkUnavailable": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ag baglantisi yok"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.button.resume" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Devam Et"
+    "voiceInput.error.transcriptionFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transkripsiyon basarisiz"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.button.stop" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Durdur"
+    "voiceInput.language.english": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "English"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.error.audioDecodingFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ses cozumlemesi basarisiz"
+    "voiceInput.language.turkish": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turkce"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.error.emptyText" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Metin bos"
+    "voiceInput.languageSelector.label": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dil"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.error.networkUnavailable" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ag baglantisi yok"
+    "voiceInput.listening": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dinleniyor..."
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.error.playbackFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Oynatma basarisiz"
+    "voiceInput.processing": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Isleniyor..."
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.error.ttsRequestFailed" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "TTS istegi basarisiz"
+    "voiceOutput.autoPlay": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otomatik Oynat"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.progress.label" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ses ilerleme durumu"
+    "voiceOutput.button.loading": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yukleniyor..."
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.speedControl.preset %@" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ hiz"
+    "voiceOutput.button.pause": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duraklat"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.speedControl.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hiz Kontrolu"
+    "voiceOutput.button.play": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynat"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sesli Cikis"
+    "voiceOutput.button.resume": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Devam Et"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.voice.alloy" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Alloy"
+    "voiceOutput.button.stop": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durdur"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.voice.echo" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Echo"
+    "voiceOutput.error.audioDecodingFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses cozumlemesi basarisiz"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.voice.fable" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fable"
+    "voiceOutput.error.emptyText": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metin bos"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.voice.nova" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nova"
+    "voiceOutput.error.networkUnavailable": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ag baglantisi yok"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.voice.onyx" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Onyx"
+    "voiceOutput.error.playbackFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oynatma basarisiz"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.voice.shimmer" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shimmer"
+    "voiceOutput.error.ttsRequestFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TTS istegi basarisiz"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "voiceOutput.voiceSelector.title" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ses Secimi"
+    "voiceOutput.progress.label": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses ilerleme durumu"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "websocket.status.connected" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Baglandi"
+    "voiceOutput.speedControl.preset %@": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hiz"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "websocket.status.connecting" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Baglaniyor..."
+    "voiceOutput.speedControl.title": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiz Kontrolu"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "websocket.status.disconnected" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Baglanti kesildi"
+    "voiceOutput.title": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesli Cikis"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
-    "websocket.status.reconnecting" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yeniden baglaniyor..."
+    "voiceOutput.voice.alloy": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alloy"
           }
         }
-      }
+      },
+      "extractionState": "manual"
+    },
+    "voiceOutput.voice.echo": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Echo"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "voiceOutput.voice.fable": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fable"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "voiceOutput.voice.nova": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nova"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "voiceOutput.voice.onyx": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onyx"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "voiceOutput.voice.shimmer": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shimmer"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "voiceOutput.voiceSelector.title": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ses Secimi"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "websocket.status.connected": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baglandi"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "websocket.status.connecting": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baglaniyor..."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "websocket.status.disconnected": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baglanti kesildi"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "websocket.status.reconnecting": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeniden baglaniyor..."
+          }
+        }
+      },
+      "extractionState": "manual"
     }
   },
-  "version" : "1.0"
+  "version": "1.0"
 }
