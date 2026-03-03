@@ -234,6 +234,34 @@ extension Container {
         }
     }
 
+    // MARK: - Notifications Feature
+
+    /// Push bildirim yoneticisi.
+    var pushNotificationManager: Factory<PushNotificationManager> {
+        self { @MainActor in PushNotificationManager() }
+            .singleton
+    }
+
+    /// Notification repository.
+    var notificationRepository: Factory<NotificationRepositoryProtocol> {
+        self { NotificationRepositoryImpl(networkClient: self.networkClient()) }
+    }
+
+    /// Notification settings ViewModel.
+    var notificationSettingsViewModel: Factory<NotificationSettingsViewModel> {
+        self { @MainActor in
+            let repository = self.notificationRepository()
+            let manager = self.pushNotificationManager()
+            return NotificationSettingsViewModel(
+                registerDeviceTokenUseCase: RegisterDeviceTokenUseCase(
+                    repository: repository
+                ),
+                notificationManager: manager,
+                repository: repository
+            )
+        }
+    }
+
     // MARK: - Settings Feature
 
     /// Settings repository.

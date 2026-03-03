@@ -4,6 +4,8 @@ import SwiftUI
 /// Ana uygulama giris noktasi.
 @main
 struct RafRafApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     var body: some Scene {
         WindowGroup {
             ContentView()
