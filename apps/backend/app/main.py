@@ -16,6 +16,7 @@ from app.api.routes.cost import router as cost_router
 from app.api.routes.files import router as files_router
 from app.api.routes.health import router as health_router
 from app.api.routes.memory import router as memory_router
+from app.api.routes.notifications import router as notifications_router
 from app.api.routes.projects import router as projects_router
 from app.api.routes.webhooks import router as webhooks_router
 from app.api.routes.websocket import router as websocket_router
@@ -81,6 +82,7 @@ def create_app() -> FastAPI:
     application.include_router(projects_router)
     application.include_router(cost_router)
     application.include_router(files_router)
+    application.include_router(notifications_router)
 
     return application
 
