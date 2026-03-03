@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProjectEndpoints",
+  "description": "Proje yonetimi REST endpoint kontrati",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/v1/projects",
+      "description": "Proje listesi - filtreleme ve sayfalama destekli",
+      "queryParams": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["active", "pending", "completed"],
+            "description": "Proje durumuna gore filtrele"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Sayfa numarasi (1-indexed)"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "description": "Sayfa basina proje sayisi"
+          }
+        },
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ProjectSummary"
+            },
+            "description": "Proje listesi"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Toplam proje sayisi"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Mevcut sayfa numarasi"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Sayfa basina proje sayisi"
+          }
+        },
+        "required": ["projects", "total", "page", "page_size"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/projects/{project_id}",
+      "description": "Proje detayi - tek proje bilgisi",
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Proje benzersiz ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "Proje adi"
+          },
+          "description": {
+            "type": ["string", "null"],
+            "description": "Proje aciklamasi"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "pending", "completed"],
+            "description": "Proje durumu"
+          },
+          "repository_url": {
+            "type": ["string", "null"],
+            "description": "Git repository URL"
+          },
+          "tech_stack": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Kullanilan teknolojiler"
+          },
+          "last_activity_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "Son aktivite zamani (ISO 8601)"
+          },
+          "last_activity_summary": {
+            "type": ["string", "null"],
+            "description": "Son aktivite ozeti"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Olusturulma zamani (ISO 8601)"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Guncellenme zamani (ISO 8601)"
+          }
+        },
+        "required": ["id", "name", "status", "tech_stack", "created_at", "updated_at"],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "$defs": {
+    "ProjectSummary": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Proje benzersiz ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Proje adi"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "pending", "completed"],
+          "description": "Proje durumu"
+        },
+        "last_activity_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "Son aktivite zamani"
+        },
+        "last_activity_summary": {
+          "type": ["string", "null"],
+          "description": "Son aktivite ozeti"
+        },
+        "tech_stack": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Kullanilan teknolojiler"
+        }
+      },
+      "required": ["id", "name", "status", "tech_stack"],
+      "additionalProperties": false
+    }
+  }
+}
