@@ -212,17 +212,17 @@ final class ProgressViewModel {
     /// Ilerlemeyi basarisiz olarak isaretler.
     /// - Parameter error: Hata mesaji
     func markFailed(error: String) {
-        guard let state = progressState else { return }
-
-        progressState = ProgressState(
-            id: state.id,
-            mode: state.mode,
-            percentage: state.percentage,
-            taskDescription: state.taskDescription,
-            steps: state.steps,
-            currentStepIndex: state.currentStepIndex,
-            status: .failed
-        )
+        if let state = progressState {
+            progressState = ProgressState(
+                id: state.id,
+                mode: state.mode,
+                percentage: state.percentage,
+                taskDescription: state.taskDescription,
+                steps: state.steps,
+                currentStepIndex: state.currentStepIndex,
+                status: .failed
+            )
+        }
 
         errorMessage = error
         logger.error("Progress basarisiz: \(error)")
