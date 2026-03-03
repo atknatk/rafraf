@@ -34,13 +34,13 @@
 {"id": "F5-05", "issue": 34, "title": "File sharing", "phase": "f5", "layer": "ios", "pipeline": "full", "depends_on": [27, 21], "status": "merged"}
 {"id": "F5-06", "issue": 35, "title": "Settings screen", "phase": "f5", "layer": "ios", "pipeline": "standard", "depends_on": [24], "status": "merged"}
 {"id": "F5-07", "issue": 36, "title": "Push notifications", "phase": "f5", "layer": "ios", "pipeline": "full", "depends_on": [24], "status": "merged"}
-{"id": "F6-01", "issue": 37, "title": "Conversation memory", "phase": "f6", "layer": "backend", "pipeline": "full", "depends_on": [22], "status": "blocked"}
-{"id": "F6-02", "issue": 38, "title": "Project memory", "phase": "f6", "layer": "backend", "pipeline": "full", "depends_on": [22], "status": "blocked"}
-{"id": "F6-03", "issue": 39, "title": "Personal memory", "phase": "f6", "layer": "backend", "pipeline": "full", "depends_on": [22], "status": "blocked"}
-{"id": "F6-04", "issue": 40, "title": "Playwright web test scenarios", "phase": "f6", "layer": "backend", "pipeline": "standard", "depends_on": [15], "status": "blocked"}
-{"id": "F6-05", "issue": 41, "title": "Maestro mobile test integration", "phase": "f6", "layer": "backend", "pipeline": "standard", "depends_on": [17], "status": "blocked"}
-{"id": "F7-01", "issue": 42, "title": "Monitoring dashboard", "phase": "f7", "layer": "infra", "pipeline": "standard", "depends_on": [23], "status": "blocked"}
-{"id": "F7-02", "issue": 43, "title": "Cost alerts", "phase": "f7", "layer": "fullstack", "pipeline": "standard", "depends_on": [23, 36], "status": "blocked"}
-{"id": "F7-03", "issue": 44, "title": "Proactive notifications", "phase": "f7", "layer": "fullstack", "pipeline": "full", "depends_on": [36, 20], "status": "blocked"}
-{"id": "F7-04", "issue": 45, "title": "GitHub webhook integration", "phase": "f7", "layer": "backend", "pipeline": "full", "depends_on": [20], "status": "blocked"}
+{"id": "F6-01", "issue": 37, "title": "Conversation memory", "phase": "f6", "layer": "backend", "pipeline": "full", "depends_on": [22], "status": "merged"}
+{"id": "F6-02", "issue": 38, "title": "Project memory", "phase": "f6", "layer": "backend", "pipeline": "full", "depends_on": [22], "status": "ready"}
+{"id": "F6-03", "issue": 39, "title": "Personal memory", "phase": "f6", "layer": "backend", "pipeline": "full", "depends_on": [22], "status": "ready"}
+{"id": "F6-04", "issue": 40, "title": "Playwright web test scenarios", "phase": "f6", "layer": "backend", "pipeline": "standard", "depends_on": [15], "status": "ready"}
+{"id": "F6-05", "issue": 41, "title": "Maestro mobile test integration", "phase": "f6", "layer": "backend", "pipeline": "standard", "depends_on": [17], "status": "ready"}
+{"id": "F7-01", "issue": 42, "title": "Monitoring dashboard", "phase": "f7", "layer": "infra", "pipeline": "standard", "depends_on": [23], "status": "ready"}
+{"id": "F7-02", "issue": 43, "title": "Cost alerts", "phase": "f7", "layer": "fullstack", "pipeline": "standard", "depends_on": [23, 36], "status": "ready"}
+{"id": "F7-03", "issue": 44, "title": "Proactive notifications", "phase": "f7", "layer": "fullstack", "pipeline": "full", "depends_on": [36, 20], "status": "ready"}
+{"id": "F7-04", "issue": 45, "title": "GitHub webhook integration", "phase": "f7", "layer": "backend", "pipeline": "full", "depends_on": [20], "status": "ready"}
 {"id": "F7-05", "issue": 46, "title": "Disaster recovery", "phase": "f7", "layer": "infra", "pipeline": "standard", "depends_on": [37], "status": "blocked"}
