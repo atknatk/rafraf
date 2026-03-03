@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Kod blogu goruntuleme bileseni.
 /// Syntax highlighted kod gosterimi ve tek tikla kopyalama destegi.

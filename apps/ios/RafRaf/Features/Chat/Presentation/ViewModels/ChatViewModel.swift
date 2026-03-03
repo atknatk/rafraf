@@ -1,5 +1,6 @@
 import Foundation
 import os
+import UIKit
 
 /// Sohbet ViewModel.
 /// Chat ekraninin durumunu ve islemlerini yonetir.
