@@ -1,32 +1,63 @@
 import SwiftUI
 
+/// RafRaf metin girisi modlari.
+enum RFTextFieldMode: Sendable {
+    /// Tek satirli metin girisi.
+    case text
+    /// Sifre girisi (gizli metin).
+    case secure
+    /// Cok satirli metin girisi.
+    case multiline
+}
+
 /// RafRaf metin girisi bileseni.
 /// Feature ekranlarinda raw SwiftUI `TextField` yerine bu bilesen kullanilir.
 struct RFTextField: View {
     let placeholder: String
     @Binding var text: String
-    let isSecure: Bool
+    let mode: RFTextFieldMode
     let errorMessage: String?
+    let lineLimit: ClosedRange<Int>
 
     init(
         _ placeholder: String,
         text: Binding<String>,
-        isSecure: Bool = false,
+        mode: RFTextFieldMode = .text,
+        errorMessage: String? = nil,
+        lineLimit: ClosedRange<Int> = 3...6
+    ) {
+        self.placeholder = placeholder
+        self._text = text
+        self.mode = mode
+        self.errorMessage = errorMessage
+        self.lineLimit = lineLimit
+    }
+
+    /// Backward-compatible init for isSecure parameter.
+    init(
+        _ placeholder: String,
+        text: Binding<String>,
+        isSecure: Bool,
         errorMessage: String? = nil
     ) {
         self.placeholder = placeholder
         self._text = text
-        self.isSecure = isSecure
+        self.mode = isSecure ? .secure : .text
         self.errorMessage = errorMessage
+        self.lineLimit = 3...6
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: RFSpacing.xxs) {
             Group {
-                if isSecure {
-                    SecureField(placeholder, text: $text)
-                } else {
+                switch mode {
+                case .text:
                     TextField(placeholder, text: $text)
+                case .secure:
+                    SecureField(placeholder, text: $text)
+                case .multiline:
+                    TextField(placeholder, text: $text, axis: .vertical)
+                        .lineLimit(lineLimit)
                 }
             }
             .font(RFTypography.body)
@@ -67,7 +98,13 @@ struct RFTextField: View {
         RFTextField(
             "Sifreniz",
             text: .constant("password123"),
-            isSecure: true
+            mode: .secure
+        )
+
+        RFTextField(
+            "Mesajiniz",
+            text: .constant("Bu cok satirli bir metin girisi alanidir."),
+            mode: .multiline
         )
 
         RFTextField(
