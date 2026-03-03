@@ -105,6 +105,180 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/memory/project/{project_id}/search",
+      "description": "Proje hafizasinda arama/filtreleme (JSONB value icinde ve category/key uzerinde)",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "project_id": { "type": "string", "format": "uuid", "description": "Proje ID" }
+        },
+        "required": ["project_id"]
+      },
+      "queryParams": {
+        "type": "object",
+        "properties": {
+          "q": { "type": "string", "description": "Arama sorgusu (key ve value icinde aranir)" },
+          "category": { "type": "string", "maxLength": 50, "description": "Kategori filtresi" },
+          "min_confidence": { "type": "number", "minimum": 0, "maximum": 1, "default": 0, "description": "Minimum guvenilirlik skoru" }
+        },
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "format": "uuid", "description": "Hafiza kayit ID" },
+                "project_id": { "type": "string", "format": "uuid", "description": "Proje ID" },
+                "category": { "type": "string", "description": "Hafiza kategorisi" },
+                "key": { "type": "string", "description": "Hafiza anahtari" },
+                "value": { "type": "object", "description": "Hafiza degeri (JSONB)" },
+                "confidence": { "type": "number", "minimum": 0, "maximum": 1, "description": "Guvenilirlik skoru" },
+                "source": { "type": "string", "description": "Kaynak (user_stated, ai_inferred, tool_result)" },
+                "last_verified_at": { "type": "string", "format": "date-time", "nullable": true, "description": "Son dogrulama zamani" },
+                "created_at": { "type": "string", "format": "date-time", "description": "Olusturulma zamani" },
+                "updated_at": { "type": "string", "format": "date-time", "description": "Son guncelleme zamani" }
+              }
+            }
+          },
+          "total": { "type": "integer", "description": "Toplam kayit sayisi" }
+        },
+        "required": ["items", "total"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/memory/project/{project_id}/summary",
+      "description": "Proje hafiza ozeti (kategorilere gore gruplu, stale sayisi dahil)",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "project_id": { "type": "string", "format": "uuid", "description": "Proje ID" }
+        },
+        "required": ["project_id"]
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "project_id": { "type": "string", "format": "uuid", "description": "Proje ID" },
+          "categories": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string", "format": "uuid" },
+                  "project_id": { "type": "string", "format": "uuid" },
+                  "category": { "type": "string" },
+                  "key": { "type": "string" },
+                  "value": { "type": "object" },
+                  "confidence": { "type": "number" },
+                  "source": { "type": "string" },
+                  "last_verified_at": { "type": "string", "format": "date-time", "nullable": true },
+                  "created_at": { "type": "string", "format": "date-time" },
+                  "updated_at": { "type": "string", "format": "date-time" }
+                }
+              }
+            },
+            "description": "Kategorilere gore gruplu hafizalar"
+          },
+          "total_memories": { "type": "integer", "description": "Toplam hafiza sayisi" },
+          "stale_count": { "type": "integer", "description": "Stale (eski) kayit sayisi" }
+        },
+        "required": ["project_id", "categories", "total_memories", "stale_count"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/memory/project/{project_id}/extract",
+      "description": "Konusma mesajlarindan otomatik proje bilgisi cikarma (fact extraction)",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "project_id": { "type": "string", "format": "uuid", "description": "Proje ID" }
+        },
+        "required": ["project_id"]
+      },
+      "requestBody": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": { "type": "string", "description": "Mesaj rolu (user, assistant)" },
+                "content": { "type": "string", "description": "Mesaj icerigi" }
+              },
+              "required": ["role", "content"]
+            },
+            "minItems": 1,
+            "description": "Analiz edilecek konusma mesajlari"
+          },
+          "source": { "type": "string", "default": "ai_inferred", "description": "Kaynak etiketi" }
+        },
+        "required": ["messages"],
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "extracted_facts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "category": { "type": "string", "description": "Cikarilan bilgi kategorisi" },
+                "key": { "type": "string", "description": "Cikarilan bilgi anahtari" },
+                "value": { "type": "object", "description": "Cikarilan bilgi degeri" },
+                "confidence": { "type": "number", "minimum": 0, "maximum": 1, "description": "Guvenilirlik skoru" }
+              },
+              "required": ["category", "key", "value", "confidence"]
+            },
+            "description": "Cikarilan bilgiler"
+          },
+          "total": { "type": "integer", "description": "Cikarilan bilgi sayisi" }
+        },
+        "required": ["extracted_facts", "total"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/memory/project/{project_id}/stale",
+      "description": "Stale (eski) proje hafizalarini temizle",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "project_id": { "type": "string", "format": "uuid", "description": "Proje ID" }
+        },
+        "required": ["project_id"]
+      },
+      "queryParams": {
+        "type": "object",
+        "properties": {
+          "days_threshold": { "type": "integer", "minimum": 1, "default": 30, "description": "Stale esik gun sayisi (varsayilan: 30)" }
+        },
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "deleted_count": { "type": "integer", "description": "Silinen kayit sayisi" },
+          "threshold_days": { "type": "integer", "description": "Uygulanan esik gun sayisi" }
+        },
+        "required": ["deleted_count", "threshold_days"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/memory/personal/{user_id}",
       "description": "Kisisel hafiza ara (mem0 semantic search)",
       "pathParams": {
