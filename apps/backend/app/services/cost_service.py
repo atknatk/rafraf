@@ -22,9 +22,14 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 # Model pricing per 1M tokens (USD).
 # Values based on Anthropic published pricing as of 2025.
 _MODEL_PRICING: dict[str, dict[str, float]] = {
+    # Direct Anthropic API
     "claude-opus-4-5-20250929": {"input": 15.0, "output": 75.0},
     "claude-sonnet-4-5-20250929": {"input": 3.0, "output": 15.0},
     "claude-haiku-4-5-20251001": {"input": 0.80, "output": 4.0},
+    # AWS Bedrock EU inference profiles
+    "eu.anthropic.claude-opus-4-5-20251101-v1:0": {"input": 15.0, "output": 75.0},
+    "eu.anthropic.claude-sonnet-4-5-20250929-v1:0": {"input": 3.0, "output": 15.0},
+    "eu.anthropic.claude-haiku-4-5-20251001-v1:0": {"input": 0.80, "output": 4.0},
 }
 
 # Fallback pricing for unknown models

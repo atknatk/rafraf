@@ -455,6 +455,7 @@ class TestGetSupportedModels:
         """Opus model should be in the supported list."""
         models = CostService.get_supported_models()
         opus_models = [m for m in models if "opus" in str(m["model"])]
-        assert len(opus_models) == 1
-        assert opus_models[0]["input_price_per_1m"] == 15.0
-        assert opus_models[0]["output_price_per_1m"] == 75.0
+        assert len(opus_models) >= 1
+        for m in opus_models:
+            assert m["input_price_per_1m"] == 15.0
+            assert m["output_price_per_1m"] == 75.0

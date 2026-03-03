@@ -20,6 +20,8 @@ from enum import StrEnum
 import structlog
 from pydantic import BaseModel, ConfigDict
 
+from app.core.config import get_settings
+
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
@@ -31,17 +33,39 @@ class ModelTier(StrEnum):
     OPUS = "opus"
 
 
-# Model identifiers for each tier
-MODEL_HAIKU: str = "claude-haiku-4-5-20251001"
-MODEL_SONNET: str = "claude-sonnet-4-5-20250929"
-MODEL_OPUS: str = "claude-opus-4-5-20250929"
+# Model identifiers — Direct Anthropic API
+_DIRECT_HAIKU: str = "claude-haiku-4-5-20251001"
+_DIRECT_SONNET: str = "claude-sonnet-4-5-20250929"
+_DIRECT_OPUS: str = "claude-opus-4-5-20250929"
+
+# Model identifiers — AWS Bedrock EU inference profiles
+_BEDROCK_HAIKU: str = "eu.anthropic.claude-haiku-4-5-20251001-v1:0"
+_BEDROCK_SONNET: str = "eu.anthropic.claude-sonnet-4-5-20250929-v1:0"
+_BEDROCK_OPUS: str = "eu.anthropic.claude-opus-4-5-20251101-v1:0"
+
+
+def _get_model_ids() -> tuple[str, str, str]:
+    """Return (haiku, sonnet, opus) model IDs based on use_bedrock setting."""
+    if get_settings().use_bedrock:
+        return _BEDROCK_HAIKU, _BEDROCK_SONNET, _BEDROCK_OPUS
+    return _DIRECT_HAIKU, _DIRECT_SONNET, _DIRECT_OPUS
+
+
+# Public model identifiers (resolved at import time for backwards compat)
+MODEL_HAIKU, MODEL_SONNET, MODEL_OPUS = _get_model_ids()
+
+
+def _build_tier_map() -> dict[ModelTier, str]:
+    haiku, sonnet, opus = _get_model_ids()
+    return {
+        ModelTier.HAIKU: haiku,
+        ModelTier.SONNET: sonnet,
+        ModelTier.OPUS: opus,
+    }
+
 
 # Mapping from tier to model identifier
-_TIER_TO_MODEL: dict[ModelTier, str] = {
-    ModelTier.HAIKU: MODEL_HAIKU,
-    ModelTier.SONNET: MODEL_SONNET,
-    ModelTier.OPUS: MODEL_OPUS,
-}
+_TIER_TO_MODEL: dict[ModelTier, str] = _build_tier_map()
 
 # Fallback chain: if requested tier is unavailable, try the next one
 _FALLBACK_CHAIN: dict[ModelTier, list[ModelTier]] = {

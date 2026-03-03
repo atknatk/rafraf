@@ -61,9 +61,18 @@ class OrchestratorAgent:
 
     def __init__(self, tool_registry: ToolRegistry) -> None:
         self._registry = tool_registry
-        self._client = anthropic.AsyncAnthropic(
-            api_key=get_settings().anthropic_api_key,
-        )
+        settings = get_settings()
+        self._client: anthropic.AsyncAnthropic | anthropic.AsyncAnthropicBedrock
+        if settings.use_bedrock:
+            self._client = anthropic.AsyncAnthropicBedrock(
+                aws_access_key=settings.aws_access_key_id,
+                aws_secret_key=settings.aws_secret_access_key,
+                aws_region=settings.aws_region,
+            )
+        else:
+            self._client = anthropic.AsyncAnthropic(
+                api_key=settings.anthropic_api_key,
+            )
         # Session-based conversation history
         self._conversations: dict[str, list[anthropic.types.MessageParam]] = {}
 

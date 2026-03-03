@@ -67,6 +67,40 @@ class MemoryService:
             from mem0 import Memory
 
             settings = get_settings()
+
+            if settings.use_bedrock:
+                embedder_config: dict[str, object] = {
+                    "provider": "aws_bedrock",
+                    "config": {
+                        "model": "amazon.titan-embed-text-v2:0",
+                    },
+                }
+                llm_config: dict[str, object] = {
+                    "provider": "aws_bedrock",
+                    "config": {
+                        "model": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+                        "temperature": 0.1,
+                        "max_tokens": 1000,
+                    },
+                }
+                embedding_dims = 1024  # Titan Embed V2
+            else:
+                embedder_config = {
+                    "provider": "openai",
+                    "config": {
+                        "model": "text-embedding-3-small",
+                        "api_key": settings.openai_api_key,
+                    },
+                }
+                llm_config = {
+                    "provider": "anthropic",
+                    "config": {
+                        "model": "claude-haiku-4-5-20251001",
+                        "api_key": settings.anthropic_api_key,
+                    },
+                }
+                embedding_dims = 1536  # OpenAI text-embedding-3-small
+
             config: dict[str, object] = {
                 "vector_store": {
                     "provider": "pgvector",
@@ -75,23 +109,11 @@ class MemoryService:
                             "postgresql+asyncpg://", "postgresql://"
                         ),
                         "collection_name": "memories",
-                        "embedding_model_dims": 1536,
+                        "embedding_model_dims": embedding_dims,
                     },
                 },
-                "embedder": {
-                    "provider": "openai",
-                    "config": {
-                        "model": "text-embedding-3-small",
-                        "api_key": settings.openai_api_key,
-                    },
-                },
-                "llm": {
-                    "provider": "anthropic",
-                    "config": {
-                        "model": "claude-haiku-4-5-20251001",
-                        "api_key": settings.anthropic_api_key,
-                    },
-                },
+                "embedder": embedder_config,
+                "llm": llm_config,
             }
             self._mem0_client = Memory.from_config(config)
             self._mem0_initialized = True
