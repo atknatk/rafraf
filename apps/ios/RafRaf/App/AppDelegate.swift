@@ -16,6 +16,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, @unchecked Sendable {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        #if DEBUG
+        DebugSetup.injectKeysIfNeeded()
+        #endif
+
         // Bildirim delegesini ayarla
         let delegate = NotificationDelegate(manager: pushNotificationManager)
         UNUserNotificationCenter.current().delegate = delegate
