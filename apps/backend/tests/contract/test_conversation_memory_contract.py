@@ -8,7 +8,6 @@ from pathlib import Path
 
 from app.main import app
 
-
 # Contract file relative to the repo root (two levels up from apps/backend)
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 CONTRACT_FILE = _REPO_ROOT / "shared" / "api-contracts" / "rest" / "v1" / "conversation-memory.json"
