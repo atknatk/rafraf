@@ -42,7 +42,7 @@ struct ContentView: View {
                 }
                 .tag(AppTab.chat)
 
-            SettingsView()
+            SettingsView(viewModel: Container.shared.settingsViewModel())
                 .tabItem {
                     Label(String(localized: "tab.settings"), systemImage: "gearshape.fill")
                 }
