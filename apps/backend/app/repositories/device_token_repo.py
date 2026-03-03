@@ -3,7 +3,6 @@
 import uuid
 
 from sqlalchemy import select, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.device_token import DeviceToken, NotificationSettings
@@ -23,27 +22,30 @@ class DeviceTokenRepository:
         app_version: str | None = None,
     ) -> DeviceToken:
         """Insert or update a device token (reactivate if deactivated)."""
-        stmt = (
-            pg_insert(DeviceToken)
-            .values(
-                user_id=user_id,
-                token=token,
-                platform=platform,
-                app_version=app_version,
-                is_active=True,
-            )
-            .on_conflict_on_constraint("uq_device_tokens_user_token")
-            .do_update(
-                set_={
-                    "is_active": True,
-                    "app_version": app_version,
-                }
-            )
-            .returning(DeviceToken)
+        # Check if token already exists for this user
+        existing_stmt = select(DeviceToken).where(
+            DeviceToken.user_id == user_id,
+            DeviceToken.token == token,
         )
-        result = await self._session.execute(stmt)
+        existing_result = await self._session.execute(existing_stmt)
+        existing = existing_result.scalar_one_or_none()
+
+        if existing is not None:
+            existing.is_active = True
+            existing.app_version = app_version
+            await self._session.flush()
+            return existing
+
+        device_token = DeviceToken(
+            user_id=user_id,
+            token=token,
+            platform=platform,
+            app_version=app_version,
+            is_active=True,
+        )
+        self._session.add(device_token)
         await self._session.flush()
-        return result.scalar_one()
+        return device_token
 
     async def deactivate(self, user_id: uuid.UUID, token: str) -> None:
         """Mark a device token as inactive (soft delete)."""

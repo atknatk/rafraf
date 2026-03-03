@@ -5,7 +5,7 @@ import UserNotifications
 /// Uygulama delegesi.
 /// Push notification lifecycle yonetimi icin UIApplicationDelegate implementasyonu.
 /// SwiftUI @main struct'i UIApplicationDelegateAdaptor ile bu class'i kullanir.
-final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+final class AppDelegate: NSObject, UIApplicationDelegate, @unchecked Sendable {
 
     @Injected(\.pushNotificationManager)
     private var pushNotificationManager: PushNotificationManager
@@ -17,7 +17,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         // Bildirim delegesini ayarla
-        UNUserNotificationCenter.current().delegate = self
+        let delegate = NotificationDelegate(manager: pushNotificationManager)
+        UNUserNotificationCenter.current().delegate = delegate
+        // Delegate'i retain et
+        Self.notificationDelegate = delegate
         return true
     }
 
@@ -41,7 +44,22 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         }
     }
 
-    // MARK: - UNUserNotificationCenterDelegate
+    // MARK: - Private
+
+    /// Notification delegate referansini saklar (retain).
+    private static var notificationDelegate: NotificationDelegate?
+}
+
+/// UNUserNotificationCenterDelegate implementasyonu.
+/// Ayri class olarak tanimlanir cunku UNUserNotificationCenterDelegate
+/// nonisolated requirement'lara sahiptir ve @MainActor class ile uyumsuz olur.
+private final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
+
+    private let manager: PushNotificationManager
+
+    init(manager: PushNotificationManager) {
+        self.manager = manager
+    }
 
     /// Uygulama on plandayken gelen bildirim.
     func userNotificationCenter(
@@ -53,7 +71,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     ) {
         let userInfo = notification.request.content.userInfo
         Task { @MainActor in
-            pushNotificationManager.handleReceivedNotification(userInfo: userInfo)
+            manager.handleReceivedNotification(userInfo: userInfo)
         }
         // Uygulama on plandayken banner ve ses goster
         completionHandler([.banner, .sound])
@@ -67,7 +85,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     ) {
         let userInfo = response.notification.request.content.userInfo
         Task { @MainActor in
-            pushNotificationManager.handleReceivedNotification(userInfo: userInfo)
+            manager.handleReceivedNotification(userInfo: userInfo)
         }
         completionHandler()
     }
