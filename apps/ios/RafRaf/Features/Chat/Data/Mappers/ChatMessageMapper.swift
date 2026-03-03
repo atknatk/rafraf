@@ -2,23 +2,23 @@ import Foundation
 
 /// Chat mesaji DTO -> Domain donusturucu.
 enum ChatMessageMapper {
-    private static let dateFormatter: ISO8601DateFormatter = {
+
+    /// ISO8601 tarih parse eder (fractional seconds + fallback destegi).
+    private static func parseDate(from string: String) -> Date {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
 
-    private static let fallbackDateFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: string) {
+            return date
+        }
+
         formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
+        return formatter.date(from: string) ?? Date()
+    }
 
     /// DTO'yu domain modeline donusturur.
     static func toDomain(_ dto: ChatMessageDTO) -> ChatMessage {
-        let date = dateFormatter.date(from: dto.timestamp)
-            ?? fallbackDateFormatter.date(from: dto.timestamp)
-            ?? Date()
+        let date = parseDate(from: dto.timestamp)
 
         let attachments = dto.attachments?.map { toDomain($0) } ?? []
 
