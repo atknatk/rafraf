@@ -99,7 +99,7 @@ final class ProjectListViewModel {
             projects.append(contentsOf: result.projects)
             totalCount = result.total
             hasMorePages = result.hasMore
-            logger.info("Ek projeler yuklendi: \(result.projects.count) proje, sayfa: \(currentPage)")
+            logger.info("Ek projeler yuklendi: \(result.projects.count) proje, sayfa: \(self.currentPage)")
         } catch {
             currentPage -= 1
             logger.error("Ek proje yukleme hatasi: \(error.localizedDescription)")

@@ -40,7 +40,7 @@ final class ProjectDetailViewModel {
 
         do {
             project = try await getProjectDetailUseCase.execute(projectId: projectId)
-            logger.info("Proje detayi yuklendi: \(project?.name ?? "?")")
+            logger.info("Proje detayi yuklendi: \(self.project?.name ?? "?")")
         } catch {
             errorMessage = String(localized: "project.error.detailFailed")
             logger.error("Proje detay yukleme hatasi: \(error.localizedDescription)")
