@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PersonalMemoryEndpoints",
+  "description": "Personal memory (mem0 + pgvector) REST API endpoints for user profile, fact extraction, privacy controls",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/v1/personal-memory/{user_id}/profile",
+      "description": "Kullanici profili getir (tercihler, aliskanliklar, hafiza ozeti)",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string", "description": "Kullanici ID" }
+        },
+        "required": ["user_id"]
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string", "description": "Kullanici ID" },
+          "preferences": { "type": "object", "description": "Kullanici tercihleri (hafizalardan cikarilmis)" },
+          "habits": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Kullanici aliskanlik listesi"
+          },
+          "total_memories": { "type": "integer", "description": "Toplam hafiza sayisi" },
+          "last_updated": { "type": "string", "format": "date-time", "nullable": true, "description": "Son guncelleme zamani" }
+        },
+        "required": ["user_id", "preferences", "habits", "total_memories", "last_updated"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/personal-memory/{user_id}/profile",
+      "description": "Kullanici profilini guncelle (tercih ve aliskanliklar hafizaya kaydedilir)",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string", "description": "Kullanici ID" }
+        },
+        "required": ["user_id"]
+      },
+      "requestBody": {
+        "type": "object",
+        "properties": {
+          "preferences": { "type": "object", "description": "Guncellenecek tercihler" },
+          "habits": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Guncellenecek aliskanliklar"
+          }
+        },
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string", "description": "Kullanici ID" },
+          "preferences": { "type": "object", "description": "Kullanici tercihleri" },
+          "habits": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Kullanici aliskanlik listesi"
+          },
+          "total_memories": { "type": "integer", "description": "Toplam hafiza sayisi" },
+          "last_updated": { "type": "string", "format": "date-time", "nullable": true, "description": "Son guncelleme zamani" }
+        },
+        "required": ["user_id", "preferences", "habits", "total_memories", "last_updated"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/personal-memory/{user_id}/extract",
+      "description": "Konusma mesajlarindan kisisel fact extraction (kullanici tercih ve aliskanliklarini cikar)",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string", "description": "Kullanici ID" }
+        },
+        "required": ["user_id"]
+      },
+      "requestBody": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": { "type": "string", "description": "Mesaj rolu (user, assistant)" },
+                "content": { "type": "string", "description": "Mesaj icerigi" }
+              },
+              "required": ["role", "content"]
+            },
+            "minItems": 1,
+            "description": "Analiz edilecek konusma mesajlari"
+          }
+        },
+        "required": ["messages"],
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "extracted_memories": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Cikarilan hafiza ID'leri"
+          },
+          "total": { "type": "integer", "description": "Cikarilan hafiza sayisi" }
+        },
+        "required": ["extracted_memories", "total"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/personal-memory/{user_id}/memories/{memory_id}",
+      "description": "Kisisel hafizayi guncelle (mem0.update)",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string", "description": "Kullanici ID" },
+          "memory_id": { "type": "string", "description": "Hafiza ID (mem0)" }
+        },
+        "required": ["user_id", "memory_id"]
+      },
+      "requestBody": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "string", "minLength": 1, "maxLength": 4096, "description": "Yeni hafiza icerigi" }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Hafiza ID (mem0)" },
+          "memory": { "type": "string", "description": "Guncellenmis hafiza icerigi" },
+          "score": { "type": "number", "nullable": true, "description": "Benzerlik skoru" },
+          "metadata": { "type": "object", "nullable": true, "description": "Ek metadata" }
+        },
+        "required": ["id", "memory"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/personal-memory/{user_id}/all",
+      "description": "Tum kisisel hafizalari sil (gizlilik - right to be forgotten)",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string", "description": "Kullanici ID" }
+        },
+        "required": ["user_id"]
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "deleted_count": { "type": "integer", "description": "Silinen hafiza sayisi" },
+          "user_id": { "type": "string", "description": "Kullanici ID" }
+        },
+        "required": ["deleted_count", "user_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/personal-memory/{user_id}/stats",
+      "description": "Kisisel hafiza istatistikleri",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string", "description": "Kullanici ID" }
+        },
+        "required": ["user_id"]
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "user_id": { "type": "string", "description": "Kullanici ID" },
+          "total_memories": { "type": "integer", "description": "Toplam hafiza sayisi" },
+          "oldest_memory_date": { "type": "string", "format": "date-time", "nullable": true, "description": "En eski hafiza tarihi" },
+          "newest_memory_date": { "type": "string", "format": "date-time", "nullable": true, "description": "En yeni hafiza tarihi" }
+        },
+        "required": ["user_id", "total_memories", "oldest_memory_date", "newest_memory_date"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
