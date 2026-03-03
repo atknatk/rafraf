@@ -165,12 +165,14 @@ class CostRepository:
         result = await self._session.execute(stmt)
         rows: list[tuple[date, float, int, int]] = []
         for row in result.all():
-            rows.append((
-                row.day,
-                float(row.total_cost),
-                int(row.total_tokens),
-                int(row.call_count),
-            ))
+            rows.append(
+                (
+                    row.day,
+                    float(row.total_cost),
+                    int(row.total_tokens),
+                    int(row.call_count),
+                )
+            )
         return rows
 
     async def get_model_breakdown(
@@ -211,14 +213,16 @@ class CostRepository:
         result = await self._session.execute(stmt)
         rows: list[tuple[str, int, int, int, float, int]] = []
         for row in result.all():
-            rows.append((
-                str(row.model),
-                int(row.total_input),
-                int(row.total_output),
-                int(row.total_tokens),
-                float(row.total_cost),
-                int(row.call_count),
-            ))
+            rows.append(
+                (
+                    str(row.model),
+                    int(row.total_input),
+                    int(row.total_output),
+                    int(row.total_tokens),
+                    float(row.total_cost),
+                    int(row.call_count),
+                )
+            )
         return rows
 
     async def get_user_totals(
@@ -252,12 +256,14 @@ class CostRepository:
         result = await self._session.execute(stmt)
         rows: list[tuple[uuid.UUID, float, int, int]] = []
         for row in result.all():
-            rows.append((
-                row.user_id,
-                float(row.total_cost),
-                int(row.total_tokens),
-                int(row.call_count),
-            ))
+            rows.append(
+                (
+                    row.user_id,
+                    float(row.total_cost),
+                    int(row.total_tokens),
+                    int(row.call_count),
+                )
+            )
         return rows
 
     async def get_total_cost_for_date(
