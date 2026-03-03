@@ -281,6 +281,7 @@
 		F451E7C0EC330B8B9B9069B1 /* View+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6124D6E1DECAB58D50AE8B0 /* View+Extensions.swift */; };
 		F66535758ABA5F61656881A0 /* ProjectListViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 180F43D46C4EF6B37661F039 /* ProjectListViewModelTests.swift */; };
 		F6714D7D1A45086156152B93 /* SendMessageUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53122A6023B9C8527386D149 /* SendMessageUseCase.swift */; };
+		F71A51CDA2BD295048A36688 /* DebugSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DD7F29F16B14E2965B82554 /* DebugSetup.swift */; };
 		F96D453993430F1AE425A673 /* RegisterDeviceTokenUseCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC11AC16AFB4F0AE3B6291D /* RegisterDeviceTokenUseCaseTests.swift */; };
 		FA5EA21A153E4070D5EC0479 /* ProgressRepositoryImplTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 108EEC88530B42D3365B0CF7 /* ProgressRepositoryImplTests.swift */; };
 		FAEEF0302FBB337424A8235A /* TranscriptionMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6806D0CBEB4C320AB5122A0A /* TranscriptionMapper.swift */; };
@@ -344,6 +345,7 @@
 		1B5D1C4CC76AA7F60B425026 /* ChatAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatAttachment.swift; sourceTree = "<group>"; };
 		1C365DE11989085900D374D8 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		1C56E0953632D7176D2CE8C1 /* ProjectListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectListView.swift; sourceTree = "<group>"; };
+		1DD7F29F16B14E2965B82554 /* DebugSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugSetup.swift; sourceTree = "<group>"; };
 		1F9EF868FB8B3129126B6185 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
 		207A34477514118FB3C20E6C /* ScreenshotModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotModelTests.swift; sourceTree = "<group>"; };
 		20CD7C997F970FBA36D3C074 /* RFCodeBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFCodeBlock.swift; sourceTree = "<group>"; };
@@ -898,6 +900,7 @@
 				E4813BF26B2B15D0D2CA06EB /* AppDelegate.swift */,
 				3B1ADDEFA8694886A954995E /* AppEnvironment.swift */,
 				4F64086A1002320F2E9FF4D3 /* ContentView.swift */,
+				1DD7F29F16B14E2965B82554 /* DebugSetup.swift */,
 				F5E0B9813123EAFCAF6E5425 /* RafRafApp.swift */,
 			);
 			path = App;
@@ -2952,6 +2955,7 @@
 				00E71759402C5B52C67BE896 /* ChatView.swift in Sources */,
 				09FD1381D6990FAC0EFC2906 /* ChatViewModel.swift in Sources */,
 				E4D20264B06E3BA886B7BE9D /* ContentView.swift in Sources */,
+				F71A51CDA2BD295048A36688 /* DebugSetup.swift in Sources */,
 				08A0A6FEFD4129A9250D7D4F /* DeepgramMessageDTO.swift in Sources */,
 				55FFE6B80055DD880C80680D /* DeviceTokenDTO.swift in Sources */,
 				32E0335FCFB1EE2A2B21FA7A /* DownloadFileUseCase.swift in Sources */,

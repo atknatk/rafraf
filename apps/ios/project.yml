@@ -68,6 +68,10 @@ schemes:
     run:
       config: Debug
       simulateLocation: false
+      environmentVariables:
+        - variable: DEEPGRAM_API_KEY
+          value: ""
+          isEnabled: true
     test:
       config: Debug
       targets:

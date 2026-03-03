@@ -16,11 +16,21 @@ enum AppEnvironment: Sendable {
         #endif
     }
 
+    /// Development backend host.
+    /// Simulator: localhost, fiziksel cihaz: Mac'in lokal IP adresi.
+    private static let devHost: String = {
+        #if targetEnvironment(simulator)
+        return "localhost"
+        #else
+        return "192.168.0.100"
+        #endif
+    }()
+
     /// Backend WebSocket URL.
     var webSocketURL: URL {
         switch self {
         case .development:
-            guard let url = URL(string: "ws://localhost:8000/ws") else {
+            guard let url = URL(string: "ws://\(Self.devHost):8000/ws") else {
                 fatalError("Gecersiz development WebSocket URL")
             }
             return url
@@ -41,7 +51,7 @@ enum AppEnvironment: Sendable {
     var apiBaseURL: URL {
         switch self {
         case .development:
-            guard let url = URL(string: "http://localhost:8000/api/v1") else {
+            guard let url = URL(string: "http://\(Self.devHost):8000/api/v1") else {
                 fatalError("Gecersiz development API URL")
             }
             return url

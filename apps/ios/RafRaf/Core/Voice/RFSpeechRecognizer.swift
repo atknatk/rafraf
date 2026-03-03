@@ -119,7 +119,7 @@ final class RFSpeechRecognizer: NSObject, @unchecked Sendable {
         components.host = "api.deepgram.com"
         components.path = "/v1/listen"
         components.queryItems = [
-            URLQueryItem(name: "model", value: "nova-2"),
+            URLQueryItem(name: "model", value: "nova-3"),
             URLQueryItem(name: "language", value: language.deepgramCode),
             URLQueryItem(name: "smart_format", value: "true"),
             URLQueryItem(name: "punctuate", value: "true"),
