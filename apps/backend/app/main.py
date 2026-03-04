@@ -1,5 +1,6 @@
 """RafRaf Backend - FastAPI application entry point."""
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -21,6 +22,7 @@ from app.api.routes.memory import router as memory_router
 from app.api.routes.notifications import router as notifications_router
 from app.api.routes.personal_memory import router as personal_memory_router
 from app.api.routes.projects import router as projects_router
+from app.api.routes.subscription import router as subscription_router
 from app.api.routes.webhooks import router as webhooks_router
 from app.api.routes.websocket import router as websocket_router
 from app.core.config import get_settings
@@ -56,13 +58,27 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan: startup and shutdown events."""
     settings = get_settings()
     setup_logging(debug=settings.debug)
-    await logger.ainfo("app_starting", version=settings.app_version)
+    logger.info("app_starting", version=settings.app_version)
     await agent_registry.start_stale_checker()
     _register_host_agent_tool()
+    usage_task = asyncio.create_task(_subscription_usage_loop())
     yield
+    usage_task.cancel()
     await agent_registry.stop_stale_checker()
     await redis_client.close()
-    await logger.ainfo("app_shutting_down")
+    logger.info("app_shutting_down")
+
+
+async def _subscription_usage_loop() -> None:
+    """Periodically refresh subscription usage data (every 10 minutes)."""
+    from app.services.subscription_usage_service import subscription_usage_service
+
+    while True:
+        try:
+            await subscription_usage_service.refresh()
+        except Exception as exc:
+            logger.warning("subscription_usage_refresh_failed", exc_info=exc)
+        await asyncio.sleep(600)
 
 
 def create_app() -> FastAPI:
@@ -109,6 +125,7 @@ def create_app() -> FastAPI:
     application.include_router(notifications_router)
     application.include_router(personal_memory_router)
     application.include_router(maestro_router)
+    application.include_router(subscription_router)
 
     return application
 

@@ -2,10 +2,28 @@ import Foundation
 
 /// Progress DTO'larini domain modellere donusturur.
 enum ProgressMapper {
-    /// ProgressEventDTO'yu (basit WS mesaji) ProgressState domain modeline donusturur.
+    /// ProgressEventDTO'yu (basit veya zengin WS mesaji) ProgressState domain modeline donusturur.
+    /// Zenginlestirilmis `stepsDetail` varsa detayli timeline, yoksa basit mapping kullanir.
     /// - Parameter dto: Backend'den gelen progress event DTO'su
     /// - Returns: Domain ProgressState modeli
     static func toDomain(from dto: ProgressEventDTO) -> ProgressState {
+        // Zenginlestirilmis step bilgisi varsa onu kullan
+        if let stepsDetail = dto.stepsDetail, !stepsDetail.isEmpty {
+            let steps = stepsDetail.map { toDomain(from: $0) }
+            let activeIndex = steps.firstIndex { $0.status == .active }
+            let status: ProgressOverallStatus = dto.phase == "completed" ? .completed : .running
+
+            return ProgressState(
+                mode: .determinate,
+                percentage: dto.percentage,
+                taskDescription: dto.task,
+                steps: steps,
+                currentStepIndex: activeIndex,
+                status: status
+            )
+        }
+
+        // Basit fallback
         let mode: ProgressMode = dto.totalSteps > 0 ? .determinate : .indeterminate
         let steps = generateSteps(currentStep: dto.step, totalSteps: dto.totalSteps)
         let currentIndex = dto.step > 0 ? dto.step - 1 : nil
@@ -46,8 +64,18 @@ enum ProgressMapper {
     /// - Parameter dto: Backend'den gelen step DTO'su
     /// - Returns: Domain ProgressStep modeli
     static func toDomain(from dto: ProgressStepDTO) -> ProgressStep {
-        let type = ProgressStepType(rawValue: dto.type) ?? .thinking
+        let type = ProgressStepType(rawValue: dto.stepType) ?? .thinking
         let status = ProgressStepStatus(rawValue: dto.status) ?? .pending
+
+        // toolName varsa detay olarak ekle
+        let detail: String?
+        if let toolName = dto.toolName, let existingDetail = dto.detail {
+            detail = "\(toolName): \(existingDetail)"
+        } else if let toolName = dto.toolName {
+            detail = toolName
+        } else {
+            detail = dto.detail
+        }
 
         return ProgressStep(
             id: dto.id,
@@ -55,7 +83,7 @@ enum ProgressMapper {
             label: dto.label,
             status: status,
             durationSeconds: dto.durationSeconds,
-            detail: dto.detail
+            detail: detail
         )
     }
 

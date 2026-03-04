@@ -67,7 +67,21 @@ struct RFToolStatusView: View {
 
     private func iconName(for tool: String) -> String {
         let lowered = tool.lowercased()
-        if lowered.contains("docker") {
+        // Claude -p tool icons
+        if lowered.contains("read") {
+            return "doc.text"
+        } else if lowered.contains("write") || lowered.contains("edit") {
+            return "pencil"
+        } else if lowered.contains("bash") {
+            return "terminal"
+        } else if lowered.contains("glob") || lowered.contains("grep") {
+            return "magnifyingglass"
+        } else if lowered.contains("websearch") || lowered.contains("webfetch") {
+            return "globe"
+        } else if lowered.contains("agent") {
+            return "person.2"
+        // Host agent tool icons
+        } else if lowered.contains("docker") {
             return "shippingbox"
         } else if lowered.contains("playwright") || lowered.contains("browser") {
             return "globe"

@@ -1,0 +1,23 @@
+[Unit]
+Description=RafRaf Host Agent
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+Type=simple
+User={{SERVICE_USER}}
+WorkingDirectory={{AGENT_SRC}}
+ExecStart={{VENV_PYTHON}} -m agent.main
+EnvironmentFile={{ENV_FILE}}
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rafraf-agent
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/tmp {{INSTALL_DIR}}
+
+[Install]
+WantedBy=multi-user.target

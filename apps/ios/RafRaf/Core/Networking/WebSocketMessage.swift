@@ -229,6 +229,19 @@ struct ProgressMessageContent: Codable, Sendable {
     let totalSteps: Int
     let percentage: Int
     let details: String?
+    let phase: String?
+    let stepsDetail: [ProgressStepDetailContent]?
+}
+
+/// Detayli ilerleme adimi icerigi.
+struct ProgressStepDetailContent: Codable, Sendable {
+    let id: String
+    let stepType: String
+    let label: String
+    let status: String
+    let toolName: String?
+    let durationSeconds: Double?
+    let detail: String?
 }
 
 /// Heartbeat (ping/pong) icerigi.

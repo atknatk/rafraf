@@ -4,7 +4,7 @@ import Foundation
 /// Domain katmani Data katmanindan izole kalir; bu protokol uzerinden iletisir.
 protocol ChatRepositoryProtocol: Sendable {
     /// Mesaj gonderir ve gonderilen mesaji dondurur.
-    func sendMessage(text: String, sessionId: String) async throws -> ChatMessage
+    func sendMessage(text: String, sessionId: String, projectId: String?) async throws -> ChatMessage
 
     /// Mesaj gecmisini yukler (cursor-based pagination).
     /// - Parameters:

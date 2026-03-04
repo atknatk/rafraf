@@ -55,7 +55,7 @@ final class StreamingAudioPlayer: NSObject, @unchecked Sendable {
             playNext()
         }
 
-        logger.debug("Chunk eklendi - kuyruk: \(chunkQueue.count), cumle: \(sentenceText.prefix(40))")
+        logger.debug("Chunk eklendi - kuyruk: \(self.chunkQueue.count), cumle: \(sentenceText.prefix(40))")
     }
 
     /// Oynatimi durdurur ve kuyrugu temizler.

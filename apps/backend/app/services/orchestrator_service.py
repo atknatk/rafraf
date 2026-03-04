@@ -1,12 +1,21 @@
 """Orchestrator service - business logic for AI message processing."""
 
+from __future__ import annotations
+
+import uuid
 from collections.abc import Callable, Coroutine
 
 import structlog
 
 from app.orchestrator.agent import ClaudeAPIError, MaxIterationsReachedError, OrchestratorAgent
+from app.orchestrator.claude_code_runner import (
+    ClaudeCodeError,
+    ClaudeCodeRunner,
+    ToolProgressCallback,
+)
 from app.orchestrator.tool_registry import ToolRegistry
 from app.schemas.orchestrator import OrchestratorRequest, OrchestratorResponse
+from app.services.memory_service import MemoryServiceError, memory_service
 from app.tools.cost_tool import CostTool
 from app.tools.github_tool import GitHubTool
 from app.tools.memory_tool import MemoryTool
@@ -232,6 +241,220 @@ class OrchestratorService:
                 tokens_output=0,
                 tool_calls_count=0,
             )
+
+    async def _build_memory_context(
+        self,
+        user_id: str,
+        message: str,
+        project_id: str | None,
+    ) -> str:
+        """Build memory context string from 3-layer memory system.
+
+        Silently returns empty string on failure to avoid blocking AI responses.
+        """
+        try:
+            from app.repositories.memory_repository import MemoryRepository
+
+            repo = MemoryRepository()
+            project_uuid = uuid.UUID(project_id) if project_id else None
+            context = await memory_service.get_context_for_message(
+                repo=repo,
+                user_id=user_id,
+                message=message,
+                project_id=project_uuid,
+            )
+            parts: list[str] = []
+            if context.personal_memories:
+                items = "\n".join(f"- {m}" for m in context.personal_memories)
+                parts.append(f"Kisisel hafiza:\n{items}")
+            if context.project_summary:
+                import json
+
+                summary = json.dumps(context.project_summary, ensure_ascii=False)
+                parts.append(f"Proje hafizasi:\n{summary}")
+            if context.conversation_summary:
+                parts.append("Konusma ozeti:\n" + context.conversation_summary)
+            if not parts:
+                return ""
+            return "\n\n## Hafiza Baglami\n" + "\n\n".join(parts)
+        except (MemoryServiceError, Exception):
+            await logger.awarning(
+                "memory_context_build_failed",
+                user_id=user_id,
+                project_id=project_id,
+            )
+            return ""
+
+    async def process_with_claude_code(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+        message: str,
+        project_id: str | None = None,
+        claude_session_id: str | None = None,
+        on_text_delta: "Callable[[str, int], Coroutine[object, object, None]] | None" = None,
+        on_stream_end: "Callable[[str], Coroutine[object, object, None]] | None" = None,
+        on_tool_progress: ToolProgressCallback | None = None,
+        on_question: (
+            "Callable[[dict[str, object]], Coroutine[object, object, str | None]] | None"
+        ) = None,
+    ) -> OrchestratorResponse:
+        """Process a user message via claude -p subprocess.
+
+        Primary execution path. Falls back to API if claude -p fails
+        and fallback is enabled in config.
+
+        Args:
+            session_id: WebSocket session ID.
+            user_id: Authenticated user ID.
+            message: User message text.
+            project_id: Optional project ID for scoped sessions and memory.
+            claude_session_id: Previous claude -p session ID for --resume.
+            on_text_delta: Streaming text callback.
+            on_stream_end: Stream completion callback.
+            on_tool_progress: Tool usage progress callback.
+            on_question: Question forwarding callback.
+
+        Returns:
+            OrchestratorResponse with AI response.
+        """
+        from app.core.config import get_settings
+
+        settings = get_settings()
+
+        await logger.ainfo(
+            "claude_code_processing",
+            session_id=session_id,
+            user_id=user_id,
+            message_length=len(message),
+            project_id=project_id,
+        )
+
+        runner = ClaudeCodeRunner()
+
+        # Build project-scoped session key
+        session_key = f"{session_id}:project:{project_id}" if project_id else session_id
+
+        # Lookup previous claude session for conversation continuation
+        if claude_session_id is None:
+            claude_session_id = await self._get_claude_session(session_key)
+
+        # Build memory context from 3-layer memory system
+        memory_ctx = await self._build_memory_context(user_id, message, project_id)
+
+        # Build context info for system prompt
+        context_parts: list[str] = [
+            f"WebSocket Session: {session_id}",
+            f"User ID: {user_id}",
+        ]
+        if project_id:
+            context_parts.append(f"Project ID: {project_id}")
+        if memory_ctx:
+            context_parts.append(memory_ctx)
+        append_prompt = "\n".join(context_parts)
+
+        try:
+            result = await runner.run(
+                prompt=message,
+                session_id=claude_session_id,
+                on_text_delta=on_text_delta,
+                on_tool_progress=on_tool_progress,
+                on_question=on_question,
+                on_stream_end=on_stream_end,
+                append_system_prompt=append_prompt,
+            )
+
+            await logger.ainfo(
+                "claude_code_response_generated",
+                session_id=session_id,
+                claude_session_id=result.session_id,
+                model=result.model_used,
+                text_length=len(result.response_text),
+            )
+
+            # Save session after successful execution (project-scoped key)
+            if result.session_id:
+                await self._save_claude_session(session_key, result.session_id)
+
+            # Track subscription usage
+            try:
+                from app.services.subscription_usage_service import (
+                    subscription_usage_service,
+                )
+
+                await subscription_usage_service.record_message()
+            except Exception:
+                pass  # Non-critical
+
+            return OrchestratorResponse(
+                session_id=session_id,
+                response_text=result.response_text,
+                model_used=f"claude-code:{result.model_used}",
+                tokens_input=0,
+                tokens_output=0,
+                tool_calls_count=0,
+            )
+
+        except ClaudeCodeError as exc:
+            await logger.aerror(
+                "claude_code_failed",
+                session_id=session_id,
+                error=exc.message,
+                returncode=exc.returncode,
+            )
+
+            # Fallback to API if enabled
+            if settings.claude_code_fallback_to_api:
+                await logger.ainfo(
+                    "claude_code_fallback_to_api",
+                    session_id=session_id,
+                )
+                return await self.process_user_message_streaming(
+                    session_id=session_id,
+                    user_id=user_id,
+                    message=message,
+                    on_text_delta=on_text_delta,
+                    on_stream_end=on_stream_end,
+                )
+
+            return OrchestratorResponse(
+                session_id=session_id,
+                response_text="AI servisi gecici olarak kullanilamiyor. Lutfen tekrar deneyin.",
+                model_used="none",
+                tokens_input=0,
+                tokens_output=0,
+                tool_calls_count=0,
+            )
+
+    async def _save_claude_session(self, ws_session_id: str, claude_session_id: str) -> None:
+        """Save claude -p session ID to Redis for session continuation."""
+        import redis.asyncio as redis
+
+        from app.core.config import get_settings
+
+        settings = get_settings()
+        r = redis.from_url(settings.redis_url)
+        await r.set(
+            f"claude_session:{ws_session_id}",
+            claude_session_id,
+            ex=86400,  # 24 hours TTL
+        )
+        await r.aclose()
+
+    async def _get_claude_session(self, ws_session_id: str) -> str | None:
+        """Get saved claude -p session ID from Redis."""
+        import redis.asyncio as redis
+
+        from app.core.config import get_settings
+
+        settings = get_settings()
+        r = redis.from_url(settings.redis_url)
+        result = await r.get(f"claude_session:{ws_session_id}")
+        await r.aclose()
+        if isinstance(result, bytes):
+            return result.decode("utf-8")
+        return None
 
     def clear_session(self, session_id: str) -> None:
         """Clear conversation history for a session.

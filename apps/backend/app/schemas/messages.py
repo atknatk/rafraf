@@ -93,6 +93,20 @@ class ErrorPayload(BaseModel):
     recoverable: bool = True
 
 
+class ProgressStepPayload(BaseModel):
+    """Single step info in a detailed progress message."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    step_type: str
+    label: str
+    status: str
+    tool_name: str | None = None
+    duration_seconds: float | None = None
+    detail: str | None = None
+
+
 class ProgressPayload(BaseModel):
     """Payload for progress update messages."""
 
@@ -103,6 +117,8 @@ class ProgressPayload(BaseModel):
     total_steps: int
     percentage: int
     details: str | None = None
+    phase: str | None = None
+    steps_detail: list[ProgressStepPayload] | None = None
 
 
 class PingPongPayload(BaseModel):

@@ -11,11 +11,11 @@ final class ChatRepositoryImpl: ChatRepositoryProtocol, @unchecked Sendable {
         self.webSocketClient = webSocketClient
     }
 
-    func sendMessage(text: String, sessionId: String) async throws -> ChatMessage {
+    func sendMessage(text: String, sessionId: String, projectId: String? = nil) async throws -> ChatMessage {
         let messageId = UUID().uuidString
 
         // Backend "text" tipi bekler, content duz metin olmali
-        try await webSocketClient.sendText(text, sessionId: sessionId)
+        try await webSocketClient.sendText(text, sessionId: sessionId, projectId: projectId)
         logger.info("Mesaj gonderildi: \(messageId)")
 
         return ChatMessage(

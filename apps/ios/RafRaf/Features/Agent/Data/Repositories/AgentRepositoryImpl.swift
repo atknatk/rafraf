@@ -27,4 +27,21 @@ final class AgentRepositoryImpl: AgentRepositoryProtocol, @unchecked Sendable {
 
         return AgentMapper.toDomain(from: dto)
     }
+
+    func getSubscriptionUsage() async throws -> SubscriptionUsage {
+        let dto: SubscriptionUsageDTO = try await networkClient.get(
+            path: "/subscription/usage"
+        )
+        logger.info("Subscription kullanim alindi: \(dto.subscriptionType)")
+        return AgentMapper.toDomain(from: dto)
+    }
+
+    func refreshSubscriptionUsage() async throws -> SubscriptionUsage {
+        let dto: SubscriptionUsageDTO = try await networkClient.post(
+            path: "/subscription/usage/refresh",
+            body: [String: String]()
+        )
+        logger.info("Subscription kullanim yenilendi: \(dto.subscriptionType)")
+        return AgentMapper.toDomain(from: dto)
+    }
 }

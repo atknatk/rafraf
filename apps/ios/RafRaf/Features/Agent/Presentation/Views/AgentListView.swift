@@ -125,7 +125,16 @@ struct AgentListView: View {
         ScrollView {
             LazyVStack(spacing: RFSpacing.sm) {
                 ForEach(viewModel.agents) { agent in
-                    AgentCardView(agent: agent)
+                    NavigationLink {
+                        AgentDetailView(
+                            agent: agent,
+                            getUsageUseCase: viewModel.getSubscriptionUsageUseCase,
+                            refreshUsageUseCase: viewModel.refreshSubscriptionUsageUseCase
+                        )
+                    } label: {
+                        AgentCardView(agent: agent)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, RFSpacing.md)
@@ -162,17 +171,44 @@ struct AgentListView: View {
 }
 
 #Preview {
+    let repo = PreviewAgentRepository()
     AgentListView(
         viewModel: AgentListViewModel(
-            getAgentsUseCase: GetAgentsUseCase(
-                repository: PreviewAgentRepository()
-            )
+            getAgentsUseCase: GetAgentsUseCase(repository: repo),
+            getSubscriptionUsageUseCase: GetSubscriptionUsageUseCase(repository: repo),
+            refreshSubscriptionUsageUseCase: RefreshSubscriptionUsageUseCase(repository: repo)
         )
     )
 }
 
 /// Preview icin mock repository.
 final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable {
+    func getSubscriptionUsage() async throws -> SubscriptionUsage {
+        SubscriptionUsage(
+            subscriptionType: "max",
+            email: "test@example.com",
+            orgName: "Test Org",
+            todayUsage: DailyUsageStats(date: "2026-03-04", messageCount: 142, sessionCount: 5, toolCallCount: 87),
+            recentDays: [
+                DailyUsageStats(date: "2026-02-26", messageCount: 98, sessionCount: 3, toolCallCount: 45),
+                DailyUsageStats(date: "2026-02-27", messageCount: 210, sessionCount: 8, toolCallCount: 120),
+                DailyUsageStats(date: "2026-02-28", messageCount: 156, sessionCount: 4, toolCallCount: 78),
+                DailyUsageStats(date: "2026-03-01", messageCount: 45, sessionCount: 2, toolCallCount: 22),
+                DailyUsageStats(date: "2026-03-02", messageCount: 189, sessionCount: 6, toolCallCount: 95),
+                DailyUsageStats(date: "2026-03-03", messageCount: 301, sessionCount: 9, toolCallCount: 150),
+                DailyUsageStats(date: "2026-03-04", messageCount: 142, sessionCount: 5, toolCallCount: 87)
+            ],
+            totalMessagesToday: 12,
+            isRateLimited: false,
+            rateLimitResetAt: nil,
+            lastFetchedAt: Date().addingTimeInterval(-180)
+        )
+    }
+
+    func refreshSubscriptionUsage() async throws -> SubscriptionUsage {
+        try await getSubscriptionUsage()
+    }
+
     func getAgents(status: AgentStatus?) async throws -> AgentListResult {
         let allAgents = [
             Agent(

@@ -8,15 +8,18 @@ struct ProgressEventDTO: Codable, Sendable {
     let totalSteps: Int
     let percentage: Int
     let details: String?
+    let phase: String?
+    let stepsDetail: [ProgressStepDTO]?
 }
 
 /// Backend'den gelen detayli progress event DTO'su.
 /// Asamali ilerleme icin step bilgilerini icerir.
 struct ProgressStepDTO: Codable, Sendable {
     let id: String
-    let type: String
+    let stepType: String
     let label: String
     let status: String
+    let toolName: String?
     let durationSeconds: Double?
     let detail: String?
 }

@@ -1,14 +1,20 @@
 """WebSocket endpoint for iOS client connections."""
 
+from __future__ import annotations
+
 import asyncio
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import structlog
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
+from app.core.config import get_settings
 from app.core.security import SecurityError, verify_access_token
 from app.core.websocket import ConnectionManager
+from app.orchestrator.claude_code_runner import ToolProgressEvent
+from app.orchestrator.question_bridge import get_question_bridge
 from app.schemas.approval import ApprovalDecision
 from app.schemas.messages import (
     ChatStreamEndPayload,
@@ -18,12 +24,15 @@ from app.schemas.messages import (
     MessageDirection,
     MessageType,
     ProgressPayload,
+    ProgressStepPayload,
     VoiceAudioChunkPayload,
 )
-from app.schemas.agent import AgentStatus
 from app.services.agent_registry_service import agent_registry
 from app.services.approval_service import get_approval_service
 from app.services.orchestrator_service import OrchestratorService
+
+if TYPE_CHECKING:
+    from app.services.tts_service import TTSService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -229,6 +238,17 @@ async def _handle_client_ping(
     await manager.send_json(connection_id, pong_data)
 
 
+def _extract_project_id(raw_data: dict[str, object]) -> str | None:
+    """Extract project_id from message metadata (iOS sends as projectId)."""
+    metadata = raw_data.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    project_id = metadata.get("projectId") or metadata.get("project_id")
+    if project_id is not None and not isinstance(project_id, str):
+        return str(project_id)
+    return project_id  # type: ignore[return-value]
+
+
 async def _handle_text(
     raw_data: dict[str, object],
     connection_id: str,
@@ -240,11 +260,14 @@ async def _handle_text(
     if not isinstance(content, str):
         content = str(content)
 
+    project_id = _extract_project_id(raw_data)
+
     await logger.ainfo(
         "text_message_received",
         connection_id=connection_id,
         user_id=user_id,
         content_length=len(content),
+        project_id=project_id,
     )
 
     # Route through AI orchestrator
@@ -253,6 +276,7 @@ async def _handle_text(
         connection_id=connection_id,
         session_id=session_id,
         user_id=user_id,
+        project_id=project_id,
     )
 
 
@@ -271,10 +295,13 @@ async def _handle_voice(
     if not isinstance(content, str):
         content = str(content)
 
+    project_id = _extract_project_id(raw_data)
+
     await logger.ainfo(
         "voice_message_received",
         connection_id=connection_id,
         user_id=user_id,
+        project_id=project_id,
     )
 
     # Route through AI orchestrator (transcribed text) with TTS streaming
@@ -284,6 +311,7 @@ async def _handle_voice(
         session_id=session_id,
         user_id=user_id,
         voice_mode=True,
+        project_id=project_id,
     )
 
 
@@ -305,8 +333,7 @@ async def _build_host_status() -> str | None:
             )
         tasks_str = f", tasks: {agent.active_tasks}" if agent.active_tasks else ""
         lines.append(
-            f"- {agent.host_id}: {status_str}{resource_str}{tasks_str}"
-            f" | capabilities: [{caps}]"
+            f"- {agent.host_id}: {status_str}{resource_str}{tasks_str} | capabilities: [{caps}]"
         )
 
     return "\n".join(lines)
@@ -319,13 +346,17 @@ async def _process_with_orchestrator(
     session_id: str,
     user_id: str,
     voice_mode: bool = False,
+    project_id: str | None = None,
 ) -> None:
-    """Process a message through the AI orchestrator with streaming response.
+    """Process a message through claude -p or API fallback.
+
+    Primary path: claude -p subprocess (Max subscription, $0).
+    Fallback path: Bedrock/Anthropic API (per-token).
 
     Streams text deltas via chat.stream messages as Claude generates tokens.
     Optionally generates TTS audio chunks for voice mode.
     """
-    orchestrator = OrchestratorService()
+    settings = get_settings()
     message_id = str(uuid4())
     tts_service = None
     sentence_acc = None
@@ -339,21 +370,23 @@ async def _process_with_orchestrator(
     tts_tasks: list[asyncio.Task[None]] = []
     chunk_index = 0
 
-    async def _progress_callback(tool_name: str, step: int, total_steps: int) -> None:
-        """Send progress update to the client during tool execution."""
-        progress_payload = ProgressPayload(
-            task=f"Tool calisiyor: {tool_name}",
-            step=step,
-            total_steps=total_steps,
-            percentage=int((step / total_steps) * 100),
-            details=f"Executing {tool_name}",
-        )
-        progress_msg = _build_message(
-            MessageType.PROGRESS,
-            progress_payload.model_dump(exclude_none=True),
-            session_id=session_id,
-        )
-        await manager.send_json(connection_id, progress_msg)
+    # --- Progress: islem basladi ---
+    startup_progress = _build_message(
+        MessageType.PROGRESS,
+        ProgressPayload(
+            task="Sorgunuz isleniyor...",
+            step=1,
+            total_steps=3,
+            percentage=5,
+            details="Baslaniyor",
+            phase="starting",
+            steps_detail=[],
+        ).model_dump(exclude_none=True),
+        session_id=session_id,
+    )
+    await manager.send_json(connection_id, startup_progress)
+
+    # --- Callbacks ---
 
     async def _on_text_delta(delta: str, index: int) -> None:
         """Send streaming text delta to client."""
@@ -387,11 +420,10 @@ async def _process_with_orchestrator(
                 )
                 tts_tasks.append(task)
 
-    async def _on_stream_end(full_text: str) -> None:
+    async def _on_stream_end(_full_text: str) -> None:
         """Finalize streaming: flush TTS buffer, send stream end."""
         nonlocal chunk_index
 
-        # Flush remaining sentence buffer for TTS
         if tts_service is not None and sentence_acc is not None:
             remaining = sentence_acc.flush()
             if remaining:
@@ -410,11 +442,9 @@ async def _process_with_orchestrator(
                 )
                 tts_tasks.append(task)
 
-        # Wait for all TTS tasks to complete
         if tts_tasks:
             await asyncio.gather(*tts_tasks, return_exceptions=True)
 
-        # Send voice audio end signal
         if tts_service is not None:
             audio_end_msg = _build_message(
                 MessageType.VOICE_AUDIO_END,
@@ -423,22 +453,92 @@ async def _process_with_orchestrator(
             )
             await manager.send_json(connection_id, audio_end_msg)
 
-    # Build agent status for system prompt
-    host_status = await _build_host_status()
-
-    # Create cancellable streaming task
-    async def _run_streaming() -> None:
-        response = await orchestrator.process_user_message_streaming(
+    async def _on_tool_progress(event: ToolProgressEvent) -> None:
+        """Send detailed progress to iOS."""
+        steps_payload = [
+            ProgressStepPayload(
+                id=s.id,
+                step_type=s.step_type,
+                label=s.label,
+                status=s.status,
+                tool_name=s.tool_name,
+                duration_seconds=s.duration_seconds,
+                detail=s.detail,
+            )
+            for s in event.steps
+        ]
+        active_idx = next(
+            (i for i, s in enumerate(event.steps) if s.status == "active"),
+            len(event.steps) - 1,
+        )
+        progress_msg = _build_message(
+            MessageType.PROGRESS,
+            ProgressPayload(
+                task=event.phase_label,
+                step=active_idx + 1,
+                total_steps=len(event.steps),
+                percentage=event.percentage,
+                details=(f"Tool: {event.current_tool}" if event.current_tool else None),
+                phase=event.phase,
+                steps_detail=steps_payload,
+            ).model_dump(exclude_none=True),
             session_id=session_id,
-            user_id=user_id,
-            message=message,
-            on_text_delta=_on_text_delta,
-            on_stream_end=_on_stream_end,
-            progress_callback=_progress_callback,
-            host_status=host_status,
+        )
+        await manager.send_json(connection_id, progress_msg)
+
+    async def _on_question(question_payload: dict[str, object]) -> str | None:
+        """Forward question to iOS and wait for answer."""
+        bridge = get_question_bridge()
+
+        async def _send_to_ios(msg: dict[str, object]) -> None:
+            await manager.send_json(connection_id, msg)
+
+        return await bridge.ask_user(
+            question_payload=question_payload,
+            send_to_ios=_send_to_ios,
+            session_id=session_id,
         )
 
-        # Send stream end with metadata
+    # --- Ana islem ---
+
+    async def _run_processing() -> None:
+        orchestrator = OrchestratorService()
+
+        if settings.claude_code_enabled:
+            # --- PRIMARY PATH: claude -p ---
+            response = await orchestrator.process_with_claude_code(
+                session_id=session_id,
+                user_id=user_id,
+                message=message,
+                project_id=project_id,
+                on_text_delta=_on_text_delta,
+                on_stream_end=_on_stream_end,
+                on_tool_progress=_on_tool_progress,
+                on_question=_on_question,
+            )
+        else:
+            # --- FALLBACK PATH: API ---
+            host_status = await _build_host_status()
+            response = await orchestrator.process_user_message_streaming(
+                session_id=session_id,
+                user_id=user_id,
+                message=message,
+                project_id=project_id,
+                on_text_delta=_on_text_delta,
+                on_stream_end=_on_stream_end,
+                progress_callback=lambda name, _step, _total: _on_tool_progress(
+                    ToolProgressEvent(
+                        phase="tool_calling",
+                        phase_label=f"Calisiyor: {name}",
+                        current_tool=name,
+                        percentage=50,
+                        steps=[],
+                    )
+                ),
+                host_status=host_status,
+            )
+
+        # Send CHAT_STREAM_END with metadata
         end_msg = _build_message(
             MessageType.CHAT_STREAM_END,
             ChatStreamEndPayload(
@@ -454,7 +554,8 @@ async def _process_with_orchestrator(
         )
         await manager.send_json(connection_id, end_msg)
 
-    task = asyncio.create_task(_run_streaming())
+    # Run as cancellable task
+    task = asyncio.create_task(_run_processing())
     _active_streams[connection_id] = task
 
     try:
@@ -465,7 +566,6 @@ async def _process_with_orchestrator(
             connection_id=connection_id,
             session_id=session_id,
         )
-        # Cancel any pending TTS tasks
         for tts_task in tts_tasks:
             if not tts_task.done():
                 tts_task.cancel()
@@ -474,7 +574,7 @@ async def _process_with_orchestrator(
 
 
 async def _send_tts_chunk(
-    tts_service: "TTSService",
+    tts_service: TTSService,
     sentence: str,
     message_id: str,
     chunk_index: int,
@@ -571,13 +671,24 @@ async def _handle_approval_response(
     approval_service = get_approval_service()
     submitted = await approval_service.submit_decision(decision)
 
+    # Also check QuestionBridge for claude -p questions
     if not submitted:
-        error_msg = _build_error_message(
-            error_code="APPROVAL_NOT_FOUND",
-            message=f"No pending approval found with ID: {approval_id}",
-            session_id=session_id,
-        )
-        await manager.send_json(connection_id, error_msg)
+        bridge = get_question_bridge()
+        note_answer = note_str or decision_str
+        bridge_submitted = bridge.submit_answer(approval_id, note_answer)
+        if bridge_submitted:
+            await logger.ainfo(
+                "question_bridge_answer_submitted",
+                approval_id=approval_id,
+                answer=note_answer[:100] if note_answer else "",
+            )
+        else:
+            error_msg = _build_error_message(
+                error_code="APPROVAL_NOT_FOUND",
+                message=f"No pending approval found with ID: {approval_id}",
+                session_id=session_id,
+            )
+            await manager.send_json(connection_id, error_msg)
 
     await logger.ainfo(
         "approval_response_received",

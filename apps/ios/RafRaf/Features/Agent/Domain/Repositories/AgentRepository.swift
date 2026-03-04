@@ -7,4 +7,10 @@ protocol AgentRepositoryProtocol: Sendable {
     /// - Parameter status: Opsiyonel durum filtresi
     /// - Returns: Agent listesi sonucu
     func getAgents(status: AgentStatus?) async throws -> AgentListResult
+
+    /// Subscription kullanim bilgilerini getirir.
+    func getSubscriptionUsage() async throws -> SubscriptionUsage
+
+    /// Subscription kullanim bilgilerini yeniler.
+    func refreshSubscriptionUsage() async throws -> SubscriptionUsage
 }

@@ -5,7 +5,11 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import signal
+import sys
+from io import TextIOBase
+from pathlib import Path
 from types import FrameType
+from typing import IO
 
 import structlog
 
@@ -23,8 +27,32 @@ from agent.runners.shell_runner import ShellRunner
 logger = structlog.get_logger()
 
 
+class _TeeFile(TextIOBase):
+    """File-like object that writes to multiple targets simultaneously."""
+
+    def __init__(self, *files: IO[str]) -> None:
+        self._files = files
+
+    def write(self, data: str) -> int:  # type: ignore[override]
+        for f in self._files:
+            f.write(data)
+            f.flush()
+        return len(data)
+
+    def flush(self) -> None:
+        for f in self._files:
+            f.flush()
+
+
 def _configure_structlog() -> None:
     """structlog yapilandirmasini ayarlar."""
+    # Log dosyasi olustur
+    log_dir = Path(__file__).resolve().parent.parent / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = (log_dir / "agent.log").open("a")  # noqa: SIM115
+
+    tee = _TeeFile(sys.stdout, log_file)
+
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
@@ -34,7 +62,7 @@ def _configure_structlog() -> None:
         ],
         wrapper_class=structlog.make_filtering_bound_logger(0),
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
+        logger_factory=structlog.PrintLoggerFactory(file=tee),
         cache_logger_on_first_use=True,
     )
 

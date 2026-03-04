@@ -23,6 +23,7 @@ final class ChatViewModel {
     private let sendMessageUseCase: SendMessageUseCase
     private let loadHistoryUseCase: LoadChatHistoryUseCase
     private let sessionId: String
+    let projectId: String?
     private var nextCursor: String?
     private var isLoadingMore: Bool = false
     private let logger = AppLogger.logger(for: "Chat")
@@ -32,12 +33,14 @@ final class ChatViewModel {
     init(
         sendMessageUseCase: SendMessageUseCase,
         loadHistoryUseCase: LoadChatHistoryUseCase,
-        sessionId: String = UUID().uuidString
+        sessionId: String = UUID().uuidString,
+        projectId: String? = nil
     ) {
         self.sendMessageUseCase = sendMessageUseCase
         self.loadHistoryUseCase = loadHistoryUseCase
         self.sessionId = sessionId
-        logger.info("ChatViewModel baslatildi - session: \(sessionId)")
+        self.projectId = projectId
+        logger.info("ChatViewModel baslatildi - session: \(sessionId), project: \(projectId ?? "genel")")
     }
 
     // MARK: - Actions
@@ -54,7 +57,8 @@ final class ChatViewModel {
         do {
             let sentMessage = try await sendMessageUseCase.execute(
                 text: text,
-                sessionId: sessionId
+                sessionId: sessionId,
+                projectId: projectId
             )
             messages.append(sentMessage)
             logger.info("Mesaj gonderildi: \(sentMessage.id)")

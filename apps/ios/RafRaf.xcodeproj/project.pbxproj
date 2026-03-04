@@ -10,6 +10,16 @@
 		DD4618BD21854A4484BEE9FD /* Agent.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4FD96FDBCBB4D05BE5C2C9B /* Agent.swift */; };
 		0AF4F51B143C4A7DAAA0469E /* AgentRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 235D955C56E1417291CFB7A7 /* AgentRepository.swift */; };
 		96EB35C854FB45AC907553B0 /* GetAgentsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96BB6E6772E4412A9DEE3771 /* GetAgentsUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC01 /* GetSubscriptionUsageUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC11 /* GetSubscriptionUsageUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC02 /* RefreshSubscriptionUsageUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC12 /* RefreshSubscriptionUsageUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC03 /* SubscriptionUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC13 /* SubscriptionUsage.swift */; };
+		A1B2C3D4E5F647A89012BC04 /* SubscriptionUsageDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC14 /* SubscriptionUsageDTO.swift */; };
+		A1B2C3D4E5F647A89012BC05 /* AgentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC15 /* AgentDetailView.swift */; };
+		A1B2C3D4E5F647A89012BC06 /* ChatSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC16 /* ChatSessionManager.swift */; };
+		A1B2C3D4E5F647A89012BC07 /* RFProjectPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC17 /* RFProjectPicker.swift */; };
+		A1B2C3D4E5F647A89012BC08 /* StreamingAudioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC18 /* StreamingAudioPlayer.swift */; };
+		A1B2C3D4E5F647A89012BC09 /* VoiceConversationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC19 /* VoiceConversationViewModel.swift */; };
+		A1B2C3D4E5F647A89012BC0A /* VoiceConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC1A /* VoiceConversationView.swift */; };
 		1925FC51FB504DEEA4A55327 /* AgentDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0BB2A9F00D4ABDB76D5498 /* AgentDTO.swift */; };
 		1D844028D4A04DB79C040EFD /* AgentMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38C6825A0DB485CB0628044 /* AgentMapper.swift */; };
 		ACFB026BE1CC4BBAB04362EE /* AgentRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD505F743CAC48ACA012DF72 /* AgentRepositoryImpl.swift */; };
@@ -331,6 +341,16 @@
 		F4FD96FDBCBB4D05BE5C2C9B /* Agent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Agent.swift; sourceTree = "<group>"; };
 		235D955C56E1417291CFB7A7 /* AgentRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRepository.swift; sourceTree = "<group>"; };
 		96BB6E6772E4412A9DEE3771 /* GetAgentsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetAgentsUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC11 /* GetSubscriptionUsageUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetSubscriptionUsageUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC12 /* RefreshSubscriptionUsageUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshSubscriptionUsageUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC13 /* SubscriptionUsage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionUsage.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC14 /* SubscriptionUsageDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionUsageDTO.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC15 /* AgentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDetailView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC16 /* ChatSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSessionManager.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC17 /* RFProjectPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFProjectPicker.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC18 /* StreamingAudioPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingAudioPlayer.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC19 /* VoiceConversationViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceConversationViewModel.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC1A /* VoiceConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceConversationView.swift; sourceTree = "<group>"; };
 		1D0BB2A9F00D4ABDB76D5498 /* AgentDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDTO.swift; sourceTree = "<group>"; };
 		C38C6825A0DB485CB0628044 /* AgentMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentMapper.swift; sourceTree = "<group>"; };
 		AD505F743CAC48ACA012DF72 /* AgentRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRepositoryImpl.swift; sourceTree = "<group>"; };
@@ -1286,6 +1306,7 @@
 				9B3C516BC231E3C69265CF80 /* RFImageMessageView.swift */,
 				B0F0C7A8C0EB877BF24E6FE1 /* RFMessageBubble.swift */,
 				3B34887B85ED882C16492C16 /* RFTypingIndicator.swift */,
+				A1B2C3D4E5F647A89012BC17 /* RFProjectPicker.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -1453,6 +1474,7 @@
 				999A713F8A35978D08F63332 /* Settings */,
 				BA2A91070A4308BCC44C1053 /* VoiceInput */,
 				2F646050A636D48116924D8F /* VoiceOutput */,
+				A1B2C3D4E5F647A89012CD01 /* VoiceConversation */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -2415,6 +2437,7 @@
 			isa = PBXGroup;
 			children = (
 				65A7CF6BE6C6D35BDCF28F53 /* ChatViewModel.swift */,
+				A1B2C3D4E5F647A89012BC16 /* ChatSessionManager.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -2888,6 +2911,7 @@
 			isa = PBXGroup;
 			children = (
 				F4FD96FDBCBB4D05BE5C2C9B /* Agent.swift */,
+				A1B2C3D4E5F647A89012BC13 /* SubscriptionUsage.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -2904,6 +2928,8 @@
 			isa = PBXGroup;
 			children = (
 				96BB6E6772E4412A9DEE3771 /* GetAgentsUseCase.swift */,
+				A1B2C3D4E5F647A89012BC11 /* GetSubscriptionUsageUseCase.swift */,
+				A1B2C3D4E5F647A89012BC12 /* RefreshSubscriptionUsageUseCase.swift */,
 			);
 			path = UseCases;
 			sourceTree = "<group>";
@@ -2912,6 +2938,7 @@
 			isa = PBXGroup;
 			children = (
 				1D0BB2A9F00D4ABDB76D5498 /* AgentDTO.swift */,
+				A1B2C3D4E5F647A89012BC14 /* SubscriptionUsageDTO.swift */,
 			);
 			path = DTOs;
 			sourceTree = "<group>";
@@ -2944,6 +2971,7 @@
 			isa = PBXGroup;
 			children = (
 				E4F96059FAF3424792CA489F /* AgentListView.swift */,
+				A1B2C3D4E5F647A89012BC15 /* AgentDetailView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2996,6 +3024,48 @@
 				C9A79D4319E74A869926526F /* Presentation */,
 			);
 			path = Agent;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012CD01 /* VoiceConversation */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012CD02 /* Data */,
+				A1B2C3D4E5F647A89012CD03 /* Presentation */,
+			);
+			path = VoiceConversation;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012CD02 /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC18 /* StreamingAudioPlayer.swift */,
+			);
+			path = Data;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012CD03 /* Presentation */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012CD04 /* ViewModels */,
+				A1B2C3D4E5F647A89012CD05 /* Views */,
+			);
+			path = Presentation;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012CD04 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC19 /* VoiceConversationViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012CD05 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC1A /* VoiceConversationView.swift */,
+			);
+			path = Views;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -3111,6 +3181,16 @@
 				1D0A8E6E93074ACF8E0A43E8 /* AgentCardView.swift in Sources */,
 				CCE3E170BC8C464AB8357554 /* AgentStatusBadge.swift in Sources */,
 				B1AB1B46B42248E7B4C66C3B /* AgentListSkeletonView.swift in Sources */,
+				A1B2C3D4E5F647A89012BC01 /* GetSubscriptionUsageUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC02 /* RefreshSubscriptionUsageUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC03 /* SubscriptionUsage.swift in Sources */,
+				A1B2C3D4E5F647A89012BC04 /* SubscriptionUsageDTO.swift in Sources */,
+				A1B2C3D4E5F647A89012BC05 /* AgentDetailView.swift in Sources */,
+				A1B2C3D4E5F647A89012BC06 /* ChatSessionManager.swift in Sources */,
+				A1B2C3D4E5F647A89012BC07 /* RFProjectPicker.swift in Sources */,
+				A1B2C3D4E5F647A89012BC08 /* StreamingAudioPlayer.swift in Sources */,
+				A1B2C3D4E5F647A89012BC09 /* VoiceConversationViewModel.swift in Sources */,
+				A1B2C3D4E5F647A89012BC0A /* VoiceConversationView.swift in Sources */,
 				A98693C70B9BBE3979DA0685 /* AppContainer.swift in Sources */,
 				D603913E1499B617128063BC /* AppDelegate.swift in Sources */,
 				9CC04BC3F7D82C475AD74B15 /* AppEnvironment.swift in Sources */,

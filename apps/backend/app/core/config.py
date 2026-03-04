@@ -77,6 +77,15 @@ class Settings(BaseSettings):
     # Approval
     approval_timeout_seconds: int = 300
 
+    # --- Claude Code (claude -p) ---
+    claude_code_enabled: bool = True
+    claude_code_binary: str = "claude"
+    claude_code_project_dir: str = "/opt/rafraf"
+    claude_code_max_turns: int = 30
+    claude_code_model: str = "sonnet"
+    claude_code_timeout_seconds: int = 300
+    claude_code_fallback_to_api: bool = True
+
     # Conversation Memory
     conversation_ttl_seconds: int = 86400  # 24 hours
     conversation_max_tokens: int = 50000  # Context window token limit

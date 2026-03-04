@@ -3,22 +3,38 @@ import SwiftUI
 
 /// Sohbet ekrani — Claude-inspired sicak ve temiz gorunum.
 /// Kullanicinin AI asistan ile sesli ve metin tabanli iletisim kurdugu ana ekran.
+/// Proje bazli chat sessionlari destekler — her proje kendi mesaj gecmisine sahiptir.
 struct ChatView: View {
-    @State private var viewModel: ChatViewModel
+    @State private var sessionManager: ChatSessionManager
     @State private var voiceInputViewModel = Container.shared.voiceInputViewModel()
     @State private var voiceOutputViewModel = Container.shared.voiceOutputViewModel()
+    @State private var progressViewModel = Container.shared.progressViewModel()
+    @State private var isProgressExpanded = false
     @State private var showVoiceOverlay = false
     @State private var showVoiceConversation = false
+    @State private var availableProjects: [Project] = []
     private let webSocketManager = Container.shared.webSocketConnectionManager()
+    private let projectListViewModel = Container.shared.projectListViewModel()
 
-    init(viewModel: ChatViewModel) {
-        self._viewModel = State(initialValue: viewModel)
+    /// Aktif ChatViewModel (session manager uzerinden).
+    private var viewModel: ChatViewModel {
+        sessionManager.activeViewModel
+    }
+
+    init(sessionManager: ChatSessionManager) {
+        self._sessionManager = State(initialValue: sessionManager)
     }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 messageListView
+
+                // Claude -p ilerleme gostergesi
+                if progressViewModel.isVisible {
+                    progressSection
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
 
                 // Ses kaydi overlay'i — chat input'un ustunde gosterilir
                 if showVoiceOverlay {
@@ -32,9 +48,21 @@ struct ChatView: View {
             .background(RFColors.fallbackBackground)
             .navigationTitle(String(localized: "chat.title"))
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    RFProjectPicker(
+                        activeProjectName: sessionManager.activeProjectName,
+                        projects: availableProjects,
+                        onSelect: { projectId, projectName in
+                            sessionManager.switchProject(id: projectId, name: projectName)
+                        }
+                    )
+                }
+            }
             .task {
                 setupVoiceCallbacks()
                 await registerMessageHandlers()
+                await loadProjects()
                 if webSocketManager.isConnected {
                     await viewModel.loadHistory()
                 }
@@ -44,12 +72,18 @@ struct ChatView: View {
                     Task { await viewModel.loadHistory() }
                 }
             }
+            .onChange(of: sessionManager.activeProjectId) {
+                Task {
+                    await viewModel.loadHistory()
+                }
+            }
             .overlay {
                 if let errorMessage = viewModel.errorMessage {
                     errorBanner(message: errorMessage)
                 }
             }
             .animation(RFAnimation.springResponsive, value: showVoiceOverlay)
+            .animation(RFAnimation.springResponsive, value: progressViewModel.isVisible)
             .fullScreenCover(isPresented: $showVoiceConversation) {
                 let voiceVM = Container.shared.voiceConversationViewModel()
                 VoiceConversationView(viewModel: voiceVM) {
@@ -133,7 +167,10 @@ struct ChatView: View {
 
     private var chatInputView: some View {
         RFChatInput(
-            text: $viewModel.messageText,
+            text: Binding(
+                get: { viewModel.messageText },
+                set: { viewModel.messageText = $0 }
+            ),
             isEnabled: !viewModel.isLoading,
             isSending: viewModel.isSending,
             isRecording: voiceInputViewModel.isRecording,
@@ -150,6 +187,68 @@ struct ChatView: View {
                 showVoiceConversation = true
             }
         )
+    }
+
+    // MARK: - Progress Section
+
+    private var progressSection: some View {
+        VStack(spacing: 0) {
+            // Compact header
+            Button {
+                withAnimation(RFAnimation.springResponsive) {
+                    isProgressExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: RFSpacing.xs) {
+                    if progressViewModel.isActive {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(RFColors.success)
+                            .font(.system(size: 14))
+                    }
+
+                    RFText(
+                        progressViewModel.taskDescription,
+                        style: .captionBold,
+                        color: RFColors.fallbackTextPrimary
+                    )
+                    .lineLimit(1)
+
+                    Spacer()
+
+                    if progressViewModel.totalStepCount > 0 {
+                        RFText(
+                            "\(progressViewModel.completedStepCount)/\(progressViewModel.totalStepCount)",
+                            style: .caption,
+                            color: RFColors.fallbackTextTertiary
+                        )
+                    }
+
+                    Image(systemName: isProgressExpanded ? "chevron.down" : "chevron.up")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(RFColors.fallbackTextTertiary)
+                }
+                .padding(.horizontal, RFSpacing.md)
+                .padding(.vertical, RFSpacing.sm)
+            }
+            .buttonStyle(.plain)
+
+            // Expandable timeline
+            if isProgressExpanded, let state = progressViewModel.progressState {
+                Divider()
+                    .padding(.horizontal, RFSpacing.md)
+
+                RFStepProgressView(
+                    steps: state.steps,
+                    currentStepIndex: state.currentStepIndex
+                )
+                .padding(.horizontal, RFSpacing.md)
+                .padding(.vertical, RFSpacing.sm)
+            }
+        }
+        .background(RFColors.fallbackSurface)
     }
 
     // MARK: - Error Banner
@@ -178,6 +277,13 @@ struct ChatView: View {
 
             Spacer()
         }
+    }
+
+    // MARK: - Projects
+
+    private func loadProjects() async {
+        await projectListViewModel.loadProjects()
+        availableProjects = projectListViewModel.projects
     }
 
     // MARK: - Voice
@@ -215,6 +321,7 @@ struct ChatView: View {
     private func registerMessageHandlers() async {
         let vm = viewModel
         let voiceVm = voiceOutputViewModel
+        let progressVm = progressViewModel
 
         // Text response handler (non-streaming fallback)
         let handler = ChatIncomingTextHandler { messageId, text in
@@ -249,11 +356,43 @@ struct ChatView: View {
         let streamEndHandler = ChatStreamEndHandler { messageId, fullText in
             Task { @MainActor in
                 vm.handleStreamEnd(messageId: messageId, fullText: fullText, type: .text)
+                progressVm.markCompleted()
             }
         }
         await webSocketManager.registerHandler(
             type: WebSocketMessageType.chatStreamEnd.rawValue,
             handler: streamEndHandler
+        )
+
+        // Progress handler
+        let progressHandler = ChatProgressHandler { content in
+            Task { @MainActor in
+                let dto = ProgressEventDTO(
+                    task: content.task,
+                    step: content.step,
+                    totalSteps: content.totalSteps,
+                    percentage: content.percentage,
+                    details: content.details,
+                    phase: content.phase,
+                    stepsDetail: content.stepsDetail?.map { step in
+                        ProgressStepDTO(
+                            id: step.id,
+                            stepType: step.stepType,
+                            label: step.label,
+                            status: step.status,
+                            toolName: step.toolName,
+                            durationSeconds: step.durationSeconds,
+                            detail: step.detail
+                        )
+                    }
+                )
+                let state = ProgressMapper.toDomain(from: dto)
+                progressVm.updateProgress(state)
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.progress.rawValue,
+            handler: progressHandler
         )
     }
 
@@ -274,13 +413,13 @@ struct ChatView: View {
 
 #Preview {
     ChatView(
-        viewModel: ChatViewModel(
-            sendMessageUseCase: SendMessageUseCase(
-                repository: PreviewChatRepository()
-            ),
-            loadHistoryUseCase: LoadChatHistoryUseCase(
-                repository: PreviewChatRepository()
-            )
+        sessionManager: ChatSessionManager(
+            sendMessageUseCaseFactory: {
+                SendMessageUseCase(repository: PreviewChatRepository())
+            },
+            loadHistoryUseCaseFactory: {
+                LoadChatHistoryUseCase(repository: PreviewChatRepository())
+            }
         )
     )
 }
@@ -335,9 +474,23 @@ private final class ChatStreamEndHandler: WebSocketMessageHandler {
     }
 }
 
+/// Progress mesajlarini isler.
+private final class ChatProgressHandler: WebSocketMessageHandler {
+    private let onProgressReceived: @Sendable (ProgressMessageContent) -> Void
+
+    init(onProgressReceived: @escaping @Sendable (ProgressMessageContent) -> Void) {
+        self.onProgressReceived = onProgressReceived
+    }
+
+    func handle(_ message: WebSocketBaseMessage) async {
+        guard case .progress(let content) = message.content else { return }
+        onProgressReceived(content)
+    }
+}
+
 /// Preview icin mock repository.
 private final class PreviewChatRepository: ChatRepositoryProtocol, @unchecked Sendable {
-    func sendMessage(text: String, sessionId: String) async throws -> ChatMessage {
+    func sendMessage(text: String, sessionId: String, projectId: String? = nil) async throws -> ChatMessage {
         ChatMessage(content: text, sender: .user)
     }
 

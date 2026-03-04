@@ -1,3 +1,4 @@
+import Factory
 import SwiftUI
 
 /// ChatGPT benzeri tam ekran sesli konusma ekrani.
@@ -142,7 +143,7 @@ struct VoiceConversationView: View {
 
     private var processingView: some View {
         VStack(spacing: RFSpacing.lg) {
-            pulsingOrb(color: RFColors.accent.opacity(0.5), size: 80)
+            pulsingOrb(color: RFColors.primary.opacity(0.5), size: 80)
                 .overlay {
                     ProgressView()
                         .tint(RFColors.fallbackTextPrimary)
@@ -217,7 +218,7 @@ struct VoiceConversationView: View {
         switch viewModel.state {
         case .idle: RFColors.fallbackTextSecondary
         case .listening: RFColors.primary
-        case .processing: RFColors.accent
+        case .processing: RFColors.primary
         case .aiSpeaking: RFColors.success
         case .interrupted: RFColors.warning
         }

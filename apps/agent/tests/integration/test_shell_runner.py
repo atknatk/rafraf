@@ -138,7 +138,7 @@ class TestShellRunnerSecurityIntegration:
         # echo whitelist'te ama injection iceren komut engellenmeli
         result = await self.runner.execute(
             "run_command",
-            {"command": "echo hello; echo world"},
+            {"command": "echo $(whoami)"},
         )
         assert result["success"] is False
         assert result.get("blocked_reason") == "injection"

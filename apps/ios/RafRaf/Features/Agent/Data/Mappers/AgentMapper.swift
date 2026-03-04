@@ -35,6 +35,31 @@ enum AgentMapper {
         )
     }
 
+    /// SubscriptionUsageDTO'yu SubscriptionUsage domain modeline donusturur.
+    static func toDomain(from dto: SubscriptionUsageDTO) -> SubscriptionUsage {
+        SubscriptionUsage(
+            subscriptionType: dto.subscriptionType,
+            email: dto.email,
+            orgName: dto.orgName,
+            todayUsage: toDomain(from: dto.todayUsage),
+            recentDays: dto.recentDays.map { toDomain(from: $0) },
+            totalMessagesToday: dto.totalMessagesToday,
+            isRateLimited: dto.isRateLimited,
+            rateLimitResetAt: parseDate(dto.rateLimitResetAt),
+            lastFetchedAt: parseDate(dto.lastFetchedAt) ?? Date()
+        )
+    }
+
+    /// DailyUsageStatsDTO'yu DailyUsageStats domain modeline donusturur.
+    static func toDomain(from dto: DailyUsageStatsDTO) -> DailyUsageStats {
+        DailyUsageStats(
+            date: dto.date,
+            messageCount: dto.messageCount,
+            sessionCount: dto.sessionCount,
+            toolCallCount: dto.toolCallCount
+        )
+    }
+
     // MARK: - Private Helpers
 
     private static func parseDate(_ dateString: String?) -> Date? {

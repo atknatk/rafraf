@@ -116,6 +116,21 @@ extension Container {
         }
     }
 
+    /// Chat session manager (coklu proje destegi).
+    var chatSessionManager: Factory<ChatSessionManager> {
+        self { @MainActor in
+            ChatSessionManager(
+                sendMessageUseCaseFactory: {
+                    SendMessageUseCase(repository: self.chatRepository())
+                },
+                loadHistoryUseCaseFactory: {
+                    LoadChatHistoryUseCase(repository: self.chatRepository())
+                }
+            )
+        }
+        .singleton
+    }
+
     // MARK: - Voice Input Feature
 
     /// Ses oturumu yoneticisi.
@@ -295,6 +310,25 @@ extension Container {
         }
     }
 
+    // MARK: - Progress Feature
+
+    /// Progress repository.
+    var progressRepository: Factory<ProgressRepositoryProtocol> {
+        self { ProgressRepositoryImpl() }
+            .singleton
+    }
+
+    /// Progress ViewModel.
+    var progressViewModel: Factory<ProgressViewModel> {
+        self { @MainActor in
+            let repository = self.progressRepository()
+            return ProgressViewModel(
+                observeProgressUseCase: ObserveProgressUseCase(repository: repository)
+            )
+        }
+        .singleton
+    }
+
     // MARK: - Project Feature
 
     /// Project repository.
@@ -324,7 +358,9 @@ extension Container {
         self { @MainActor in
             let repository = self.agentRepository()
             return AgentListViewModel(
-                getAgentsUseCase: GetAgentsUseCase(repository: repository)
+                getAgentsUseCase: GetAgentsUseCase(repository: repository),
+                getSubscriptionUsageUseCase: GetSubscriptionUsageUseCase(repository: repository),
+                refreshSubscriptionUsageUseCase: RefreshSubscriptionUsageUseCase(repository: repository)
             )
         }
     }

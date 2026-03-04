@@ -47,6 +47,7 @@ class TaskManager:
         runner: str,
         action: str,
         params: dict[str, object],
+        project_id: str | None = None,
     ) -> dict[str, object]:
         """Dispatch a task to a host agent and wait for the result.
 
@@ -55,6 +56,7 @@ class TaskManager:
             runner: Runner name (shell, docker, playwright, maestro).
             action: Action name for the runner.
             params: Action parameters.
+            project_id: Optional project ID for scoping.
 
         Returns:
             Task result dictionary from the agent.
@@ -84,6 +86,7 @@ class TaskManager:
             "metadata": {
                 "timestamp": datetime.now(tz=UTC).isoformat(),
                 "direction": "server_to_agent",
+                **({"project_id": project_id} if project_id else {}),
             },
         }
 
@@ -99,6 +102,7 @@ class TaskManager:
             runner=runner,
             action=action,
             timeout=timeout,
+            project_id=project_id,
         )
 
         # Send to agent

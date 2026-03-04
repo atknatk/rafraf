@@ -18,12 +18,20 @@ final class AgentListViewModel {
     // MARK: - Private
 
     private let getAgentsUseCase: GetAgentsUseCase
+    let getSubscriptionUsageUseCase: GetSubscriptionUsageUseCase
+    let refreshSubscriptionUsageUseCase: RefreshSubscriptionUsageUseCase
     private let logger = AppLogger.logger(for: "AgentList")
 
     // MARK: - Init
 
-    init(getAgentsUseCase: GetAgentsUseCase) {
+    init(
+        getAgentsUseCase: GetAgentsUseCase,
+        getSubscriptionUsageUseCase: GetSubscriptionUsageUseCase,
+        refreshSubscriptionUsageUseCase: RefreshSubscriptionUsageUseCase
+    ) {
         self.getAgentsUseCase = getAgentsUseCase
+        self.getSubscriptionUsageUseCase = getSubscriptionUsageUseCase
+        self.refreshSubscriptionUsageUseCase = refreshSubscriptionUsageUseCase
         logger.info("AgentListViewModel baslatildi")
     }
 
