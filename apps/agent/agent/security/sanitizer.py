@@ -12,12 +12,12 @@ import structlog
 logger = structlog.get_logger()
 
 # Shell metacharacter / injection pattern'leri
+#
+# NOT: ; | && || operatorleri burada YOKTUR cunku _execute_subprocess
+# shell=False (create_subprocess_exec) kullanir. Bu operatorler
+# literal arguman olarak islenip zararsizdir. Kaldirma sebebi:
+# AI agent'in pipe/chain iceren mesru komutlarini engelliyordu.
 DEFAULT_INJECTION_PATTERNS: tuple[str, ...] = (
-    # Komut zincirleme operatorleri
-    r";",
-    r"\|",
-    r"&&",
-    r"\|\|",
     # Backtick command substitution
     r"`",
     # Dollar sign command substitution

@@ -254,10 +254,15 @@ class ShellRunner(BaseRunner):
             stdout_str = stdout_bytes.decode("utf-8", errors="replace")[-_MAX_STDOUT_CHARS:]
             stderr_str = stderr_bytes.decode("utf-8", errors="replace")[-_MAX_STDERR_CHARS:]
 
+            # grep/diff exit code 1 = eslesme/fark yok, hata degil
+            is_success = proc.returncode == 0 or (
+                proc.returncode == 1 and args[0] in ("grep", "diff")
+            )
+
             return {
-                "success": proc.returncode == 0,
+                "success": is_success,
                 "output": stdout_str,
-                "error": stderr_str if proc.returncode != 0 else None,
+                "error": stderr_str if not is_success else None,
                 "return_code": proc.returncode,
                 "timed_out": False,
             }

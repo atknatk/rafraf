@@ -19,10 +19,6 @@ class TestSanitizerHasInjection:
     @pytest.mark.parametrize(
         "command",
         [
-            "ls; rm -rf /",  # Semicolon
-            "cat file | grep secret",  # Pipe
-            "echo hello && rm -rf /",  # AND chain
-            "echo hello || rm -rf /",  # OR chain
             "echo `whoami`",  # Backtick
             "echo $(whoami)",  # Dollar paren
             "echo ${HOME}",  # Variable expansion
@@ -57,6 +53,11 @@ class TestSanitizerHasInjection:
             "find . -name '*.py'",
             "whoami",
             "pwd",
+            # shell=False ile pipe/chain zararsiz (literal arguman olarak islenir)
+            "ls; echo hello",
+            "cat file | grep secret",
+            "echo hello && echo world",
+            "echo hello || echo world",
         ],
     )
     def test_clean_commands_no_injection(self, command: str) -> None:
@@ -76,15 +77,23 @@ class TestSanitizerFindInjectionMatch:
         """Her test icin yeni Sanitizer olustur."""
         self.sanitizer = Sanitizer()
 
-    def test_find_semicolon_injection(self) -> None:
-        """Semicolon injection pattern'i bulunmali."""
-        pattern = self.sanitizer.find_injection_match("ls; rm /")
+    def test_find_backtick_injection(self) -> None:
+        """Backtick injection pattern'i bulunmali."""
+        pattern = self.sanitizer.find_injection_match("echo `whoami`")
         assert pattern is not None
 
-    def test_find_pipe_injection(self) -> None:
-        """Pipe injection pattern'i bulunmali."""
-        pattern = self.sanitizer.find_injection_match("cat file | grep pass")
+    def test_find_dollar_paren_injection(self) -> None:
+        """Dollar paren injection pattern'i bulunmali."""
+        pattern = self.sanitizer.find_injection_match("echo $(whoami)")
         assert pattern is not None
+
+    def test_pipe_not_blocked(self) -> None:
+        """Pipe artik engellenmemeli (shell=False ile zararsiz)."""
+        assert self.sanitizer.find_injection_match("cat file | grep pass") is None
+
+    def test_semicolon_not_blocked(self) -> None:
+        """Semicolon artik engellenmemeli (shell=False ile zararsiz)."""
+        assert self.sanitizer.find_injection_match("ls; rm /") is None
 
     def test_find_no_match_returns_none(self) -> None:
         """Temiz komut icin None donmeli."""
@@ -104,8 +113,8 @@ class TestSanitizerGetAllViolations:
 
     def test_multiple_violations(self) -> None:
         """Birden fazla violation tespit edilmeli."""
-        # Semicolon + pipe
-        violations = self.sanitizer.get_all_violations("ls; cat file | grep x")
+        # Backtick + dollar paren
+        violations = self.sanitizer.get_all_violations("echo `whoami` $(id)")
         assert len(violations) >= 2
 
     def test_no_violations(self) -> None:

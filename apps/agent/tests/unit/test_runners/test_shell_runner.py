@@ -81,25 +81,6 @@ class TestShellRunnerInjectionBlocking:
         """Her test icin yeni ShellRunner olustur."""
         self.runner = ShellRunner()
 
-    async def test_semicolon_injection_blocked(self) -> None:
-        """Semicolon injection engellenmeli."""
-        result = await self.runner.execute(
-            "run_command",
-            {"command": "echo hello; echo world"},
-        )
-        assert result["success"] is False
-        assert result.get("blocked_reason") == "injection"
-        assert "INJECTION_TESPIT" in str(result["error"])
-
-    async def test_pipe_injection_blocked(self) -> None:
-        """Pipe injection engellenmeli."""
-        result = await self.runner.execute(
-            "run_command",
-            {"command": "echo hello | cat"},
-        )
-        assert result["success"] is False
-        assert result.get("blocked_reason") == "injection"
-
     async def test_command_substitution_blocked(self) -> None:
         """Command substitution injection engellenmeli."""
         result = await self.runner.execute(
@@ -245,6 +226,16 @@ class TestShellRunnerSuccessfulExecution:
         )
         assert result["success"] is True
         assert "/tmp" in str(result.get("output", ""))
+
+    async def test_grep_no_match_returns_success(self) -> None:
+        """grep eslesme bulamadigi zaman (exit code 1) success donmeli."""
+        result = await self.runner.execute(
+            "run_command",
+            {"command": "grep xyz_nonexistent_pattern_abc /dev/null"},
+        )
+        assert result["success"] is True
+        assert result.get("return_code") == 1
+        assert result.get("error") is None
 
     async def test_failed_command_returns_error(self) -> None:
         """Basarisiz komut hata donmeli."""
