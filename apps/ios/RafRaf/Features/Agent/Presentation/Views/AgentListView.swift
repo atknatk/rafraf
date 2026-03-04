@@ -1,0 +1,235 @@
+import SwiftUI
+
+/// Agent listesi ekrani.
+/// Bagli host agent'lari filtreleyip goruntuleyebildigi ekran.
+/// Pull-to-refresh, skeleton ve durum filtresi destegi.
+struct AgentListView: View {
+    @State private var viewModel: AgentListViewModel
+    @Namespace private var filterNamespace
+
+    init(viewModel: AgentListViewModel) {
+        self._viewModel = State(initialValue: viewModel)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                filterBar
+                contentView
+            }
+            .navigationTitle(String(localized: "agent.list.title"))
+            .task {
+                await viewModel.loadAgents()
+            }
+            .refreshable {
+                await viewModel.refreshAgents()
+            }
+            .overlay {
+                if let errorMessage = viewModel.errorMessage {
+                    errorBanner(message: errorMessage)
+                }
+            }
+        }
+    }
+
+    // MARK: - Filter Bar
+
+    private var filterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: RFSpacing.xs) {
+                filterChip(
+                    title: String(localized: "agent.filter.all"),
+                    isSelected: viewModel.selectedFilter == nil
+                ) {
+                    Task { await viewModel.filterByStatus(nil) }
+                }
+
+                ForEach(AgentStatus.allCases, id: \.self) { status in
+                    filterChip(
+                        title: filterTitle(for: status),
+                        isSelected: viewModel.selectedFilter == status
+                    ) {
+                        Task { await viewModel.filterByStatus(status) }
+                    }
+                }
+            }
+            .padding(.horizontal, RFSpacing.md)
+            .padding(.vertical, RFSpacing.sm)
+        }
+        .background(RFColors.fallbackBackground)
+    }
+
+    private func filterChip(
+        title: String,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            action()
+        } label: {
+            RFText(
+                title,
+                style: .captionBold,
+                color: isSelected ? .white : RFColors.fallbackTextPrimary
+            )
+            .padding(.horizontal, RFSpacing.md)
+            .padding(.vertical, RFSpacing.xs)
+            .background {
+                if isSelected {
+                    RFColors.brandGradient
+                        .matchedGeometryEffect(
+                            id: "activeFilter",
+                            in: filterNamespace
+                        )
+                } else {
+                    RFColors.fallbackSurface
+                }
+            }
+            .clipShape(Capsule())
+        }
+        .buttonStyle(RFPressButtonStyle())
+        .sensoryFeedback(.selection, trigger: isSelected)
+    }
+
+    private func filterTitle(for status: AgentStatus) -> String {
+        switch status {
+        case .online:
+            return String(localized: "agent.filter.online")
+        case .offline:
+            return String(localized: "agent.filter.offline")
+        case .busy:
+            return String(localized: "agent.filter.busy")
+        }
+    }
+
+    // MARK: - Content
+
+    @ViewBuilder
+    private var contentView: some View {
+        if viewModel.isLoading {
+            AgentListSkeletonView()
+        } else if viewModel.agents.isEmpty {
+            Spacer()
+            RFEmptyStateView(
+                systemImage: "desktopcomputer",
+                title: String(localized: "agent.empty.title"),
+                message: String(localized: "agent.empty.message")
+            )
+            Spacer()
+        } else {
+            agentList
+        }
+    }
+
+    private var agentList: some View {
+        ScrollView {
+            LazyVStack(spacing: RFSpacing.sm) {
+                ForEach(viewModel.agents) { agent in
+                    AgentCardView(agent: agent)
+                }
+            }
+            .padding(.horizontal, RFSpacing.md)
+            .padding(.vertical, RFSpacing.sm)
+        }
+    }
+
+    // MARK: - Error Banner
+
+    private func errorBanner(message: String) -> some View {
+        VStack {
+            HStack {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(RFColors.error)
+                RFText(message, style: .body, color: .white)
+                Spacer()
+                RFButton(
+                    String(localized: "agent.error.dismiss"),
+                    style: .ghost,
+                    size: .small
+                ) {
+                    viewModel.dismissError()
+                }
+            }
+            .padding(RFSpacing.sm)
+            .background(RFColors.error.opacity(0.9))
+            .clipShape(RoundedRectangle(cornerRadius: RFCornerRadius.medium))
+            .padding(.horizontal, RFSpacing.md)
+            .padding(.top, RFSpacing.xs)
+
+            Spacer()
+        }
+    }
+}
+
+#Preview {
+    AgentListView(
+        viewModel: AgentListViewModel(
+            getAgentsUseCase: GetAgentsUseCase(
+                repository: PreviewAgentRepository()
+            )
+        )
+    )
+}
+
+/// Preview icin mock repository.
+final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable {
+    func getAgents(status: AgentStatus?) async throws -> AgentListResult {
+        let allAgents = [
+            Agent(
+                hostId: "macbook-pro",
+                status: .online,
+                capabilities: [.shell, .docker, .git, .python, .maestroIos, .xcodeBuild],
+                osInfo: "Darwin 24.1.0",
+                uptimeSeconds: 7200,
+                activeTasks: 2,
+                lastHeartbeatAt: Date(),
+                resources: AgentResourceInfo(
+                    cpuUsagePercent: 45,
+                    memoryUsagePercent: 72,
+                    diskUsagePercent: 38,
+                    diskFreeGb: 120
+                )
+            ),
+            Agent(
+                hostId: "ubuntu-server",
+                status: .online,
+                capabilities: [.shell, .docker, .playwright, .git, .python, .nodejs],
+                osInfo: "Linux 6.1.0",
+                uptimeSeconds: 86400,
+                activeTasks: 0,
+                lastHeartbeatAt: Date(),
+                resources: AgentResourceInfo(
+                    cpuUsagePercent: 12,
+                    memoryUsagePercent: 45,
+                    diskUsagePercent: 65,
+                    diskFreeGb: 80
+                )
+            ),
+            Agent(
+                hostId: "imac-dev",
+                status: .offline,
+                capabilities: [.shell, .git],
+                osInfo: "Darwin 23.5.0",
+                uptimeSeconds: nil,
+                activeTasks: nil,
+                lastHeartbeatAt: Date().addingTimeInterval(-3600),
+                resources: nil
+            )
+        ]
+
+        let filtered: [Agent]
+        if let status {
+            filtered = allAgents.filter { $0.status == status }
+        } else {
+            filtered = allAgents
+        }
+
+        let onlineCount = allAgents.filter { $0.status == .online || $0.status == .busy }.count
+
+        return AgentListResult(
+            agents: filtered,
+            total: filtered.count,
+            onlineCount: onlineCount
+        )
+    }
+}

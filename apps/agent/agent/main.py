@@ -11,8 +11,14 @@ import structlog
 
 from agent.core.config import AgentConfig
 from agent.core.connection import ConnectionManager
+from agent.core.task_dispatcher import TaskDispatcher
 from agent.discovery.sync_manager import ProjectSyncManager
 from agent.monitoring.resource_monitor import ResourceMonitor
+from agent.runners.base import BaseRunner
+from agent.runners.docker_runner import DockerRunner
+from agent.runners.maestro_runner import MaestroRunner
+from agent.runners.playwright_runner import PlaywrightRunner
+from agent.runners.shell_runner import ShellRunner
 
 logger = structlog.get_logger()
 
@@ -61,11 +67,33 @@ async def main() -> None:
         capabilities=config.get_capabilities(),
     )
 
-    # Resource monitor'u baglantiya bagla
+    # Runner'lari capability flag'lerine gore olustur
+    runners: dict[str, BaseRunner] = {}
+    if config.capability_shell:
+        runners["shell"] = ShellRunner()
+    if config.capability_docker:
+        runners["docker"] = DockerRunner(projects={})
+    if config.capability_playwright:
+        runners["playwright"] = PlaywrightRunner()
+    if config.capability_maestro_ios or config.capability_maestro_android:
+        runners["maestro"] = MaestroRunner()
+
+    await logger.ainfo(
+        "Runner'lar olusturuldu",
+        runners=list(runners.keys()),
+    )
+
+    # Task dispatcher'i olustur ve connection'a bagla
     async def _send_via_ws(message: str) -> None:
         """WebSocket uzerinden mesaj gonderir."""
-        if connection.is_connected and connection._ws is not None:
-            await connection._ws.send(message)
+        await connection.send_message(message)
+
+    dispatcher = TaskDispatcher(
+        runners=runners,
+        send_callback=_send_via_ws,
+        host_id=config.host_id,
+    )
+    connection.set_task_handler(dispatcher.dispatch)
 
     resource_monitor.set_send_callback(_send_via_ws)
     project_sync.set_send_callback(_send_via_ws)

@@ -6,7 +6,8 @@ import asyncio
 import contextlib
 import platform
 import time
-from typing import TYPE_CHECKING
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
 import structlog
 import websockets
@@ -25,6 +26,9 @@ if TYPE_CHECKING:
     from agent.core.config import AgentConfig
 
 logger = structlog.get_logger()
+
+# Task handler callback: receives parsed message dict, returns nothing.
+TaskHandler = Callable[[dict[str, Any]], Awaitable[None]]
 
 
 class ConnectionManager:
@@ -45,6 +49,19 @@ class ConnectionManager:
         self._active_tasks: int = 0
         self._should_run: bool = True
         self._heartbeat_interval: int = config.heartbeat_interval
+        self._task_handler: TaskHandler | None = None
+
+    def set_task_handler(self, handler: TaskHandler) -> None:
+        """Task dispatch handler'ini ayarlar."""
+        self._task_handler = handler
+
+    def increment_active_tasks(self) -> None:
+        """Aktif task sayisini arttirir."""
+        self._active_tasks += 1
+
+    def decrement_active_tasks(self) -> None:
+        """Aktif task sayisini azaltir."""
+        self._active_tasks = max(0, self._active_tasks - 1)
 
     @property
     def is_connected(self) -> bool:
@@ -174,12 +191,15 @@ class ConnectionManager:
             async for raw in self._ws:
                 try:
                     data = parse_server_message(str(raw))
+                    msg_type = data.get("type")
                     await logger.ainfo(
                         "Mesaj alindi",
-                        message_type=data.get("type"),
+                        message_type=msg_type,
                     )
-                    # Simdilik mesajlari sadece logluyoruz
-                    # Komut islemleri ilerideki issue'larda eklenecek
+
+                    if msg_type == "task_execute" and self._task_handler:
+                        self._active_tasks += 1
+                        asyncio.create_task(self._run_task(data))
                 except ValueError as exc:
                     await logger.awarning(
                         "Mesaj parse hatasi",
@@ -189,6 +209,21 @@ class ConnectionManager:
             await logger.awarning("Listen sirasinda baglanti koptu")
         finally:
             self._is_connected = False
+
+    async def send_message(self, message: str) -> None:
+        """WebSocket uzerinden mesaj gonderir."""
+        if self._ws is not None and self._is_connected:
+            await self._ws.send(message)
+
+    async def _run_task(self, data: dict[str, Any]) -> None:
+        """Task handler'i calistirir, bitince active_tasks'i azaltir."""
+        try:
+            if self._task_handler:
+                await self._task_handler(data)
+        except Exception:
+            await logger.aexception("Task calistirma hatasi")
+        finally:
+            self._active_tasks = max(0, self._active_tasks - 1)
 
     async def connect(self) -> None:
         """Backend'e WSS baglantisi kurar.

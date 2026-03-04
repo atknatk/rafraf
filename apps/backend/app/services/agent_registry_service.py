@@ -206,6 +206,54 @@ class AgentRegistryService:
         return None
 
     # ------------------------------------------------------------------
+    # Connection lookup (for task dispatch)
+    # ------------------------------------------------------------------
+
+    def get_connection_id(self, host_id: str) -> str | None:
+        """Return the WebSocket connection_id for a given agent.
+
+        Returns None if the agent is not found or is offline.
+        """
+        record = self._agents.get(host_id)
+        if record is None or record.status == AgentStatus.OFFLINE:
+            return None
+        return record.connection_id
+
+    async def get_agents_with_capability(
+        self,
+        capability: AgentCapability,
+    ) -> list[AgentSummary]:
+        """Return online/busy agents that have the specified capability."""
+        result: list[AgentSummary] = []
+        for record in self._agents.values():
+            if record.status == AgentStatus.OFFLINE:
+                continue
+            if capability in record.capabilities:
+                result.append(self._to_summary(record))
+        return result
+
+    def get_least_busy_online(
+        self,
+        capability: AgentCapability | None = None,
+    ) -> str | None:
+        """Return host_id of the least busy online agent.
+
+        Optionally filters by capability. Returns None if no agent matches.
+        """
+        best_host: str | None = None
+        best_tasks: int = 999_999
+        for record in self._agents.values():
+            if record.status == AgentStatus.OFFLINE:
+                continue
+            if capability is not None and capability not in record.capabilities:
+                continue
+            tasks = record.active_tasks or 0
+            if tasks < best_tasks:
+                best_tasks = tasks
+                best_host = record.host_id
+        return best_host
+
+    # ------------------------------------------------------------------
     # Queries
     # ------------------------------------------------------------------
 

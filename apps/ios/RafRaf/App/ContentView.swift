@@ -62,6 +62,12 @@ struct ContentView: View {
                 }
                 .tag(AppTab.chat)
 
+            AgentListView(viewModel: Container.shared.agentListViewModel())
+                .tabItem {
+                    Label(String(localized: "tab.agents"), systemImage: "desktopcomputer")
+                }
+                .tag(AppTab.agents)
+
             SettingsView(viewModel: Container.shared.settingsViewModel())
                 .tabItem {
                     Label(String(localized: "tab.settings"), systemImage: "gearshape.fill")
@@ -102,6 +108,7 @@ struct ContentView: View {
 enum AppTab: String, Hashable, Sendable {
     case home
     case chat
+    case agents
     case settings
 }
 

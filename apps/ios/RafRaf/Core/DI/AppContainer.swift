@@ -293,6 +293,23 @@ extension Container {
         }
     }
 
+    // MARK: - Agent Feature
+
+    /// Agent repository.
+    var agentRepository: Factory<AgentRepositoryProtocol> {
+        self { AgentRepositoryImpl(networkClient: self.networkClient()) }
+    }
+
+    /// Agent list ViewModel.
+    var agentListViewModel: Factory<AgentListViewModel> {
+        self { @MainActor in
+            let repository = self.agentRepository()
+            return AgentListViewModel(
+                getAgentsUseCase: GetAgentsUseCase(repository: repository)
+            )
+        }
+    }
+
     // MARK: - Settings Feature
 
     /// Settings repository.

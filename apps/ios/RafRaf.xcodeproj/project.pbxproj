@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DD4618BD21854A4484BEE9FD /* Agent.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4FD96FDBCBB4D05BE5C2C9B /* Agent.swift */; };
+		0AF4F51B143C4A7DAAA0469E /* AgentRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 235D955C56E1417291CFB7A7 /* AgentRepository.swift */; };
+		96EB35C854FB45AC907553B0 /* GetAgentsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96BB6E6772E4412A9DEE3771 /* GetAgentsUseCase.swift */; };
+		1925FC51FB504DEEA4A55327 /* AgentDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0BB2A9F00D4ABDB76D5498 /* AgentDTO.swift */; };
+		1D844028D4A04DB79C040EFD /* AgentMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38C6825A0DB485CB0628044 /* AgentMapper.swift */; };
+		ACFB026BE1CC4BBAB04362EE /* AgentRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD505F743CAC48ACA012DF72 /* AgentRepositoryImpl.swift */; };
+		01087D6E4BF742A89E0DD3D0 /* AgentListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E32FEB1D3E4834A6CA6539 /* AgentListViewModel.swift */; };
+		5CA130D3C09243A88441FEFD /* AgentListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4F96059FAF3424792CA489F /* AgentListView.swift */; };
+		1D0A8E6E93074ACF8E0A43E8 /* AgentCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB5B4EE676C24798A4EFA209 /* AgentCardView.swift */; };
+		CCE3E170BC8C464AB8357554 /* AgentStatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F5E2B78F8D34E2B897B9DAD /* AgentStatusBadge.swift */; };
+		B1AB1B46B42248E7B4C66C3B /* AgentListSkeletonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 447850D8EC58489B80D8A6E8 /* AgentListSkeletonView.swift */; };
 		0094D3ECB7DE3EDD40CFCA6E /* RFTextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9494F1BB2D75D74A4D23360 /* RFTextTests.swift */; };
 		00A429AD9984993125CFFE5F /* KeychainHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0311D62510D1BCEA61F04553 /* KeychainHelperTests.swift */; };
 		00E71759402C5B52C67BE896 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F503BC69A6F011BBD9C5C7A1 /* ChatView.swift */; };
@@ -317,6 +328,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		F4FD96FDBCBB4D05BE5C2C9B /* Agent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Agent.swift; sourceTree = "<group>"; };
+		235D955C56E1417291CFB7A7 /* AgentRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRepository.swift; sourceTree = "<group>"; };
+		96BB6E6772E4412A9DEE3771 /* GetAgentsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetAgentsUseCase.swift; sourceTree = "<group>"; };
+		1D0BB2A9F00D4ABDB76D5498 /* AgentDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDTO.swift; sourceTree = "<group>"; };
+		C38C6825A0DB485CB0628044 /* AgentMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentMapper.swift; sourceTree = "<group>"; };
+		AD505F743CAC48ACA012DF72 /* AgentRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRepositoryImpl.swift; sourceTree = "<group>"; };
+		44E32FEB1D3E4834A6CA6539 /* AgentListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentListViewModel.swift; sourceTree = "<group>"; };
+		E4F96059FAF3424792CA489F /* AgentListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentListView.swift; sourceTree = "<group>"; };
+		CB5B4EE676C24798A4EFA209 /* AgentCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentCardView.swift; sourceTree = "<group>"; };
+		7F5E2B78F8D34E2B897B9DAD /* AgentStatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentStatusBadge.swift; sourceTree = "<group>"; };
+		447850D8EC58489B80D8A6E8 /* AgentListSkeletonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentListSkeletonView.swift; sourceTree = "<group>"; };
 		0091DFD4063859F7357A52EF /* RFNotificationBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFNotificationBanner.swift; sourceTree = "<group>"; };
 		00C758CB8053C9CF929DA33B /* FileUploadResponseDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileUploadResponseDTO.swift; sourceTree = "<group>"; };
 		012C760BCD578912C69FF278 /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
@@ -1418,6 +1440,7 @@
 		5CE05B104E13CE174FE774E9 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				27DC6776C9B84FE1A7A51DED /* Agent */,
 				CFD22DA06A96016F7C96E4DE /* Approval */,
 				95CF02677BA990463DE21AF3 /* Auth */,
 				D63817B372E2117ECFD9F8B8 /* Chat */,
@@ -2861,6 +2884,120 @@
 			path = Helpers;
 			sourceTree = "<group>";
 		};
+		B4C787E6FDC341A98E092088 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				F4FD96FDBCBB4D05BE5C2C9B /* Agent.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		4DF959250DC44726A4DFE4F2 /* Repositories */ = {
+			isa = PBXGroup;
+			children = (
+				235D955C56E1417291CFB7A7 /* AgentRepository.swift */,
+			);
+			path = Repositories;
+			sourceTree = "<group>";
+		};
+		45B95E9C6FF04DED863B3CDB /* UseCases */ = {
+			isa = PBXGroup;
+			children = (
+				96BB6E6772E4412A9DEE3771 /* GetAgentsUseCase.swift */,
+			);
+			path = UseCases;
+			sourceTree = "<group>";
+		};
+		60A5010855FD4AA29BB0C2B6 /* DTOs */ = {
+			isa = PBXGroup;
+			children = (
+				1D0BB2A9F00D4ABDB76D5498 /* AgentDTO.swift */,
+			);
+			path = DTOs;
+			sourceTree = "<group>";
+		};
+		0F90D82AD21D43FCBC8B190E /* Mappers */ = {
+			isa = PBXGroup;
+			children = (
+				C38C6825A0DB485CB0628044 /* AgentMapper.swift */,
+			);
+			path = Mappers;
+			sourceTree = "<group>";
+		};
+		CFE53E3002A2498B9920476D /* Repositories */ = {
+			isa = PBXGroup;
+			children = (
+				AD505F743CAC48ACA012DF72 /* AgentRepositoryImpl.swift */,
+			);
+			path = Repositories;
+			sourceTree = "<group>";
+		};
+		7A653A5A1D03426EB71784F5 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				44E32FEB1D3E4834A6CA6539 /* AgentListViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		0AD6C95F674C4C7CB6DF8A08 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				E4F96059FAF3424792CA489F /* AgentListView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		EF3CB00ECBD440E98360B3AD /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				CB5B4EE676C24798A4EFA209 /* AgentCardView.swift */,
+				7F5E2B78F8D34E2B897B9DAD /* AgentStatusBadge.swift */,
+				447850D8EC58489B80D8A6E8 /* AgentListSkeletonView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		C5BDD8854E724E1487917044 /* Domain */ = {
+			isa = PBXGroup;
+			children = (
+				B4C787E6FDC341A98E092088 /* Models */,
+				4DF959250DC44726A4DFE4F2 /* Repositories */,
+				45B95E9C6FF04DED863B3CDB /* UseCases */,
+			);
+			path = Domain;
+			sourceTree = "<group>";
+		};
+		943758EC664446A68FEA7362 /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				60A5010855FD4AA29BB0C2B6 /* DTOs */,
+				0F90D82AD21D43FCBC8B190E /* Mappers */,
+				CFE53E3002A2498B9920476D /* Repositories */,
+			);
+			path = Data;
+			sourceTree = "<group>";
+		};
+		C9A79D4319E74A869926526F /* Presentation */ = {
+			isa = PBXGroup;
+			children = (
+				7A653A5A1D03426EB71784F5 /* ViewModels */,
+				0AD6C95F674C4C7CB6DF8A08 /* Views */,
+				EF3CB00ECBD440E98360B3AD /* Components */,
+			);
+			path = Presentation;
+			sourceTree = "<group>";
+		};
+		27DC6776C9B84FE1A7A51DED /* Agent */ = {
+			isa = PBXGroup;
+			children = (
+				943758EC664446A68FEA7362 /* Data */,
+				C5BDD8854E724E1487917044 /* Domain */,
+				C9A79D4319E74A869926526F /* Presentation */,
+			);
+			path = Agent;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -2963,6 +3100,17 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DD4618BD21854A4484BEE9FD /* Agent.swift in Sources */,
+				0AF4F51B143C4A7DAAA0469E /* AgentRepository.swift in Sources */,
+				96EB35C854FB45AC907553B0 /* GetAgentsUseCase.swift in Sources */,
+				1925FC51FB504DEEA4A55327 /* AgentDTO.swift in Sources */,
+				1D844028D4A04DB79C040EFD /* AgentMapper.swift in Sources */,
+				ACFB026BE1CC4BBAB04362EE /* AgentRepositoryImpl.swift in Sources */,
+				01087D6E4BF742A89E0DD3D0 /* AgentListViewModel.swift in Sources */,
+				5CA130D3C09243A88441FEFD /* AgentListView.swift in Sources */,
+				1D0A8E6E93074ACF8E0A43E8 /* AgentCardView.swift in Sources */,
+				CCE3E170BC8C464AB8357554 /* AgentStatusBadge.swift in Sources */,
+				B1AB1B46B42248E7B4C66C3B /* AgentListSkeletonView.swift in Sources */,
 				A98693C70B9BBE3979DA0685 /* AppContainer.swift in Sources */,
 				D603913E1499B617128063BC /* AppDelegate.swift in Sources */,
 				9CC04BC3F7D82C475AD74B15 /* AppEnvironment.swift in Sources */,

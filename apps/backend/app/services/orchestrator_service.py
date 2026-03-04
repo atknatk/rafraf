@@ -7,11 +7,28 @@ import structlog
 from app.orchestrator.agent import ClaudeAPIError, MaxIterationsReachedError, OrchestratorAgent
 from app.orchestrator.tool_registry import ToolRegistry
 from app.schemas.orchestrator import OrchestratorRequest, OrchestratorResponse
+from app.tools.cost_tool import CostTool
+from app.tools.github_tool import GitHubTool
+from app.tools.memory_tool import MemoryTool
+from app.tools.s3_tool import S3Tool
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 # Module-level tool registry singleton
 _tool_registry: ToolRegistry | None = None
+
+
+def _register_default_tools(registry: ToolRegistry) -> None:
+    """Register all built-in tools with the registry."""
+    tools = [
+        GitHubTool(),
+        MemoryTool(),
+        CostTool(),
+        S3Tool(),
+    ]
+    for tool in tools:
+        tool.register(registry)
+    logger.info("default_tools_registered", count=len(tools))
 
 
 def get_tool_registry() -> ToolRegistry:
@@ -23,6 +40,7 @@ def get_tool_registry() -> ToolRegistry:
     global _tool_registry  # noqa: PLW0603
     if _tool_registry is None:
         _tool_registry = ToolRegistry()
+        _register_default_tools(_tool_registry)
     return _tool_registry
 
 
@@ -52,6 +70,8 @@ class OrchestratorService:
         message: str,
         project_id: str | None = None,
         progress_callback: ProgressCallback | None = None,
+        host_status: str | None = None,
+        user_memories: str | None = None,
     ) -> OrchestratorResponse:
         """Process a user message and return the AI response.
 
@@ -61,6 +81,8 @@ class OrchestratorService:
             message: User message text.
             project_id: Optional project context.
             progress_callback: Optional async callback for tool execution progress.
+            host_status: Formatted agent status for system prompt.
+            user_memories: Formatted user memories for system prompt.
 
         Returns:
             OrchestratorResponse with AI response text and metadata.
@@ -83,6 +105,8 @@ class OrchestratorService:
             response = await self._agent.process_message(
                 request,
                 progress_callback=progress_callback,
+                host_status=host_status,
+                user_memories=user_memories,
             )
             await logger.ainfo(
                 "orchestrator_response_generated",

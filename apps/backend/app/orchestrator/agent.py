@@ -81,6 +81,8 @@ class OrchestratorAgent:
         request: OrchestratorRequest,
         *,
         progress_callback: ProgressCallback | None = None,
+        host_status: str | None = None,
+        user_memories: str | None = None,
     ) -> OrchestratorResponse:
         """Process a user message through the AI orchestrator.
 
@@ -91,6 +93,8 @@ class OrchestratorAgent:
         Args:
             request: Orchestrator request with user message.
             progress_callback: Optional async callback for progress updates.
+            host_status: Formatted agent status for system prompt.
+            user_memories: Formatted user memories for system prompt.
 
         Returns:
             OrchestratorResponse with the final AI response.
@@ -114,8 +118,11 @@ class OrchestratorAgent:
             is_fallback=router_result.is_fallback,
         )
 
-        # Build system prompt
-        system_prompt = build_system_prompt()
+        # Build system prompt with dynamic context
+        system_prompt = build_system_prompt(
+            host_status=host_status,
+            user_memories=user_memories,
+        )
 
         # Get or create conversation history
         conversation = self._get_conversation(request.session_id)

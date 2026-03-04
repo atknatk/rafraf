@@ -16,6 +16,8 @@ from app.schemas.messages import (
     MessageType,
     ProgressPayload,
 )
+from app.schemas.agent import AgentStatus
+from app.services.agent_registry_service import agent_registry
 from app.services.approval_service import get_approval_service
 from app.services.orchestrator_service import OrchestratorService
 
@@ -275,6 +277,31 @@ async def _handle_voice(
     )
 
 
+async def _build_host_status() -> str | None:
+    """Build formatted agent status string for system prompt injection."""
+    agent_list = await agent_registry.list_agents()
+    if not agent_list.agents:
+        return None
+
+    lines: list[str] = []
+    for agent in agent_list.agents:
+        caps = ", ".join(c.value for c in agent.capabilities)
+        status_str = agent.status.value
+        resource_str = ""
+        if agent.resources is not None:
+            resource_str = (
+                f" | CPU {agent.resources.cpu_usage_percent:.0f}%"
+                f", RAM {agent.resources.memory_usage_percent:.0f}%"
+            )
+        tasks_str = f", tasks: {agent.active_tasks}" if agent.active_tasks else ""
+        lines.append(
+            f"- {agent.host_id}: {status_str}{resource_str}{tasks_str}"
+            f" | capabilities: [{caps}]"
+        )
+
+    return "\n".join(lines)
+
+
 async def _process_with_orchestrator(
     *,
     message: str,
@@ -285,6 +312,7 @@ async def _process_with_orchestrator(
     """Process a message through the AI orchestrator and send the response.
 
     Sends progress updates during tool execution and the final AI response.
+    Injects agent status into the system prompt for context-aware responses.
     """
     orchestrator = OrchestratorService()
 
@@ -304,11 +332,15 @@ async def _process_with_orchestrator(
         )
         await manager.send_json(connection_id, progress_msg)
 
+    # Build agent status for system prompt
+    host_status = await _build_host_status()
+
     response = await orchestrator.process_user_message(
         session_id=session_id,
         user_id=user_id,
         message=message,
         progress_callback=_progress_callback,
+        host_status=host_status,
     )
 
     # Send AI response to client

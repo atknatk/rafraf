@@ -20,6 +20,7 @@ from app.schemas.agent import (
 from app.core.database import async_session_factory
 from app.services.agent_registry_service import agent_registry
 from app.services.project_service import ProjectService
+from app.services.task_manager_service import TaskManager
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -27,6 +28,20 @@ router = APIRouter()
 
 # Dedicated connection manager for agent connections (separate from iOS clients)
 agent_manager = ConnectionManager(heartbeat_interval=30, heartbeat_timeout=10)
+
+# Task manager singleton (initialized lazily to avoid circular imports)
+_task_manager: TaskManager | None = None
+
+
+def get_task_manager() -> TaskManager:
+    """Get or create the global task manager."""
+    global _task_manager  # noqa: PLW0603
+    if _task_manager is None:
+        _task_manager = TaskManager(
+            agent_registry=agent_registry,
+            agent_manager=agent_manager,
+        )
+    return _task_manager
 
 
 def _build_agent_message(
@@ -91,6 +106,10 @@ async def agent_websocket_endpoint(
                 await _handle_resource_report(raw_data, connection_id)
             elif msg_type == "resource_alarm":
                 await _handle_resource_alarm(raw_data, connection_id)
+            elif msg_type == "task_result":
+                await _handle_task_result(raw_data, connection_id)
+            elif msg_type == "task_error":
+                await _handle_task_error(raw_data, connection_id)
             elif msg_type == "pong":
                 await logger.adebug(
                     "agent_pong_received",
@@ -304,4 +323,58 @@ async def _handle_resource_alarm(
         current_value=alarm_raw.get("current_value"),
         threshold=alarm_raw.get("threshold"),
         message=alarm_raw.get("message"),
+    )
+
+
+async def _handle_task_result(
+    raw_data: dict[str, object],
+    connection_id: str,
+) -> None:
+    """Process a task_result message — resolve the pending future."""
+    content = raw_data.get("content", {})
+    if not isinstance(content, dict):
+        content = {}
+
+    task_id = str(content.get("task_id", ""))
+    if not task_id:
+        await logger.awarning("task_result_missing_task_id", connection_id=connection_id)
+        return
+
+    tm = get_task_manager()
+    found = tm.complete(task_id, dict(content))
+
+    await logger.ainfo(
+        "task_result_received",
+        task_id=task_id,
+        connection_id=connection_id,
+        resolved=found,
+        success=content.get("success"),
+    )
+
+
+async def _handle_task_error(
+    raw_data: dict[str, object],
+    connection_id: str,
+) -> None:
+    """Process a task_error message — reject the pending future."""
+    content = raw_data.get("content", {})
+    if not isinstance(content, dict):
+        content = {}
+
+    task_id = str(content.get("task_id", ""))
+    error_msg = str(content.get("error", "Bilinmeyen hata"))
+
+    if not task_id:
+        await logger.awarning("task_error_missing_task_id", connection_id=connection_id)
+        return
+
+    tm = get_task_manager()
+    found = tm.fail(task_id, error_msg)
+
+    await logger.awarning(
+        "task_error_received",
+        task_id=task_id,
+        connection_id=connection_id,
+        resolved=found,
+        error=error_msg,
     )

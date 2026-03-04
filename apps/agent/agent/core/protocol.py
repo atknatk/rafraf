@@ -273,6 +273,82 @@ def build_resource_report_message(
     return message.model_dump_json()
 
 
+# ------------------------------------------------------------------
+# Task execution protocol (server -> agent -> server)
+# ------------------------------------------------------------------
+
+
+class TaskExecuteContent(BaseModel):
+    """task_execute mesaj icerigi (server -> agent)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    task_id: str
+    runner: str
+    action: str
+    params: dict[str, Any] = {}
+
+
+def parse_task_execute(data: dict[str, Any]) -> TaskExecuteContent:
+    """task_execute mesajini parse eder.
+
+    Raises:
+        ValueError: content eksik veya gecersiz.
+    """
+    content = data.get("content")
+    if content is None or not isinstance(content, dict):
+        msg = "task_execute mesajinda 'content' alani eksik"
+        raise ValueError(msg)
+
+    return TaskExecuteContent(**content)
+
+
+def build_task_result_message(
+    *,
+    task_id: str,
+    host_id: str,
+    success: bool,
+    output: str | None = None,
+    error: str | None = None,
+    execution_time_ms: int = 0,
+) -> str:
+    """task_result mesaji olusturur ve JSON string olarak dondurur."""
+    content: dict[str, Any] = {
+        "task_id": task_id,
+        "host_id": host_id,
+        "success": success,
+        "execution_time_ms": execution_time_ms,
+    }
+    if output is not None:
+        content["output"] = output
+    if error is not None:
+        content["error"] = error
+
+    message = {
+        "type": "task_result",
+        "content": content,
+    }
+    return json.dumps(message)
+
+
+def build_task_error_message(
+    *,
+    task_id: str,
+    host_id: str,
+    error: str,
+) -> str:
+    """task_error mesaji olusturur ve JSON string olarak dondurur."""
+    message = {
+        "type": "task_error",
+        "content": {
+            "task_id": task_id,
+            "host_id": host_id,
+            "error": error,
+        },
+    }
+    return json.dumps(message)
+
+
 def build_resource_alarm_message(
     host_id: str,
     alarm: ResourceAlarm,
