@@ -35,6 +35,11 @@ class Project(Base, UUIDMixin, TimestampMixin):
         nullable=False,
         default=list,
     )
+    source: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="manual",
+    )
     last_activity_at: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,

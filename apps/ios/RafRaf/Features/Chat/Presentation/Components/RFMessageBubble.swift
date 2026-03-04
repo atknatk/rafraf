@@ -1,8 +1,7 @@
 import SwiftUI
 
-/// Mesaj baloncugu bileseni.
-/// Kullanici, AI ve system mesajlarini farkli stillerde goruntler.
-/// Markdown rendering, kod bloklari, gorsel mesajlar ve dosya ekleri destekler.
+/// Mesaj baloncugu bileseni — Claude-inspired sicak tonlar.
+/// Kullanici balonlari sicak tan, AI mesajlari minimal/full-width.
 struct RFMessageBubble: View {
     let message: ChatMessage
     let onCopy: ((String) -> Void)?
@@ -39,7 +38,7 @@ struct RFMessageBubble: View {
             }
 
             if message.sender == .assistant || message.sender == .system {
-                Spacer(minLength: RFSpacing.xxxl)
+                Spacer(minLength: RFSpacing.xxl)
             }
         }
         .contextMenu {
@@ -85,9 +84,16 @@ struct RFMessageBubble: View {
                 streamingIndicator
             }
         }
-        .padding(RFSpacing.sm)
+        .padding(.horizontal, RFSpacing.sm)
+        .padding(.vertical, RFSpacing.xs + 2)
         .background(bubbleBackgroundColor)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: message.sender == .user
+                    ? RFCornerRadius.large
+                    : RFCornerRadius.medium
+            )
+        )
     }
 
     private var messageTextView: some View {
@@ -107,13 +113,13 @@ struct RFMessageBubble: View {
         .padding(.horizontal, RFSpacing.md)
         .padding(.vertical, RFSpacing.xs)
         .background(RFColors.fallbackSurface.opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: RFCornerRadius.medium))
     }
 
     private var fileAttachmentView: some View {
         HStack(spacing: RFSpacing.xs) {
             Image(systemName: "doc.fill")
-                .foregroundStyle(bubbleTextColor)
+                .foregroundStyle(bubbleTextColor.opacity(0.6))
             if let attachment = message.attachments.first {
                 VStack(alignment: .leading, spacing: 2) {
                     RFText(
@@ -124,7 +130,7 @@ struct RFMessageBubble: View {
                     RFText(
                         formattedFileSize(attachment.sizeBytes),
                         style: .caption,
-                        color: bubbleTextColor.opacity(0.7)
+                        color: bubbleTextColor.opacity(0.6)
                     )
                 }
             }
@@ -133,9 +139,9 @@ struct RFMessageBubble: View {
 
     private var streamingIndicator: some View {
         HStack(spacing: RFSpacing.xxs) {
-            ForEach(0..<3, id: \.self) { index in
+            ForEach(0..<3, id: \.self) { _ in
                 Circle()
-                    .fill(bubbleTextColor.opacity(0.4))
+                    .fill(bubbleTextColor.opacity(0.3))
                     .frame(width: 4, height: 4)
             }
         }
@@ -160,11 +166,7 @@ struct RFMessageBubble: View {
     }
 
     private var bubbleTextColor: Color {
-        switch message.sender {
-        case .user: return .white
-        case .assistant: return RFColors.fallbackTextPrimary
-        case .system: return RFColors.fallbackTextSecondary
-        }
+        RFColors.fallbackTextPrimary
     }
 
     private var formattedTimestamp: String {
@@ -215,4 +217,5 @@ struct RFMessageBubble: View {
         }
         .padding()
     }
+    .background(RFColors.fallbackBackground)
 }

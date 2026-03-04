@@ -50,7 +50,7 @@ struct ProjectDetailView: View {
     // MARK: - Sections
 
     private func statusSection(_ project: Project) -> some View {
-        RFCard {
+        RFCard(style: .elevated) {
             HStack {
                 VStack(alignment: .leading, spacing: RFSpacing.xxs) {
                     RFText(String(localized: "project.detail.status"), style: .caption)
@@ -104,10 +104,12 @@ struct ProjectDetailView: View {
 
                     FlowLayout(spacing: RFSpacing.xxs) {
                         ForEach(project.techStack, id: \.self) { tech in
-                            RFText(tech, style: .caption)
+                            RFText(tech, style: .captionBold, color: RFColors.fallbackPrimary)
                                 .padding(.horizontal, RFSpacing.sm)
                                 .padding(.vertical, RFSpacing.xxs)
-                                .background(RFColors.fallbackPrimary.opacity(0.08))
+                                .background(
+                                    RFColors.fallbackPrimary.opacity(0.10)
+                                )
                                 .clipShape(Capsule())
                         }
                     }

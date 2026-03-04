@@ -204,10 +204,9 @@ class ConnectionManager:
                     host_id=self._config.host_id,
                 )
 
-                self._ws = await websockets.connect(
-                    self._config.backend_ws_url,
-                    additional_headers={"X-API-Key": self._config.api_key},
-                )
+                # Backend api_key'i query parameter olarak bekliyor
+                ws_url = f"{self._config.backend_ws_url}?api_key={self._config.api_key}"
+                self._ws = await websockets.connect(ws_url)
                 self._is_connected = True
                 self._reset_backoff()
 

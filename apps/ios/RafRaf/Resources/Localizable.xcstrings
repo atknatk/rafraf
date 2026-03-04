@@ -5,7 +5,7 @@
       "extractionState": "manual"
     },
     "chat.empty.message": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -22,7 +22,7 @@
       }
     },
     "chat.empty.title": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -39,7 +39,7 @@
       }
     },
     "chat.input.placeholder": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -56,7 +56,7 @@
       }
     },
     "chat.loading": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -73,7 +73,7 @@
       }
     },
     "chat.send": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -90,7 +90,7 @@
       }
     },
     "chat.title": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -106,8 +106,42 @@
         }
       }
     },
+    "home.action.chat": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chat"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sohbet"
+          }
+        }
+      }
+    },
+    "home.action.projects": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projects"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projeler"
+          }
+        }
+      }
+    },
     "home.empty.action": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -124,7 +158,7 @@
       }
     },
     "home.empty.message": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -141,7 +175,7 @@
       }
     },
     "home.empty.title": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -158,7 +192,7 @@
       }
     },
     "home.loading": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -175,7 +209,7 @@
       }
     },
     "home.title": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -192,7 +226,7 @@
       }
     },
     "home.welcome.subtitle": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -209,7 +243,7 @@
       }
     },
     "home.welcome.title": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -226,7 +260,7 @@
       }
     },
     "loading.message": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -243,7 +277,7 @@
       }
     },
     "settings.logout": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -260,7 +294,7 @@
       }
     },
     "settings.section.app": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -277,7 +311,7 @@
       }
     },
     "settings.section.profile": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -294,7 +328,7 @@
       }
     },
     "settings.title": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -311,7 +345,7 @@
       }
     },
     "settings.version": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -328,7 +362,7 @@
       }
     },
     "tab.chat": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -345,7 +379,7 @@
       }
     },
     "tab.home": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -362,7 +396,7 @@
       }
     },
     "tab.settings": {
-      "extractionState": "stale",
+      "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -385,6 +419,12 @@
             "state": "translated",
             "value": "Giris Yap"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign In"
+          }
         }
       },
       "extractionState": "manual"
@@ -395,6 +435,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hesabiniza giris yapin"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in to your account"
           }
         }
       },
@@ -407,6 +453,12 @@
             "state": "translated",
             "value": "Giris Yap"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign In"
+          }
         }
       },
       "extractionState": "manual"
@@ -417,6 +469,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "veya"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "or"
           }
         }
       },
@@ -429,6 +487,12 @@
             "state": "translated",
             "value": "Hesabiniz yok mu?"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Don't have an account?"
+          }
         }
       },
       "extractionState": "manual"
@@ -439,6 +503,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kayit Ol"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign Up"
           }
         }
       },
@@ -451,6 +521,12 @@
             "state": "translated",
             "value": "Kayit Ol"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign Up"
+          }
         }
       },
       "extractionState": "manual"
@@ -461,6 +537,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yeni hesap olusturun"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create a new account"
           }
         }
       },
@@ -473,6 +555,12 @@
             "state": "translated",
             "value": "Kayit Ol"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign Up"
+          }
         }
       },
       "extractionState": "manual"
@@ -483,6 +571,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Zaten hesabiniz var mi?"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already have an account?"
           }
         }
       },
@@ -495,6 +589,12 @@
             "state": "translated",
             "value": "Giris Yap"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign In"
+          }
         }
       },
       "extractionState": "manual"
@@ -505,6 +605,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "E-posta"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Email"
           }
         }
       },
@@ -517,6 +623,12 @@
             "state": "translated",
             "value": "Sifre"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Password"
+          }
         }
       },
       "extractionState": "manual"
@@ -527,6 +639,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sifre Tekrar"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm Password"
           }
         }
       },
@@ -539,6 +657,12 @@
             "state": "translated",
             "value": "Dogrulaniyor..."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifying..."
+          }
         }
       },
       "extractionState": "manual"
@@ -549,6 +673,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Giris basarisiz"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Login failed"
           }
         }
       },
@@ -561,6 +691,12 @@
             "state": "translated",
             "value": "Lutfen tum alanlari doldurun"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Please fill in all fields"
+          }
         }
       },
       "extractionState": "manual"
@@ -571,6 +707,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sifreler eslesmiyor"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passwords do not match"
           }
         }
       },
@@ -583,6 +725,12 @@
             "state": "translated",
             "value": "Biyometrik dogrulama basarisiz"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biometric authentication failed"
+          }
         }
       },
       "extractionState": "manual"
@@ -593,6 +741,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Biyometrik dogrulama kullanilabilir degil"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biometric authentication is not available"
           }
         }
       },
@@ -605,6 +759,12 @@
             "state": "translated",
             "value": "Hesabiniza giris yapmak icin dogrulayin"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verify to sign in to your account"
+          }
         }
       },
       "extractionState": "manual"
@@ -615,6 +775,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Face ID ile Giris"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign In with Face ID"
           }
         }
       },
@@ -627,6 +793,12 @@
             "state": "translated",
             "value": "Touch ID ile Giris"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign In with Touch ID"
+          }
         }
       },
       "extractionState": "manual"
@@ -637,6 +809,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Optic ID ile Giris"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign In with Optic ID"
           }
         }
       },
@@ -649,6 +827,12 @@
             "state": "translated",
             "value": "Biyometrik dogrulama kullanilabilir degil"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biometric authentication is not available"
+          }
         }
       },
       "extractionState": "manual"
@@ -659,6 +843,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Onayla"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approve"
           }
         }
       },
@@ -671,6 +861,12 @@
             "state": "translated",
             "value": "Reddet"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reject"
+          }
         }
       },
       "extractionState": "manual"
@@ -681,6 +877,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Detay"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detail"
           }
         }
       },
@@ -693,6 +895,12 @@
             "state": "translated",
             "value": "Onay karti"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approval card"
+          }
         }
       },
       "extractionState": "manual"
@@ -703,6 +911,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dağıtım"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deploy"
           }
         }
       },
@@ -715,6 +929,12 @@
             "state": "translated",
             "value": "Yikici islem"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Destructive action"
+          }
         }
       },
       "extractionState": "manual"
@@ -725,6 +945,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Altyapi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Infrastructure"
           }
         }
       },
@@ -737,6 +963,12 @@
             "state": "translated",
             "value": "Uzak yazma"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remote write"
+          }
         }
       },
       "extractionState": "manual"
@@ -747,6 +979,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld saniye kaldi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld seconds remaining"
           }
         }
       },
@@ -759,6 +997,12 @@
             "state": "translated",
             "value": "Karar verildi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decided"
+          }
         }
       },
       "extractionState": "manual"
@@ -769,6 +1013,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Onay gonderilemedi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approval submission failed"
           }
         }
       },
@@ -781,6 +1031,12 @@
             "state": "translated",
             "value": "Sure doldu"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time expired"
+          }
         }
       },
       "extractionState": "manual"
@@ -791,6 +1047,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ secenegi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ option"
           }
         }
       },
@@ -803,6 +1065,12 @@
             "state": "translated",
             "value": "Hata"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error"
+          }
         }
       },
       "extractionState": "manual"
@@ -813,6 +1081,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ag baglantisi kurulamadi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Network connection failed"
           }
         }
       },
@@ -825,6 +1099,12 @@
             "state": "translated",
             "value": "Tekrar Dene"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try Again"
+          }
         }
       },
       "extractionState": "manual"
@@ -835,6 +1115,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sunucu hatasi olustu"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A server error occurred"
           }
         }
       },
@@ -847,6 +1133,12 @@
             "state": "translated",
             "value": "Sunucu Hatasi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server Error"
+          }
         }
       },
       "extractionState": "manual"
@@ -857,6 +1149,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dosya Sec"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select File"
           }
         }
       },
@@ -869,6 +1167,12 @@
             "state": "translated",
             "value": "Dosya erisimi reddedildi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File access denied"
+          }
         }
       },
       "extractionState": "manual"
@@ -879,6 +1183,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dosya indirilemedi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File download failed"
           }
         }
       },
@@ -891,6 +1201,12 @@
             "state": "translated",
             "value": "Dosya okunamadi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File could not be read"
+          }
         }
       },
       "extractionState": "manual"
@@ -901,6 +1217,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dosya cok buyuk (maks %lld MB)"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File is too large (max %lld MB)"
           }
         }
       },
@@ -913,6 +1235,12 @@
             "state": "translated",
             "value": "%@ dosyasi cok buyuk (maks %lld MB)"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ file is too large (max %lld MB)"
+          }
         }
       },
       "extractionState": "manual"
@@ -923,6 +1251,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Desteklenmeyen dosya tipi: %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsupported file type: %@"
           }
         }
       },
@@ -935,6 +1269,12 @@
             "state": "translated",
             "value": "Dosya yuklenemedi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File upload failed"
+          }
         }
       },
       "extractionState": "manual"
@@ -945,6 +1285,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dosya ekini acmak icin dokunun"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap to open file attachment"
           }
         }
       },
@@ -957,6 +1303,12 @@
             "state": "translated",
             "value": "%@ dosya eki"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ file attachment"
+          }
         }
       },
       "extractionState": "manual"
@@ -967,6 +1319,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ onizlemesi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ preview"
           }
         }
       },
@@ -979,6 +1337,12 @@
             "state": "translated",
             "value": "Kapat"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
         }
       },
       "extractionState": "manual"
@@ -989,6 +1353,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yerel dosya bulunamadi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local file not found"
           }
         }
       },
@@ -1001,6 +1371,12 @@
             "state": "translated",
             "value": "%@ yukleniyor"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uploading %@"
+          }
         }
       },
       "extractionState": "manual"
@@ -1011,6 +1387,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yuzde %lld tamamlandi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld percent complete"
           }
         }
       },
@@ -1023,6 +1405,12 @@
             "state": "translated",
             "value": "Kapat"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismiss"
+          }
         }
       },
       "extractionState": "manual"
@@ -1033,6 +1421,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Onay Gerekli"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approval Needed"
           }
         }
       },
@@ -1045,6 +1439,12 @@
             "state": "translated",
             "value": "Hata"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error"
+          }
         }
       },
       "extractionState": "manual"
@@ -1055,6 +1455,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bilgi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info"
           }
         }
       },
@@ -1067,6 +1473,12 @@
             "state": "translated",
             "value": "Gorev Tamamlandi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Task Complete"
+          }
         }
       },
       "extractionState": "manual"
@@ -1077,6 +1489,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ayarlar yuklenemedi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load settings"
           }
         }
       },
@@ -1089,6 +1507,12 @@
             "state": "translated",
             "value": "Bildirim kaydi basarisiz"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notification registration failed"
+          }
         }
       },
       "extractionState": "manual"
@@ -1099,6 +1523,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ayarlar guncellenemedi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to update settings"
           }
         }
       },
@@ -1111,6 +1541,12 @@
             "state": "translated",
             "value": "Bildirimler aktif"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications enabled"
+          }
         }
       },
       "extractionState": "manual"
@@ -1121,6 +1557,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bildirimler kapatildi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications disabled"
           }
         }
       },
@@ -1133,6 +1575,12 @@
             "state": "translated",
             "value": "Bildirimleri acmak icin Ayarlar'a gidin"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to Settings to enable notifications"
+          }
         }
       },
       "extractionState": "manual"
@@ -1143,6 +1591,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bildirimleri Ac"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable Notifications"
           }
         }
       },
@@ -1155,6 +1609,12 @@
             "state": "translated",
             "value": "Bildirim izni istenmedi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notification permission not requested"
+          }
         }
       },
       "extractionState": "manual"
@@ -1165,6 +1625,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ayarlari Ac"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Settings"
           }
         }
       },
@@ -1177,6 +1643,12 @@
             "state": "translated",
             "value": "Bildirim Kategorileri"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notification Categories"
+          }
         }
       },
       "extractionState": "manual"
@@ -1187,6 +1659,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hangi bildirimleri almak istediginizi secin"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose which notifications you want to receive"
           }
         }
       },
@@ -1199,6 +1677,12 @@
             "state": "translated",
             "value": "Bildirim Izni"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notification Permission"
+          }
         }
       },
       "extractionState": "manual"
@@ -1209,6 +1693,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yukleniyor..."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading..."
           }
         }
       },
@@ -1221,6 +1711,12 @@
             "state": "translated",
             "value": "Bildirim Ayarlari"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notification Settings"
+          }
         }
       },
       "extractionState": "manual"
@@ -1231,6 +1727,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kopyalandi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied"
           }
         }
       },
@@ -1243,6 +1745,12 @@
             "state": "translated",
             "value": "Kopyala"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
         }
       },
       "extractionState": "manual"
@@ -1253,6 +1761,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kapat"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismiss"
           }
         }
       },
@@ -1265,6 +1779,12 @@
             "state": "translated",
             "value": "Mesajlar yuklenemedi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load messages"
+          }
         }
       },
       "extractionState": "manual"
@@ -1275,6 +1795,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mesaj gonderilemedi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to send message"
           }
         }
       },
@@ -1287,6 +1813,12 @@
             "state": "translated",
             "value": "Bilinmeyen dosya"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown file"
+          }
         }
       },
       "extractionState": "manual"
@@ -1297,6 +1829,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gorsel yuklenemedi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load image"
           }
         }
       },
@@ -1309,6 +1847,12 @@
             "state": "translated",
             "value": "Daha Fazla Yukle"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load More"
+          }
         }
       },
       "extractionState": "manual"
@@ -1319,6 +1863,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mesaji Kopyala"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Message"
           }
         }
       },
@@ -1331,6 +1881,12 @@
             "state": "translated",
             "value": "Tamamlandi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completed"
+          }
         }
       },
       "extractionState": "manual"
@@ -1341,6 +1897,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "1 saniyeden az"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Less than 1 second"
           }
         }
       },
@@ -1353,6 +1915,12 @@
             "state": "translated",
             "value": "%lld dk %lld sn"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld min %lld sec"
+          }
         }
       },
       "extractionState": "manual"
@@ -1363,6 +1931,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld saniye"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld seconds"
           }
         }
       },
@@ -1375,6 +1949,12 @@
             "state": "translated",
             "value": "Yuzde %lld"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld percent"
+          }
         }
       },
       "extractionState": "manual"
@@ -1385,6 +1965,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Derleniyor..."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Building..."
           }
         }
       },
@@ -1397,6 +1983,12 @@
             "state": "translated",
             "value": "Analiz ediliyor"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyzing"
+          }
         }
       },
       "extractionState": "manual"
@@ -1407,6 +1999,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kod yaziliyor"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Writing code"
           }
         }
       },
@@ -1419,6 +2017,12 @@
             "state": "translated",
             "value": "Test ediliyor"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Testing"
+          }
         }
       },
       "extractionState": "manual"
@@ -1429,6 +2033,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dogrulaniyor"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verifying"
           }
         }
       },
@@ -1441,6 +2051,12 @@
             "state": "translated",
             "value": "Dusunuyor..."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thinking..."
+          }
         }
       },
       "extractionState": "manual"
@@ -1451,6 +2067,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Iptal edildi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelled"
           }
         }
       },
@@ -1463,6 +2085,12 @@
             "state": "translated",
             "value": "Tamamlandi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completed"
+          }
         }
       },
       "extractionState": "manual"
@@ -1473,6 +2101,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Basarisiz"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed"
           }
         }
       },
@@ -1485,6 +2119,12 @@
             "state": "translated",
             "value": "Isleniyor"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Processing"
+          }
         }
       },
       "extractionState": "manual"
@@ -1495,6 +2135,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Calisiyor"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running"
           }
         }
       },
@@ -1507,6 +2153,12 @@
             "state": "translated",
             "value": "Adim %lld / %lld"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step %lld of %lld"
+          }
         }
       },
       "extractionState": "manual"
@@ -1517,6 +2169,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld / %lld adim"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / %lld steps"
           }
         }
       },
@@ -1529,6 +2187,12 @@
             "state": "translated",
             "value": "Adim %lld"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step %lld"
+          }
         }
       },
       "extractionState": "manual"
@@ -1539,6 +2203,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Olusturuluyor"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generating"
           }
         }
       },
@@ -1551,6 +2221,12 @@
             "state": "translated",
             "value": "Dusunuyor"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thinking"
+          }
         }
       },
       "extractionState": "manual"
@@ -1561,6 +2237,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Arac calistiriliyor"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running tool"
           }
         }
       },
@@ -1573,6 +2255,12 @@
             "state": "translated",
             "value": "Onay bekleniyor"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for approval"
+          }
         }
       },
       "extractionState": "manual"
@@ -1583,6 +2271,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Olusturulma"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Created"
           }
         }
       },
@@ -1595,6 +2289,12 @@
             "state": "translated",
             "value": "Aciklama"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Description"
+          }
         }
       },
       "extractionState": "manual"
@@ -1605,6 +2305,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Proje Bilgisi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Project Info"
           }
         }
       },
@@ -1617,6 +2323,12 @@
             "state": "translated",
             "value": "Son Aktivite"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last Activity"
+          }
         }
       },
       "extractionState": "manual"
@@ -1627,6 +2339,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yukleniyor..."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading..."
           }
         }
       },
@@ -1639,6 +2357,12 @@
             "state": "translated",
             "value": "Son Aktiviteler"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent Activity"
+          }
         }
       },
       "extractionState": "manual"
@@ -1646,6 +2370,12 @@
     "project.detail.repository": {
       "localizations": {
         "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repository"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Repository"
@@ -1661,6 +2391,12 @@
             "state": "translated",
             "value": "Durum"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status"
+          }
         }
       },
       "extractionState": "manual"
@@ -1671,6 +2407,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Teknoloji Yigini"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tech Stack"
           }
         }
       },
@@ -1683,6 +2425,12 @@
             "state": "translated",
             "value": "Proje Detayi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Project Detail"
+          }
         }
       },
       "extractionState": "manual"
@@ -1693,6 +2441,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Guncelleme"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updated"
           }
         }
       },
@@ -1705,6 +2459,12 @@
             "state": "translated",
             "value": "Henuz proje bulunmuyor"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No projects found yet"
+          }
         }
       },
       "extractionState": "manual"
@@ -1715,6 +2475,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Proje Yok"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Projects"
           }
         }
       },
@@ -1727,6 +2493,12 @@
             "state": "translated",
             "value": "Proje detayi yuklenemedi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load project detail"
+          }
         }
       },
       "extractionState": "manual"
@@ -1737,6 +2509,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kapat"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismiss"
           }
         }
       },
@@ -1749,6 +2527,12 @@
             "state": "translated",
             "value": "Projeler yuklenemedi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load projects"
+          }
         }
       },
       "extractionState": "manual"
@@ -1759,6 +2543,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yenileme basarisiz"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh failed"
           }
         }
       },
@@ -1771,6 +2561,12 @@
             "state": "translated",
             "value": "Aktif"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Active"
+          }
         }
       },
       "extractionState": "manual"
@@ -1781,6 +2577,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tumu"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All"
           }
         }
       },
@@ -1793,6 +2595,12 @@
             "state": "translated",
             "value": "Arsivlenmis"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archived"
+          }
         }
       },
       "extractionState": "manual"
@@ -1803,6 +2611,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tamamlanmis"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completed"
           }
         }
       },
@@ -1815,6 +2629,12 @@
             "state": "translated",
             "value": "Beklemede"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pending"
+          }
         }
       },
       "extractionState": "manual"
@@ -1825,6 +2645,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Projeler"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projects"
           }
         }
       },
@@ -1837,6 +2663,12 @@
             "state": "translated",
             "value": "Daha Fazla Yukle"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load More"
+          }
         }
       },
       "extractionState": "manual"
@@ -1847,6 +2679,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yukleniyor..."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading..."
           }
         }
       },
@@ -1859,6 +2697,12 @@
             "state": "translated",
             "value": "Aktif"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Active"
+          }
         }
       },
       "extractionState": "manual"
@@ -1869,6 +2713,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Arsivlenmis"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archived"
           }
         }
       },
@@ -1881,6 +2731,12 @@
             "state": "translated",
             "value": "Tamamlanmis"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completed"
+          }
         }
       },
       "extractionState": "manual"
@@ -1891,6 +2747,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Beklemede"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pending"
           }
         }
       },
@@ -1903,6 +2765,12 @@
             "state": "translated",
             "value": "Kapat"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
         }
       },
       "extractionState": "manual"
@@ -1913,6 +2781,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gorsel yuklenemedi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load image"
           }
         }
       },
@@ -1925,6 +2799,12 @@
             "state": "translated",
             "value": "Gecersiz URL"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid URL"
+          }
         }
       },
       "extractionState": "manual"
@@ -1935,6 +2815,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ekran goruntusu yuklenemedi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load screenshot"
           }
         }
       },
@@ -1947,6 +2833,12 @@
             "state": "translated",
             "value": "Yukleniyor..."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading..."
+          }
         }
       },
       "extractionState": "manual"
@@ -1958,273 +2850,423 @@
             "state": "translated",
             "value": "Tekrar Dene"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try Again"
+          }
         }
       },
       "extractionState": "manual"
     },
     "settings.appearance.dark": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dark"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Karanlik"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.appearance.fontSize": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Font Size"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Yazi Boyutu"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.appearance.light": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Aydinlik"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.appearance.mode": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appearance Mode"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Gorunum Modu"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.appearance.system": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Sistem"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.fontSize.large": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Large"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Buyuk"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.fontSize.medium": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medium"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Orta"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.fontSize.small": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Small"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Kucuk"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.logout.cancel": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Iptal"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.logout.confirmAction": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Log Out"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Cikis Yap"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.logout.confirmMessage": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Are you sure you want to log out?"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Cikis yapmak istediginize emin misiniz?"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.logout.confirmTitle": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Log Out"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Cikis"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.notification.approvalRequests": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approval Requests"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Onay Istekleri"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.notification.push": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Push Notifications"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Push Bildirimleri"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.notification.systemAlerts": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System Alerts"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Sistem Uyarilari"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.notification.taskUpdates": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Task Updates"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Gorev Guncellemeleri"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.section.appearance": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appearance"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Gorunum"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.section.notifications": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Bildirimler"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.section.voice": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Ses"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.tts.language.english": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "English"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Ingilizce"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.tts.language.turkish": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turkish"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Turkce"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.voice.autoPlay": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto Play"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Otomatik Oynat"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.voice.language": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice Language"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Ses Dili"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "settings.voice.speed": {
+      "extractionState": "manual",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speech Speed"
+          }
+        },
         "tr": {
           "stringUnit": {
             "state": "translated",
             "value": "Konusma Hizi"
           }
         }
-      },
-      "extractionState": "manual"
+      }
     },
     "voiceInput.button.hint": {
       "localizations": {
@@ -2232,6 +3274,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sesli giris icin dokunun"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap to start voice input"
           }
         }
       },
@@ -2244,6 +3292,12 @@
             "state": "translated",
             "value": "Kaydi Baslat"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start Recording"
+          }
         }
       },
       "extractionState": "manual"
@@ -2254,6 +3308,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kaydi Durdur"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop Recording"
           }
         }
       },
@@ -2266,6 +3326,12 @@
             "state": "translated",
             "value": "Iptal"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
         }
       },
       "extractionState": "manual"
@@ -2276,6 +3342,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ses oturumu baslatilamadi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to start audio session"
           }
         }
       },
@@ -2288,6 +3360,12 @@
             "state": "translated",
             "value": "Baglanti kurulamadi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection failed"
+          }
         }
       },
       "extractionState": "manual"
@@ -2298,6 +3376,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Transkripsiyon bos"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcription is empty"
           }
         }
       },
@@ -2310,6 +3394,12 @@
             "state": "translated",
             "value": "Mikrofon izni reddedildi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone permission denied"
+          }
         }
       },
       "extractionState": "manual"
@@ -2320,6 +3410,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ag baglantisi yok"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Network unavailable"
           }
         }
       },
@@ -2332,6 +3428,12 @@
             "state": "translated",
             "value": "Transkripsiyon basarisiz"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcription failed"
+          }
         }
       },
       "extractionState": "manual"
@@ -2339,6 +3441,12 @@
     "voiceInput.language.english": {
       "localizations": {
         "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "English"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "English"
@@ -2354,6 +3462,12 @@
             "state": "translated",
             "value": "Turkce"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turkish"
+          }
         }
       },
       "extractionState": "manual"
@@ -2364,6 +3478,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dil"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language"
           }
         }
       },
@@ -2376,6 +3496,12 @@
             "state": "translated",
             "value": "Dinleniyor..."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listening..."
+          }
         }
       },
       "extractionState": "manual"
@@ -2386,6 +3512,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Isleniyor..."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Processing..."
           }
         }
       },
@@ -2398,6 +3530,12 @@
             "state": "translated",
             "value": "Otomatik Oynat"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto Play"
+          }
         }
       },
       "extractionState": "manual"
@@ -2408,6 +3546,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yukleniyor..."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading..."
           }
         }
       },
@@ -2420,6 +3564,12 @@
             "state": "translated",
             "value": "Duraklat"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause"
+          }
         }
       },
       "extractionState": "manual"
@@ -2430,6 +3580,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Oynat"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play"
           }
         }
       },
@@ -2442,6 +3598,12 @@
             "state": "translated",
             "value": "Devam Et"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume"
+          }
         }
       },
       "extractionState": "manual"
@@ -2452,6 +3614,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Durdur"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop"
           }
         }
       },
@@ -2464,6 +3632,12 @@
             "state": "translated",
             "value": "Ses cozumlemesi basarisiz"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio decoding failed"
+          }
         }
       },
       "extractionState": "manual"
@@ -2474,6 +3648,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Metin bos"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text is empty"
           }
         }
       },
@@ -2486,6 +3666,12 @@
             "state": "translated",
             "value": "Ag baglantisi yok"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Network unavailable"
+          }
         }
       },
       "extractionState": "manual"
@@ -2496,6 +3682,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Oynatma basarisiz"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback failed"
           }
         }
       },
@@ -2508,6 +3700,12 @@
             "state": "translated",
             "value": "TTS istegi basarisiz"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TTS request failed"
+          }
         }
       },
       "extractionState": "manual"
@@ -2518,6 +3716,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ses ilerleme durumu"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio progress"
           }
         }
       },
@@ -2530,6 +3734,12 @@
             "state": "translated",
             "value": "%@ hiz"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ speed"
+          }
         }
       },
       "extractionState": "manual"
@@ -2540,6 +3750,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hiz Kontrolu"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speed Control"
           }
         }
       },
@@ -2552,6 +3768,12 @@
             "state": "translated",
             "value": "Sesli Cikis"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice Output"
+          }
         }
       },
       "extractionState": "manual"
@@ -2559,6 +3781,12 @@
     "voiceOutput.voice.alloy": {
       "localizations": {
         "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alloy"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Alloy"
@@ -2574,6 +3802,12 @@
             "state": "translated",
             "value": "Echo"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Echo"
+          }
         }
       },
       "extractionState": "manual"
@@ -2581,6 +3815,12 @@
     "voiceOutput.voice.fable": {
       "localizations": {
         "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fable"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Fable"
@@ -2596,6 +3836,12 @@
             "state": "translated",
             "value": "Nova"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nova"
+          }
         }
       },
       "extractionState": "manual"
@@ -2603,6 +3849,12 @@
     "voiceOutput.voice.onyx": {
       "localizations": {
         "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onyx"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Onyx"
@@ -2618,6 +3870,12 @@
             "state": "translated",
             "value": "Shimmer"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shimmer"
+          }
         }
       },
       "extractionState": "manual"
@@ -2628,6 +3886,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ses Secimi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice Selection"
           }
         }
       },
@@ -2640,6 +3904,12 @@
             "state": "translated",
             "value": "Baglandi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connected"
+          }
         }
       },
       "extractionState": "manual"
@@ -2650,6 +3920,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Baglaniyor..."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting..."
           }
         }
       },
@@ -2662,6 +3938,12 @@
             "state": "translated",
             "value": "Baglanti kesildi"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnected"
+          }
         }
       },
       "extractionState": "manual"
@@ -2672,6 +3954,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yeniden baglaniyor..."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnecting..."
           }
         }
       },

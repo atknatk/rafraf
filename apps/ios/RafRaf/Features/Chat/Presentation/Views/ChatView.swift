@@ -1,10 +1,11 @@
+import Factory
 import SwiftUI
 
-/// Sohbet ekrani.
+/// Sohbet ekrani — Claude-inspired sicak ve temiz gorunum.
 /// Kullanicinin AI asistan ile sesli ve metin tabanli iletisim kurdugu ana ekran.
-/// LazyVStack ile performansli scroll, pagination, streaming ve typing indicator destegi.
 struct ChatView: View {
     @State private var viewModel: ChatViewModel
+    private let webSocketManager = Container.shared.webSocketConnectionManager()
 
     init(viewModel: ChatViewModel) {
         self._viewModel = State(initialValue: viewModel)
@@ -16,9 +17,19 @@ struct ChatView: View {
                 messageListView
                 chatInputView
             }
+            .background(RFColors.fallbackBackground)
             .navigationTitle(String(localized: "chat.title"))
+            .navigationBarTitleDisplayMode(.inline)
             .task {
-                await viewModel.loadHistory()
+                await registerMessageHandlers()
+                if webSocketManager.isConnected {
+                    await viewModel.loadHistory()
+                }
+            }
+            .onChange(of: webSocketManager.isConnected) { _, isConnected in
+                if isConnected {
+                    Task { await viewModel.loadHistory() }
+                }
             }
             .overlay {
                 if let errorMessage = viewModel.errorMessage {
@@ -33,9 +44,7 @@ struct ChatView: View {
     @ViewBuilder
     private var messageListView: some View {
         if viewModel.isLoading {
-            Spacer()
-            RFLoadingView(message: String(localized: "chat.loading"))
-            Spacer()
+            ChatSkeletonView()
         } else if viewModel.messages.isEmpty {
             Spacer()
             RFEmptyStateView(
@@ -58,7 +67,7 @@ struct ChatView: View {
                                 onCopy: { viewModel.copyMessage($0) }
                             )
                             .id(message.id)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .transition(RFTransition.chatMessage)
                         }
 
                         if viewModel.isTyping {
@@ -114,20 +123,21 @@ struct ChatView: View {
         VStack {
             HStack {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(RFColors.error)
+                    .foregroundStyle(.white)
                 RFText(message, style: .body, color: .white)
                 Spacer()
-                RFButton(
-                    String(localized: "chat.error.dismiss"),
-                    style: .ghost,
-                    size: .small
-                ) {
+                Button {
                     viewModel.dismissError()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.8))
                 }
             }
             .padding(RFSpacing.sm)
             .background(RFColors.error.opacity(0.9))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: RFCornerRadius.medium))
+            .rfElevation(.medium)
             .padding(.horizontal, RFSpacing.md)
             .padding(.top, RFSpacing.xs)
 
@@ -135,15 +145,35 @@ struct ChatView: View {
         }
     }
 
+    // MARK: - WebSocket Handlers
+
+    private func registerMessageHandlers() async {
+        let vm = viewModel
+        let handler = ChatIncomingTextHandler { messageId, text in
+            Task { @MainActor in
+                vm.handleIncomingMessage(ChatMessage(
+                    id: messageId,
+                    content: text,
+                    sender: .assistant,
+                    type: .text
+                ))
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.text.rawValue,
+            handler: handler
+        )
+    }
+
     // MARK: - Helpers
 
     private func scrollToBottom(proxy: ScrollViewProxy) {
         if viewModel.isTyping {
-            withAnimation(.easeOut(duration: 0.3)) {
+            withAnimation(RFAnimation.springGentle) {
                 proxy.scrollTo("typing-indicator", anchor: .bottom)
             }
         } else if let lastMessage = viewModel.messages.last {
-            withAnimation(.easeOut(duration: 0.3)) {
+            withAnimation(RFAnimation.springGentle) {
                 proxy.scrollTo(lastMessage.id, anchor: .bottom)
             }
         }
@@ -161,6 +191,28 @@ struct ChatView: View {
             )
         )
     )
+}
+
+/// Backend'den gelen text mesajlarini isler.
+private final class ChatIncomingTextHandler: WebSocketMessageHandler {
+    private let onTextReceived: @Sendable (String, String) -> Void
+
+    init(onTextReceived: @escaping @Sendable (String, String) -> Void) {
+        self.onTextReceived = onTextReceived
+    }
+
+    func handle(_ message: WebSocketBaseMessage) async {
+        let text: String
+        switch message.content {
+        case .textResponse(let response):
+            text = response.text
+        case .text(let plainText):
+            text = plainText
+        default:
+            return
+        }
+        onTextReceived(message.id, text)
+    }
 }
 
 /// Preview icin mock repository.

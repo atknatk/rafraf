@@ -34,6 +34,9 @@ final class AuthManager {
     private let logger = AppLogger.logger(for: "AuthManager")
     private var refreshTask: Task<Void, Never>?
 
+    /// Token yenileme closure'i. DI ile set edilir.
+    var tokenRefresher: (@Sendable (String) async throws -> AuthToken)?
+
     // MARK: - Init
 
     init(keychain: KeychainHelper = KeychainHelper()) {
@@ -62,10 +65,27 @@ final class AuthManager {
             logger.info("Gecerli token bulundu, authenticated")
             authState = .authenticated
             scheduleTokenRefresh(expiresAt: expiresAt)
-        } else if keychain.readString(for: AuthKeychainKey.refreshToken) != nil {
-            // Access token expired ama refresh token var, refresh denenecek
-            logger.info("Access token expired, refresh denenecek")
-            authState = .authenticated
+        } else if let refreshTokenValue = keychain.readString(for: AuthKeychainKey.refreshToken) {
+            // Access token expired ama refresh token var, gercek refresh yap
+            logger.info("Access token expired, refresh yapiliyor")
+            if let refresher = tokenRefresher {
+                do {
+                    let newToken = try await refresher(refreshTokenValue)
+                    saveTokens(
+                        accessToken: newToken.accessToken,
+                        refreshToken: newToken.refreshToken,
+                        expiresIn: newToken.expiresIn
+                    )
+                    logger.info("Token basariyla yenilendi")
+                } catch {
+                    logger.error("Token yenileme basarisiz: \(error.localizedDescription)")
+                    authState = .unauthenticated
+                    return
+                }
+            } else {
+                // Refresher yoksa yine de authenticated yap, ama token eski olabilir
+                authState = .authenticated
+            }
         } else {
             logger.info("Token expired ve refresh token yok")
             authState = .unauthenticated

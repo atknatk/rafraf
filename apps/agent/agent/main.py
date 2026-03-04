@@ -11,6 +11,7 @@ import structlog
 
 from agent.core.config import AgentConfig
 from agent.core.connection import ConnectionManager
+from agent.discovery.sync_manager import ProjectSyncManager
 from agent.monitoring.resource_monitor import ResourceMonitor
 
 logger = structlog.get_logger()
@@ -41,6 +42,7 @@ async def main() -> None:
     config = AgentConfig()
     connection = ConnectionManager(config)
     resource_monitor = ResourceMonitor(config)
+    project_sync = ProjectSyncManager(config)
 
     # Signal handler'lar
     loop = asyncio.get_running_loop()
@@ -66,17 +68,20 @@ async def main() -> None:
             await connection._ws.send(message)
 
     resource_monitor.set_send_callback(_send_via_ws)
+    project_sync.set_send_callback(_send_via_ws)
 
     # Baglanti task'ini basla
     connect_task = asyncio.create_task(connection.connect())
 
-    # Resource monitor'u basla
+    # Resource monitor ve project sync basla
     await resource_monitor.start()
+    await project_sync.start()
 
     # Shutdown sinyali bekle
     await shutdown_event.wait()
 
     await logger.ainfo("Shutdown sinyali alindi")
+    await project_sync.stop()
     await resource_monitor.stop()
     await connection.shutdown()
 

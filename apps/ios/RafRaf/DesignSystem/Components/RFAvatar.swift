@@ -22,6 +22,14 @@ enum RFAvatarSize: Sendable {
         case .large: return .title2
         }
     }
+
+    var onlineIndicatorSize: CGFloat {
+        switch self {
+        case .small: return 10
+        case .medium: return 12
+        case .large: return 16
+        }
+    }
 }
 
 /// RafRaf avatar bileseni.
@@ -30,15 +38,21 @@ struct RFAvatar: View {
     let imageURL: URL?
     let name: String
     let size: RFAvatarSize
+    let showRing: Bool
+    let showOnlineIndicator: Bool
 
     init(
         imageURL: URL? = nil,
         name: String,
-        size: RFAvatarSize = .medium
+        size: RFAvatarSize = .medium,
+        showRing: Bool = false,
+        showOnlineIndicator: Bool = false
     ) {
         self.imageURL = imageURL
         self.name = name
         self.size = size
+        self.showRing = showRing
+        self.showOnlineIndicator = showOnlineIndicator
     }
 
     var body: some View {
@@ -59,12 +73,51 @@ struct RFAvatar: View {
         }
         .frame(width: size.dimension, height: size.dimension)
         .clipShape(Circle())
+        .if(showRing) { view in
+            view.overlay(
+                Circle()
+                    .strokeBorder(
+                        RFColors.brandGradient,
+                        lineWidth: 2
+                    )
+                    .frame(
+                        width: size.dimension + 6,
+                        height: size.dimension + 6
+                    )
+            )
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if showOnlineIndicator {
+                Circle()
+                    .fill(RFColors.success)
+                    .frame(
+                        width: size.onlineIndicatorSize,
+                        height: size.onlineIndicatorSize
+                    )
+                    .overlay(
+                        Circle()
+                            .strokeBorder(
+                                RFColors.fallbackBackground,
+                                lineWidth: 2
+                            )
+                    )
+            }
+        }
     }
 
     private var initialsView: some View {
         ZStack {
             Circle()
-                .fill(RFColors.fallbackPrimary.opacity(0.2))
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            RFColors.fallbackPrimary.opacity(0.15),
+                            RFColors.fallbackPrimary.opacity(0.25)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
 
             Text(initials)
                 .font(size.font)
@@ -84,7 +137,7 @@ struct RFAvatar: View {
 #Preview {
     HStack(spacing: RFSpacing.md) {
         RFAvatar(name: "Atakan Natik", size: .small)
-        RFAvatar(name: "Atakan Natik", size: .medium)
-        RFAvatar(name: "Atakan Natik", size: .large)
+        RFAvatar(name: "Atakan Natik", size: .medium, showRing: true)
+        RFAvatar(name: "Atakan Natik", size: .large, showRing: true, showOnlineIndicator: true)
     }
 }

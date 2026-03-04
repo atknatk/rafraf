@@ -15,7 +15,8 @@ enum WebSocketConnectionState: Sendable, Equatable {
 actor WebSocketClient {
     private var webSocketTask: URLSessionWebSocketTask?
     private let session: URLSession
-    private let url: URL
+    private let baseURL: URL
+    private let tokenProvider: @Sendable () -> String?
     private let logger = Logger(
         subsystem: "com.rafraf",
         category: "WebSocketClient"
@@ -51,11 +52,21 @@ actor WebSocketClient {
 
     init(
         url: URL = AppEnvironment.current.webSocketURL,
-        messageRouter: WebSocketMessageRouter = WebSocketMessageRouter()
+        messageRouter: WebSocketMessageRouter = WebSocketMessageRouter(),
+        tokenProvider: @escaping @Sendable () -> String? = { nil }
     ) {
-        self.url = url
+        self.baseURL = url
         self.session = URLSession(configuration: .default)
         self.messageRouter = messageRouter
+        self.tokenProvider = tokenProvider
+    }
+
+    /// Token ekli WebSocket URL olusturur.
+    private var authenticatedURL: URL {
+        guard let token = tokenProvider() else { return baseURL }
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "token", value: token)]
+        return components?.url ?? baseURL
     }
 
     // MARK: - Public API
@@ -79,19 +90,43 @@ actor WebSocketClient {
 
         shouldReconnect = true
         updateState(.connecting)
-        logger.info("WebSocket baglantisi baslatiliyor: \(self.url.absoluteString)")
 
-        webSocketTask = session.webSocketTask(with: url)
-        webSocketTask?.resume()
+        let connectURL = authenticatedURL
+        logger.info("WebSocket baglantisi baslatiliyor: \(connectURL.host ?? "")")
 
-        reconnectAttempt = 0
-        updateState(.connected)
-        lastPongReceived = Date()
+        let task = session.webSocketTask(with: connectURL)
+        webSocketTask = task
+        task.resume()
 
-        logger.info("WebSocket baglantisi kuruldu")
+        // Ilk mesaji bekle — gercek baglanti dogrulamasi
+        do {
+            let firstMessage = try await task.receive()
+            reconnectAttempt = 0
+            updateState(.connected)
+            lastPongReceived = Date()
+            logger.info("WebSocket baglantisi kuruldu")
 
-        startReceiving()
-        startHeartbeat()
+            // Ilk mesaji isle (genellikle connection_ack)
+            switch firstMessage {
+            case .string(let text):
+                await handleReceivedMessage(text)
+            case .data(let data):
+                if let text = String(data: data, encoding: .utf8) {
+                    await handleReceivedMessage(text)
+                }
+            @unknown default:
+                break
+            }
+
+            startReceiving()
+            startHeartbeat()
+        } catch {
+            logger.error("WebSocket baglanti hatasi: \(error.localizedDescription)")
+            task.cancel(with: .abnormalClosure, reason: nil)
+            webSocketTask = nil
+            updateState(.disconnected)
+            scheduleReconnect()
+        }
     }
 
     /// WebSocket baglantisini kapatir. Auto-reconnect devre disi kalir.

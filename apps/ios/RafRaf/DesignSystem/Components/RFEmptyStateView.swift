@@ -26,12 +26,13 @@ struct RFEmptyStateView: View {
     var body: some View {
         VStack(spacing: RFSpacing.md) {
             Image(systemName: systemImage)
-                .font(.system(size: 48))
-                .foregroundStyle(RFColors.fallbackTextSecondary)
+                .font(.system(size: 56))
+                .foregroundStyle(RFColors.fallbackPrimary.opacity(0.6))
+                .symbolEffect(.pulse, options: .repeating.speed(0.5))
 
             RFText(title, style: .title)
 
-            RFText(message, style: .body, color: RFColors.fallbackTextSecondary)
+            RFText(message, style: .bodyLarge, color: RFColors.fallbackTextSecondary)
                 .multilineTextAlignment(.center)
 
             if let actionTitle, let action {

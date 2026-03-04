@@ -76,6 +76,28 @@ class AgentConfig(BaseSettings):
         description="Disk alarm esik degeri (%)",
     )
 
+    # Project discovery settings
+    project_config_path: str = Field(
+        default="projects.yaml",
+        description="YAML proje konfigurasyonu dosya yolu",
+    )
+    project_scan_paths: list[str] = Field(
+        default_factory=list,
+        description="Git repo taramasi yapilacak dizin listesi",
+    )
+    project_scan_depth: int = Field(
+        default=2,
+        ge=1,
+        le=5,
+        description="Dizin tarama derinligi",
+    )
+    project_sync_interval: int = Field(
+        default=300,
+        ge=60,
+        le=3600,
+        description="Proje senkronizasyon araligi (saniye)",
+    )
+
     # Capability flags
     capability_docker: bool = Field(default=False, description="Docker destegi")
     capability_playwright: bool = Field(default=False, description="Playwright destegi")

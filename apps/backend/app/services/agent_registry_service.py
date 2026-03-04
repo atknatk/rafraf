@@ -162,6 +162,22 @@ class AgentRegistryService:
         )
         return True
 
+    async def update_resources(
+        self,
+        host_id: str,
+        resources: dict[str, float],
+    ) -> bool:
+        """Update agent resource metrics from a resource_report message.
+
+        Returns True if the agent was found, False otherwise.
+        """
+        record = self._agents.get(host_id)
+        if record is None:
+            return False
+
+        record.resources = resources
+        return True
+
     # ------------------------------------------------------------------
     # Disconnection
     # ------------------------------------------------------------------

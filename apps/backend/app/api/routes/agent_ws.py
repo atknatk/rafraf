@@ -17,7 +17,9 @@ from app.schemas.agent import (
     AgentRegisterAckPayload,
     AgentRegisterPayload,
 )
+from app.core.database import async_session_factory
 from app.services.agent_registry_service import agent_registry
+from app.services.project_service import ProjectService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -83,6 +85,22 @@ async def agent_websocket_endpoint(
                 )
             elif msg_type == "agent_heartbeat":
                 await _handle_heartbeat(raw_data, connection_id)
+            elif msg_type == "project_sync":
+                await _handle_project_sync(raw_data, connection_id)
+            elif msg_type == "resource_report":
+                await _handle_resource_report(raw_data, connection_id)
+            elif msg_type == "resource_alarm":
+                await _handle_resource_alarm(raw_data, connection_id)
+            elif msg_type == "pong":
+                await logger.adebug(
+                    "agent_pong_received",
+                    connection_id=connection_id,
+                )
+            elif msg_type == "ping":
+                pong_msg = _build_agent_message("pong", {
+                    "timestamp": datetime.now(tz=UTC).isoformat(),
+                })
+                await agent_manager.send_json(connection_id, pong_msg)
             else:
                 await logger.awarning(
                     "agent_ws_unknown_message",
@@ -181,3 +199,109 @@ async def _handle_heartbeat(
             host_id=payload.host_id,
             connection_id=connection_id,
         )
+
+
+async def _handle_project_sync(
+    raw_data: dict[str, object],
+    connection_id: str,
+) -> None:
+    """Process a project_sync message from the agent."""
+    content = raw_data.get("content", {})
+    if not isinstance(content, dict):
+        content = {}
+
+    projects_data = content.get("projects", [])
+    if not isinstance(projects_data, list):
+        projects_data = []
+
+    synced_count = 0
+    async with async_session_factory() as session:
+        service = ProjectService(session)
+        for proj in projects_data:
+            if not isinstance(proj, dict):
+                continue
+            name = str(proj.get("name", ""))
+            if not name:
+                continue
+            await service.upsert_from_agent(
+                name=name,
+                repository_url=proj.get("repository_url"),
+                tech_stack=proj.get("tech_stack", []),
+                source=str(proj.get("source", "agent_scan")),
+            )
+            synced_count += 1
+        await session.commit()
+
+    ack = _build_agent_message("project_sync_ack", {
+        "synced_count": synced_count,
+        "status": "ok",
+    })
+    await agent_manager.send_json(connection_id, ack)
+
+    await logger.ainfo(
+        "project_sync_completed",
+        connection_id=connection_id,
+        count=synced_count,
+    )
+
+
+async def _handle_resource_report(
+    raw_data: dict[str, object],
+    connection_id: str,
+) -> None:
+    """Process a resource_report message — update agent registry metrics."""
+    content = raw_data.get("content", {})
+    if not isinstance(content, dict):
+        content = {}
+
+    host_id = str(content.get("host_id", ""))
+    metrics_raw = content.get("metrics", {})
+    if not isinstance(metrics_raw, dict):
+        metrics_raw = {}
+
+    resources = {
+        "cpu_usage_percent": float(metrics_raw.get("cpu_usage_percent", 0)),
+        "memory_usage_percent": float(metrics_raw.get("memory_usage_percent", 0)),
+        "disk_usage_percent": float(metrics_raw.get("disk_usage_percent", 0)),
+        "disk_free_gb": float(metrics_raw.get("disk_free_gb", 0)),
+    }
+
+    found = await agent_registry.update_resources(host_id, resources)
+    if found:
+        await logger.adebug(
+            "agent_resource_report_processed",
+            host_id=host_id,
+            connection_id=connection_id,
+        )
+    else:
+        await logger.awarning(
+            "agent_resource_report_unknown_host",
+            host_id=host_id,
+            connection_id=connection_id,
+        )
+
+
+async def _handle_resource_alarm(
+    raw_data: dict[str, object],
+    connection_id: str,
+) -> None:
+    """Process a resource_alarm message — log the alarm."""
+    content = raw_data.get("content", {})
+    if not isinstance(content, dict):
+        content = {}
+
+    host_id = str(content.get("host_id", ""))
+    alarm_raw = content.get("alarm", {})
+    if not isinstance(alarm_raw, dict):
+        alarm_raw = {}
+
+    await logger.awarning(
+        "agent_resource_alarm",
+        host_id=host_id,
+        connection_id=connection_id,
+        source=alarm_raw.get("source"),
+        level=alarm_raw.get("level"),
+        current_value=alarm_raw.get("current_value"),
+        threshold=alarm_raw.get("threshold"),
+        message=alarm_raw.get("message"),
+    )

@@ -8,10 +8,15 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
+from starlette import status
+
 from app.schemas.projects import (
+    ProjectCreateRequest,
+    ProjectCreateResponse,
     ProjectDetailResponse,
     ProjectListResponse,
     ProjectStatus,
+    ProjectUpdateRequest,
 )
 from app.services.project_service import ProjectService
 
@@ -43,6 +48,31 @@ async def list_projects(
         page=page,
         page_size=page_size,
     )
+
+
+@router.post(
+    "",
+    response_model=ProjectCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_project(
+    body: ProjectCreateRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> ProjectCreateResponse:
+    """Create a new project."""
+    service = ProjectService(session)
+    return await service.create_project(body)
+
+
+@router.put("/{project_id}", response_model=ProjectDetailResponse)
+async def update_project(
+    project_id: uuid.UUID,
+    body: ProjectUpdateRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> ProjectDetailResponse:
+    """Update an existing project."""
+    service = ProjectService(session)
+    return await service.update_project(project_id, body)
 
 
 @router.get("/{project_id}", response_model=ProjectDetailResponse)

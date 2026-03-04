@@ -3,9 +3,15 @@ import SwiftUI
 
 /// Ana kok gorunum.
 /// Auth durumuna gore login ekrani veya tab bar gosterir.
+/// Glass material tab bar ve auth gecis animasyonu ile premium gorunum.
 struct ContentView: View {
     @Injected(\.authManager) private var authManager
     @State private var selectedTab: AppTab = .home
+    private let webSocketManager = Container.shared.webSocketConnectionManager()
+
+    init() {
+        configureTabBarAppearance()
+    }
 
     var body: some View {
         Group {
@@ -20,8 +26,22 @@ struct ContentView: View {
                 authView
             }
         }
+        .animation(RFAnimation.springGentle, value: authManager.authState)
         .task {
             await authManager.checkExistingAuth()
+            // Auth basarili ise hemen WebSocket bagla
+            if authManager.authState == .authenticated {
+                await webSocketManager.connect()
+            }
+        }
+        .onChange(of: authManager.authState) { _, newState in
+            Task {
+                if newState == .authenticated {
+                    await webSocketManager.connect()
+                } else if newState == .unauthenticated {
+                    await webSocketManager.disconnect()
+                }
+            }
         }
     }
 
@@ -48,16 +68,33 @@ struct ContentView: View {
                 }
                 .tag(AppTab.settings)
         }
+        .tint(RFColors.fallbackPrimary)
+        .sensoryFeedback(.selection, trigger: selectedTab)
     }
 
     @ViewBuilder
     private var authView: some View {
         let viewModel = Container.shared.authViewModel()
-        if viewModel.isShowingRegister {
-            RFRegisterView(viewModel: viewModel)
-        } else {
-            RFLoginView(viewModel: viewModel)
+        Group {
+            if viewModel.isShowingRegister {
+                RFRegisterView(viewModel: viewModel)
+                    .transition(RFTransition.slideForward)
+            } else {
+                RFLoginView(viewModel: viewModel)
+                    .transition(RFTransition.slideBack)
+            }
         }
+        .animation(RFAnimation.springResponsive, value: viewModel.isShowingRegister)
+    }
+
+    // MARK: - Tab Bar Configuration
+
+    private func configureTabBarAppearance() {
+        let appearance = UITabBarAppearance()
+        appearance.configureWithDefaultBackground()
+        appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
     }
 }
 

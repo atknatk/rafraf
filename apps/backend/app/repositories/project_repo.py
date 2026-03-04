@@ -68,3 +68,48 @@ class ProjectRepository:
             await logger.ainfo("project_not_found", project_id=str(project_id))
 
         return project
+
+    async def create(
+        self,
+        *,
+        name: str,
+        description: str | None = None,
+        status: str = "active",
+        repository_url: str | None = None,
+        tech_stack: list[str] | None = None,
+        source: str = "manual",
+    ) -> Project:
+        """Yeni proje olusturur."""
+        project = Project(
+            name=name,
+            description=description,
+            status=status,
+            repository_url=repository_url,
+            tech_stack=tech_stack or [],
+            source=source,
+        )
+        self._session.add(project)
+        await self._session.flush()
+        await self._session.refresh(project)
+        await logger.ainfo("project_created", project_id=str(project.id), name=name)
+        return project
+
+    async def update(
+        self,
+        project: Project,
+        **kwargs: object,
+    ) -> Project:
+        """Proje alanlarini gunceller."""
+        for key, value in kwargs.items():
+            if value is not None and hasattr(project, key):
+                setattr(project, key, value)
+        await self._session.flush()
+        await self._session.refresh(project)
+        await logger.ainfo("project_updated", project_id=str(project.id))
+        return project
+
+    async def get_by_repository_url(self, url: str) -> Project | None:
+        """Repository URL ile proje arar (agent sync icin)."""
+        query = select(Project).where(Project.repository_url == url)
+        result = await self._session.execute(query)
+        return result.scalar_one_or_none()

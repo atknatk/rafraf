@@ -51,6 +51,7 @@ struct WebSocketBaseMessage: Codable, Sendable {
 /// Mesaj tipine gore string veya structured content olabilir.
 enum WebSocketContent: Codable, Sendable {
     case text(String)
+    case textResponse(TextResponseContent)
     case connectionAck(ConnectionAckContent)
     case error(ErrorMessageContent)
     case progress(ProgressMessageContent)
@@ -61,6 +62,12 @@ enum WebSocketContent: Codable, Sendable {
 
         if let text = try? container.decode(String.self) {
             self = .text(text)
+            return
+        }
+
+        // Backend text response: {"text": "...", "model_used": "...", ...}
+        if let textResponse = try? container.decode(TextResponseContent.self) {
+            self = .textResponse(textResponse)
             return
         }
 
@@ -94,6 +101,8 @@ enum WebSocketContent: Codable, Sendable {
         var container = encoder.singleValueContainer()
         switch self {
         case .text(let value):
+            try container.encode(value)
+        case .textResponse(let value):
             try container.encode(value)
         case .connectionAck(let value):
             try container.encode(value)
@@ -149,6 +158,19 @@ struct ConnectionAckContent: Codable, Sendable {
     let userId: String
     let sessionId: String
     let serverTime: String
+}
+
+/// AI text response icerigi (backend'den gelen cevap).
+struct TextResponseContent: Codable, Sendable {
+    let text: String
+    let modelUsed: String?
+    let tokensUsed: TokenUsage?
+}
+
+/// Token kullanim bilgileri.
+struct TokenUsage: Codable, Sendable {
+    let input: Int
+    let output: Int
 }
 
 /// Hata mesaj icerigi.

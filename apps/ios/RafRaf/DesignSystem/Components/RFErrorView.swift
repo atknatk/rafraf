@@ -28,6 +28,7 @@ struct RFErrorView: View {
             Image(systemName: systemImage)
                 .font(.system(size: 48))
                 .foregroundStyle(RFColors.error)
+                .symbolEffect(.pulse, options: .nonRepeating)
 
             RFText(title, style: .title)
 

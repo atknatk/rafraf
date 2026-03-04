@@ -5,6 +5,7 @@ import SwiftUI
 /// Pull-to-refresh, LazyVStack ile performansli scroll ve sayfalama destegi.
 struct ProjectListView: View {
     @State private var viewModel: ProjectListViewModel
+    @Namespace private var filterNamespace
 
     init(viewModel: ProjectListViewModel) {
         self._viewModel = State(initialValue: viewModel)
@@ -63,12 +64,31 @@ struct ProjectListView: View {
         isSelected: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        RFButton(
-            title,
-            style: isSelected ? .primary : .outline,
-            size: .small,
-            action: action
-        )
+        Button {
+            action()
+        } label: {
+            RFText(
+                title,
+                style: .captionBold,
+                color: isSelected ? .white : RFColors.fallbackTextPrimary
+            )
+            .padding(.horizontal, RFSpacing.md)
+            .padding(.vertical, RFSpacing.xs)
+            .background {
+                if isSelected {
+                    RFColors.brandGradient
+                        .matchedGeometryEffect(
+                            id: "activeFilter",
+                            in: filterNamespace
+                        )
+                } else {
+                    RFColors.fallbackSurface
+                }
+            }
+            .clipShape(Capsule())
+        }
+        .buttonStyle(RFPressButtonStyle())
+        .sensoryFeedback(.selection, trigger: isSelected)
     }
 
     private func filterTitle(for status: ProjectStatus) -> String {
@@ -89,9 +109,7 @@ struct ProjectListView: View {
     @ViewBuilder
     private var contentView: some View {
         if viewModel.isLoading {
-            Spacer()
-            RFLoadingView(message: String(localized: "project.loading"))
-            Spacer()
+            ProjectListSkeletonView()
         } else if viewModel.projects.isEmpty {
             Spacer()
             RFEmptyStateView(
@@ -164,7 +182,7 @@ struct ProjectListView: View {
             }
             .padding(RFSpacing.sm)
             .background(RFColors.error.opacity(0.9))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: RFCornerRadius.medium))
             .padding(.horizontal, RFSpacing.md)
             .padding(.top, RFSpacing.xs)
 

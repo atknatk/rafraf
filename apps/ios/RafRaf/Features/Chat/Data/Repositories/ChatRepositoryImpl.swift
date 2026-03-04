@@ -14,27 +14,8 @@ final class ChatRepositoryImpl: ChatRepositoryProtocol, @unchecked Sendable {
     func sendMessage(text: String, sessionId: String) async throws -> ChatMessage {
         let messageId = UUID().uuidString
 
-        let payload: [String: String] = [
-            "text": text,
-            "session_id": sessionId
-        ]
-
-        let payloadData = try JSONSerialization.data(withJSONObject: payload)
-        guard let payloadString = String(data: payloadData, encoding: .utf8) else {
-            throw ChatRepositoryError.encodingFailed
-        }
-
-        let wsMessage = WebSocketBaseMessage(
-            id: messageId,
-            type: "chat.send",
-            content: .text(payloadString),
-            metadata: WebSocketMessageMetadata(
-                sessionId: sessionId,
-                direction: WebSocketMessageDirection.clientToServer.rawValue
-            )
-        )
-
-        try await webSocketClient.send(message: wsMessage)
+        // Backend "text" tipi bekler, content duz metin olmali
+        try await webSocketClient.sendText(text, sessionId: sessionId)
         logger.info("Mesaj gonderildi: \(messageId)")
 
         return ChatMessage(
@@ -51,35 +32,9 @@ final class ChatRepositoryImpl: ChatRepositoryProtocol, @unchecked Sendable {
         cursor: String?,
         limit: Int
     ) async throws -> ChatHistoryResult {
-        var payload: [String: Any] = [
-            "session_id": sessionId,
-            "limit": limit
-        ]
-
-        if let cursor {
-            payload["cursor"] = cursor
-        }
-
-        let payloadData = try JSONSerialization.data(withJSONObject: payload)
-        guard let payloadString = String(data: payloadData, encoding: .utf8) else {
-            throw ChatRepositoryError.encodingFailed
-        }
-
-        let wsMessage = WebSocketBaseMessage(
-            id: UUID().uuidString,
-            type: "chat.history",
-            content: .text(payloadString),
-            metadata: WebSocketMessageMetadata(
-                sessionId: sessionId,
-                direction: WebSocketMessageDirection.clientToServer.rawValue
-            )
-        )
-
-        try await webSocketClient.send(message: wsMessage)
+        // Yeni session — gecmis yok, bos doner
+        // Ileride REST endpoint (/api/v1/conversations/{sessionId}/messages) entegre edilecek
         logger.info("Mesaj gecmisi istendi - session: \(sessionId), cursor: \(cursor ?? "nil")")
-
-        // Gecmis response WebSocket message handler tarafindan ChatViewModel'e iletilir
-        // Bu metod sadece istegi gonderir, response asenkron gelir
         return ChatHistoryResult(messages: [], hasMore: false, nextCursor: nil)
     }
 }

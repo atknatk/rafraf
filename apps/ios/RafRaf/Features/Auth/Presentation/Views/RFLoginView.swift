@@ -2,28 +2,36 @@ import SwiftUI
 
 /// Login ekrani.
 /// Email + sifre ile giris ve biyometrik dogrulama secenegi sunar.
+/// Hero gradient arkaplan ve glass kart formu ile premium gorunum.
 struct RFLoginView: View {
     @Bindable var viewModel: AuthViewModel
+    @State private var isAppeared = false
 
     var body: some View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: RFSpacing.xl) {
-                    // Logo ve baslik
                     headerSection
+                        .opacity(isAppeared ? 1 : 0)
+                        .offset(y: isAppeared ? 0 : 20)
+                        .animation(RFAnimation.springResponsive.delay(0.1), value: isAppeared)
 
-                    // Giris formu
                     loginFormSection
+                        .opacity(isAppeared ? 1 : 0)
+                        .offset(y: isAppeared ? 0 : 20)
+                        .animation(RFAnimation.springResponsive.delay(0.2), value: isAppeared)
 
-                    // Giris butonu
                     loginButtonSection
+                        .opacity(isAppeared ? 1 : 0)
+                        .offset(y: isAppeared ? 0 : 20)
+                        .animation(RFAnimation.springResponsive.delay(0.3), value: isAppeared)
 
-                    // Biyometrik giris
                     if viewModel.isBiometricAvailable {
                         biometricSection
+                            .opacity(isAppeared ? 1 : 0)
+                            .animation(RFAnimation.springResponsive.delay(0.35), value: isAppeared)
                     }
 
-                    // Hata mesaji
                     if let errorMessage = viewModel.errorMessage {
                         RFText(
                             errorMessage,
@@ -32,57 +40,71 @@ struct RFLoginView: View {
                         )
                     }
 
-                    // Register yonlendirmesi
                     registerLinkSection
+                        .opacity(isAppeared ? 1 : 0)
+                        .animation(RFAnimation.springResponsive.delay(0.4), value: isAppeared)
                 }
                 .padding(.horizontal, RFSpacing.xl)
                 .frame(minHeight: geometry.size.height)
                 .frame(maxWidth: .infinity)
             }
         }
+        .onAppear { isAppeared = true }
+        .background(RFAnimatedGradientBackground())
     }
 
     // MARK: - Sections
 
     @ViewBuilder
     private var headerSection: some View {
-        VStack(spacing: RFSpacing.sm) {
-            Image(systemName: "lock.shield.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(RFColors.fallbackPrimary)
+        VStack(spacing: RFSpacing.md) {
+            ZStack {
+                Circle()
+                    .fill(RFColors.fallbackPrimary.opacity(0.1))
+                    .frame(width: 88, height: 88)
+
+                Image(systemName: "lock.shield.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(RFColors.fallbackPrimary)
+                    .symbolEffect(.pulse, options: .repeating.speed(0.3))
+            }
 
             RFText(
                 String(localized: "auth.login.title"),
-                style: .largeTitle
+                style: .display
             )
 
             RFText(
                 String(localized: "auth.login.subtitle"),
-                style: .body,
+                style: .bodyLarge,
                 color: RFColors.fallbackTextSecondary
             )
         }
-        .padding(.top, RFSpacing.md)
+        .padding(.top, RFSpacing.xxxl)
     }
 
     @ViewBuilder
     private var loginFormSection: some View {
-        VStack(spacing: RFSpacing.md) {
-            RFTextField(
-                String(localized: "auth.field.email"),
-                text: $viewModel.email
-            )
-            .textContentType(.emailAddress)
-            .keyboardType(.emailAddress)
-            .autocorrectionDisabled()
-            .textInputAutocapitalization(.never)
+        RFCard(style: .glass, cornerRadius: RFCornerRadius.extraLarge) {
+            VStack(spacing: RFSpacing.md) {
+                RFTextField(
+                    String(localized: "auth.field.email"),
+                    text: $viewModel.email,
+                    leadingIcon: "envelope"
+                )
+                .textContentType(.emailAddress)
+                .keyboardType(.emailAddress)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
 
-            RFTextField(
-                String(localized: "auth.field.password"),
-                text: $viewModel.password,
-                mode: .secure
-            )
-            .textContentType(.password)
+                RFTextField(
+                    String(localized: "auth.field.password"),
+                    text: $viewModel.password,
+                    mode: .secure,
+                    leadingIcon: "lock"
+                )
+                .textContentType(.password)
+            }
         }
     }
 

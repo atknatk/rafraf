@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Chat mesaj girdi cubugu.
-/// Metin girisi, gonder butonu ve ek butonu icerir.
+/// Chat mesaj girdi cubugu — Claude-inspired temiz gorunum.
+/// Sicak yuzey arkaplan ve terracotta gonder butonu.
 struct RFChatInput: View {
     @Binding var text: String
     let isEnabled: Bool
@@ -21,18 +21,15 @@ struct RFChatInput: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Divider()
-                .foregroundStyle(RFColors.divider)
-
-            HStack(alignment: .bottom, spacing: RFSpacing.xs) {
-                textField
-
-                sendButton
-            }
-            .padding(.horizontal, RFSpacing.md)
-            .padding(.vertical, RFSpacing.sm)
-            .background(RFColors.fallbackBackground)
+        HStack(alignment: .bottom, spacing: RFSpacing.xs) {
+            textField
+            sendButton
+        }
+        .padding(.horizontal, RFSpacing.md)
+        .padding(.vertical, RFSpacing.sm)
+        .background(RFColors.fallbackSurface)
+        .overlay(alignment: .top) {
+            RFColors.divider.frame(height: 0.5)
         }
     }
 
@@ -47,15 +44,31 @@ struct RFChatInput: View {
     }
 
     private var sendButton: some View {
-        RFButton(
-            String(localized: "chat.send"),
-            style: .primary,
-            size: .small,
-            isLoading: isSending,
-            isDisabled: !canSend
-        ) {
+        Button {
+            RFHaptics.impact(.medium)
             onSend()
+        } label: {
+            Group {
+                if isSending {
+                    ProgressView()
+                        .tint(.white)
+                } else {
+                    Image(systemName: "arrow.up")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                }
+            }
+            .frame(width: 36, height: 36)
+            .background(
+                canSend
+                    ? AnyShapeStyle(RFColors.brandGradient)
+                    : AnyShapeStyle(RFColors.fallbackTextTertiary.opacity(0.3))
+            )
+            .clipShape(Circle())
         }
+        .disabled(!canSend)
+        .buttonStyle(RFPressButtonStyle())
+        .animation(RFAnimation.springSnappy, value: canSend)
     }
 
     // MARK: - Computed
@@ -82,4 +95,5 @@ struct RFChatInput: View {
             onSend: {}
         )
     }
+    .background(RFColors.fallbackBackground)
 }

@@ -21,8 +21,14 @@ extension Container {
 
     /// WebSocket istemcisi.
     var webSocketClient: Factory<WebSocketClient> {
-        self { WebSocketClient(messageRouter: self.webSocketMessageRouter()) }
-            .singleton
+        self {
+            let keychain = self.keychainHelper()
+            return WebSocketClient(
+                messageRouter: self.webSocketMessageRouter(),
+                tokenProvider: { keychain.readString(for: "auth_access_token") }
+            )
+        }
+        .singleton
     }
 
     /// WebSocket baglanti yoneticisi.
@@ -47,8 +53,16 @@ extension Container {
 
     /// Auth durum yoneticisi.
     var authManager: Factory<AuthManager> {
-        self { @MainActor in AuthManager(keychain: self.keychainHelper()) }
-            .singleton
+        self { @MainActor in
+            let manager = AuthManager(keychain: self.keychainHelper())
+            let repository = self.authRepository()
+            manager.tokenRefresher = { refreshToken in
+                let token = try await repository.refreshToken(refreshToken: refreshToken)
+                return token
+            }
+            return manager
+        }
+        .singleton
     }
 
     /// Auth interceptor.
@@ -258,6 +272,23 @@ extension Container {
                 ),
                 notificationManager: manager,
                 repository: repository
+            )
+        }
+    }
+
+    // MARK: - Project Feature
+
+    /// Project repository.
+    var projectRepository: Factory<ProjectStatusRepositoryProtocol> {
+        self { ProjectRepositoryImpl(networkClient: self.networkClient()) }
+    }
+
+    /// Project list ViewModel.
+    var projectListViewModel: Factory<ProjectListViewModel> {
+        self { @MainActor in
+            let repository = self.projectRepository()
+            return ProjectListViewModel(
+                getProjectsUseCase: GetProjectsUseCase(repository: repository)
             )
         }
     }

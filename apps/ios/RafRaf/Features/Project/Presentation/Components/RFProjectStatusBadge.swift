@@ -4,14 +4,35 @@ import SwiftUI
 /// Projenin aktif, beklemede veya tamamlandi durumunu gorsel olarak gosterir.
 struct RFProjectStatusBadge: View {
     let status: ProjectStatus
+    @State private var isPulsing = false
 
     var body: some View {
         HStack(spacing: RFSpacing.xxs) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
+            ZStack {
+                if status == .active {
+                    Circle()
+                        .fill(statusColor.opacity(0.3))
+                        .frame(width: 12, height: 12)
+                        .scaleEffect(isPulsing ? 1.5 : 1.0)
+                        .opacity(isPulsing ? 0 : 0.5)
+                        .animation(
+                            .easeInOut(duration: 1.5)
+                            .repeatForever(autoreverses: false),
+                            value: isPulsing
+                        )
+                }
+
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 8, height: 8)
+            }
 
             RFText(statusText, style: .captionBold, color: statusColor)
+        }
+        .onAppear {
+            if status == .active {
+                isPulsing = true
+            }
         }
         .padding(.horizontal, RFSpacing.xs)
         .padding(.vertical, RFSpacing.xxs)

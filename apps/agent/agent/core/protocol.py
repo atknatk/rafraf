@@ -216,6 +216,47 @@ def parse_register_ack(data: dict[str, Any]) -> RegisterAckPayload:
     return RegisterAckPayload(**content)
 
 
+class ProjectSyncEntry(BaseModel):
+    """Tek proje bilgisi (sync icin)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    repository_url: str | None = None
+    local_path: str
+    tech_stack: list[str] = []
+    source: str
+
+
+class ProjectSyncContent(BaseModel):
+    """project_sync mesaj icerigi."""
+
+    model_config = ConfigDict(frozen=True)
+
+    host_id: str
+    projects: list[ProjectSyncEntry]
+
+
+class ProjectSyncMessage(BaseModel):
+    """Proje sync mesaji (agent -> server)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    type: str = "project_sync"
+    host_id: str
+    content: ProjectSyncContent
+
+
+def build_project_sync_message(
+    host_id: str,
+    projects: list[ProjectSyncEntry],
+) -> str:
+    """project_sync mesaji olusturur ve JSON string olarak dondurur."""
+    content = ProjectSyncContent(host_id=host_id, projects=projects)
+    message = ProjectSyncMessage(host_id=host_id, content=content)
+    return message.model_dump_json()
+
+
 def build_resource_report_message(
     host_id: str,
     metrics: ResourceMetrics,

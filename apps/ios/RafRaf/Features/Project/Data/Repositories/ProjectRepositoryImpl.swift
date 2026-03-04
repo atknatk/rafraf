@@ -26,7 +26,7 @@ final class ProjectRepositoryImpl: ProjectStatusRepositoryProtocol, @unchecked S
         }
 
         let dto: ProjectListResponseDTO = try await networkClient.get(
-            path: "/api/v1/projects",
+            path: "/projects",
             queryItems: queryItems
         )
 
@@ -37,7 +37,7 @@ final class ProjectRepositoryImpl: ProjectStatusRepositoryProtocol, @unchecked S
 
     func getProject(id projectId: String) async throws -> Project {
         let dto: ProjectDetailDTO = try await networkClient.get(
-            path: "/api/v1/projects/\(projectId)"
+            path: "/projects/\(projectId)"
         )
 
         logger.info("Proje detayi alindi: \(dto.name)")

@@ -18,19 +18,24 @@ struct RFTextField: View {
     let mode: RFTextFieldMode
     let errorMessage: String?
     let lineLimit: ClosedRange<Int>
+    let leadingIcon: String?
+
+    @FocusState private var isFocused: Bool
 
     init(
         _ placeholder: String,
         text: Binding<String>,
         mode: RFTextFieldMode = .text,
         errorMessage: String? = nil,
-        lineLimit: ClosedRange<Int> = 3...6
+        lineLimit: ClosedRange<Int> = 3...6,
+        leadingIcon: String? = nil
     ) {
         self.placeholder = placeholder
         self._text = text
         self.mode = mode
         self.errorMessage = errorMessage
         self.lineLimit = lineLimit
+        self.leadingIcon = leadingIcon
     }
 
     /// Backward-compatible init for isSecure parameter.
@@ -45,33 +50,49 @@ struct RFTextField: View {
         self.mode = isSecure ? .secure : .text
         self.errorMessage = errorMessage
         self.lineLimit = 3...6
+        self.leadingIcon = nil
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: RFSpacing.xxs) {
-            Group {
-                switch mode {
-                case .text:
-                    TextField(placeholder, text: $text)
-                case .secure:
-                    SecureField(placeholder, text: $text)
-                case .multiline:
-                    TextField(placeholder, text: $text, axis: .vertical)
-                        .lineLimit(lineLimit)
+            HStack(spacing: RFSpacing.xs) {
+                if let leadingIcon {
+                    Image(systemName: leadingIcon)
+                        .font(.body)
+                        .foregroundStyle(
+                            isFocused
+                                ? RFColors.fallbackPrimary
+                                : RFColors.fallbackTextTertiary
+                        )
+                        .animation(RFAnimation.easeDefault, value: isFocused)
                 }
+
+                Group {
+                    switch mode {
+                    case .text:
+                        TextField(placeholder, text: $text)
+                    case .secure:
+                        SecureField(placeholder, text: $text)
+                    case .multiline:
+                        TextField(placeholder, text: $text, axis: .vertical)
+                            .lineLimit(lineLimit)
+                    }
+                }
+                .font(RFTypography.body)
+                .focused($isFocused)
             }
-            .font(RFTypography.body)
             .padding(.horizontal, RFSpacing.md)
             .padding(.vertical, RFSpacing.sm)
             .background(RFColors.fallbackSurface)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: RFCornerRadius.medium))
             .overlay {
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: RFCornerRadius.medium)
                     .strokeBorder(
                         borderColor,
-                        lineWidth: 1
+                        lineWidth: isFocused ? 1.5 : 1
                     )
             }
+            .animation(RFAnimation.easeDefault, value: isFocused)
 
             if let errorMessage {
                 RFText(errorMessage, style: .caption, color: RFColors.error)
@@ -84,7 +105,10 @@ struct RFTextField: View {
         if errorMessage != nil {
             return RFColors.error
         }
-        return Color.clear
+        if isFocused {
+            return RFColors.fallbackPrimary
+        }
+        return RFColors.divider.opacity(0.5)
     }
 }
 
@@ -92,13 +116,15 @@ struct RFTextField: View {
     VStack(spacing: RFSpacing.md) {
         RFTextField(
             "E-posta adresiniz",
-            text: .constant("")
+            text: .constant(""),
+            leadingIcon: "envelope"
         )
 
         RFTextField(
             "Sifreniz",
             text: .constant("password123"),
-            mode: .secure
+            mode: .secure,
+            leadingIcon: "lock"
         )
 
         RFTextField(

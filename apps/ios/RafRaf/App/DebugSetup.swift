@@ -22,7 +22,7 @@ enum DebugSetup {
 
     /// Deepgram API key — fiziksel cihaz icin buraya yazin.
     /// Simulator'da Xcode scheme environment variable kullanilir.
-    private static let deepgramKeyOverride: String = ""
+    private static let deepgramKeyOverride: String = "7e910ca540b2c79b3cb3c493cd44ba5e30b0ba8c"
 
     private static func injectDeepgramKey(keychain: KeychainHelper) {
         // Zaten varsa atla
@@ -32,14 +32,26 @@ enum DebugSetup {
             return
         }
 
-        // 1) Xcode scheme env var (simulator)
-        // 2) Hardcoded override (fiziksel cihaz)
-        let key = ProcessInfo.processInfo.environment["DEEPGRAM_API_KEY"]
-            ?? (deepgramKeyOverride.isEmpty ? nil : deepgramKeyOverride)
+        // 1) Hardcoded override (fiziksel cihaz — en guvenilir)
+        // 2) Xcode scheme env var (simulator)
+        // 3) Repo root .env dosyasi
+        let key: String?
+        if !deepgramKeyOverride.isEmpty {
+            key = deepgramKeyOverride
+            logger.info("Deepgram API key override'dan alindi")
+        } else if let envKey = ProcessInfo.processInfo.environment["DEEPGRAM_API_KEY"], !envKey.isEmpty {
+            key = envKey
+            logger.info("Deepgram API key scheme env var'dan alindi")
+        } else if let dotEnvKey = readFromDotEnv("DEEPGRAM_API_KEY"), !dotEnvKey.isEmpty {
+            key = dotEnvKey
+            logger.info("Deepgram API key .env dosyasindan alindi")
+        } else {
+            key = nil
+        }
 
-        guard let apiKey = key, !apiKey.isEmpty else {
+        guard let apiKey = key else {
             logger.warning(
-                "DEEPGRAM_API_KEY bulunamadi — scheme env var veya deepgramKeyOverride kullanin"
+                "DEEPGRAM_API_KEY bulunamadi — deepgramKeyOverride, scheme env var veya .env dosyasi kullanin"
             )
             return
         }
@@ -50,6 +62,33 @@ enum DebugSetup {
         } catch {
             logger.error("Deepgram API key kaydedilemedi: \(error)")
         }
+    }
+
+    /// Repo root'taki .env dosyasindan key okur.
+    /// #filePath ile derleme zamaninda kaynak dosya yolu bulunur, oradan repo root hesaplanir.
+    private static func readFromDotEnv(_ key: String, filePath: String = #filePath) -> String? {
+        // DebugSetup.swift: apps/ios/RafRaf/App/DebugSetup.swift
+        // Repo root: 5 seviye yukari
+        var url = URL(fileURLWithPath: filePath)
+        for _ in 0..<5 { url.deleteLastPathComponent() }
+        let envURL = url.appendingPathComponent(".env")
+
+        guard let contents = try? String(contentsOf: envURL, encoding: .utf8) else {
+            return nil
+        }
+
+        for line in contents.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty, !trimmed.hasPrefix("#") else { continue }
+            let parts = trimmed.split(separator: "=", maxSplits: 1)
+            guard parts.count == 2, String(parts[0]) == key else { continue }
+            let value = String(parts[1]).trimmingCharacters(in: .whitespaces)
+            if !value.isEmpty {
+                logger.debug("\(key) .env dosyasindan okundu")
+                return value
+            }
+        }
+        return nil
     }
 }
 #endif

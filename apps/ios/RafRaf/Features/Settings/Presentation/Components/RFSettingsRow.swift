@@ -25,9 +25,15 @@ struct RFSettingsRow: View {
             Image(systemName: icon)
                 .font(.body)
                 .foregroundStyle(.white)
-                .frame(width: 28, height: 28)
-                .background(iconColor)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .frame(width: 30, height: 30)
+                .background(
+                    LinearGradient(
+                        colors: [iconColor, iconColor.opacity(0.7)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 7))
 
             VStack(alignment: .leading, spacing: RFSpacing.xxs) {
                 RFText(title, style: .body)

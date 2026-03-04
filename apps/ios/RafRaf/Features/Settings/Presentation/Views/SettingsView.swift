@@ -1,9 +1,11 @@
 import SwiftUI
 
 /// Ayarlar ana ekrani.
-/// Profil, ses, bildirim, gorunum ve hesap ayarlarini bolumler halinde gosterir.
+/// Profil, ses, bildirim, gorunum ve hesap ayarlarini card-based layout ile gosterir.
+/// Glass profil karti ve hero gradient arkaplan ile premium gorunum.
 struct SettingsView: View {
     @State private var viewModel: SettingsViewModel
+    @State private var isAppeared = false
 
     init(viewModel: SettingsViewModel) {
         self._viewModel = State(initialValue: viewModel)
@@ -11,14 +13,38 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                profileSection
-                voiceSettingsSection
-                notificationSettingsSection
-                appearanceSettingsSection
-                appInfoSection
-                logoutSection
+            ScrollView {
+                VStack(spacing: RFSpacing.md) {
+                    profileCard
+                        .rfEntrance(isAppeared: isAppeared, delay: 0.05)
+
+                    voiceSettingsCard
+                        .rfEntrance(isAppeared: isAppeared, delay: 0.1)
+
+                    notificationSettingsCard
+                        .rfEntrance(isAppeared: isAppeared, delay: 0.15)
+
+                    appearanceSettingsCard
+                        .rfEntrance(isAppeared: isAppeared, delay: 0.2)
+
+                    appInfoCard
+                        .rfEntrance(isAppeared: isAppeared, delay: 0.25)
+
+                    logoutCard
+                        .rfEntrance(isAppeared: isAppeared, delay: 0.3)
+                }
+                .padding(.horizontal, RFSpacing.md)
+                .padding(.vertical, RFSpacing.sm)
             }
+            .contentMargins(.bottom, RFSpacing.xxxl)
+            .background(
+                LinearGradient(
+                    colors: [RFColors.heroGradientStart, RFColors.heroGradientEnd],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            )
             .navigationTitle(String(localized: "settings.title"))
             .alert(
                 String(localized: "settings.logout.confirmTitle"),
@@ -35,214 +61,247 @@ struct SettingsView: View {
             } message: {
                 Text(String(localized: "settings.logout.confirmMessage"))
             }
+            .onAppear {
+                withAnimation(RFAnimation.springResponsive) {
+                    isAppeared = true
+                }
+            }
         }
     }
 
-    // MARK: - Profile Section
+    // MARK: - Profile Card
 
-    private var profileSection: some View {
-        Section {
-            HStack(spacing: RFSpacing.sm) {
-                RFAvatar(name: viewModel.displayName, size: .medium)
+    private var profileCard: some View {
+        RFCard(style: .glass, cornerRadius: RFCornerRadius.extraLarge) {
+            HStack(spacing: RFSpacing.md) {
+                RFAvatar(name: viewModel.displayName, size: .large, showRing: true)
 
                 VStack(alignment: .leading, spacing: RFSpacing.xxs) {
-                    RFText(viewModel.displayName, style: .bodyBold)
+                    RFText(viewModel.displayName, style: .title)
                     RFText(viewModel.email, style: .caption)
                 }
-            }
-            .padding(.vertical, RFSpacing.xs)
-        } header: {
-            Text(String(localized: "settings.section.profile"))
-        }
-    }
 
-    // MARK: - Voice Settings Section
-
-    private var voiceSettingsSection: some View {
-        Section {
-            // TTS hizi
-            VStack(alignment: .leading, spacing: RFSpacing.xs) {
-                HStack {
-                    RFSettingsRow(
-                        icon: "speedometer",
-                        iconColor: RFColors.info,
-                        title: String(localized: "settings.voice.speed")
-                    )
-                    Spacer()
-                    RFText(viewModel.ttsSpeedText, style: .captionBold)
-                }
-                Slider(
-                    value: Binding(
-                        get: { viewModel.settings.ttsSpeed },
-                        set: { viewModel.updateTTSSpeed($0) }
-                    ),
-                    in: 0.5...2.0,
-                    step: 0.1
-                )
-                .tint(RFColors.fallbackPrimary)
-            }
-
-            // Auto-play
-            RFSettingsToggleRow(
-                icon: "play.circle",
-                iconColor: RFColors.info,
-                title: String(localized: "settings.voice.autoPlay"),
-                isOn: Binding(
-                    get: { viewModel.settings.ttsAutoPlay },
-                    set: { viewModel.updateTTSAutoPlay($0) }
-                )
-            )
-
-            // Dil secimi
-            HStack {
-                RFSettingsRow(
-                    icon: "globe",
-                    iconColor: RFColors.info,
-                    title: String(localized: "settings.voice.language")
-                )
                 Spacer()
-                Picker("", selection: Binding(
-                    get: { viewModel.settings.ttsLanguage },
-                    set: { viewModel.updateTTSLanguage($0) }
-                )) {
-                    ForEach(TTSLanguage.allCases, id: \.self) { language in
-                        Text(language.localizedTitle).tag(language)
-                    }
-                }
-                .pickerStyle(.menu)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(RFColors.fallbackTextTertiary)
             }
-        } header: {
-            Text(String(localized: "settings.section.voice"))
         }
     }
 
-    // MARK: - Notification Settings Section
+    // MARK: - Voice Settings Card
 
-    private var notificationSettingsSection: some View {
-        Section {
-            // Push bildirimler
-            RFSettingsToggleRow(
-                icon: "bell",
-                iconColor: RFColors.warning,
-                title: String(localized: "settings.notification.push"),
-                isOn: Binding(
-                    get: { viewModel.settings.pushNotificationsEnabled },
-                    set: { viewModel.updatePushNotifications($0) }
+    private var voiceSettingsCard: some View {
+        RFCard {
+            VStack(spacing: RFSpacing.md) {
+                settingsCardHeader(
+                    icon: "speaker.wave.2.fill",
+                    title: String(localized: "settings.section.voice"),
+                    color: RFColors.info
                 )
-            )
 
-            // Bildirim tipleri
-            if viewModel.settings.pushNotificationsEnabled {
-                ForEach(NotificationType.allCases, id: \.self) { type in
-                    RFSettingsToggleRow(
-                        icon: notificationTypeIcon(type),
-                        iconColor: RFColors.warning,
-                        title: type.localizedTitle,
-                        isOn: Binding(
-                            get: {
-                                viewModel.settings.enabledNotificationTypes
-                                    .contains(type)
-                            },
-                            set: { enabled in
-                                viewModel.updateNotificationType(
-                                    type,
-                                    enabled: enabled
-                                )
-                            }
+                VStack(alignment: .leading, spacing: RFSpacing.xs) {
+                    HStack {
+                        RFText(
+                            String(localized: "settings.voice.speed"),
+                            style: .body
                         )
+                        Spacer()
+                        RFText(viewModel.ttsSpeedText, style: .captionBold)
+                    }
+                    Slider(
+                        value: Binding(
+                            get: { viewModel.settings.ttsSpeed },
+                            set: { viewModel.updateTTSSpeed($0) }
+                        ),
+                        in: 0.5...2.0,
+                        step: 0.1
                     )
+                    .tint(RFColors.fallbackPrimary)
+                }
+
+                Divider()
+
+                settingsToggleRow(
+                    title: String(localized: "settings.voice.autoPlay"),
+                    isOn: Binding(
+                        get: { viewModel.settings.ttsAutoPlay },
+                        set: { viewModel.updateTTSAutoPlay($0) }
+                    )
+                )
+
+                Divider()
+
+                settingsPickerRow(
+                    title: String(localized: "settings.voice.language")
+                ) {
+                    Picker("", selection: Binding(
+                        get: { viewModel.settings.ttsLanguage },
+                        set: { viewModel.updateTTSLanguage($0) }
+                    )) {
+                        ForEach(TTSLanguage.allCases, id: \.self) { language in
+                            Text(language.localizedTitle).tag(language)
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
             }
-        } header: {
-            Text(String(localized: "settings.section.notifications"))
         }
     }
 
-    // MARK: - Appearance Settings Section
+    // MARK: - Notification Settings Card
 
-    private var appearanceSettingsSection: some View {
-        Section {
-            // Gorunum modu
-            HStack {
-                RFSettingsRow(
-                    icon: "paintbrush",
-                    iconColor: .purple,
+    private var notificationSettingsCard: some View {
+        RFCard {
+            VStack(spacing: RFSpacing.md) {
+                settingsCardHeader(
+                    icon: "bell.fill",
+                    title: String(localized: "settings.section.notifications"),
+                    color: RFColors.warning
+                )
+
+                settingsToggleRow(
+                    title: String(localized: "settings.notification.push"),
+                    isOn: Binding(
+                        get: { viewModel.settings.pushNotificationsEnabled },
+                        set: { viewModel.updatePushNotifications($0) }
+                    )
+                )
+
+                if viewModel.settings.pushNotificationsEnabled {
+                    ForEach(NotificationType.allCases, id: \.self) { type in
+                        Divider()
+
+                        settingsToggleRow(
+                            title: type.localizedTitle,
+                            isOn: Binding(
+                                get: {
+                                    viewModel.settings.enabledNotificationTypes
+                                        .contains(type)
+                                },
+                                set: { enabled in
+                                    viewModel.updateNotificationType(
+                                        type,
+                                        enabled: enabled
+                                    )
+                                }
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        .sensoryFeedback(.selection, trigger: viewModel.settings.pushNotificationsEnabled)
+    }
+
+    // MARK: - Appearance Settings Card
+
+    private var appearanceSettingsCard: some View {
+        RFCard {
+            VStack(spacing: RFSpacing.md) {
+                settingsCardHeader(
+                    icon: "paintbrush.fill",
+                    title: String(localized: "settings.section.appearance"),
+                    color: .purple
+                )
+
+                settingsPickerRow(
                     title: String(localized: "settings.appearance.mode")
-                )
-                Spacer()
-                Picker("", selection: Binding(
-                    get: { viewModel.settings.appearance },
-                    set: { viewModel.updateAppearance($0) }
-                )) {
-                    ForEach(AppAppearance.allCases, id: \.self) { mode in
-                        Text(mode.localizedTitle).tag(mode)
+                ) {
+                    Picker("", selection: Binding(
+                        get: { viewModel.settings.appearance },
+                        set: { viewModel.updateAppearance($0) }
+                    )) {
+                        ForEach(AppAppearance.allCases, id: \.self) { mode in
+                            Text(mode.localizedTitle).tag(mode)
+                        }
                     }
+                    .pickerStyle(.menu)
                 }
-                .pickerStyle(.menu)
-            }
 
-            // Font boyutu
-            HStack {
-                RFSettingsRow(
-                    icon: "textformat.size",
-                    iconColor: .purple,
+                Divider()
+
+                settingsPickerRow(
                     title: String(localized: "settings.appearance.fontSize")
-                )
-                Spacer()
-                Picker("", selection: Binding(
-                    get: { viewModel.settings.fontSize },
-                    set: { viewModel.updateFontSize($0) }
-                )) {
-                    ForEach(AppFontSize.allCases, id: \.self) { size in
-                        Text(size.localizedTitle).tag(size)
+                ) {
+                    Picker("", selection: Binding(
+                        get: { viewModel.settings.fontSize },
+                        set: { viewModel.updateFontSize($0) }
+                    )) {
+                        ForEach(AppFontSize.allCases, id: \.self) { size in
+                            Text(size.localizedTitle).tag(size)
+                        }
                     }
+                    .pickerStyle(.menu)
                 }
-                .pickerStyle(.menu)
             }
-        } header: {
-            Text(String(localized: "settings.section.appearance"))
         }
     }
 
-    // MARK: - App Info Section
+    // MARK: - App Info Card
 
-    private var appInfoSection: some View {
-        Section {
+    private var appInfoCard: some View {
+        RFCard {
             HStack {
-                RFSettingsRow(
-                    icon: "info.circle",
-                    iconColor: RFColors.fallbackTextSecondary,
-                    title: String(localized: "settings.version")
+                settingsCardHeader(
+                    icon: "info.circle.fill",
+                    title: String(localized: "settings.version"),
+                    color: RFColors.fallbackTextSecondary
                 )
                 Spacer()
                 RFText(viewModel.appVersion, style: .caption)
             }
-        } header: {
-            Text(String(localized: "settings.section.app"))
         }
     }
 
-    // MARK: - Logout Section
+    // MARK: - Logout Card
 
-    private var logoutSection: some View {
-        Section {
-            RFButton(
-                String(localized: "settings.logout"),
-                style: .destructive,
-                size: .medium
-            ) {
-                viewModel.showLogoutConfirmation()
-            }
+    private var logoutCard: some View {
+        RFButton(
+            String(localized: "settings.logout"),
+            style: .destructive,
+            size: .medium
+        ) {
+            viewModel.showLogoutConfirmation()
         }
     }
 
-    // MARK: - Helpers
+    // MARK: - Reusable Card Components
 
-    private func notificationTypeIcon(_ type: NotificationType) -> String {
-        switch type {
-        case .taskUpdates: return "checkmark.circle"
-        case .approvalRequests: return "hand.thumbsup"
-        case .systemAlerts: return "exclamationmark.triangle"
+    private func settingsCardHeader(
+        icon: String,
+        title: String,
+        color: Color
+    ) -> some View {
+        HStack(spacing: RFSpacing.sm) {
+            Image(systemName: icon)
+                .font(.body)
+                .foregroundStyle(color)
+
+            RFText(title, style: .headline)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func settingsToggleRow(
+        title: String,
+        isOn: Binding<Bool>
+    ) -> some View {
+        Toggle(isOn: isOn) {
+            RFText(title, style: .body)
+        }
+        .tint(RFColors.fallbackPrimary)
+    }
+
+    private func settingsPickerRow<PickerContent: View>(
+        title: String,
+        @ViewBuilder picker: () -> PickerContent
+    ) -> some View {
+        HStack {
+            RFText(title, style: .body)
+            Spacer()
+            picker()
         }
     }
 }

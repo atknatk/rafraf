@@ -40,6 +40,15 @@ enum RFButtonSize: Sendable {
     }
 }
 
+/// Press-scale animasyonu icin ozel buton stili.
+struct RFPressButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(RFAnimation.springSnappy, value: configuration.isPressed)
+    }
+}
+
 /// RafRaf tasarim sistemine uygun buton bileseni.
 /// Feature ekranlarinda raw SwiftUI `Button` yerine bu bilesen kullanilir.
 struct RFButton: View {
@@ -48,6 +57,7 @@ struct RFButton: View {
     let size: RFButtonSize
     let isLoading: Bool
     let isDisabled: Bool
+    let systemImage: String?
     let action: () -> Void
 
     init(
@@ -56,6 +66,7 @@ struct RFButton: View {
         size: RFButtonSize = .medium,
         isLoading: Bool = false,
         isDisabled: Bool = false,
+        systemImage: String? = nil,
         action: @escaping () -> Void
     ) {
         self.title = title
@@ -63,15 +74,23 @@ struct RFButton: View {
         self.size = size
         self.isLoading = isLoading
         self.isDisabled = isDisabled
+        self.systemImage = systemImage
         self.action = action
     }
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            RFHaptics.impact(.light)
+            action()
+        } label: {
             HStack(spacing: RFSpacing.xs) {
                 if isLoading {
                     ProgressView()
                         .tint(foregroundColor)
+                } else if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(size.font)
+                        .foregroundStyle(foregroundColor)
                 }
 
                 Text(title)
@@ -81,15 +100,25 @@ struct RFButton: View {
             .frame(maxWidth: style == .ghost ? nil : .infinity)
             .padding(.vertical, size.verticalPadding)
             .padding(.horizontal, size.horizontalPadding)
-            .background(backgroundColor)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .background {
+                Group {
+                    if style == .primary {
+                        RFColors.brandGradient
+                    } else {
+                        backgroundColor
+                    }
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: RFCornerRadius.medium))
             .overlay {
                 if style == .outline {
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: RFCornerRadius.medium)
                         .strokeBorder(RFColors.fallbackPrimary, lineWidth: 1.5)
                 }
             }
+            .rfElevation(style == .primary ? .low : .low)
         }
+        .buttonStyle(RFPressButtonStyle())
         .disabled(isDisabled || isLoading)
         .opacity(isDisabled ? 0.5 : 1.0)
     }
@@ -124,6 +153,7 @@ struct RFButton: View {
 #Preview {
     VStack(spacing: RFSpacing.md) {
         RFButton("Primary Button", style: .primary) {}
+        RFButton("With Icon", style: .primary, systemImage: "arrow.right") {}
         RFButton("Secondary Button", style: .secondary) {}
         RFButton("Outline Button", style: .outline) {}
         RFButton("Ghost Button", style: .ghost) {}
