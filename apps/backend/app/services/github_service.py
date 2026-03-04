@@ -96,13 +96,23 @@ class GitHubService:
         settings = get_settings()
         self._token = settings.github_token
         self._client: httpx.AsyncClient | None = None
+        if not self._token:
+            logger.warning("github_token_empty", hint="GITHUB_TOKEN env var bos, GitHub API calismaycak")
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create the httpx async client.
 
         Returns:
             Configured httpx.AsyncClient instance.
+
+        Raises:
+            GitHubServiceError: If GitHub token is not configured.
         """
+        if not self._token:
+            raise GitHubServiceError(
+                "GITHUB_TOKEN yapilandirilmamis. .env dosyasini kontrol edin.",
+                status_code=500,
+            )
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
                 base_url=_GITHUB_API_URL,
