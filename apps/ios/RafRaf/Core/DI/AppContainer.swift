@@ -165,6 +165,7 @@ extension Container {
                 audioSessionManager: self.audioSessionManager()
             )
         }
+        .singleton
     }
 
     // MARK: - Voice Conversation Feature
@@ -219,6 +220,7 @@ extension Container {
                 audioPlayer: player
             )
         }
+        .singleton
     }
 
     // MARK: - Approval Feature

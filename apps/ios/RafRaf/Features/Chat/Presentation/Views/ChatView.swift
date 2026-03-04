@@ -14,7 +14,7 @@ struct ChatView: View {
     @State private var showVoiceConversation = false
     @State private var availableProjects: [Project] = []
     private let webSocketManager = Container.shared.webSocketConnectionManager()
-    private let projectListViewModel = Container.shared.projectListViewModel()
+    @State private var projectListViewModel = Container.shared.projectListViewModel()
 
     /// Aktif ChatViewModel (session manager uzerinden).
     private var viewModel: ChatViewModel {

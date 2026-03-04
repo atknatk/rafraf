@@ -8,6 +8,7 @@ struct HomeView: View {
     @State private var viewModel = HomeViewModel()
     @State private var isAppeared = false
     @State private var showProjectList = false
+    @State private var projectListViewModel = Container.shared.projectListViewModel()
 
     var body: some View {
         NavigationStack {
@@ -25,7 +26,7 @@ struct HomeView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(isPresented: $showProjectList) {
                 ProjectListView(
-                    viewModel: Container.shared.projectListViewModel()
+                    viewModel: projectListViewModel
                 )
             }
         }

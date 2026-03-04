@@ -19,6 +19,12 @@ actor WebSocketMessageRouter {
         category: "WebSocketMessageRouter"
     )
 
+    /// WebSocketClient tarafindan dogrudan islenen dahili mesaj tipleri.
+    /// Bu tipler icin handler kaydi gerekmez.
+    private let builtInTypes: Set<String> = [
+        "ping", "pong", "connection_ack"
+    ]
+
     init() {
         let jsonDecoder = JSONDecoder()
         jsonDecoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -67,7 +73,7 @@ actor WebSocketMessageRouter {
 
         if let handler = handlers[message.type] {
             await handler.handle(message)
-        } else {
+        } else if !builtInTypes.contains(message.type) {
             logger.warning("Handler bulunamadi: \(message.type)")
         }
 

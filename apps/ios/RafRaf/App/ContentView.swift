@@ -7,6 +7,10 @@ import SwiftUI
 struct ContentView: View {
     @Injected(\.authManager) private var authManager
     @State private var selectedTab: AppTab = .home
+    @State private var chatSessionManager = Container.shared.chatSessionManager()
+    @State private var agentListViewModel = Container.shared.agentListViewModel()
+    @State private var settingsViewModel = Container.shared.settingsViewModel()
+    @State private var authViewModel = Container.shared.authViewModel()
     private let webSocketManager = Container.shared.webSocketConnectionManager()
 
     init() {
@@ -56,19 +60,19 @@ struct ContentView: View {
                 }
                 .tag(AppTab.home)
 
-            ChatView(sessionManager: Container.shared.chatSessionManager())
+            ChatView(sessionManager: chatSessionManager)
                 .tabItem {
                     Label(String(localized: "tab.chat"), systemImage: "message.fill")
                 }
                 .tag(AppTab.chat)
 
-            AgentListView(viewModel: Container.shared.agentListViewModel())
+            AgentListView(viewModel: agentListViewModel)
                 .tabItem {
                     Label(String(localized: "tab.agents"), systemImage: "desktopcomputer")
                 }
                 .tag(AppTab.agents)
 
-            SettingsView(viewModel: Container.shared.settingsViewModel())
+            SettingsView(viewModel: settingsViewModel)
                 .tabItem {
                     Label(String(localized: "tab.settings"), systemImage: "gearshape.fill")
                 }
@@ -80,17 +84,16 @@ struct ContentView: View {
 
     @ViewBuilder
     private var authView: some View {
-        let viewModel = Container.shared.authViewModel()
         Group {
-            if viewModel.isShowingRegister {
-                RFRegisterView(viewModel: viewModel)
+            if authViewModel.isShowingRegister {
+                RFRegisterView(viewModel: authViewModel)
                     .transition(RFTransition.slideForward)
             } else {
-                RFLoginView(viewModel: viewModel)
+                RFLoginView(viewModel: authViewModel)
                     .transition(RFTransition.slideBack)
             }
         }
-        .animation(RFAnimation.springResponsive, value: viewModel.isShowingRegister)
+        .animation(RFAnimation.springResponsive, value: authViewModel.isShowingRegister)
     }
 
     // MARK: - Tab Bar Configuration
