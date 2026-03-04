@@ -151,6 +151,88 @@ class OrchestratorService:
                 tool_calls_count=0,
             )
 
+    async def process_user_message_streaming(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+        message: str,
+        on_text_delta: "Callable[[str, int], Coroutine[object, object, None]] | None" = None,
+        on_stream_end: "Callable[[str], Coroutine[object, object, None]] | None" = None,
+        project_id: str | None = None,
+        progress_callback: ProgressCallback | None = None,
+        host_status: str | None = None,
+        user_memories: str | None = None,
+    ) -> OrchestratorResponse:
+        """Process a user message with streaming text output.
+
+        Streams text deltas via on_text_delta callback as Claude generates tokens.
+        """
+        request = OrchestratorRequest(
+            session_id=session_id,
+            user_id=user_id,
+            message=message,
+            project_id=project_id,
+        )
+
+        await logger.ainfo(
+            "orchestrator_streaming_processing",
+            session_id=session_id,
+            user_id=user_id,
+            message_length=len(message),
+        )
+
+        try:
+            response = await self._agent.process_message_streaming(
+                request,
+                on_text_delta=on_text_delta,
+                on_stream_end=on_stream_end,
+                progress_callback=progress_callback,
+                host_status=host_status,
+                user_memories=user_memories,
+            )
+            await logger.ainfo(
+                "orchestrator_streaming_response_generated",
+                session_id=session_id,
+                model=response.model_used,
+                tokens_input=response.tokens_input,
+                tokens_output=response.tokens_output,
+            )
+            return response
+
+        except MaxIterationsReachedError:
+            await logger.awarning(
+                "orchestrator_streaming_max_iterations",
+                session_id=session_id,
+            )
+            return OrchestratorResponse(
+                session_id=session_id,
+                response_text=(
+                    "Islem cok fazla adim gerektirdi. Lutfen daha spesifik bir talep deneyin."
+                ),
+                model_used="none",
+                tokens_input=0,
+                tokens_output=0,
+                tool_calls_count=0,
+            )
+
+        except ClaudeAPIError as exc:
+            await logger.aerror(
+                "orchestrator_streaming_api_error",
+                session_id=session_id,
+                error=exc.message,
+            )
+            return OrchestratorResponse(
+                session_id=session_id,
+                response_text=(
+                    "AI servisi gecici olarak kullanilamiyor. Lutfen daha sonra tekrar deneyin."
+                ),
+                model_used="none",
+                tokens_input=0,
+                tokens_output=0,
+                tool_calls_count=0,
+            )
+
     def clear_session(self, session_id: str) -> None:
         """Clear conversation history for a session.
 

@@ -1,5 +1,6 @@
 """WebSocket endpoint for iOS client connections."""
 
+import asyncio
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -10,11 +11,14 @@ from app.core.security import SecurityError, verify_access_token
 from app.core.websocket import ConnectionManager
 from app.schemas.approval import ApprovalDecision
 from app.schemas.messages import (
+    ChatStreamEndPayload,
+    ChatStreamPayload,
     ConnectionAckPayload,
     ErrorPayload,
     MessageDirection,
     MessageType,
     ProgressPayload,
+    VoiceAudioChunkPayload,
 )
 from app.schemas.agent import AgentStatus
 from app.services.agent_registry_service import agent_registry
@@ -26,6 +30,9 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 router = APIRouter()
 
 manager = ConnectionManager(heartbeat_interval=30, heartbeat_timeout=10)
+
+# Track active streaming tasks per connection for interrupt support
+_active_streams: dict[str, asyncio.Task[object]] = {}
 
 
 def _build_message(
@@ -185,6 +192,8 @@ async def _handle_message(
         await _handle_voice(raw_data, connection_id, session_id, user_id)
     elif msg_type == MessageType.APPROVAL_RESPONSE:
         await _handle_approval_response(raw_data, connection_id, session_id)
+    elif msg_type == MessageType.VOICE_INTERRUPT:
+        await _handle_voice_interrupt(connection_id)
     else:
         error_msg = _build_error_message(
             error_code="UNSUPPORTED_CLIENT_MESSAGE",
@@ -268,12 +277,13 @@ async def _handle_voice(
         user_id=user_id,
     )
 
-    # Route through AI orchestrator (transcribed text)
+    # Route through AI orchestrator (transcribed text) with TTS streaming
     await _process_with_orchestrator(
         message=content,
         connection_id=connection_id,
         session_id=session_id,
         user_id=user_id,
+        voice_mode=True,
     )
 
 
@@ -308,13 +318,26 @@ async def _process_with_orchestrator(
     connection_id: str,
     session_id: str,
     user_id: str,
+    voice_mode: bool = False,
 ) -> None:
-    """Process a message through the AI orchestrator and send the response.
+    """Process a message through the AI orchestrator with streaming response.
 
-    Sends progress updates during tool execution and the final AI response.
-    Injects agent status into the system prompt for context-aware responses.
+    Streams text deltas via chat.stream messages as Claude generates tokens.
+    Optionally generates TTS audio chunks for voice mode.
     """
     orchestrator = OrchestratorService()
+    message_id = str(uuid4())
+    tts_service = None
+    sentence_acc = None
+
+    if voice_mode:
+        from app.services.tts_service import SentenceAccumulator, TTSService
+
+        tts_service = TTSService()
+        sentence_acc = SentenceAccumulator()
+
+    tts_tasks: list[asyncio.Task[None]] = []
+    chunk_index = 0
 
     async def _progress_callback(tool_name: str, step: int, total_steps: int) -> None:
         """Send progress update to the client during tool execution."""
@@ -332,31 +355,168 @@ async def _process_with_orchestrator(
         )
         await manager.send_json(connection_id, progress_msg)
 
+    async def _on_text_delta(delta: str, index: int) -> None:
+        """Send streaming text delta to client."""
+        nonlocal chunk_index
+        stream_msg = _build_message(
+            MessageType.CHAT_STREAM,
+            ChatStreamPayload(
+                message_id=message_id,
+                delta=delta,
+                index=index,
+            ).model_dump(),
+            session_id=session_id,
+        )
+        await manager.send_json(connection_id, stream_msg)
+
+        # TTS: accumulate sentences and send audio chunks
+        if tts_service is not None and sentence_acc is not None:
+            sentences = sentence_acc.add(delta)
+            for sentence in sentences:
+                ci = chunk_index
+                chunk_index += 1
+                task = asyncio.create_task(
+                    _send_tts_chunk(
+                        tts_service,
+                        sentence,
+                        message_id,
+                        ci,
+                        connection_id,
+                        session_id,
+                    )
+                )
+                tts_tasks.append(task)
+
+    async def _on_stream_end(full_text: str) -> None:
+        """Finalize streaming: flush TTS buffer, send stream end."""
+        nonlocal chunk_index
+
+        # Flush remaining sentence buffer for TTS
+        if tts_service is not None and sentence_acc is not None:
+            remaining = sentence_acc.flush()
+            if remaining:
+                ci = chunk_index
+                chunk_index += 1
+                task = asyncio.create_task(
+                    _send_tts_chunk(
+                        tts_service,
+                        remaining,
+                        message_id,
+                        ci,
+                        connection_id,
+                        session_id,
+                        is_last=True,
+                    )
+                )
+                tts_tasks.append(task)
+
+        # Wait for all TTS tasks to complete
+        if tts_tasks:
+            await asyncio.gather(*tts_tasks, return_exceptions=True)
+
+        # Send voice audio end signal
+        if tts_service is not None:
+            audio_end_msg = _build_message(
+                MessageType.VOICE_AUDIO_END,
+                {"message_id": message_id},
+                session_id=session_id,
+            )
+            await manager.send_json(connection_id, audio_end_msg)
+
     # Build agent status for system prompt
     host_status = await _build_host_status()
 
-    response = await orchestrator.process_user_message(
-        session_id=session_id,
-        user_id=user_id,
-        message=message,
-        progress_callback=_progress_callback,
-        host_status=host_status,
-    )
+    # Create cancellable streaming task
+    async def _run_streaming() -> None:
+        response = await orchestrator.process_user_message_streaming(
+            session_id=session_id,
+            user_id=user_id,
+            message=message,
+            on_text_delta=_on_text_delta,
+            on_stream_end=_on_stream_end,
+            progress_callback=_progress_callback,
+            host_status=host_status,
+        )
 
-    # Send AI response to client
-    response_msg = _build_message(
-        MessageType.TEXT,
-        {
-            "text": response.response_text,
-            "model_used": response.model_used,
-            "tokens_used": {
-                "input": response.tokens_input,
-                "output": response.tokens_output,
-            },
-        },
-        session_id=session_id,
-    )
-    await manager.send_json(connection_id, response_msg)
+        # Send stream end with metadata
+        end_msg = _build_message(
+            MessageType.CHAT_STREAM_END,
+            ChatStreamEndPayload(
+                message_id=message_id,
+                full_text=response.response_text,
+                model_used=response.model_used,
+                tokens_used={
+                    "input": response.tokens_input,
+                    "output": response.tokens_output,
+                },
+            ).model_dump(),
+            session_id=session_id,
+        )
+        await manager.send_json(connection_id, end_msg)
+
+    task = asyncio.create_task(_run_streaming())
+    _active_streams[connection_id] = task
+
+    try:
+        await task
+    except asyncio.CancelledError:
+        await logger.ainfo(
+            "streaming_interrupted",
+            connection_id=connection_id,
+            session_id=session_id,
+        )
+        # Cancel any pending TTS tasks
+        for tts_task in tts_tasks:
+            if not tts_task.done():
+                tts_task.cancel()
+    finally:
+        _active_streams.pop(connection_id, None)
+
+
+async def _send_tts_chunk(
+    tts_service: "TTSService",
+    sentence: str,
+    message_id: str,
+    chunk_index: int,
+    connection_id: str,
+    session_id: str,
+    *,
+    is_last: bool = False,
+) -> None:
+    """Generate TTS for a sentence and send audio chunk over WebSocket."""
+    import base64
+
+    try:
+        audio_bytes = await tts_service.synthesize_sentence(sentence)
+        audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+
+        chunk_payload = VoiceAudioChunkPayload(
+            message_id=message_id,
+            chunk_index=chunk_index,
+            audio_data=audio_b64,
+            sentence_text=sentence,
+            is_last_chunk=is_last,
+        )
+        chunk_msg = _build_message(
+            MessageType.VOICE_AUDIO_CHUNK,
+            chunk_payload.model_dump(),
+            session_id=session_id,
+        )
+        await manager.send_json(connection_id, chunk_msg)
+    except Exception:
+        await logger.aexception(
+            "tts_chunk_failed",
+            sentence=sentence[:50],
+            chunk_index=chunk_index,
+        )
+
+
+async def _handle_voice_interrupt(connection_id: str) -> None:
+    """Cancel active streaming for a connection (barge-in)."""
+    task = _active_streams.get(connection_id)
+    if task and not task.done():
+        task.cancel()
+        await logger.ainfo("voice_stream_interrupted", connection_id=connection_id)
 
 
 async def _handle_approval_response(

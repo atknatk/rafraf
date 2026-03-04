@@ -6,15 +6,18 @@ struct RFMessageBubble: View {
     let message: ChatMessage
     let onCopy: ((String) -> Void)?
     let onImageTap: ((String) -> Void)?
+    let onSpeak: (() -> Void)?
 
     init(
         message: ChatMessage,
         onCopy: ((String) -> Void)? = nil,
-        onImageTap: ((String) -> Void)? = nil
+        onImageTap: ((String) -> Void)? = nil,
+        onSpeak: (() -> Void)? = nil
     ) {
         self.message = message
         self.onCopy = onCopy
         self.onImageTap = onImageTap
+        self.onSpeak = onSpeak
     }
 
     var body: some View {
@@ -30,11 +33,25 @@ struct RFMessageBubble: View {
                     bubbleContentView
                 }
 
-                RFText(
-                    formattedTimestamp,
-                    style: .caption,
-                    color: RFColors.fallbackTextTertiary
-                )
+                HStack(spacing: RFSpacing.xs) {
+                    RFText(
+                        formattedTimestamp,
+                        style: .caption,
+                        color: RFColors.fallbackTextTertiary
+                    )
+
+                    if let onSpeak, message.sender == .assistant {
+                        Button {
+                            RFHaptics.impact(.light)
+                            onSpeak()
+                        } label: {
+                            Image(systemName: "speaker.wave.2.fill")
+                                .font(.caption2)
+                                .foregroundStyle(RFColors.fallbackTextTertiary)
+                        }
+                        .buttonStyle(RFPressButtonStyle())
+                    }
+                }
             }
 
             if message.sender == .assistant || message.sender == .system {
@@ -49,6 +66,17 @@ struct RFMessageBubble: View {
                     String(localized: "chat.message.copy"),
                     systemImage: "doc.on.doc"
                 )
+            }
+
+            if let onSpeak, message.sender == .assistant {
+                Button {
+                    onSpeak()
+                } label: {
+                    Label(
+                        String(localized: "chat.message.speak"),
+                        systemImage: "speaker.wave.2.fill"
+                    )
+                }
             }
         }
     }

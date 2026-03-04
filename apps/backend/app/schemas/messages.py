@@ -27,6 +27,13 @@ class MessageType(StrEnum):
     QUESTION = "question"
     STATUS = "status"
     APPROVAL_RESPONSE = "approval_response"
+    # Streaming response types
+    CHAT_STREAM = "chat.stream"
+    CHAT_STREAM_END = "chat.stream_end"
+    # Voice conversation types
+    VOICE_AUDIO_CHUNK = "voice.audio_chunk"
+    VOICE_AUDIO_END = "voice.audio_end"
+    VOICE_INTERRUPT = "voice.interrupt"
 
 
 class MessageAttachment(BaseModel):
@@ -161,3 +168,36 @@ class ApprovalResponsePayload(BaseModel):
     approval_id: str
     decision: str
     note: str | None = None
+
+
+class ChatStreamPayload(BaseModel):
+    """Payload for streaming text delta messages."""
+
+    model_config = ConfigDict(frozen=True)
+
+    message_id: str
+    delta: str
+    index: int
+
+
+class ChatStreamEndPayload(BaseModel):
+    """Payload for stream completion messages."""
+
+    model_config = ConfigDict(frozen=True)
+
+    message_id: str
+    full_text: str
+    model_used: str
+    tokens_used: dict[str, int]
+
+
+class VoiceAudioChunkPayload(BaseModel):
+    """Payload for TTS audio chunk messages."""
+
+    model_config = ConfigDict(frozen=True)
+
+    message_id: str
+    chunk_index: int
+    audio_data: str  # base64-encoded MP3
+    sentence_text: str
+    is_last_chunk: bool = False

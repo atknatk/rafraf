@@ -11,6 +11,13 @@ enum WebSocketMessageType: String, Codable, Sendable {
     case progress
     case ping
     case pong
+    // Streaming response types
+    case chatStream = "chat.stream"
+    case chatStreamEnd = "chat.stream_end"
+    // Voice conversation types
+    case voiceAudioChunk = "voice.audio_chunk"
+    case voiceAudioEnd = "voice.audio_end"
+    case voiceInterrupt = "voice.interrupt"
 }
 
 /// Mesaj yonu.
@@ -56,12 +63,37 @@ enum WebSocketContent: Codable, Sendable {
     case error(ErrorMessageContent)
     case progress(ProgressMessageContent)
     case heartbeat(HeartbeatContent)
+    case chatStream(ChatStreamContent)
+    case chatStreamEnd(ChatStreamEndContent)
+    case voiceAudioChunk(VoiceAudioChunkContent)
+    case voiceAudioEnd(VoiceAudioEndContent)
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
 
         if let text = try? container.decode(String.self) {
             self = .text(text)
+            return
+        }
+
+        // Streaming types (check before textResponse to avoid ambiguity)
+        if let stream = try? container.decode(ChatStreamContent.self) {
+            self = .chatStream(stream)
+            return
+        }
+
+        if let streamEnd = try? container.decode(ChatStreamEndContent.self) {
+            self = .chatStreamEnd(streamEnd)
+            return
+        }
+
+        if let audioChunk = try? container.decode(VoiceAudioChunkContent.self) {
+            self = .voiceAudioChunk(audioChunk)
+            return
+        }
+
+        if let audioEnd = try? container.decode(VoiceAudioEndContent.self) {
+            self = .voiceAudioEnd(audioEnd)
             return
         }
 
@@ -111,6 +143,14 @@ enum WebSocketContent: Codable, Sendable {
         case .progress(let value):
             try container.encode(value)
         case .heartbeat(let value):
+            try container.encode(value)
+        case .chatStream(let value):
+            try container.encode(value)
+        case .chatStreamEnd(let value):
+            try container.encode(value)
+        case .voiceAudioChunk(let value):
+            try container.encode(value)
+        case .voiceAudioEnd(let value):
             try container.encode(value)
         }
     }
@@ -200,6 +240,35 @@ struct HeartbeatContent: Codable, Sendable {
     }
 }
 
+/// Streaming text delta icerigi.
+struct ChatStreamContent: Codable, Sendable {
+    let messageId: String
+    let delta: String
+    let index: Int
+}
+
+/// Stream tamamlanma icerigi.
+struct ChatStreamEndContent: Codable, Sendable {
+    let messageId: String
+    let fullText: String
+    let modelUsed: String
+    let tokensUsed: TokenUsage?
+}
+
+/// TTS ses chunk icerigi.
+struct VoiceAudioChunkContent: Codable, Sendable {
+    let messageId: String
+    let chunkIndex: Int
+    let audioData: String  // base64-encoded MP3
+    let sentenceText: String
+    let isLastChunk: Bool
+}
+
+/// Ses akisi tamamlanma icerigi.
+struct VoiceAudioEndContent: Codable, Sendable {
+    let messageId: String
+}
+
 // MARK: - Message Factory
 
 /// WebSocket mesaj olusturma yardimci fonksiyonlari.
@@ -235,6 +304,34 @@ enum WebSocketMessageFactory {
         WebSocketBaseMessage(
             type: WebSocketMessageType.pong.rawValue,
             content: .heartbeat(HeartbeatContent())
+        )
+    }
+
+    /// Sesli mesaj (transcribed text) olusturur.
+    static func voiceMessage(
+        _ text: String,
+        sessionId: String? = nil
+    ) -> WebSocketBaseMessage {
+        WebSocketBaseMessage(
+            type: "voice",
+            content: .text(text),
+            metadata: WebSocketMessageMetadata(
+                sessionId: sessionId,
+                direction: WebSocketMessageDirection.clientToServer.rawValue
+            )
+        )
+    }
+
+    /// Voice interrupt (barge-in) mesaji olusturur.
+    static func voiceInterruptMessage(
+        sessionId: String? = nil
+    ) -> WebSocketBaseMessage {
+        WebSocketBaseMessage(
+            type: WebSocketMessageType.voiceInterrupt.rawValue,
+            metadata: WebSocketMessageMetadata(
+                sessionId: sessionId,
+                direction: WebSocketMessageDirection.clientToServer.rawValue
+            )
         )
     }
 }

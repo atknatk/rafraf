@@ -152,6 +152,25 @@ extension Container {
         }
     }
 
+    // MARK: - Voice Conversation Feature
+
+    /// Streaming ses oynatici.
+    var streamingAudioPlayer: Factory<StreamingAudioPlayer> {
+        self { StreamingAudioPlayer() }
+    }
+
+    /// Voice conversation ViewModel.
+    var voiceConversationViewModel: Factory<VoiceConversationViewModel> {
+        self { @MainActor in
+            VoiceConversationViewModel(
+                voiceInputVM: self.voiceInputViewModel(),
+                webSocketManager: self.webSocketConnectionManager(),
+                streamingAudioPlayer: self.streamingAudioPlayer(),
+                chatViewModel: self.chatViewModel()
+            )
+        }
+    }
+
     // MARK: - Voice Output Feature
 
     /// TTS ses cache yoneticisi.

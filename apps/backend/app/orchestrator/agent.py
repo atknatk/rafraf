@@ -283,6 +283,204 @@ class OrchestratorAgent:
             tool_calls_count=tool_calls_count,
         )
 
+    async def process_message_streaming(
+        self,
+        request: OrchestratorRequest,
+        *,
+        on_text_delta: Callable[[str, int], Coroutine[object, object, None]] | None = None,
+        on_stream_end: Callable[[str], Coroutine[object, object, None]] | None = None,
+        progress_callback: ProgressCallback | None = None,
+        host_status: str | None = None,
+        user_memories: str | None = None,
+    ) -> OrchestratorResponse:
+        """Process a user message with streaming text output.
+
+        Tool-calling iterations use non-streaming API calls.
+        The final text response is streamed via on_text_delta callback.
+        """
+        router_result = select_model(request.message)
+        model = router_result.model
+
+        await logger.ainfo(
+            "orchestrator_streaming_started",
+            session_id=request.session_id,
+            model=model,
+            tier=router_result.tier.value,
+        )
+
+        system_prompt = build_system_prompt(
+            host_status=host_status,
+            user_memories=user_memories,
+        )
+
+        conversation = self._get_conversation(request.session_id)
+        user_msg: anthropic.types.MessageParam = {
+            "role": "user",
+            "content": request.message,
+        }
+        conversation.append(user_msg)
+
+        tools = self._registry.get_tools_for_api()
+
+        total_input_tokens = 0
+        total_output_tokens = 0
+        tool_calls_count = 0
+        final_text = ""
+
+        for iteration in range(MAX_ITERATIONS):
+            await logger.ainfo(
+                "orchestrator_streaming_iteration",
+                session_id=request.session_id,
+                iteration=iteration + 1,
+            )
+
+            # Non-streaming call to check for tool use
+            response = await self._call_claude_api(
+                model=model,
+                system=system_prompt,
+                messages=conversation,
+                tools=tools,
+            )
+
+            total_input_tokens += response.usage.input_tokens
+            total_output_tokens += response.usage.output_tokens
+
+            has_tool_use = False
+            tool_result_blocks: list[anthropic.types.ToolResultBlockParam] = []
+
+            for block in response.content:
+                if block.type == "tool_use":
+                    has_tool_use = True
+                    tool_calls_count += 1
+
+                    tool_call = ToolCall(
+                        id=block.id,
+                        name=block.name,
+                        input=dict(block.input),
+                    )
+
+                    if progress_callback is not None:
+                        await progress_callback(
+                            tool_call.name,
+                            iteration + 1,
+                            MAX_ITERATIONS,
+                        )
+
+                    result = await self._execute_tool(tool_call)
+                    tool_result_block: anthropic.types.ToolResultBlockParam = {
+                        "type": "tool_result",
+                        "tool_use_id": result.tool_use_id,
+                        "content": result.content,
+                        "is_error": result.is_error,
+                    }
+                    tool_result_blocks.append(tool_result_block)
+
+            if has_tool_use:
+                assistant_msg: anthropic.types.MessageParam = {
+                    "role": "assistant",
+                    "content": response.content,
+                }
+                conversation.append(assistant_msg)
+                tool_user_msg: anthropic.types.MessageParam = {
+                    "role": "user",
+                    "content": tool_result_blocks,
+                }
+                conversation.append(tool_user_msg)
+            else:
+                # Final response — re-issue as streaming
+                # Remove the non-streaming response tokens (we'll get new ones)
+                total_input_tokens -= response.usage.input_tokens
+                total_output_tokens -= response.usage.output_tokens
+
+                delta_index = 0
+                async with self._client.messages.stream(
+                    model=model,
+                    max_tokens=4096,
+                    system=system_prompt,
+                    messages=conversation,
+                ) as stream:
+                    async for text in stream.text_stream:
+                        final_text += text
+                        if on_text_delta is not None:
+                            await on_text_delta(text, delta_index)
+                        delta_index += 1
+
+                    final_message = await stream.get_final_message()
+                    total_input_tokens += final_message.usage.input_tokens
+                    total_output_tokens += final_message.usage.output_tokens
+
+                if on_stream_end is not None:
+                    await on_stream_end(final_text)
+
+                final_assistant_msg: anthropic.types.MessageParam = {
+                    "role": "assistant",
+                    "content": final_text,
+                }
+                conversation.append(final_assistant_msg)
+                break
+        else:
+            await logger.awarning(
+                "orchestrator_streaming_max_iterations",
+                session_id=request.session_id,
+            )
+            force_msg: anthropic.types.MessageParam = {
+                "role": "user",
+                "content": "Maksimum islem limiti asildi. Lutfen son cevabini ver.",
+            }
+            conversation.append(force_msg)
+
+            delta_index = 0
+            async with self._client.messages.stream(
+                model=model,
+                max_tokens=4096,
+                system=system_prompt,
+                messages=conversation,
+            ) as stream:
+                async for text in stream.text_stream:
+                    final_text += text
+                    if on_text_delta is not None:
+                        await on_text_delta(text, delta_index)
+                    delta_index += 1
+
+                final_message = await stream.get_final_message()
+                total_input_tokens += final_message.usage.input_tokens
+                total_output_tokens += final_message.usage.output_tokens
+
+            if on_stream_end is not None:
+                await on_stream_end(final_text)
+
+            final_assistant_msg2: anthropic.types.MessageParam = {
+                "role": "assistant",
+                "content": final_text,
+            }
+            conversation.append(final_assistant_msg2)
+
+        cost = record_cost(
+            tier=router_result.tier,
+            model=model,
+            input_tokens=total_input_tokens,
+            output_tokens=total_output_tokens,
+        )
+
+        await logger.ainfo(
+            "orchestrator_streaming_completed",
+            session_id=request.session_id,
+            model=model,
+            tokens_input=total_input_tokens,
+            tokens_output=total_output_tokens,
+            tool_calls_count=tool_calls_count,
+            estimated_cost_usd=cost.estimated_cost_usd,
+        )
+
+        return OrchestratorResponse(
+            session_id=request.session_id,
+            response_text=final_text,
+            model_used=model,
+            tokens_input=total_input_tokens,
+            tokens_output=total_output_tokens,
+            tool_calls_count=tool_calls_count,
+        )
+
     async def _call_claude_api(
         self,
         *,

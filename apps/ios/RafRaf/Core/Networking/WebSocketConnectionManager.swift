@@ -100,6 +100,11 @@ final class WebSocketConnectionManager {
         )
     }
 
+    /// Yapilandirilmis WebSocket mesaji gonderir.
+    func sendMessage(_ message: WebSocketBaseMessage) async throws {
+        try await webSocketClient.send(message: message)
+    }
+
     /// Mesaj handler kaydeder.
     func registerHandler(
         type: String,
