@@ -59,6 +59,8 @@ struct ProjectDashboardView: View {
             if !a.modelDistribution.isEmpty {
                 modelDistributionCard(a.modelDistribution)
             }
+
+            widgetPreviewSection(a)
         }
         .padding(RFSpacing.md)
     }
@@ -174,6 +176,42 @@ struct ProjectDashboardView: View {
         }
     }
 
+    @ViewBuilder
+    private func widgetPreviewSection(_ a: ProjectAnalytics) -> some View {
+        RFCard {
+            VStack(alignment: .leading, spacing: RFSpacing.sm) {
+                RFText(
+                    String(localized: "dashboard.widget.preview.title"),
+                    style: .bodyBold,
+                    color: RFColors.fallbackTextPrimary
+                )
+                RFText(
+                    String(localized: "dashboard.widget.preview.subtitle"),
+                    style: .caption,
+                    color: RFColors.fallbackTextSecondary
+                )
+
+                HStack {
+                    Spacer()
+                    RafRafWidgetView(data: WidgetData(
+                        agentName: projectName,
+                        agentStatus: "online",
+                        todayMessageCount: a.userMessages + a.assistantMessages,
+                        pulseSummary: a.dailyActivity.isEmpty ? nil :
+                            String(format: String(localized: "dashboard.widget.preview.pulse"),
+                                   a.userMessages + a.assistantMessages,
+                                   String(format: "%.4f", a.totalCostUSD)),
+                        updatedAt: Date()
+                    ))
+                    .frame(width: 169, height: 169)
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                    Spacer()
+                }
+            }
+        }
+    }
+
     private func loadAnalytics() async {
         isLoading = true
         errorMessage = nil
@@ -186,7 +224,16 @@ struct ProjectDashboardView: View {
                     URLQueryItem(name: "days", value: "\(selectedDays)"),
                 ]
             )
-            analytics = ProjectAnalyticsMapper.toDomain(from: dto)
+            let mapped = ProjectAnalyticsMapper.toDomain(from: dto)
+            analytics = mapped
+            // Update widget data with fresh analytics
+            await WidgetDataService.shared.update(
+                agentName: projectName,
+                agentStatus: "online",
+                todayMessageCount: mapped.userMessages + mapped.assistantMessages,
+                pulseSummary: mapped.dailyActivity.isEmpty ? nil :
+                    "\(mapped.userMessages + mapped.assistantMessages) mesaj · $\(String(format: "%.4f", mapped.totalCostUSD))"
+            )
         } catch {
             errorMessage = error.localizedDescription
         }

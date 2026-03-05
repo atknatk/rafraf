@@ -41,6 +41,11 @@
 		A1B2C3D4E5F647A89012BC4B /* ProjectAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC40 /* ProjectAnalytics.swift */; };
 		A1B2C3D4E5F647A89012BC4C /* ConnectionQualityMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC4D /* ConnectionQualityMonitor.swift */; };
 		A1B2C3D4E5F647A89012BC4E /* RFConnectionIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC4F /* RFConnectionIndicator.swift */; };
+		A1B2C3D4E5F647A89012BC55 /* MessageQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC56 /* MessageQueue.swift */; };
+		A1B2C3D4E5F647A89012BC58 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC57 /* OnboardingView.swift */; };
+		A1B2C3D4E5F647A89012BC5A /* OnboardingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC59 /* OnboardingService.swift */; };
+		A1B2C3D4E5F647A89012BC50 /* WidgetDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC51 /* WidgetDataService.swift */; };
+		A1B2C3D4E5F647A89012BC52 /* RafRafWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC53 /* RafRafWidgetView.swift */; };
 		A1B2C3D4E5F647A89012BC41 /* ProjectAnalyticsDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC42 /* ProjectAnalyticsDTO.swift */; };
 		A1B2C3D4E5F647A89012BC43 /* ProjectAnalyticsMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC44 /* ProjectAnalyticsMapper.swift */; };
 		A1B2C3D4E5F647A89012BC45 /* ProjectDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC46 /* ProjectDashboardView.swift */; };
@@ -599,7 +604,12 @@
 		A1B2C3D4E5F647A89012BC3E /* BookmarksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarksView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC49 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC4D /* ConnectionQualityMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionQualityMonitor.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC56 /* MessageQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageQueue.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC57 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC59 /* OnboardingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingService.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC4F /* RFConnectionIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFConnectionIndicator.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC51 /* WidgetDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC53 /* RafRafWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RafRafWidgetView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC40 /* ProjectAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAnalytics.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC42 /* ProjectAnalyticsDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAnalyticsDTO.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC44 /* ProjectAnalyticsMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAnalyticsMapper.swift; sourceTree = "<group>"; };
@@ -1294,6 +1304,7 @@
 				48E6F1382915379B3048B07A /* WebSocketConnectionManager.swift */,
 				CDB4EC51AF46B7F748D4DDB1 /* WebSocketMessage.swift */,
 				0562ABFC489C98DF5B80B11F /* WebSocketMessageRouter.swift */,
+				A1B2C3D4E5F647A89012BC56 /* MessageQueue.swift */,
 			);
 			path = Networking;
 			sourceTree = "<group>";
@@ -2028,6 +2039,7 @@
 				BF2C977A8D58E6C89567562F /* Notifications */,
 				A1B2C3D4E5F647A89012BC4A /* Utilities */,
 				7C1DF105EF3AA515D571A8A5 /* Voice */,
+				A1B2C3D4E5F647A89012BC54 /* Widget */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -2038,6 +2050,15 @@
 				A1B2C3D4E5F647A89012BC49 /* ShareSheet.swift */,
 			);
 			path = Utilities;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BC54 /* Widget */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC51 /* WidgetDataService.swift */,
+				A1B2C3D4E5F647A89012BC53 /* RafRafWidgetView.swift */,
+			);
+			path = Widget;
 			sourceTree = "<group>";
 		};
 		A1B2C3D4E5F647A89012BC34 /* LiveActivity */ = {
@@ -3347,6 +3368,9 @@
 				A1B2C3D4E5F647A89012BC48 /* ShareSheet.swift in Sources */,
 				A1B2C3D4E5F647A89012BC4C /* ConnectionQualityMonitor.swift in Sources */,
 				A1B2C3D4E5F647A89012BC4E /* RFConnectionIndicator.swift in Sources */,
+				A1B2C3D4E5F647A89012BC55 /* MessageQueue.swift in Sources */,
+				A1B2C3D4E5F647A89012BC50 /* WidgetDataService.swift in Sources */,
+				A1B2C3D4E5F647A89012BC52 /* RafRafWidgetView.swift in Sources */,
 				09FD1381D6990FAC0EFC2906 /* ChatViewModel.swift in Sources */,
 				E4D20264B06E3BA886B7BE9D /* ContentView.swift in Sources */,
 				F71A51CDA2BD295048A36688 /* DebugSetup.swift in Sources */,
