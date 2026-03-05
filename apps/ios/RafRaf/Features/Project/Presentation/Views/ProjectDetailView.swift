@@ -31,7 +31,7 @@ struct ProjectDetailView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink(
                         destination: ProjectDashboardView(
-                            projectId: project.id.uuidString,
+                            projectId: project.id,
                             projectName: project.name
                         )
                     ) {
