@@ -12,7 +12,7 @@
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["active", "pending", "completed"],
+            "enum": ["active", "pending", "completed", "archived"],
             "description": "Proje durumuna gore filtrele"
           },
           "page": {
@@ -81,7 +81,7 @@
           },
           "status": {
             "type": "string",
-            "enum": ["active", "pending", "completed"],
+            "enum": ["active", "pending", "completed", "archived"],
             "description": "Proje durumu"
           },
           "repository_url": {
@@ -133,7 +133,7 @@
         },
         "status": {
           "type": "string",
-          "enum": ["active", "pending", "completed"],
+          "enum": ["active", "pending", "completed", "archived"],
           "description": "Proje durumu"
         },
         "last_activity_at": {

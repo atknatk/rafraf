@@ -12,6 +12,15 @@ from app.main import app
 from app.schemas.orchestrator import OrchestratorResponse
 
 
+def _receive_until(ws: object, target_type: str, max_messages: int = 10) -> dict:  # type: ignore[type-arg]
+    """Drain messages until the expected type is received (skips progress/stream events)."""
+    for _ in range(max_messages):
+        msg = ws.receive_json()  # type: ignore[attr-defined]
+        if msg["type"] == target_type:
+            return msg  # type: ignore[no-any-return]
+    raise AssertionError(f"Did not receive message of type '{target_type}' within {max_messages} messages")
+
+
 @pytest.fixture
 def mock_orchestrator() -> Generator[AsyncMock, None, None]:
     """Mock OrchestratorService to avoid real Anthropic API calls in CI."""
@@ -28,7 +37,10 @@ def mock_orchestrator() -> Generator[AsyncMock, None, None]:
         autospec=True,
     ) as mock_cls:
         mock_instance = AsyncMock()
+        # Cover all processing paths (claude_code, streaming API, legacy)
         mock_instance.process_user_message.return_value = mock_response
+        mock_instance.process_user_message_streaming.return_value = mock_response
+        mock_instance.process_with_claude_code.return_value = mock_response
         mock_cls.return_value = mock_instance
         yield mock_instance
 
@@ -115,8 +127,9 @@ class TestWebSocketMessaging:
                     "content": "Hello RafRaf",
                 }
             )
-            response = ws.receive_json()
-            assert response["type"] == "text"
+            # Server now sends chat.stream_end as the final response
+            response = _receive_until(ws, "chat.stream_end")
+            assert response["type"] == "chat.stream_end"
             assert "content" in response
 
     def test_send_voice_message_receives_response(
@@ -133,8 +146,8 @@ class TestWebSocketMessaging:
                     "content": "Ses mesaji icerigi",
                 }
             )
-            response = ws.receive_json()
-            assert response["type"] == "text"
+            response = _receive_until(ws, "chat.stream_end")
+            assert response["type"] == "chat.stream_end"
 
     def test_send_unknown_type_receives_error(self, client: TestClient, valid_token: str) -> None:
         """Sending an unknown message type should receive an error response."""
@@ -231,8 +244,8 @@ class TestWebSocketPingPong:
                     "content": "Still connected",
                 }
             )
-            response = ws.receive_json()
-            assert response["type"] == "text"
+            response = _receive_until(ws, "chat.stream_end")
+            assert response["type"] == "chat.stream_end"
 
 
 class TestWebSocketMultipleMessages:
@@ -253,8 +266,8 @@ class TestWebSocketMultipleMessages:
                         "content": f"Message {i}",
                     }
                 )
-                response = ws.receive_json()
-                assert response["type"] == "text"
+                response = _receive_until(ws, "chat.stream_end")
+                assert response["type"] == "chat.stream_end"
 
     def test_response_has_unique_ids(
         self, client: TestClient, valid_token: str, mock_orchestrator: AsyncMock

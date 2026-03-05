@@ -61,6 +61,13 @@ class TestMessageType:
             "question",
             "action_result",
             "approval_response",
+            "chat.stream",
+            "chat.stream_end",
+            "voice.audio_chunk",
+            "voice.audio_end",
+            "voice.interrupt",
+            "code.diff",
+            "suggestion",
         }
         actual = {t.value for t in MessageType}
         assert actual == expected

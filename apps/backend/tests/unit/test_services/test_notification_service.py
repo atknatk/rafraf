@@ -226,6 +226,11 @@ class TestSendNotification:
                 "get_active_tokens",
                 new_callable=AsyncMock,
             ) as mock_tokens,
+            patch(
+                "app.services.apns_client.send_push",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
         ):
             mock_get.return_value = mock_settings
             mock_tokens.return_value = [mock_token]
