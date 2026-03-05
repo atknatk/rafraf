@@ -11,6 +11,7 @@ protocol ProjectStatusRepositoryProtocol: Sendable {
     /// - Returns: Proje listesi sonucu
     func getProjects(
         status: ProjectStatus?,
+        agentId: String?,
         page: Int,
         pageSize: Int
     ) async throws -> ProjectListResult

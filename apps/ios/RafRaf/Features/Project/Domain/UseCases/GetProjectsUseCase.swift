@@ -17,11 +17,13 @@ final class GetProjectsUseCase: Sendable {
     /// - Returns: Proje listesi sonucu
     func execute(
         status: ProjectStatus? = nil,
+        agentId: String? = nil,
         page: Int = 1,
         pageSize: Int = 20
     ) async throws -> ProjectListResult {
         try await repository.getProjects(
             status: status,
+            agentId: agentId,
             page: page,
             pageSize: pageSize
         )

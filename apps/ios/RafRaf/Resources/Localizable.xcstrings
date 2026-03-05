@@ -2673,6 +2673,23 @@
       },
       "extractionState": "manual"
     },
+    "project.filter.allAgents": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tum Agentlar"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All Agents"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "project.filter.archived": {
       "localizations": {
         "tr": {

@@ -27,6 +27,7 @@ final class MockProjectRepository: ProjectStatusRepositoryProtocol, @unchecked S
 
     func getProjects(
         status: ProjectStatus?,
+        agentId: String? = nil,
         page: Int,
         pageSize: Int
     ) async throws -> ProjectListResult {
@@ -42,4 +43,26 @@ final class MockProjectRepository: ProjectStatusRepositoryProtocol, @unchecked S
         getProjectLastId = projectId
         return try getProjectResult.get()
     }
+
+    func updateProjectStatus(projectId: String, status: ProjectStatus) async throws -> Project {
+        Project(id: projectId, name: "Mock Project", status: status)
+    }
+}
+
+/// Test icin stub agent repository (proje testleri icin).
+final class StubAgentRepository: AgentRepositoryProtocol, @unchecked Sendable {
+    func getAgents(status: AgentStatus?) async throws -> AgentListResult {
+        AgentListResult(agents: [], total: 0, onlineCount: 0)
+    }
+    func getSubscriptionUsage() async throws -> SubscriptionUsage {
+        SubscriptionUsage(subscriptionType: "max", usedSessions: 0, maxSessions: nil, resetAt: nil, isUnlimited: true)
+    }
+    func refreshSubscriptionUsage() async throws -> SubscriptionUsage {
+        try await getSubscriptionUsage()
+    }
+    func getAgentProjects(agentId: String) async throws -> [AgentProject] { [] }
+    func setProjectActive(agentId: String, projectId: String, isActive: Bool) async throws -> AgentProject {
+        AgentProject(agentId: agentId, projectId: projectId, projectName: "", isActive: isActive, repositoryUrl: nil, localPath: nil, techStack: [])
+    }
+    func getClaudeProcesses(agentId: String) async throws -> [ClaudeProcess] { [] }
 }

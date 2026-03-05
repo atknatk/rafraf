@@ -351,9 +351,11 @@ extension Container {
     var projectListViewModel: Factory<ProjectListViewModel> {
         self { @MainActor in
             let repository = self.projectRepository()
+            let agentRepository = self.agentRepository()
             return ProjectListViewModel(
                 getProjectsUseCase: GetProjectsUseCase(repository: repository),
-                updateProjectStatusUseCase: UpdateProjectStatusUseCase(repository: repository)
+                updateProjectStatusUseCase: UpdateProjectStatusUseCase(repository: repository),
+                getAgentsUseCase: GetAgentsUseCase(repository: agentRepository)
             )
         }
     }

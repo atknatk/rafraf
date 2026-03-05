@@ -7,6 +7,7 @@ import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.agent_project import AgentProject
 from app.models.project import Project
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -21,6 +22,7 @@ class ProjectRepository:
     async def get_projects(
         self,
         status_filter: str | None = None,
+        agent_id: str | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[Sequence[Project], int]:
@@ -31,6 +33,14 @@ class ProjectRepository:
         """
         query = select(Project)
         count_query = select(func.count()).select_from(Project)
+
+        if agent_id is not None:
+            query = query.join(AgentProject, AgentProject.project_id == Project.id).where(
+                AgentProject.agent_id == agent_id
+            )
+            count_query = count_query.join(
+                AgentProject, AgentProject.project_id == Project.id
+            ).where(AgentProject.agent_id == agent_id)
 
         if status_filter is not None:
             query = query.where(Project.status == status_filter)
@@ -121,3 +131,45 @@ class ProjectRepository:
         query = select(Project).where(Project.local_path == local_path)
         result = await self._session.execute(query)
         return result.scalar_one_or_none()
+
+    async def find_duplicate_local_paths(self) -> dict[str, list[uuid.UUID]]:
+        """Ayni local_path'e sahip birden fazla proje grubunu dondurur.
+
+        Returns:
+            {local_path: [project_id, ...]} — en son guncellenen once gelir.
+        """
+        result = await self._session.execute(
+            select(Project.local_path, Project.id)
+            .where(Project.local_path.isnot(None))
+            .order_by(Project.local_path, Project.updated_at.desc())
+        )
+        groups: dict[str, list[uuid.UUID]] = {}
+        for local_path, project_id in result.all():
+            groups.setdefault(local_path, []).append(project_id)
+        return {k: v for k, v in groups.items() if len(v) > 1}
+
+    async def find_duplicate_repository_urls(self) -> dict[str, list[uuid.UUID]]:
+        """Ayni repository_url'ye sahip birden fazla proje grubunu dondurur."""
+        result = await self._session.execute(
+            select(Project.repository_url, Project.id)
+            .where(Project.repository_url.isnot(None))
+            .order_by(Project.repository_url, Project.updated_at.desc())
+        )
+        groups: dict[str, list[uuid.UUID]] = {}
+        for repo_url, project_id in result.all():
+            groups.setdefault(repo_url, []).append(project_id)
+        return {k: v for k, v in groups.items() if len(v) > 1}
+
+    async def delete_project(self, project_id: uuid.UUID) -> bool:
+        """Projeyi siler. agent_projects CASCADE, messages SET NULL.
+
+        Returns:
+            True if deleted, False if not found.
+        """
+        project = await self.get_by_id(project_id)
+        if project is None:
+            return False
+        await self._session.delete(project)
+        await self._session.flush()
+        await logger.ainfo("project_deleted", project_id=str(project_id))
+        return True

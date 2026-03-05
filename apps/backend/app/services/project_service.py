@@ -9,6 +9,7 @@ from app.core.exceptions import NotFoundError
 from app.models.project import Project
 from app.repositories.project_repo import ProjectRepository
 from app.schemas.projects import (
+    DeduplicateResponse,
     ProjectCreateRequest,
     ProjectCreateResponse,
     ProjectDetailResponse,
@@ -31,6 +32,7 @@ class ProjectService:
     async def get_projects(
         self,
         status_filter: ProjectStatus | None = None,
+        agent_id: str | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> ProjectListResponse:
@@ -38,6 +40,7 @@ class ProjectService:
         filter_value = status_filter.value if status_filter is not None else None
         projects, total = await self._repo.get_projects(
             status_filter=filter_value,
+            agent_id=agent_id,
             page=page,
             page_size=page_size,
         )
@@ -180,6 +183,31 @@ class ProjectService:
         )
         await logger.ainfo("project_upserted_create", name=name)
         return self._to_detail_response(project)
+
+    async def deduplicate_projects(self) -> DeduplicateResponse:
+        """Duplicate projeleri tespit edip siler.
+
+        Strateji:
+        1. Ayni local_path'e sahip projeler — en son guncellenen kazanir
+        2. Ayni repository_url'e sahip projeler — en son guncellenen kazanir
+        Silen kayitlarda: agent_projects CASCADE, messages SET NULL (guvenli).
+        """
+        deleted = 0
+
+        # local_path bazli dedup
+        by_path = await self._repo.find_duplicate_local_paths()
+        for _path, ids in by_path.items():
+            for dup_id in ids[1:]:  # ilk = winner (en son update)
+                deleted += 1 if await self._repo.delete_project(dup_id) else 0
+
+        # repository_url bazli dedup (kalan kayitlar arasinda)
+        by_url = await self._repo.find_duplicate_repository_urls()
+        for _url, ids in by_url.items():
+            for dup_id in ids[1:]:
+                deleted += 1 if await self._repo.delete_project(dup_id) else 0
+
+        await logger.ainfo("projects_deduplicated", deleted=deleted)
+        return DeduplicateResponse(deleted_count=deleted)
 
     @staticmethod
     def _to_detail_response(project: Project) -> ProjectDetailResponse:

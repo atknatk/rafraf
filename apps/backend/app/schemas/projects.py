@@ -108,6 +108,12 @@ class ProjectListResponse(BaseModel):
     page_size: int = Field(..., ge=1, description="Sayfa basina proje sayisi")
 
 
+class DeduplicateResponse(BaseModel):
+    """POST /api/v1/projects/deduplicate response."""
+
+    deleted_count: int = Field(..., ge=0, description="Silinen duplicate proje sayisi")
+
+
 class ProjectDetailResponse(BaseModel):
     """GET /api/v1/projects/{project_id} response."""
 

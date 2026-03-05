@@ -10,6 +10,7 @@ from starlette import status
 
 from app.api.deps import get_db
 from app.schemas.projects import (
+    DeduplicateResponse,
     ProjectCreateRequest,
     ProjectCreateResponse,
     ProjectDetailResponse,
@@ -32,6 +33,10 @@ async def list_projects(
         ProjectStatus | None,
         Query(description="Proje durumuna gore filtrele"),
     ] = None,
+    agent_id: Annotated[
+        str | None,
+        Query(description="Agent'a gore filtrele (agent host_id)"),
+    ] = None,
     page: Annotated[
         int,
         Query(ge=1, description="Sayfa numarasi"),
@@ -41,13 +46,29 @@ async def list_projects(
         Query(ge=1, le=100, description="Sayfa basina proje sayisi"),
     ] = 20,
 ) -> ProjectListResponse:
-    """Return paginated project list, optionally filtered by status."""
+    """Return paginated project list, optionally filtered by status and/or agent."""
     service = ProjectService(session)
     return await service.get_projects(
         status_filter=status,
+        agent_id=agent_id,
         page=page,
         page_size=page_size,
     )
+
+
+@router.post("/deduplicate", response_model=DeduplicateResponse)
+async def deduplicate_projects(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> DeduplicateResponse:
+    """Delete duplicate projects (same local_path or repository_url).
+
+    Keeps the most recently updated record. Messages are SET NULL, agent_project
+    links are CASCADE deleted. Safe to call multiple times (idempotent).
+    """
+    service = ProjectService(session)
+    result = await service.deduplicate_projects()
+    await session.commit()
+    return result
 
 
 @router.post(

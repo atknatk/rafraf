@@ -37,26 +37,55 @@ struct ProjectListView: View {
     // MARK: - Filter Bar
 
     private var filterBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: RFSpacing.xs) {
-                filterChip(
-                    title: String(localized: "project.filter.all"),
-                    isSelected: viewModel.selectedFilter == nil
-                ) {
-                    Task { await viewModel.filterByStatus(nil) }
-                }
-
-                ForEach(ProjectStatus.allCases, id: \.self) { status in
+        VStack(spacing: 0) {
+            // Status filtresi
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: RFSpacing.xs) {
                     filterChip(
-                        title: filterTitle(for: status),
-                        isSelected: viewModel.selectedFilter == status
+                        title: String(localized: "project.filter.all"),
+                        isSelected: viewModel.selectedFilter == nil
                     ) {
-                        Task { await viewModel.filterByStatus(status) }
+                        Task { await viewModel.filterByStatus(nil) }
+                    }
+                    ForEach(ProjectStatus.allCases, id: \.self) { status in
+                        filterChip(
+                            title: filterTitle(for: status),
+                            isSelected: viewModel.selectedFilter == status
+                        ) {
+                            Task { await viewModel.filterByStatus(status) }
+                        }
                     }
                 }
+                .padding(.horizontal, RFSpacing.md)
+                .padding(.vertical, RFSpacing.sm)
             }
-            .padding(.horizontal, RFSpacing.md)
-            .padding(.vertical, RFSpacing.sm)
+
+            // Agent filtresi (birden fazla agent varsa goster)
+            if !viewModel.agents.isEmpty {
+                Divider()
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: RFSpacing.xs) {
+                        filterChip(
+                            title: String(localized: "project.filter.allAgents"),
+                            isSelected: viewModel.selectedAgentId == nil,
+                            namespace: "agentFilter"
+                        ) {
+                            Task { await viewModel.filterByAgent(nil) }
+                        }
+                        ForEach(viewModel.agents, id: \.hostId) { agent in
+                            filterChip(
+                                title: agent.hostId,
+                                isSelected: viewModel.selectedAgentId == agent.hostId,
+                                namespace: "agentFilter"
+                            ) {
+                                Task { await viewModel.filterByAgent(agent.hostId) }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, RFSpacing.md)
+                    .padding(.vertical, RFSpacing.sm)
+                }
+            }
         }
         .background(RFColors.fallbackBackground)
     }
@@ -64,6 +93,7 @@ struct ProjectListView: View {
     private func filterChip(
         title: String,
         isSelected: Bool,
+        namespace: String = "activeFilter",
         action: @escaping () -> Void
     ) -> some View {
         Button {
@@ -80,7 +110,7 @@ struct ProjectListView: View {
                 if isSelected {
                     RFColors.brandGradient
                         .matchedGeometryEffect(
-                            id: "activeFilter",
+                            id: namespace,
                             in: filterNamespace
                         )
                 } else {
@@ -189,6 +219,9 @@ struct ProjectListView: View {
         ))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
+        .task {
+            await viewModel.loadMoreProjectsIfNeeded(currentItem: project)
+        }
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             if project.status == .active {
                 Button(role: .destructive) {
@@ -237,10 +270,12 @@ struct ProjectListView: View {
 
 #Preview {
     let repo = PreviewProjectRepository()
+    let agentRepo = PreviewAgentRepository()
     ProjectListView(
         viewModel: ProjectListViewModel(
             getProjectsUseCase: GetProjectsUseCase(repository: repo),
-            updateProjectStatusUseCase: UpdateProjectStatusUseCase(repository: repo)
+            updateProjectStatusUseCase: UpdateProjectStatusUseCase(repository: repo),
+            getAgentsUseCase: GetAgentsUseCase(repository: agentRepo)
         )
     )
 }
@@ -249,6 +284,7 @@ struct ProjectListView: View {
 final class PreviewProjectRepository: ProjectStatusRepositoryProtocol, @unchecked Sendable {
     func getProjects(
         status: ProjectStatus?,
+        agentId: String? = nil,
         page: Int,
         pageSize: Int
     ) async throws -> ProjectListResult {

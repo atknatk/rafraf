@@ -13,6 +13,7 @@ final class ProjectRepositoryImpl: ProjectStatusRepositoryProtocol, @unchecked S
 
     func getProjects(
         status: ProjectStatus?,
+        agentId: String? = nil,
         page: Int,
         pageSize: Int
     ) async throws -> ProjectListResult {
@@ -23,6 +24,9 @@ final class ProjectRepositoryImpl: ProjectStatusRepositoryProtocol, @unchecked S
 
         if let status {
             queryItems.append(URLQueryItem(name: "status", value: status.rawValue))
+        }
+        if let agentId {
+            queryItems.append(URLQueryItem(name: "agent_id", value: agentId))
         }
 
         let dto: ProjectListResponseDTO = try await networkClient.get(

@@ -15,9 +15,7 @@ struct ProjectListViewModelTests {
             ProjectListResult(projects: projects, total: 2, page: 1, pageSize: 20)
         )
 
-        let viewModel = ProjectListViewModel(
-            getProjectsUseCase: GetProjectsUseCase(repository: mockRepo)
-        )
+        let viewModel = makeViewModel(projectRepo: mockRepo)
 
         await viewModel.loadProjects()
 
@@ -32,9 +30,7 @@ struct ProjectListViewModelTests {
         let mockRepo = MockProjectRepository()
         mockRepo.getProjectsResult = .failure(NetworkError.invalidURL)
 
-        let viewModel = ProjectListViewModel(
-            getProjectsUseCase: GetProjectsUseCase(repository: mockRepo)
-        )
+        let viewModel = makeViewModel(projectRepo: mockRepo)
 
         await viewModel.loadProjects()
 
@@ -51,9 +47,7 @@ struct ProjectListViewModelTests {
             ProjectListResult(projects: projects, total: 1, page: 1, pageSize: 20)
         )
 
-        let viewModel = ProjectListViewModel(
-            getProjectsUseCase: GetProjectsUseCase(repository: mockRepo)
-        )
+        let viewModel = makeViewModel(projectRepo: mockRepo)
 
         await viewModel.refreshProjects()
 
@@ -68,9 +62,7 @@ struct ProjectListViewModelTests {
             ProjectListResult(projects: [], total: 0, page: 1, pageSize: 20)
         )
 
-        let viewModel = ProjectListViewModel(
-            getProjectsUseCase: GetProjectsUseCase(repository: mockRepo)
-        )
+        let viewModel = makeViewModel(projectRepo: mockRepo)
 
         await viewModel.filterByStatus(.pending)
 
@@ -81,14 +73,12 @@ struct ProjectListViewModelTests {
     @Test("Daha fazla proje yukleme sayfalama yapar")
     func loadMoreProjectsAppends() async {
         let mockRepo = MockProjectRepository()
-        let initialProjects = [Project(name: "First")]
+        let firstProject = Project(name: "First")
         mockRepo.getProjectsResult = .success(
-            ProjectListResult(projects: initialProjects, total: 30, page: 1, pageSize: 20)
+            ProjectListResult(projects: [firstProject], total: 30, page: 1, pageSize: 20)
         )
 
-        let viewModel = ProjectListViewModel(
-            getProjectsUseCase: GetProjectsUseCase(repository: mockRepo)
-        )
+        let viewModel = makeViewModel(projectRepo: mockRepo)
 
         await viewModel.loadProjects()
         #expect(viewModel.hasMorePages == true)
@@ -98,7 +88,7 @@ struct ProjectListViewModelTests {
             ProjectListResult(projects: moreProjects, total: 30, page: 2, pageSize: 20)
         )
 
-        await viewModel.loadMoreProjects()
+        await viewModel.loadMoreProjectsIfNeeded(currentItem: firstProject)
 
         #expect(viewModel.projects.count == 2)
     }
@@ -108,14 +98,22 @@ struct ProjectListViewModelTests {
         let mockRepo = MockProjectRepository()
         mockRepo.getProjectsResult = .failure(NetworkError.invalidURL)
 
-        let viewModel = ProjectListViewModel(
-            getProjectsUseCase: GetProjectsUseCase(repository: mockRepo)
-        )
+        let viewModel = makeViewModel(projectRepo: mockRepo)
 
         await viewModel.loadProjects()
         #expect(viewModel.errorMessage != nil)
 
         viewModel.dismissError()
         #expect(viewModel.errorMessage == nil)
+    }
+
+    // MARK: - Factory
+
+    private func makeViewModel(projectRepo: MockProjectRepository) -> ProjectListViewModel {
+        ProjectListViewModel(
+            getProjectsUseCase: GetProjectsUseCase(repository: projectRepo),
+            updateProjectStatusUseCase: UpdateProjectStatusUseCase(repository: projectRepo),
+            getAgentsUseCase: GetAgentsUseCase(repository: StubAgentRepository())
+        )
     }
 }
