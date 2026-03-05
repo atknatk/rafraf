@@ -36,6 +36,8 @@ class MessageType(StrEnum):
     VOICE_INTERRUPT = "voice.interrupt"
     # Code diff type
     CODE_DIFF = "code.diff"
+    # Proactive suggestion type
+    SUGGESTION = "suggestion"
 
 
 class MessageAttachment(BaseModel):
@@ -255,3 +257,12 @@ class CodeDiffPayload(BaseModel):
     total_deletions: int
     files_changed: int
     files: list[CodeDiffFilePayload]
+
+
+class SuggestionPayload(BaseModel):
+    """Proaktif takip onerileri payload."""
+
+    model_config = ConfigDict(frozen=True)
+
+    message_id: str  # Ilgili AI mesajinin ID'si
+    suggestions: list[str]  # ["Testleri calistir", "PR olustur", ...]

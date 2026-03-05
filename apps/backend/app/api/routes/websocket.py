@@ -28,6 +28,7 @@ from app.schemas.messages import (
     MessageType,
     ProgressPayload,
     ProgressStepPayload,
+    SuggestionPayload,
     VoiceAudioChunkPayload,
 )
 from app.services.agent_registry_service import agent_registry
@@ -720,6 +721,30 @@ async def _process_with_orchestrator(
                 "chat_stream_end_send_failed",
                 connection_id=connection_id,
             )
+
+        # Suggestions: arka planda uret ve gonder (fire-and-forget, voice modda degil)
+        if response_text and not voice_mode:
+            async def _send_suggestions() -> None:
+                try:
+                    from app.services.suggestion_service import generate_suggestions
+                    suggestions = await generate_suggestions(
+                        user_message=message,
+                        ai_response=response_text,
+                    )
+                    if suggestions:
+                        sugg_msg = _build_message(
+                            MessageType.SUGGESTION,
+                            SuggestionPayload(
+                                message_id=message_id,
+                                suggestions=suggestions,
+                            ).model_dump(),
+                            session_id=session_id,
+                        )
+                        await manager.send_json(_current_conn(), sugg_msg)
+                except Exception:
+                    await logger.awarning("suggestions_send_failed", session_id=session_id)
+
+            asyncio.create_task(_send_suggestions())
 
     # Parse project_id as UUID for DB storage
     _project_uuid: _uuid_mod.UUID | None = None

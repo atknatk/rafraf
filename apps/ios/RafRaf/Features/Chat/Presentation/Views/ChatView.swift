@@ -43,6 +43,34 @@ struct ChatView: View {
                         .background(RFColors.fallbackSurface)
                 }
 
+                // Proaktif oneri chip'leri — input alaninin ustunde
+                if !viewModel.pendingSuggestions.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: RFSpacing.xs) {
+                            ForEach(viewModel.pendingSuggestions, id: \.self) { suggestion in
+                                Button {
+                                    sendSuggestion(suggestion)
+                                    viewModel.pendingSuggestions = []
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "sparkles")
+                                            .font(.system(size: 11))
+                                        Text(suggestion)
+                                            .font(.system(size: 13))
+                                    }
+                                    .padding(.horizontal, RFSpacing.sm)
+                                    .padding(.vertical, RFSpacing.xs)
+                                    .background(RFColors.fallbackPrimary.opacity(0.1))
+                                    .foregroundStyle(RFColors.fallbackPrimary)
+                                    .clipShape(Capsule())
+                                }
+                            }
+                        }
+                        .padding(.horizontal, RFSpacing.sm)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+
                 chatInputView
             }
             .background(RFColors.fallbackBackground)
@@ -97,6 +125,7 @@ struct ChatView: View {
             }
             .animation(RFAnimation.springResponsive, value: showVoiceOverlay)
             .animation(RFAnimation.springResponsive, value: progressViewModel.isVisible)
+            .animation(RFAnimation.springResponsive, value: viewModel.pendingSuggestions.isEmpty)
             .fullScreenCover(isPresented: $showVoiceConversation) {
                 let voiceVM = Container.shared.voiceConversationViewModel()
                 VoiceConversationView(viewModel: voiceVM) {
@@ -339,6 +368,16 @@ struct ChatView: View {
         }
     }
 
+    // MARK: - Suggestion
+
+    /// Oneri chip'ine tıklandığında öneriyi mesaj olarak gönderir.
+    private func sendSuggestion(_ text: String) {
+        viewModel.messageText = text
+        Task {
+            await viewModel.sendMessage()
+        }
+    }
+
     // MARK: - WebSocket Handlers
 
     private func registerMessageHandlers() async {
@@ -450,6 +489,19 @@ struct ChatView: View {
             type: WebSocketMessageType.progress.rawValue,
             handler: progressHandler
         )
+
+        // Suggestion handler
+        let suggestionHandler = ChatSuggestionHandler { messageId, suggestions in
+            Task { @MainActor in
+                sessionManager.activeViewModel.handleSuggestions(
+                    messageId: messageId, suggestions: suggestions
+                )
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.suggestion.rawValue,
+            handler: suggestionHandler
+        )
     }
 
     // MARK: - Helpers
@@ -558,6 +610,20 @@ private final class ChatProgressHandler: WebSocketMessageHandler {
     func handle(_ message: WebSocketBaseMessage) async {
         guard case .progress(let content) = message.content else { return }
         onProgressReceived(content)
+    }
+}
+
+/// Proaktif oneri mesajlarini isler.
+private final class ChatSuggestionHandler: WebSocketMessageHandler {
+    private let onSuggestionReceived: @Sendable (String, [String]) -> Void
+
+    init(onSuggestionReceived: @escaping @Sendable (String, [String]) -> Void) {
+        self.onSuggestionReceived = onSuggestionReceived
+    }
+
+    func handle(_ message: WebSocketBaseMessage) async {
+        guard case .suggestion(let content) = message.content else { return }
+        onSuggestionReceived(content.messageId, content.suggestions)
     }
 }
 

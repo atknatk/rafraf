@@ -17,6 +17,8 @@ final class ChatViewModel {
     var isTyping: Bool = false
     var errorMessage: String?
     var hasMoreMessages: Bool = false
+    var pendingSuggestions: [String] = []
+    var suggestionMessageId: String?
 
     // MARK: - Private
 
@@ -229,6 +231,15 @@ final class ChatViewModel {
         messages.append(diffMessage)
         updateLastMessageTimestamp()
         logger.info("Code diff mesaji eklendi: \(payload.filesChanged) dosya")
+    }
+
+    /// Proaktif takip onerilerini gunceller.
+    /// - Parameters:
+    ///   - messageId: Onerilerle iliskili AI mesajinin ID'si
+    ///   - suggestions: Kisa aksiyonable oneri metinleri
+    func handleSuggestions(messageId: String, suggestions: [String]) {
+        self.suggestionMessageId = messageId
+        self.pendingSuggestions = suggestions
     }
 
     /// Hata mesajini temizler.

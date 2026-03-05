@@ -20,6 +20,8 @@ enum WebSocketMessageType: String, Codable, Sendable {
     case voiceInterrupt = "voice.interrupt"
     // Code diff type
     case codeDiff = "code.diff"
+    // Proactive suggestion type
+    case suggestion = "suggestion"
 }
 
 /// Mesaj yonu.
@@ -70,6 +72,7 @@ enum WebSocketContent: Codable, Sendable {
     case voiceAudioChunk(VoiceAudioChunkContent)
     case voiceAudioEnd(VoiceAudioEndContent)
     case codeDiff(CodeDiffContent)
+    case suggestion(SuggestionContent)
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -102,6 +105,11 @@ enum WebSocketContent: Codable, Sendable {
 
         if let diff = try? container.decode(CodeDiffContent.self) {
             self = .codeDiff(diff)
+            return
+        }
+
+        if let suggestion = try? container.decode(SuggestionContent.self) {
+            self = .suggestion(suggestion)
             return
         }
 
@@ -161,6 +169,8 @@ enum WebSocketContent: Codable, Sendable {
         case .voiceAudioEnd(let value):
             try container.encode(value)
         case .codeDiff(let value):
+            try container.encode(value)
+        case .suggestion(let value):
             try container.encode(value)
         }
     }
@@ -320,6 +330,12 @@ struct CodeDiffContent: Codable, Sendable {
     let totalDeletions: Int
     let filesChanged: Int
     let files: [CodeDiffFileContent]
+}
+
+/// Proaktif oneri mesaj icerigi.
+struct SuggestionContent: Codable, Sendable {
+    let messageId: String
+    let suggestions: [String]
 }
 
 // MARK: - Message Factory
