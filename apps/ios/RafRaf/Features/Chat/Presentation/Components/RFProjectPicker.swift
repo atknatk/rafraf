@@ -2,30 +2,29 @@ import SwiftUI
 
 /// Chat ekraninda proje secici menu.
 /// Toolbar'da gosterilir, aktif projeyi degistirmeye yarar.
-/// Agent-scoped projeleri agent'a gore gruplar.
+/// Iki kademe: once agent secilir (nested menu), sonra o agent'in aktif projeleri listelenir.
 struct RFProjectPicker: View {
     let activeProjectName: String?
-    /// Aktif secimin agent ID'si — nil ise global proje veya genel sohbet.
+    /// Aktif secimin agent ID'si — nil ise genel sohbet.
     let activeAgentId: String?
-    /// Agent'lara bagli projeler — agent bazinda gruplanir.
+    /// Agent'lara bagli projeler — aktif olanlar agent bazinda gruplanir.
     let agentProjects: [AgentProject]
-    /// Agent baglantisindan bagimsiz global projeler.
-    let projects: [Project]
     /// (agentId, projectId, projectName) — nil secenegi genel sohbeti temsil eder.
     let onSelect: (String?, String?, String?) -> Void
 
-    /// Toolbar'da gosterilecek etiket.
-    /// Agent projesi seciliyse "agentId / projectName", yoksa sadece proje adi.
+    /// Toolbar etiketi: "agent / proje" veya "Genel".
     private var displayLabel: String {
         if let agentId = activeAgentId, let projectName = activeProjectName {
-            return "\(agentId) / \(projectName)"
+            // Agent adini kisalt: "macbook-pro.local" → "macbook-pro"
+            let shortAgent = agentId.components(separatedBy: ".").first ?? agentId
+            return "\(shortAgent) / \(projectName)"
         }
         return activeProjectName ?? String(localized: "chat.project.general")
     }
 
+    /// Aktif projeler, agent bazinda gruplanmis.
     private var agentGroups: [(agentId: String, projects: [AgentProject])] {
-        let active = agentProjects.filter(\.isActive)
-        let grouped = Dictionary(grouping: active, by: \.agentId)
+        let grouped = Dictionary(grouping: agentProjects.filter(\.isActive), by: \.agentId)
         return grouped.map { (agentId: $0.key, projects: $0.value) }
             .sorted { $0.agentId < $1.agentId }
     }
@@ -42,30 +41,25 @@ struct RFProjectPicker: View {
                 )
             }
 
-            // Agent bazli proje gruplari — Section basligiyla agent adi gosterilir,
-            // projeler dogrudan altinda listelenir (nested menu yok, ekstra tiklanma yok).
+            // Her agent icin nested menu — Adim 1: agent sec, Adim 2: proje sec
             if !agentGroups.isEmpty {
+                Divider()
                 ForEach(agentGroups, id: \.agentId) { group in
-                    Section(group.agentId) {
+                    Menu {
                         ForEach(group.projects) { project in
                             Button {
                                 onSelect(project.agentId, project.projectId, project.projectName)
                             } label: {
-                                Label(project.projectName, systemImage: "folder")
+                                let isActive = project.agentId == activeAgentId
+                                    && project.projectName == activeProjectName
+                                Label(
+                                    project.projectName,
+                                    systemImage: isActive ? "folder.fill" : "folder"
+                                )
                             }
                         }
-                    }
-                }
-            }
-
-            // Global projeler (agent'a bagli olmayan)
-            if !projects.isEmpty {
-                Divider()
-                ForEach(projects) { project in
-                    Button {
-                        onSelect(nil, project.id, project.name)
                     } label: {
-                        Label(project.name, systemImage: "folder")
+                        Label(group.agentId, systemImage: "desktopcomputer")
                     }
                 }
             }
@@ -75,6 +69,7 @@ struct RFProjectPicker: View {
                     .font(.system(size: 12, weight: .medium))
                 RFText(displayLabel, style: .captionBold)
                     .lineLimit(1)
+                    .truncationMode(.middle)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 10, weight: .semibold))
             }
@@ -102,10 +97,16 @@ struct RFProjectPicker: View {
                 repositoryUrl: nil,
                 localPath: nil,
                 techStack: ["Swift"]
+            ),
+            AgentProject(
+                agentId: "macbook-pro",
+                projectId: "proj-2",
+                projectName: "WebApp",
+                isActive: true,
+                repositoryUrl: nil,
+                localPath: nil,
+                techStack: ["TypeScript"]
             )
-        ],
-        projects: [
-            Project(name: "SideProject", status: .active)
         ],
         onSelect: { _, _, _ in }
     )

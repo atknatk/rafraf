@@ -12,10 +12,8 @@ struct ChatView: View {
     @State private var isProgressExpanded = false
     @State private var showVoiceOverlay = false
     @State private var showVoiceConversation = false
-    @State private var availableProjects: [Project] = []
     @State private var availableAgentProjects: [AgentProject] = []
     private let webSocketManager = Container.shared.webSocketConnectionManager()
-    @State private var projectListViewModel = Container.shared.projectListViewModel()
     private let agentRepository: AgentRepositoryProtocol = Container.shared.agentRepository()
 
     /// Aktif ChatViewModel (session manager uzerinden).
@@ -56,7 +54,6 @@ struct ChatView: View {
                         activeProjectName: sessionManager.activeProjectName,
                         activeAgentId: sessionManager.activeAgentId,
                         agentProjects: availableAgentProjects,
-                        projects: availableProjects,
                         onSelect: { agentId, projectId, projectName in
                             sessionManager.switchProject(id: projectId, name: projectName, agentId: agentId)
                         }
@@ -286,11 +283,7 @@ struct ChatView: View {
     // MARK: - Projects
 
     private func loadProjects() async {
-        await projectListViewModel.loadProjects()
-        // Sadece aktif (status == .active) projeler picker'da gorunsun
-        availableProjects = projectListViewModel.projects.filter { $0.status == .active }
-
-        // Agent projeleri yukle (tum agentlar — online olmayanlar da dahil)
+        // Tum agentlarin aktif projelerini yukle — picker'da agent → proje akisi icin
         do {
             let agentResult = try await agentRepository.getAgents(status: nil)
             var allAgentProjects: [AgentProject] = []
