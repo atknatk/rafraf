@@ -81,6 +81,16 @@ final class ProgressViewModel {
 
         if state.status == .running {
             isVisible = true
+
+            // Live Activity guncelle
+            let activeTool = state.steps.first(where: { $0.status == .active })?.label ?? state.taskDescription
+            LiveActivityManager.shared.update(
+                tool: activeTool,
+                percentage: state.percentage,
+                phaseLabel: state.taskDescription
+            )
+        } else if state.status == .completed {
+            LiveActivityManager.shared.end()
         }
 
         logger.info("Progress guncellendi: \(state.percentage)% - \(state.taskDescription)")

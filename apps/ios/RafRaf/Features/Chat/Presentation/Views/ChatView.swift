@@ -189,7 +189,9 @@ struct ChatView: View {
             isRecording: voiceInputViewModel.isRecording,
             audioLevel: voiceInputViewModel.audioLevel.normalizedLevel,
             onSend: {
-                Task {
+                Task { @MainActor in
+                    let projectName = sessionManager.activeProjectName ?? "RafRaf"
+                    LiveActivityManager.shared.start(projectName: projectName)
                     await viewModel.sendMessage()
                 }
             },
@@ -311,7 +313,9 @@ struct ChatView: View {
         voiceInputViewModel.onTranscriptionComplete = { transcription in
             viewModel.messageText = transcription
             showVoiceOverlay = false
-            Task {
+            Task { @MainActor in
+                let projectName = sessionManager.activeProjectName ?? "RafRaf"
+                LiveActivityManager.shared.start(projectName: projectName)
                 await viewModel.sendMessage()
             }
         }
