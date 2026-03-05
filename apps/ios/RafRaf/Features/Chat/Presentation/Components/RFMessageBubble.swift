@@ -7,17 +7,20 @@ struct RFMessageBubble: View {
     let onCopy: ((String) -> Void)?
     let onImageTap: ((String) -> Void)?
     let onSpeak: (() -> Void)?
+    let onBookmark: (() -> Void)?
 
     init(
         message: ChatMessage,
         onCopy: ((String) -> Void)? = nil,
         onImageTap: ((String) -> Void)? = nil,
-        onSpeak: (() -> Void)? = nil
+        onSpeak: (() -> Void)? = nil,
+        onBookmark: (() -> Void)? = nil
     ) {
         self.message = message
         self.onCopy = onCopy
         self.onImageTap = onImageTap
         self.onSpeak = onSpeak
+        self.onBookmark = onBookmark
     }
 
     var body: some View {
@@ -75,6 +78,18 @@ struct RFMessageBubble: View {
                     Label(
                         String(localized: "chat.message.speak"),
                         systemImage: "speaker.wave.2.fill"
+                    )
+                }
+            }
+
+            if let onBookmark, message.sender == .assistant {
+                Divider()
+                Button {
+                    onBookmark()
+                } label: {
+                    Label(
+                        String(localized: "chat.message.bookmark"),
+                        systemImage: "bookmark"
                     )
                 }
             }

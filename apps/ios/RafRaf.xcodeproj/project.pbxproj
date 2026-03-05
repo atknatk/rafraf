@@ -35,6 +35,8 @@
 		A1B2C3D4E5F647A89012BC37 /* ChatSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC38 /* ChatSearchView.swift */; };
 		A1B2C3D4E5F647A89012BC35 /* RFQuickCommandPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC36 /* RFQuickCommandPalette.swift */; };
 		A1B2C3D4E5F647A89012BC39 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC3A /* HapticManager.swift */; };
+		A1B2C3D4E5F647A89012BC3B /* BookmarkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC3C /* BookmarkService.swift */; };
+		A1B2C3D4E5F647A89012BC3D /* BookmarksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC3E /* BookmarksView.swift */; };
 		1925FC51FB504DEEA4A55327 /* AgentDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0BB2A9F00D4ABDB76D5498 /* AgentDTO.swift */; };
 		1D844028D4A04DB79C040EFD /* AgentMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38C6825A0DB485CB0628044 /* AgentMapper.swift */; };
 		ACFB026BE1CC4BBAB04362EE /* AgentRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD505F743CAC48ACA012DF72 /* AgentRepositoryImpl.swift */; };
@@ -586,6 +588,8 @@
 		A961F116D1108B39252EE3C1 /* SaveSettingsUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveSettingsUseCaseTests.swift; sourceTree = "<group>"; };
 		ABF334A3FB646BB6870AAA85 /* RFHaptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFHaptics.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC3A /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC3C /* BookmarkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC3E /* BookmarksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarksView.swift; sourceTree = "<group>"; };
 		AD54C402190CF29D5AADD728 /* RFPlaybackProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFPlaybackProgressBar.swift; sourceTree = "<group>"; };
 		AD6B51A4354CBB85A0314750 /* FileRepositoryProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileRepositoryProtocol.swift; sourceTree = "<group>"; };
 		B00D12AD59FE69B29E947D16 /* MockAuthRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAuthRepository.swift; sourceTree = "<group>"; };
@@ -1733,6 +1737,7 @@
 			children = (
 				F503BC69A6F011BBD9C5C7A1 /* ChatView.swift */,
 				A1B2C3D4E5F647A89012BC38 /* ChatSearchView.swift */,
+				A1B2C3D4E5F647A89012BC3E /* BookmarksView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2854,12 +2859,21 @@
 			path = Presentation;
 			sourceTree = "<group>";
 		};
+		A1B2C3D4E5F647A89012BC3F /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC3C /* BookmarkService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
 		F888B785B2F2F0EA8512845D /* Data */ = {
 			isa = PBXGroup;
 			children = (
 				B71946E9C5270228B87FF414 /* DTOs */,
 				D3E3DA3BC38545FDC79454F0 /* Mappers */,
 				3285F82E0B01932D835642AE /* Repositories */,
+				A1B2C3D4E5F647A89012BC3F /* Services */,
 			);
 			path = Data;
 			sourceTree = "<group>";
@@ -3290,6 +3304,8 @@
 				304C4F20A6983A344404EC79 /* ChatSkeletonView.swift in Sources */,
 				00E71759402C5B52C67BE896 /* ChatView.swift in Sources */,
 				A1B2C3D4E5F647A89012BC37 /* ChatSearchView.swift in Sources */,
+				A1B2C3D4E5F647A89012BC3B /* BookmarkService.swift in Sources */,
+				A1B2C3D4E5F647A89012BC3D /* BookmarksView.swift in Sources */,
 				09FD1381D6990FAC0EFC2906 /* ChatViewModel.swift in Sources */,
 				E4D20264B06E3BA886B7BE9D /* ContentView.swift in Sources */,
 				F71A51CDA2BD295048A36688 /* DebugSetup.swift in Sources */,
