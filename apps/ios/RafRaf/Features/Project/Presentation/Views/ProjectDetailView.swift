@@ -26,6 +26,20 @@ struct ProjectDetailView: View {
         }
         .navigationTitle(viewModel.project?.name ?? String(localized: "project.detail.title"))
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            if let project = viewModel.project {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    NavigationLink(
+                        destination: ProjectDashboardView(
+                            projectId: project.id.uuidString,
+                            projectName: project.name
+                        )
+                    ) {
+                        Label(String(localized: "dashboard.title"), systemImage: "chart.bar")
+                    }
+                }
+            }
+        }
         .task {
             await viewModel.loadProject()
         }
