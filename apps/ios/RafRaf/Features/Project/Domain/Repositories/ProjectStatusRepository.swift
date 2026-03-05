@@ -19,6 +19,13 @@ protocol ProjectStatusRepositoryProtocol: Sendable {
     /// - Parameter projectId: Proje ID
     /// - Returns: Proje detay bilgisi
     func getProject(id projectId: String) async throws -> Project
+
+    /// Proje durumunu gunceller.
+    /// - Parameters:
+    ///   - projectId: Proje ID
+    ///   - status: Yeni durum
+    /// - Returns: Guncellenmis proje
+    func updateProjectStatus(projectId: String, status: ProjectStatus) async throws -> Project
 }
 
 /// Proje listesi sonuc modeli.

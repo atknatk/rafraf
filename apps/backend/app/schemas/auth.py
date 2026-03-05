@@ -34,3 +34,20 @@ class UserResponse(BaseModel):
     email: str = Field(..., description="Kullanici e-posta adresi")
     is_active: bool = Field(..., description="Kullanici aktif mi")
     created_at: str = Field(..., description="Olusturulma zamani (ISO 8601)")
+
+
+class ProfileResponse(BaseModel):
+    """User profile response."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str = Field(..., description="Kullanici UUID")
+    email: str = Field(..., description="Kullanici e-posta adresi")
+    display_name: str | None = Field(None, description="Goruntu adi")
+    created_at: str = Field(..., description="Olusturulma zamani (ISO 8601)")
+
+
+class ProfileUpdateRequest(BaseModel):
+    """Profile update request."""
+
+    display_name: str | None = Field(None, min_length=1, max_length=255, description="Yeni goruntu adi")

@@ -78,6 +78,17 @@ actor NetworkClient {
         return try await execute(request)
     }
 
+    /// PATCH istegi gonderir ve sonucu decode eder.
+    func patch<T: Decodable & Sendable, B: Encodable & Sendable>(
+        path: String,
+        body: B
+    ) async throws -> T {
+        var request = try buildRequest(path: path, method: .patch)
+        request.httpBody = try encoder.encode(body)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        return try await execute(request)
+    }
+
     /// POST istegi gonderir ve ham veri dondurur (JSON decode yapmaz).
     /// TTS gibi binary response donen endpoint'ler icin kullanilir.
     func postRawData<B: Encodable & Sendable>(

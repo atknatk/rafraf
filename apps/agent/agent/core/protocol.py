@@ -23,6 +23,18 @@ class ResourceMetrics(BaseModel):
     disk_free_gb: float
 
 
+class ClaudeProcessInfo(BaseModel):
+    """Calisan tek bir claude process bilgisi."""
+
+    model_config = ConfigDict(frozen=True)
+
+    pid: int
+    cpu_percent: float
+    memory_mb: float
+    started_at: str | None = None
+    cmdline: str | None = None
+
+
 class AlarmLevel(StrEnum):
     """Alarm seviyesi."""
 
@@ -132,6 +144,7 @@ class HeartbeatContent(BaseModel):
     uptime_seconds: int
     active_tasks: int
     resources: ResourceMetrics
+    claude_processes: list[ClaudeProcessInfo] = []
 
 
 def build_register_message(
@@ -160,6 +173,7 @@ def build_heartbeat_message(
     uptime_seconds: int,
     active_tasks: int,
     resources: ResourceMetrics,
+    claude_processes: list[ClaudeProcessInfo] | None = None,
 ) -> str:
     """agent_heartbeat mesaji olusturur ve JSON string olarak dondurur."""
     content = HeartbeatContent(
@@ -168,6 +182,7 @@ def build_heartbeat_message(
         uptime_seconds=uptime_seconds,
         active_tasks=active_tasks,
         resources=resources,
+        claude_processes=claude_processes or [],
     )
     message = HeartbeatMessage(
         host_id=host_id,

@@ -20,6 +20,17 @@
 		A1B2C3D4E5F647A89012BC08 /* StreamingAudioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC18 /* StreamingAudioPlayer.swift */; };
 		A1B2C3D4E5F647A89012BC09 /* VoiceConversationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC19 /* VoiceConversationViewModel.swift */; };
 		A1B2C3D4E5F647A89012BC0A /* VoiceConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC1A /* VoiceConversationView.swift */; };
+		A1B2C3D4E5F647A89012BC0E /* AgentProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC1E /* AgentProject.swift */; };
+		A1B2C3D4E5F647A89012BC0F /* ClaudeProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC1F /* ClaudeProcess.swift */; };
+		A1B2C3D4E5F647A89012BC10 /* AgentProjectDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC20 /* AgentProjectDTO.swift */; };
+		A1B2C3D4E5F647A89012BC21 /* FetchMissedMessagesUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC25 /* FetchMissedMessagesUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC22 /* LoadProfileUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC26 /* LoadProfileUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC23 /* UpdateProfileUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC27 /* UpdateProfileUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC24 /* UserRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC28 /* UserRepositoryImpl.swift */; };
+		A1B2C3D4E5F647A89012BC0B /* GetAgentProjectsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC1B /* GetAgentProjectsUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC0C /* SetProjectActiveUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC1C /* SetProjectActiveUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC0D /* GetClaudeProcessesUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC1D /* GetClaudeProcessesUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC30 /* UpdateProjectStatusUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC31 /* UpdateProjectStatusUseCase.swift */; };
 		1925FC51FB504DEEA4A55327 /* AgentDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0BB2A9F00D4ABDB76D5498 /* AgentDTO.swift */; };
 		1D844028D4A04DB79C040EFD /* AgentMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38C6825A0DB485CB0628044 /* AgentMapper.swift */; };
 		ACFB026BE1CC4BBAB04362EE /* AgentRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD505F743CAC48ACA012DF72 /* AgentRepositoryImpl.swift */; };
@@ -351,6 +362,13 @@
 		A1B2C3D4E5F647A89012BC18 /* StreamingAudioPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingAudioPlayer.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC19 /* VoiceConversationViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceConversationViewModel.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC1A /* VoiceConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceConversationView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC1E /* AgentProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentProject.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC1F /* ClaudeProcess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeProcess.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC20 /* AgentProjectDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentProjectDTO.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC1B /* GetAgentProjectsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetAgentProjectsUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC1C /* SetProjectActiveUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetProjectActiveUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC1D /* GetClaudeProcessesUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetClaudeProcessesUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC31 /* UpdateProjectStatusUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateProjectStatusUseCase.swift; sourceTree = "<group>"; };
 		1D0BB2A9F00D4ABDB76D5498 /* AgentDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDTO.swift; sourceTree = "<group>"; };
 		C38C6825A0DB485CB0628044 /* AgentMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentMapper.swift; sourceTree = "<group>"; };
 		AD505F743CAC48ACA012DF72 /* AgentRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRepositoryImpl.swift; sourceTree = "<group>"; };
@@ -656,6 +674,10 @@
 		FDF2C47869AE1620A3BBEC2A /* ApprovalMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalMapper.swift; sourceTree = "<group>"; };
 		FE2DD0C74D5C60819C75A400 /* AudioLevelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioLevelTests.swift; sourceTree = "<group>"; };
 		FF3E05119E588957102E442F /* AuthMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthMapper.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC25 /* FetchMissedMessagesUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FetchMissedMessagesUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC26 /* LoadProfileUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadProfileUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC27 /* UpdateProfileUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateProfileUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC28 /* UserRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserRepositoryImpl.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -827,6 +849,7 @@
 			isa = PBXGroup;
 			children = (
 				4EB9277F8FB5FF307653B2DB /* SettingsRepositoryImpl.swift */,
+				A1B2C3D4E5F647A89012BC28 /* UserRepositoryImpl.swift */,
 			);
 			path = Repositories;
 			sourceTree = "<group>";
@@ -1153,6 +1176,7 @@
 			children = (
 				334E232A5C84D86BF0C4487A /* GetProjectDetailUseCase.swift */,
 				0FADD172BD04821AA0F68F16 /* GetProjectsUseCase.swift */,
+				A1B2C3D4E5F647A89012BC31 /* UpdateProjectStatusUseCase.swift */,
 			);
 			path = UseCases;
 			sourceTree = "<group>";
@@ -1192,8 +1216,10 @@
 		3F349111E0DC309853A714A5 /* UseCases */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D4E5F647A89012BC26 /* LoadProfileUseCase.swift */,
 				EAC60F0C5E533BCE8BA4A67A /* LoadSettingsUseCase.swift */,
 				79C9096623185819E65CA1D7 /* SaveSettingsUseCase.swift */,
+				A1B2C3D4E5F647A89012BC27 /* UpdateProfileUseCase.swift */,
 			);
 			path = UseCases;
 			sourceTree = "<group>";
@@ -2157,6 +2183,7 @@
 		AAB9E670EE53446ED80B35E3 /* UseCases */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D4E5F647A89012BC25 /* FetchMissedMessagesUseCase.swift */,
 				9EFE790132F623C0887C8BA5 /* LoadChatHistoryUseCase.swift */,
 				53122A6023B9C8527386D149 /* SendMessageUseCase.swift */,
 			);
@@ -2912,6 +2939,8 @@
 			children = (
 				F4FD96FDBCBB4D05BE5C2C9B /* Agent.swift */,
 				A1B2C3D4E5F647A89012BC13 /* SubscriptionUsage.swift */,
+				A1B2C3D4E5F647A89012BC1E /* AgentProject.swift */,
+				A1B2C3D4E5F647A89012BC1F /* ClaudeProcess.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -2930,6 +2959,9 @@
 				96BB6E6772E4412A9DEE3771 /* GetAgentsUseCase.swift */,
 				A1B2C3D4E5F647A89012BC11 /* GetSubscriptionUsageUseCase.swift */,
 				A1B2C3D4E5F647A89012BC12 /* RefreshSubscriptionUsageUseCase.swift */,
+				A1B2C3D4E5F647A89012BC1B /* GetAgentProjectsUseCase.swift */,
+				A1B2C3D4E5F647A89012BC1C /* SetProjectActiveUseCase.swift */,
+				A1B2C3D4E5F647A89012BC1D /* GetClaudeProcessesUseCase.swift */,
 			);
 			path = UseCases;
 			sourceTree = "<group>";
@@ -2939,6 +2971,7 @@
 			children = (
 				1D0BB2A9F00D4ABDB76D5498 /* AgentDTO.swift */,
 				A1B2C3D4E5F647A89012BC14 /* SubscriptionUsageDTO.swift */,
+				A1B2C3D4E5F647A89012BC20 /* AgentProjectDTO.swift */,
 			);
 			path = DTOs;
 			sourceTree = "<group>";
@@ -3191,6 +3224,17 @@
 				A1B2C3D4E5F647A89012BC08 /* StreamingAudioPlayer.swift in Sources */,
 				A1B2C3D4E5F647A89012BC09 /* VoiceConversationViewModel.swift in Sources */,
 				A1B2C3D4E5F647A89012BC0A /* VoiceConversationView.swift in Sources */,
+				A1B2C3D4E5F647A89012BC0E /* AgentProject.swift in Sources */,
+				A1B2C3D4E5F647A89012BC0F /* ClaudeProcess.swift in Sources */,
+				A1B2C3D4E5F647A89012BC10 /* AgentProjectDTO.swift in Sources */,
+				A1B2C3D4E5F647A89012BC0B /* GetAgentProjectsUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC0C /* SetProjectActiveUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC0D /* GetClaudeProcessesUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC30 /* UpdateProjectStatusUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC21 /* FetchMissedMessagesUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC22 /* LoadProfileUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC23 /* UpdateProfileUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC24 /* UserRepositoryImpl.swift in Sources */,
 				A98693C70B9BBE3979DA0685 /* AppContainer.swift in Sources */,
 				D603913E1499B617128063BC /* AppDelegate.swift in Sources */,
 				9CC04BC3F7D82C475AD74B15 /* AppEnvironment.swift in Sources */,

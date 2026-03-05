@@ -30,7 +30,7 @@ final class FileRepositoryImpl: FileRepositoryProtocol, @unchecked Sendable {
         )
 
         let responseDTO: FileUploadResponseDTO = try await networkClient.post(
-            path: "/api/v1/files/upload-url",
+            path: "/files/upload-url",
             body: requestDTO
         )
 
@@ -89,7 +89,7 @@ final class FileRepositoryImpl: FileRepositoryProtocol, @unchecked Sendable {
         )
 
         let responseDTO: FileDownloadResponseDTO = try await networkClient.post(
-            path: "/api/v1/files/download-url",
+            path: "/files/download-url",
             body: requestDTO
         )
 

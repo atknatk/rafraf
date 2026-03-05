@@ -1,21 +1,42 @@
 import Foundation
 import os
 
+// MARK: - Response DTOs (private to data layer)
+
+private struct ConversationHistoryDTO: Decodable, Sendable {
+    let messages: [MessageResponseDTO]
+    let hasMore: Bool
+    let nextCursor: String?
+}
+
+private struct MessageResponseDTO: Decodable, Sendable {
+    let id: String
+    let role: String
+    let content: String
+    let createdAt: String
+}
+
 /// Chat repository implementasyonu.
-/// WebSocket uzerinden mesaj gonderme ve gecmis yukleme islemlerini gerceklestirir.
+/// WebSocket uzerinden mesaj gonderme, REST uzerinden gecmis yukleme.
 final class ChatRepositoryImpl: ChatRepositoryProtocol, @unchecked Sendable {
     private let webSocketClient: WebSocketClient
+    private let networkClient: NetworkClient
     private let logger = AppLogger.logger(for: "ChatRepository")
 
-    init(webSocketClient: WebSocketClient) {
+    init(webSocketClient: WebSocketClient, networkClient: NetworkClient) {
         self.webSocketClient = webSocketClient
+        self.networkClient = networkClient
     }
 
-    func sendMessage(text: String, sessionId: String, projectId: String? = nil) async throws -> ChatMessage {
+    func sendMessage(text: String, sessionId: String, projectId: String? = nil, agentId: String? = nil) async throws -> ChatMessage {
         let messageId = UUID().uuidString
 
-        // Backend "text" tipi bekler, content duz metin olmali
-        try await webSocketClient.sendText(text, sessionId: sessionId, projectId: projectId)
+        try await webSocketClient.sendText(
+            text,
+            sessionId: sessionId,
+            projectId: projectId,
+            agentId: agentId
+        )
         logger.info("Mesaj gonderildi: \(messageId)")
 
         return ChatMessage(
@@ -32,10 +53,67 @@ final class ChatRepositoryImpl: ChatRepositoryProtocol, @unchecked Sendable {
         cursor: String?,
         limit: Int
     ) async throws -> ChatHistoryResult {
-        // Yeni session — gecmis yok, bos doner
-        // Ileride REST endpoint (/api/v1/conversations/{sessionId}/messages) entegre edilecek
-        logger.info("Mesaj gecmisi istendi - session: \(sessionId), cursor: \(cursor ?? "nil")")
-        return ChatHistoryResult(messages: [], hasMore: false, nextCursor: nil)
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "session_id", value: sessionId),
+            URLQueryItem(name: "limit", value: "\(limit)")
+        ]
+        if let cursor {
+            queryItems.append(URLQueryItem(name: "cursor", value: cursor))
+        }
+
+        let dto: ConversationHistoryDTO = try await networkClient.get(
+            path: "/conversations/history",
+            queryItems: queryItems
+        )
+
+        let messages = dto.messages.compactMap { msg -> ChatMessage? in
+            let sender: MessageSender = msg.role == "user" ? .user : .assistant
+            return ChatMessage(
+                id: msg.id,
+                content: msg.content,
+                sender: sender,
+                timestamp: ISO8601DateFormatter().date(from: msg.createdAt) ?? Date(),
+                type: .text
+            )
+        }
+
+        logger.info("Mesaj gecmisi yuklendi - session: \(sessionId), count: \(messages.count)")
+        return ChatHistoryResult(messages: messages, hasMore: dto.hasMore, nextCursor: dto.nextCursor)
+    }
+
+    func fetchMissedMessages(
+        since: String,
+        sessionId: String?,
+        projectId: String?
+    ) async throws -> [ChatMessage] {
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "since", value: since)
+        ]
+        if let sessionId {
+            queryItems.append(URLQueryItem(name: "session_id", value: sessionId))
+        }
+        if let projectId {
+            queryItems.append(URLQueryItem(name: "project_id", value: projectId))
+        }
+
+        let dto: ConversationHistoryDTO = try await networkClient.get(
+            path: "/conversations/missed",
+            queryItems: queryItems
+        )
+
+        let messages = dto.messages.compactMap { msg -> ChatMessage? in
+            let sender: MessageSender = msg.role == "user" ? .user : .assistant
+            return ChatMessage(
+                id: msg.id,
+                content: msg.content,
+                sender: sender,
+                timestamp: ISO8601DateFormatter().date(from: msg.createdAt) ?? Date(),
+                type: .text
+            )
+        }
+
+        logger.info("Kacirilmis mesajlar yuklendi: \(messages.count)")
+        return messages
     }
 }
 

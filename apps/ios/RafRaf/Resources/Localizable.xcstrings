@@ -2571,6 +2571,57 @@
       },
       "extractionState": "manual"
     },
+    "project.action.activate": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktif Yap"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activate"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "project.action.archive": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arsivle"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archive"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "project.error.updateFailed": {
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durum guncellenemedi"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status update failed"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "project.error.refreshFailed": {
       "localizations": {
         "tr": {
@@ -4318,6 +4369,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "Agent Detay"
+          }
+        }
+      }
+    },
+    "agent.processes.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Processes"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Süreçleri"
+          }
+        }
+      }
+    },
+    "agent.projects.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projects"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projeler"
+          }
+        }
+      }
+    },
+    "agent.projects.toggleError": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not update project status"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proje durumu güncellenemedi"
           }
         }
       }

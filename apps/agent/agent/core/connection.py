@@ -20,7 +20,7 @@ from agent.core.protocol import (
     parse_register_ack,
     parse_server_message,
 )
-from agent.monitoring.metrics import get_resource_metrics
+from agent.monitoring.metrics import get_claude_processes, get_resource_metrics
 
 if TYPE_CHECKING:
     from agent.core.config import AgentConfig
@@ -160,12 +160,14 @@ class ConnectionManager:
                     break
 
                 resources: ResourceMetrics = await get_resource_metrics()
+                claude_procs = await get_claude_processes()
                 message = build_heartbeat_message(
                     host_id=self._config.host_id,
                     status="online" if self._active_tasks == 0 else "busy",
                     uptime_seconds=self.uptime_seconds,
                     active_tasks=self._active_tasks,
                     resources=resources,
+                    claude_processes=claude_procs,
                 )
                 await self._ws.send(message)
                 await logger.adebug(

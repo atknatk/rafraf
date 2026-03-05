@@ -112,6 +112,7 @@ class ClaudeCodeRunner:
         *,
         prompt: str,
         session_id: str | None = None,
+        project_dir: str | None = None,
         on_text_delta: TextDeltaCallback | None = None,
         on_tool_progress: ToolProgressCallback | None = None,
         on_question: QuestionCallback | None = None,
@@ -142,9 +143,17 @@ class ClaudeCodeRunner:
             append_system_prompt=append_system_prompt,
         )
 
+        # CWD öncelik sırası: run()'a geçilen > config default > None (subprocess CWD)
+        effective_dir = (
+            project_dir
+            or self._settings.claude_code_project_dir
+            or self._settings.claude_code_default_dir
+            or None
+        )
+
         await logger.ainfo(
             "claude_code_starting",
-            project_dir=self._settings.claude_code_project_dir,
+            project_dir=effective_dir,
             model=self._settings.claude_code_model,
             max_turns=self._settings.claude_code_max_turns,
             resume_session=session_id,
@@ -155,7 +164,7 @@ class ClaudeCodeRunner:
         try:
             self._process = await asyncio.create_subprocess_exec(
                 *cmd,
-                cwd=self._settings.claude_code_project_dir,
+                cwd=effective_dir,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

@@ -60,6 +60,33 @@ enum AgentMapper {
         )
     }
 
+    /// AgentProjectsResponseDTO'yu [AgentProject] domain modeline donusturur.
+    static func toDomain(from dto: AgentProjectsResponseDTO) -> [AgentProject] {
+        dto.projects.map { proj in
+            AgentProject(
+                agentId: dto.agentId,
+                projectId: proj.projectId,
+                projectName: proj.projectName,
+                isActive: proj.isActive,
+                repositoryUrl: proj.repositoryUrl,
+                techStack: proj.techStack
+            )
+        }
+    }
+
+    /// AgentProcessesResponseDTO'yu [ClaudeProcess] domain modeline donusturur.
+    static func toDomain(from dto: AgentProcessesResponseDTO) -> [ClaudeProcess] {
+        dto.processes.map { proc in
+            ClaudeProcess(
+                pid: proc.pid,
+                cpuPercent: proc.cpuPercent,
+                memoryMb: proc.memoryMb,
+                startedAt: parseDate(proc.startedAt),
+                cmdline: proc.cmdline
+            )
+        }
+    }
+
     // MARK: - Private Helpers
 
     private static func parseDate(_ dateString: String?) -> Date? {

@@ -20,6 +20,11 @@ struct ProjectListResponseDTO: Codable, Sendable {
     let pageSize: Int
 }
 
+/// Proje durumu guncelleme request DTO.
+struct UpdateProjectStatusRequestDTO: Codable, Sendable {
+    let status: String
+}
+
 /// Proje detay response DTO.
 struct ProjectDetailDTO: Codable, Sendable {
     let id: String
@@ -27,6 +32,7 @@ struct ProjectDetailDTO: Codable, Sendable {
     let description: String?
     let status: String
     let repositoryUrl: String?
+    let localPath: String?
     let techStack: [String]
     let lastActivityAt: String?
     let lastActivitySummary: String?

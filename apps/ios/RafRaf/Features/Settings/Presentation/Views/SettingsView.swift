@@ -61,6 +61,12 @@ struct SettingsView: View {
             } message: {
                 Text(String(localized: "settings.logout.confirmMessage"))
             }
+            .task {
+                await viewModel.loadProfile()
+            }
+            .sheet(isPresented: $viewModel.isShowingProfileEdit) {
+                profileEditSheet
+            }
             .onAppear {
                 withAnimation(RFAnimation.springResponsive) {
                     isAppeared = true
@@ -77,17 +83,54 @@ struct SettingsView: View {
                 RFAvatar(name: viewModel.displayName, size: .large, showRing: true)
 
                 VStack(alignment: .leading, spacing: RFSpacing.xxs) {
-                    RFText(viewModel.displayName, style: .title)
-                    RFText(viewModel.email, style: .caption)
+                    if viewModel.isLoadingProfile {
+                        ProgressView()
+                    } else {
+                        RFText(viewModel.displayName, style: .title)
+                        RFText(viewModel.email, style: .caption)
+                    }
                 }
 
                 Spacer()
 
-                Image(systemName: "chevron.right")
+                Image(systemName: "pencil")
                     .font(.caption)
                     .foregroundStyle(RFColors.fallbackTextTertiary)
             }
         }
+        .onTapGesture {
+            viewModel.showProfileEdit()
+        }
+    }
+
+    private var profileEditSheet: some View {
+        NavigationStack {
+            Form {
+                Section(String(localized: "settings.profile.displayName")) {
+                    TextField(
+                        String(localized: "settings.profile.displayNamePlaceholder"),
+                        text: $viewModel.editingDisplayName
+                    )
+                }
+            }
+            .navigationTitle(String(localized: "settings.profile.editTitle"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(String(localized: "settings.profile.cancel")) {
+                        viewModel.isShowingProfileEdit = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(String(localized: "settings.profile.save")) {
+                        Task {
+                            await viewModel.saveProfileChanges()
+                        }
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 
     // MARK: - Voice Settings Card
@@ -307,10 +350,13 @@ struct SettingsView: View {
 }
 
 #Preview {
-    let repository = SettingsRepositoryImpl()
+    let settingsRepo = SettingsRepositoryImpl()
+    let userRepo = UserRepositoryImpl(networkClient: NetworkClient())
     let viewModel = SettingsViewModel(
-        loadSettingsUseCase: LoadSettingsUseCase(repository: repository),
-        saveSettingsUseCase: SaveSettingsUseCase(repository: repository)
+        loadSettingsUseCase: LoadSettingsUseCase(repository: settingsRepo),
+        saveSettingsUseCase: SaveSettingsUseCase(repository: settingsRepo),
+        loadProfileUseCase: LoadProfileUseCase(repository: userRepo),
+        updateProfileUseCase: UpdateProfileUseCase(repository: userRepo)
     )
     SettingsView(viewModel: viewModel)
 }

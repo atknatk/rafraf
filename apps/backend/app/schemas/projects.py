@@ -13,6 +13,7 @@ class ProjectStatus(StrEnum):
     ACTIVE = "active"
     PENDING = "pending"
     COMPLETED = "completed"
+    ARCHIVED = "archived"
 
 
 # ---------------------------------------------------------------------------
@@ -50,6 +51,7 @@ class ProjectCreateRequest(BaseModel):
     description: str | None = Field(None, description="Proje aciklamasi")
     status: ProjectStatus = Field(default=ProjectStatus.ACTIVE, description="Proje durumu")
     repository_url: str | None = Field(None, max_length=512, description="Git repository URL")
+    local_path: str | None = Field(None, max_length=1024, description="Projenin lokal dizin yolu")
     tech_stack: list[str] = Field(default_factory=list, description="Kullanilan teknolojiler")
     source: str = Field(default="manual", description="Proje kaynagi: manual, agent_scan, agent_config")
 
@@ -61,7 +63,14 @@ class ProjectUpdateRequest(BaseModel):
     description: str | None = Field(None, description="Proje aciklamasi")
     status: ProjectStatus | None = Field(None, description="Proje durumu")
     repository_url: str | None = Field(None, max_length=512, description="Git repository URL")
+    local_path: str | None = Field(None, max_length=1024, description="Projenin lokal dizin yolu")
     tech_stack: list[str] | None = Field(None, description="Kullanilan teknolojiler")
+
+
+class ProjectStatusUpdateRequest(BaseModel):
+    """PATCH /api/v1/projects/{project_id}/status request."""
+
+    status: ProjectStatus = Field(..., description="Yeni proje durumu")
 
 
 class ProjectCreateResponse(BaseModel):
@@ -106,6 +115,7 @@ class ProjectDetailResponse(BaseModel):
     description: str | None = Field(None, description="Proje aciklamasi")
     status: ProjectStatus = Field(..., description="Proje durumu")
     repository_url: str | None = Field(None, description="Git repository URL")
+    local_path: str | None = Field(None, description="Projenin lokal dizin yolu")
     tech_stack: list[str] = Field(default_factory=list, description="Kullanilan teknolojiler")
     source: str = Field(default="manual", description="Proje kaynagi")
     last_activity_at: str | None = Field(None, description="Son aktivite zamani (ISO 8601)")

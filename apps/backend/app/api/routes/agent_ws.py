@@ -16,8 +16,10 @@ from app.schemas.agent import (
     AgentHeartbeatPayload,
     AgentRegisterAckPayload,
     AgentRegisterPayload,
+    ClaudeProcessInfo,
 )
 from app.core.database import async_session_factory
+from app.services.agent_project_service import AgentProjectService
 from app.services.agent_registry_service import agent_registry
 from app.services.project_service import ProjectService
 from app.services.task_manager_service import TaskManager
@@ -198,6 +200,22 @@ async def _handle_heartbeat(
     if not isinstance(resources_raw, dict):
         resources_raw = {}
 
+    # Claude process listesini parse et
+    processes_raw = content.get("claude_processes", [])
+    if not isinstance(processes_raw, list):
+        processes_raw = []
+    claude_processes = [
+        ClaudeProcessInfo(
+            pid=int(p.get("pid", 0)),
+            cpu_percent=float(p.get("cpu_percent", 0)),
+            memory_mb=float(p.get("memory_mb", 0)),
+            started_at=p.get("started_at"),
+            cmdline=p.get("cmdline"),
+        )
+        for p in processes_raw
+        if isinstance(p, dict) and p.get("pid")
+    ]
+
     payload = AgentHeartbeatPayload(
         host_id=str(content.get("host_id", "")),
         status=content.get("status", "online"),
@@ -209,6 +227,7 @@ async def _handle_heartbeat(
             "disk_usage_percent": float(resources_raw.get("disk_usage_percent", 0)),
             "disk_free_gb": float(resources_raw.get("disk_free_gb", 0)),
         },
+        claude_processes=claude_processes,
     )
 
     found = await agent_registry.process_heartbeat(payload)
@@ -233,21 +252,25 @@ async def _handle_project_sync(
     if not isinstance(projects_data, list):
         projects_data = []
 
+    host_id = str(content.get("host_id", ""))
     synced_count = 0
     async with async_session_factory() as session:
-        service = ProjectService(session)
+        project_svc = ProjectService(session)
+        agent_project_svc = AgentProjectService(session)
         for proj in projects_data:
             if not isinstance(proj, dict):
                 continue
             name = str(proj.get("name", ""))
             if not name:
                 continue
-            await service.upsert_from_agent(
+            result = await project_svc.upsert_from_agent(
                 name=name,
                 repository_url=proj.get("repository_url"),
                 tech_stack=proj.get("tech_stack", []),
                 source=str(proj.get("source", "agent_scan")),
             )
+            if host_id:
+                await agent_project_svc.link_project_to_agent(host_id, result.id)
             synced_count += 1
         await session.commit()
 

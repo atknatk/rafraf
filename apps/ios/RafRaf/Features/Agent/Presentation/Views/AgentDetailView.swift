@@ -6,26 +6,43 @@ import SwiftUI
 struct AgentDetailView: View {
     let agent: Agent
     @State private var subscriptionUsage: SubscriptionUsage?
+    @State private var agentProjects: [AgentProject] = []
+    @State private var claudeProcesses: [ClaudeProcess] = []
     @State private var isRefreshing = false
     @State private var errorMessage: String?
 
     private let getUsageUseCase: GetSubscriptionUsageUseCase
     private let refreshUsageUseCase: RefreshSubscriptionUsageUseCase
+    private let getAgentProjectsUseCase: GetAgentProjectsUseCase
+    private let setProjectActiveUseCase: SetProjectActiveUseCase
+    private let getClaudeProcessesUseCase: GetClaudeProcessesUseCase
 
     init(
         agent: Agent,
         getUsageUseCase: GetSubscriptionUsageUseCase,
-        refreshUsageUseCase: RefreshSubscriptionUsageUseCase
+        refreshUsageUseCase: RefreshSubscriptionUsageUseCase,
+        getAgentProjectsUseCase: GetAgentProjectsUseCase,
+        setProjectActiveUseCase: SetProjectActiveUseCase,
+        getClaudeProcessesUseCase: GetClaudeProcessesUseCase
     ) {
         self.agent = agent
         self.getUsageUseCase = getUsageUseCase
         self.refreshUsageUseCase = refreshUsageUseCase
+        self.getAgentProjectsUseCase = getAgentProjectsUseCase
+        self.setProjectActiveUseCase = setProjectActiveUseCase
+        self.getClaudeProcessesUseCase = getClaudeProcessesUseCase
     }
 
     var body: some View {
         ScrollView {
             VStack(spacing: RFSpacing.md) {
                 agentInfoSection
+                if !agentProjects.isEmpty {
+                    projectsSection
+                }
+                if !claudeProcesses.isEmpty {
+                    claudeProcessesSection
+                }
                 subscriptionSection
             }
             .padding(.horizontal, RFSpacing.md)
@@ -35,7 +52,10 @@ struct AgentDetailView: View {
         .navigationTitle(agent.hostId)
         .navigationBarTitleDisplayMode(.large)
         .task {
-            await loadUsage()
+            async let usageTask: () = loadUsage()
+            async let projectsTask: () = loadProjects()
+            async let processesTask: () = loadProcesses()
+            _ = await (usageTask, projectsTask, processesTask)
         }
         .overlay {
             if let errorMessage {
@@ -374,6 +394,113 @@ struct AgentDetailView: View {
         }
     }
 
+    // MARK: - Projects Section
+
+    private var projectsSection: some View {
+        RFCard {
+            VStack(alignment: .leading, spacing: RFSpacing.sm) {
+                RFText(
+                    String(localized: "agent.projects.title"),
+                    style: .headline
+                )
+
+                ForEach(agentProjects) { project in
+                    HStack {
+                        VStack(alignment: .leading, spacing: RFSpacing.xxs) {
+                            RFText(project.projectName, style: .body)
+                            if !project.techStack.isEmpty {
+                                RFText(
+                                    project.techStack.joined(separator: ", "),
+                                    style: .caption,
+                                    color: RFColors.fallbackTextTertiary
+                                )
+                            }
+                        }
+                        Spacer()
+                        Toggle("", isOn: Binding(
+                            get: { project.isActive },
+                            set: { newValue in
+                                Task {
+                                    await toggleProjectActive(project: project, isActive: newValue)
+                                }
+                            }
+                        ))
+                        .labelsHidden()
+                        .tint(RFColors.fallbackPrimary)
+                    }
+
+                    if project.id != agentProjects.last?.id {
+                        Divider()
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Claude Processes Section
+
+    private var claudeProcessesSection: some View {
+        RFCard {
+            VStack(alignment: .leading, spacing: RFSpacing.sm) {
+                HStack {
+                    RFText(
+                        String(localized: "agent.processes.title"),
+                        style: .headline
+                    )
+                    Spacer()
+                    RFText(
+                        "\(claudeProcesses.count)",
+                        style: .captionBold,
+                        color: RFColors.fallbackPrimary
+                    )
+                    .padding(.horizontal, RFSpacing.sm)
+                    .padding(.vertical, RFSpacing.xxs)
+                    .background(RFColors.fallbackPrimary.opacity(0.1))
+                    .clipShape(Capsule())
+                }
+
+                ForEach(claudeProcesses) { process in
+                    HStack(spacing: RFSpacing.sm) {
+                        VStack(alignment: .leading, spacing: RFSpacing.xxs) {
+                            RFText("PID: \(process.pid)", style: .captionBold)
+                            if let cmdline = process.cmdline {
+                                RFText(cmdline, style: .caption, color: RFColors.fallbackTextTertiary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: RFSpacing.xxs) {
+                            HStack(spacing: RFSpacing.xxs) {
+                                Image(systemName: "cpu")
+                                    .font(.caption2)
+                                    .foregroundStyle(barColor(for: process.cpuPercent))
+                                RFText(
+                                    String(format: "%.1f%%", process.cpuPercent),
+                                    style: .caption,
+                                    color: barColor(for: process.cpuPercent)
+                                )
+                            }
+                            HStack(spacing: RFSpacing.xxs) {
+                                Image(systemName: "memorychip")
+                                    .font(.caption2)
+                                    .foregroundStyle(RFColors.fallbackTextSecondary)
+                                RFText(
+                                    String(format: "%.0f MB", process.memoryMb),
+                                    style: .caption,
+                                    color: RFColors.fallbackTextSecondary
+                                )
+                            }
+                        }
+                    }
+
+                    if process.id != claudeProcesses.last?.id {
+                        Divider()
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Data Loading
 
     private func loadUsage() async {
@@ -384,6 +511,37 @@ struct AgentDetailView: View {
             errorMessage = String(localized: "agent.subscription.loadError")
         }
         isRefreshing = false
+    }
+
+    private func loadProjects() async {
+        do {
+            agentProjects = try await getAgentProjectsUseCase.execute(agentId: agent.hostId)
+        } catch {
+            // Sessizce yoksay — detay ekraninda hata mesaji gerekmez
+        }
+    }
+
+    private func loadProcesses() async {
+        do {
+            claudeProcesses = try await getClaudeProcessesUseCase.execute(agentId: agent.hostId)
+        } catch {
+            // Sessizce yoksay
+        }
+    }
+
+    private func toggleProjectActive(project: AgentProject, isActive: Bool) async {
+        do {
+            let updated = try await setProjectActiveUseCase.execute(
+                agentId: agent.hostId,
+                projectId: project.projectId,
+                isActive: isActive
+            )
+            if let index = agentProjects.firstIndex(where: { $0.projectId == project.projectId }) {
+                agentProjects[index] = updated
+            }
+        } catch {
+            errorMessage = String(localized: "agent.projects.toggleError")
+        }
     }
 
     private func refreshUsage() async {
@@ -462,6 +620,15 @@ struct AgentDetailView: View {
                 repository: PreviewAgentRepository()
             ),
             refreshUsageUseCase: RefreshSubscriptionUsageUseCase(
+                repository: PreviewAgentRepository()
+            ),
+            getAgentProjectsUseCase: GetAgentProjectsUseCase(
+                repository: PreviewAgentRepository()
+            ),
+            setProjectActiveUseCase: SetProjectActiveUseCase(
+                repository: PreviewAgentRepository()
+            ),
+            getClaudeProcessesUseCase: GetClaudeProcessesUseCase(
                 repository: PreviewAgentRepository()
             )
         )

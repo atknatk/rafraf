@@ -8,6 +8,8 @@ struct Project: Identifiable, Sendable, Equatable {
     let description: String?
     let status: ProjectStatus
     let repositoryURL: String?
+    /// Claude -p'nin çalıştırılacağı lokal dizin yolu.
+    let localPath: String?
     let techStack: [String]
     let lastActivityAt: Date?
     let lastActivitySummary: String?
@@ -20,6 +22,7 @@ struct Project: Identifiable, Sendable, Equatable {
         description: String? = nil,
         status: ProjectStatus = .active,
         repositoryURL: String? = nil,
+        localPath: String? = nil,
         techStack: [String] = [],
         lastActivityAt: Date? = nil,
         lastActivitySummary: String? = nil,
@@ -31,6 +34,7 @@ struct Project: Identifiable, Sendable, Equatable {
         self.description = description
         self.status = status
         self.repositoryURL = repositoryURL
+        self.localPath = localPath
         self.techStack = techStack
         self.lastActivityAt = lastActivityAt
         self.lastActivitySummary = lastActivitySummary

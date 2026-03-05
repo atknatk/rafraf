@@ -32,6 +32,11 @@ struct ContentView: View {
         }
         .animation(RFAnimation.springGentle, value: authManager.authState)
         .task {
+            // Reconnect callback — kacirilmis mesajlari fetch et
+            webSocketManager.onReconnect = { [chatSessionManager] in
+                await chatSessionManager.fetchMissedMessagesForAll()
+            }
+
             await authManager.checkExistingAuth()
             // Auth basarili ise hemen WebSocket bagla
             if authManager.authState == .authenticated {

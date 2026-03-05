@@ -76,6 +76,7 @@ class ProjectRepository:
         description: str | None = None,
         status: str = "active",
         repository_url: str | None = None,
+        local_path: str | None = None,
         tech_stack: list[str] | None = None,
         source: str = "manual",
     ) -> Project:
@@ -85,6 +86,7 @@ class ProjectRepository:
             description=description,
             status=status,
             repository_url=repository_url,
+            local_path=local_path,
             tech_stack=tech_stack or [],
             source=source,
         )

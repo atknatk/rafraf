@@ -34,6 +34,9 @@ final class WebSocketConnectionManager {
     /// Son alinan mesaj zamani.
     private(set) var lastMessageReceivedAt: Date?
 
+    /// Reconnect callback — app foreground'a donunce veya WebSocket reconnect sonrasi cagirilir.
+    var onReconnect: (() async -> Void)?
+
     private let webSocketClient: WebSocketClient
     private let logger = Logger(
         subsystem: "com.rafraf",
@@ -130,6 +133,10 @@ final class WebSocketConnectionManager {
                     if newState == .connected {
                         self.connectedSince = Date()
                         self.lastError = nil
+                        // Reconnect sonrasi kacirilmis mesajlari fetch et
+                        if let onReconnect = self.onReconnect {
+                            Task { await onReconnect() }
+                        }
                     } else if newState == .disconnected {
                         self.connectedSince = nil
                     }

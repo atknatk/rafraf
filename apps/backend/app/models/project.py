@@ -30,6 +30,10 @@ class Project(Base, UUIDMixin, TimestampMixin):
         String(512),
         nullable=True,
     )
+    local_path: Mapped[str | None] = mapped_column(
+        String(1024),
+        nullable=True,
+    )
     tech_stack: Mapped[list[str]] = mapped_column(
         ARRAY(String),
         nullable=False,

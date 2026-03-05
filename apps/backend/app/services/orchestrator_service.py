@@ -166,8 +166,8 @@ class OrchestratorService:
         session_id: str,
         user_id: str,
         message: str,
-        on_text_delta: "Callable[[str, int], Coroutine[object, object, None]] | None" = None,
-        on_stream_end: "Callable[[str], Coroutine[object, object, None]] | None" = None,
+        on_text_delta: Callable[[str, int], Coroutine[object, object, None]] | None = None,
+        on_stream_end: Callable[[str], Coroutine[object, object, None]] | None = None,
         project_id: str | None = None,
         progress_callback: ProgressCallback | None = None,
         host_status: str | None = None,
@@ -292,12 +292,13 @@ class OrchestratorService:
         user_id: str,
         message: str,
         project_id: str | None = None,
+        db_session: object | None = None,
         claude_session_id: str | None = None,
-        on_text_delta: "Callable[[str, int], Coroutine[object, object, None]] | None" = None,
-        on_stream_end: "Callable[[str], Coroutine[object, object, None]] | None" = None,
+        on_text_delta: Callable[[str, int], Coroutine[object, object, None]] | None = None,
+        on_stream_end: Callable[[str], Coroutine[object, object, None]] | None = None,
         on_tool_progress: ToolProgressCallback | None = None,
         on_question: (
-            "Callable[[dict[str, object]], Coroutine[object, object, str | None]] | None"
+            Callable[[dict[str, object]], Coroutine[object, object, str | None]] | None
         ) = None,
     ) -> OrchestratorResponse:
         """Process a user message via claude -p subprocess.
@@ -310,6 +311,7 @@ class OrchestratorService:
             user_id: Authenticated user ID.
             message: User message text.
             project_id: Optional project ID for scoped sessions and memory.
+            db_session: Optional AsyncSession for project local_path lookup.
             claude_session_id: Previous claude -p session ID for --resume.
             on_text_delta: Streaming text callback.
             on_stream_end: Stream completion callback.
@@ -340,6 +342,13 @@ class OrchestratorService:
         if claude_session_id is None:
             claude_session_id = await self._get_claude_session(session_key)
 
+        # Resolve project local path for claude -p working directory
+        project_local_path: str | None = None
+        if project_id and db_session is not None:
+            project_local_path = await self._get_project_local_path(project_id, db_session)
+        if not project_local_path:
+            project_local_path = settings.claude_code_default_dir or None
+
         # Build memory context from 3-layer memory system
         memory_ctx = await self._build_memory_context(user_id, message, project_id)
 
@@ -350,6 +359,8 @@ class OrchestratorService:
         ]
         if project_id:
             context_parts.append(f"Project ID: {project_id}")
+        if project_local_path:
+            context_parts.append(f"Project Directory: {project_local_path}")
         if memory_ctx:
             context_parts.append(memory_ctx)
         append_prompt = "\n".join(context_parts)
@@ -358,6 +369,7 @@ class OrchestratorService:
             result = await runner.run(
                 prompt=message,
                 session_id=claude_session_id,
+                project_dir=project_local_path,
                 on_text_delta=on_text_delta,
                 on_tool_progress=on_tool_progress,
                 on_question=on_question,
@@ -455,6 +467,25 @@ class OrchestratorService:
         if isinstance(result, bytes):
             return result.decode("utf-8")
         return None
+
+    @staticmethod
+    async def _get_project_local_path(project_id: str, db_session: object) -> str | None:
+        """Proje local_path'ini DB'den getirir. Hata durumunda None dondurur."""
+        try:
+            import uuid
+
+            from sqlalchemy.ext.asyncio import AsyncSession
+
+            from app.repositories.project_repo import ProjectRepository
+
+            if not isinstance(db_session, AsyncSession):
+                return None
+            repo = ProjectRepository(db_session)
+            project = await repo.get_by_id(uuid.UUID(project_id))
+            return project.local_path if project else None
+        except Exception:
+            await logger.awarning("project_local_path_lookup_failed", project_id=project_id)
+            return None
 
     def clear_session(self, session_id: str) -> None:
         """Clear conversation history for a session.

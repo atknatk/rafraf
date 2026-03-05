@@ -13,4 +13,13 @@ protocol AgentRepositoryProtocol: Sendable {
 
     /// Subscription kullanim bilgilerini yeniler.
     func refreshSubscriptionUsage() async throws -> SubscriptionUsage
+
+    /// Agent'a bagli projeleri getirir.
+    func getAgentProjects(agentId: String) async throws -> [AgentProject]
+
+    /// Agent'ta bir projeyi aktif/pasif yapar.
+    func setProjectActive(agentId: String, projectId: String, isActive: Bool) async throws -> AgentProject
+
+    /// Agent'taki calisan claude process listesini getirir.
+    func getClaudeProcesses(agentId: String) async throws -> [ClaudeProcess]
 }

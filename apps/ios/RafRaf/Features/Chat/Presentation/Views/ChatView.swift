@@ -13,8 +13,10 @@ struct ChatView: View {
     @State private var showVoiceOverlay = false
     @State private var showVoiceConversation = false
     @State private var availableProjects: [Project] = []
+    @State private var availableAgentProjects: [AgentProject] = []
     private let webSocketManager = Container.shared.webSocketConnectionManager()
     @State private var projectListViewModel = Container.shared.projectListViewModel()
+    private let agentRepository: AgentRepositoryProtocol = Container.shared.agentRepository()
 
     /// Aktif ChatViewModel (session manager uzerinden).
     private var viewModel: ChatViewModel {
@@ -52,9 +54,11 @@ struct ChatView: View {
                 ToolbarItem(placement: .principal) {
                     RFProjectPicker(
                         activeProjectName: sessionManager.activeProjectName,
+                        activeAgentId: sessionManager.activeAgentId,
+                        agentProjects: availableAgentProjects,
                         projects: availableProjects,
-                        onSelect: { projectId, projectName in
-                            sessionManager.switchProject(id: projectId, name: projectName)
+                        onSelect: { agentId, projectId, projectName in
+                            sessionManager.switchProject(id: projectId, name: projectName, agentId: agentId)
                         }
                     )
                 }
@@ -283,7 +287,21 @@ struct ChatView: View {
 
     private func loadProjects() async {
         await projectListViewModel.loadProjects()
-        availableProjects = projectListViewModel.projects
+        // Sadece aktif (status == .active) projeler picker'da gorunsun
+        availableProjects = projectListViewModel.projects.filter { $0.status == .active }
+
+        // Agent projeleri yukle (tum agentlar — online olmayanlar da dahil)
+        do {
+            let agentResult = try await agentRepository.getAgents(status: nil)
+            var allAgentProjects: [AgentProject] = []
+            for agent in agentResult.agents {
+                let projects = try await agentRepository.getAgentProjects(agentId: agent.hostId)
+                allAgentProjects.append(contentsOf: projects.filter(\.isActive))
+            }
+            availableAgentProjects = allAgentProjects
+        } catch {
+            // Agent projeleri opsiyonel — hata sessizce gec
+        }
     }
 
     // MARK: - Voice
@@ -419,6 +437,9 @@ struct ChatView: View {
             },
             loadHistoryUseCaseFactory: {
                 LoadChatHistoryUseCase(repository: PreviewChatRepository())
+            },
+            fetchMissedMessagesUseCaseFactory: {
+                FetchMissedMessagesUseCase(repository: PreviewChatRepository())
             }
         )
     )
@@ -490,7 +511,7 @@ private final class ChatProgressHandler: WebSocketMessageHandler {
 
 /// Preview icin mock repository.
 private final class PreviewChatRepository: ChatRepositoryProtocol, @unchecked Sendable {
-    func sendMessage(text: String, sessionId: String, projectId: String? = nil) async throws -> ChatMessage {
+    func sendMessage(text: String, sessionId: String, projectId: String? = nil, agentId: String? = nil) async throws -> ChatMessage {
         ChatMessage(content: text, sender: .user)
     }
 
@@ -517,5 +538,13 @@ private final class PreviewChatRepository: ChatRepositoryProtocol, @unchecked Se
             hasMore: false,
             nextCursor: nil
         )
+    }
+
+    func fetchMissedMessages(
+        since: String,
+        sessionId: String?,
+        projectId: String?
+    ) async throws -> [ChatMessage] {
+        []
     }
 }

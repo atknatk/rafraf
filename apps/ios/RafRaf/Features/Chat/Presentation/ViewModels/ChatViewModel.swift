@@ -22,25 +22,36 @@ final class ChatViewModel {
 
     private let sendMessageUseCase: SendMessageUseCase
     private let loadHistoryUseCase: LoadChatHistoryUseCase
+    private let fetchMissedMessagesUseCase: FetchMissedMessagesUseCase?
     private let sessionId: String
     let projectId: String?
+    let agentId: String?
     private var nextCursor: String?
     private var isLoadingMore: Bool = false
     private let logger = AppLogger.logger(for: "Chat")
+
+    /// UserDefaults key — son basarili mesaj timestamp'i.
+    private var lastTimestampKey: String {
+        "chat_last_message_timestamp_\(sessionId)"
+    }
 
     // MARK: - Init
 
     init(
         sendMessageUseCase: SendMessageUseCase,
         loadHistoryUseCase: LoadChatHistoryUseCase,
+        fetchMissedMessagesUseCase: FetchMissedMessagesUseCase? = nil,
         sessionId: String = UUID().uuidString,
-        projectId: String? = nil
+        projectId: String? = nil,
+        agentId: String? = nil
     ) {
         self.sendMessageUseCase = sendMessageUseCase
         self.loadHistoryUseCase = loadHistoryUseCase
+        self.fetchMissedMessagesUseCase = fetchMissedMessagesUseCase
         self.sessionId = sessionId
         self.projectId = projectId
-        logger.info("ChatViewModel baslatildi - session: \(sessionId), project: \(projectId ?? "genel")")
+        self.agentId = agentId
+        logger.info("ChatViewModel baslatildi - session: \(sessionId), project: \(projectId ?? "genel"), agent: \(agentId ?? "none")")
     }
 
     // MARK: - Actions
@@ -58,9 +69,11 @@ final class ChatViewModel {
             let sentMessage = try await sendMessageUseCase.execute(
                 text: text,
                 sessionId: sessionId,
-                projectId: projectId
+                projectId: projectId,
+                agentId: agentId
             )
             messages.append(sentMessage)
+            updateLastMessageTimestamp()
             logger.info("Mesaj gonderildi: \(sentMessage.id)")
         } catch {
             errorMessage = String(localized: "chat.error.sendFailed")
@@ -87,6 +100,7 @@ final class ChatViewModel {
             messages = result.messages
             hasMoreMessages = result.hasMore
             nextCursor = result.nextCursor
+            updateLastMessageTimestamp()
             logger.info("Mesaj gecmisi yuklendi: \(result.messages.count) mesaj")
         } catch {
             errorMessage = String(localized: "chat.error.loadFailed")
@@ -172,6 +186,7 @@ final class ChatViewModel {
     /// Gelen tam mesaji mesaj listesine ekler.
     func handleIncomingMessage(_ message: ChatMessage) {
         messages.append(message)
+        updateLastMessageTimestamp()
         isTyping = false
     }
 
@@ -188,5 +203,51 @@ final class ChatViewModel {
     /// Hata mesajini temizler.
     func dismissError() {
         errorMessage = nil
+    }
+
+    // MARK: - Missed Messages (Offline Sync)
+
+    /// Kacirilmis mesajlari getirir ve mevcut listeye merge eder.
+    /// WebSocket reconnect veya app foreground'a donunce cagirilir.
+    func fetchMissedMessages() async {
+        guard let useCase = fetchMissedMessagesUseCase else { return }
+        guard let since = UserDefaults.standard.string(forKey: lastTimestampKey) else {
+            logger.info("lastMessageTimestamp yok, missed messages atlanıyor")
+            return
+        }
+
+        do {
+            let missed = try await useCase.execute(
+                since: since,
+                sessionId: sessionId,
+                projectId: projectId
+            )
+
+            guard !missed.isEmpty else { return }
+
+            // Duplicate ID kontrolu ile merge
+            let existingIds = Set(messages.map(\.id))
+            let newMessages = missed.filter { !existingIds.contains($0.id) }
+
+            if !newMessages.isEmpty {
+                messages.append(contentsOf: newMessages)
+                messages.sort { $0.timestamp < $1.timestamp }
+                updateLastMessageTimestamp()
+                logger.info("Kacirilmis mesajlar merge edildi: \(newMessages.count) yeni")
+            }
+        } catch {
+            logger.error("Kacirilmis mesaj fetch hatasi: \(error.localizedDescription)")
+        }
+    }
+
+    /// Son mesaj timestamp'ini UserDefaults'a kaydeder.
+    func updateLastMessageTimestamp() {
+        let formatter = ISO8601DateFormatter()
+        if let lastMessage = messages.last {
+            UserDefaults.standard.set(
+                formatter.string(from: lastMessage.timestamp),
+                forKey: lastTimestampKey
+            )
+        }
     }
 }

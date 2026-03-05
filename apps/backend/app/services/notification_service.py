@@ -140,17 +140,39 @@ class NotificationService:
             )
             return False
 
-        # APNs delivery is handled by an external provider (e.g. aioapns).
-        # The actual APNs integration requires Apple Developer certificates
-        # and is configured via environment variables.
+        from app.services.apns_client import is_token_invalid_reason, send_push
+
+        sent_count = 0
         for device_token in tokens:
-            await logger.ainfo(
-                "notification_dispatched",
-                user_id=str(user_id),
-                notification_type=notification.type.value,
-                token_prefix=device_token.token[:8],
+            success = await send_push(
+                token=device_token.token,
+                title=notification.title,
+                body=notification.body,
+                data=dict(notification.metadata) if notification.metadata else None,
+                badge=notification.badge_count or None,
+                category=notification.type.value,
             )
-        return True
+            if success:
+                sent_count += 1
+                await logger.ainfo(
+                    "notification_dispatched",
+                    user_id=str(user_id),
+                    notification_type=notification.type.value,
+                    token_prefix=device_token.token[:8],
+                )
+            else:
+                # Deactivate invalid tokens
+                await self._token_repo.deactivate(
+                    user_id=user_id,
+                    token=device_token.token,
+                )
+                await logger.awarning(
+                    "notification_token_deactivated",
+                    user_id=str(user_id),
+                    token_prefix=device_token.token[:8],
+                )
+
+        return sent_count > 0
 
     @staticmethod
     def _is_category_enabled(

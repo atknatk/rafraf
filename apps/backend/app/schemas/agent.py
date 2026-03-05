@@ -55,6 +55,18 @@ class AgentRegisterPayload(BaseModel):
     version: str = Field(..., description="Agent yazilim surumu")
 
 
+class ClaudeProcessInfo(BaseModel):
+    """Calisan tek bir claude process bilgisi."""
+
+    model_config = ConfigDict(frozen=True)
+
+    pid: int = Field(..., description="Process ID")
+    cpu_percent: float = Field(..., ge=0, description="CPU kullanim yuzdesi")
+    memory_mb: float = Field(..., ge=0, description="RAM kullanimi (MB)")
+    started_at: str | None = Field(None, description="Baslangic zamani (ISO 8601)")
+    cmdline: str | None = Field(None, description="Komut satiri ozeti")
+
+
 class AgentHeartbeatPayload(BaseModel):
     """Payload sent by an agent as a periodic health report."""
 
@@ -65,6 +77,10 @@ class AgentHeartbeatPayload(BaseModel):
     uptime_seconds: int = Field(..., ge=0, description="Agent calisma suresi (saniye)")
     active_tasks: int = Field(..., ge=0, description="Aktif gorev sayisi")
     resources: ResourceInfo = Field(..., description="Sistem kaynak bilgileri")
+    claude_processes: list[ClaudeProcessInfo] = Field(
+        default_factory=list,
+        description="Calisan claude process listesi",
+    )
 
 
 class AgentRegisterAckPayload(BaseModel):
@@ -117,3 +133,4 @@ class AgentDetailResponse(BaseModel):
     uptime_seconds: int | None = None
     active_tasks: int | None = None
     resources: ResourceInfo | None = None
+    claude_processes: list[ClaudeProcessInfo] = Field(default_factory=list)

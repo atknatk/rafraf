@@ -18,6 +18,7 @@ from app.schemas.agent import (
     AgentRegisterPayload,
     AgentStatus,
     AgentSummary,
+    ClaudeProcessInfo,
     ResourceInfo,
 )
 
@@ -40,6 +41,7 @@ class _AgentRecord:
         "resources",
         "metadata",
         "connection_id",
+        "claude_processes",
     )
 
     def __init__(
@@ -62,6 +64,7 @@ class _AgentRecord:
         self.resources: ResourceInfo | None = None
         self.metadata: dict[str, object] = {}
         self.connection_id = connection_id
+        self.claude_processes: list[ClaudeProcessInfo] = []
 
 
 class AgentRegistryService:
@@ -110,6 +113,7 @@ class AgentRegistryService:
         """Register or re-register an agent.
 
         Returns True if newly registered, False if updated.
+        Dual-write: updates both in-memory and DB.
         """
         existing = self._agents.get(payload.host_id)
         is_new = existing is None
@@ -123,6 +127,24 @@ class AgentRegistryService:
         )
 
         self._agents[payload.host_id] = record
+
+        # Persist to DB (best-effort)
+        try:
+            from app.core.database import async_session_factory
+            from app.repositories.host_agent_repo import HostAgentRepository
+
+            async with async_session_factory() as db:
+                repo = HostAgentRepository(db)
+                await repo.upsert_from_heartbeat(
+                    host_id=payload.host_id,
+                    status="online",
+                    capabilities=[c.value for c in payload.capabilities],
+                    agent_version=payload.version,
+                    connection_id=connection_id,
+                )
+                await db.commit()
+        except Exception:
+            await logger.awarning("agent_db_persist_failed", host_id=payload.host_id)
 
         await logger.ainfo(
             "agent_registered",
@@ -140,6 +162,7 @@ class AgentRegistryService:
         """Update agent state from a heartbeat message.
 
         Returns True if the agent was found, False otherwise.
+        Dual-write: updates both in-memory and DB.
         """
         record = self._agents.get(payload.host_id)
         if record is None:
@@ -154,6 +177,26 @@ class AgentRegistryService:
         record.uptime_seconds = payload.uptime_seconds
         record.active_tasks = payload.active_tasks
         record.resources = payload.resources
+        record.claude_processes = list(payload.claude_processes)
+
+        # Persist to DB (best-effort)
+        try:
+            from app.core.database import async_session_factory
+            from app.repositories.host_agent_repo import HostAgentRepository
+
+            resources_dict = None
+            if payload.resources is not None:
+                resources_dict = payload.resources.model_dump() if hasattr(payload.resources, "model_dump") else {"raw": str(payload.resources)}
+            async with async_session_factory() as db:
+                repo = HostAgentRepository(db)
+                await repo.upsert_from_heartbeat(
+                    host_id=payload.host_id,
+                    status=payload.status.value,
+                    last_resources=resources_dict,
+                )
+                await db.commit()
+        except Exception:
+            await logger.awarning("agent_heartbeat_db_failed", host_id=payload.host_id)
 
         await logger.adebug(
             "agent_heartbeat_processed",
@@ -187,6 +230,17 @@ class AgentRegistryService:
         record = self._agents.get(host_id)
         if record is not None:
             record.status = AgentStatus.OFFLINE
+            # Persist to DB (best-effort)
+            try:
+                from app.core.database import async_session_factory
+                from app.repositories.host_agent_repo import HostAgentRepository
+
+                async with async_session_factory() as db:
+                    repo = HostAgentRepository(db)
+                    await repo.mark_offline(host_id)
+                    await db.commit()
+            except Exception:
+                await logger.awarning("agent_disconnect_db_failed", host_id=host_id)
             await logger.ainfo("agent_disconnected", host_id=host_id)
 
     async def unregister_by_connection(self, connection_id: str) -> str | None:
@@ -322,6 +376,13 @@ class AgentRegistryService:
             resources=record.resources,
         )
 
+    def get_claude_processes(self, host_id: str) -> list[ClaudeProcessInfo]:
+        """Return claude process list for a given agent."""
+        record = self._agents.get(host_id)
+        if record is None:
+            return []
+        return list(record.claude_processes)
+
     @staticmethod
     def _to_detail(record: _AgentRecord) -> AgentDetailResponse:
         return AgentDetailResponse(
@@ -337,6 +398,7 @@ class AgentRegistryService:
             uptime_seconds=record.uptime_seconds,
             active_tasks=record.active_tasks,
             resources=record.resources,
+            claude_processes=list(record.claude_processes),
         )
 
 

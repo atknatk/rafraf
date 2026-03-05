@@ -102,7 +102,12 @@ extension Container {
 
     /// Chat repository.
     var chatRepository: Factory<ChatRepositoryProtocol> {
-        self { ChatRepositoryImpl(webSocketClient: self.webSocketClient()) }
+        self {
+            ChatRepositoryImpl(
+                webSocketClient: self.webSocketClient(),
+                networkClient: self.networkClient()
+            )
+        }
     }
 
     /// Chat ViewModel.
@@ -111,7 +116,8 @@ extension Container {
             let repository = self.chatRepository()
             return ChatViewModel(
                 sendMessageUseCase: SendMessageUseCase(repository: repository),
-                loadHistoryUseCase: LoadChatHistoryUseCase(repository: repository)
+                loadHistoryUseCase: LoadChatHistoryUseCase(repository: repository),
+                fetchMissedMessagesUseCase: FetchMissedMessagesUseCase(repository: repository)
             )
         }
     }
@@ -125,6 +131,9 @@ extension Container {
                 },
                 loadHistoryUseCaseFactory: {
                     LoadChatHistoryUseCase(repository: self.chatRepository())
+                },
+                fetchMissedMessagesUseCaseFactory: {
+                    FetchMissedMessagesUseCase(repository: self.chatRepository())
                 }
             )
         }
@@ -343,7 +352,8 @@ extension Container {
         self { @MainActor in
             let repository = self.projectRepository()
             return ProjectListViewModel(
-                getProjectsUseCase: GetProjectsUseCase(repository: repository)
+                getProjectsUseCase: GetProjectsUseCase(repository: repository),
+                updateProjectStatusUseCase: UpdateProjectStatusUseCase(repository: repository)
             )
         }
     }
@@ -362,7 +372,10 @@ extension Container {
             return AgentListViewModel(
                 getAgentsUseCase: GetAgentsUseCase(repository: repository),
                 getSubscriptionUsageUseCase: GetSubscriptionUsageUseCase(repository: repository),
-                refreshSubscriptionUsageUseCase: RefreshSubscriptionUsageUseCase(repository: repository)
+                refreshSubscriptionUsageUseCase: RefreshSubscriptionUsageUseCase(repository: repository),
+                getAgentProjectsUseCase: GetAgentProjectsUseCase(repository: repository),
+                setProjectActiveUseCase: SetProjectActiveUseCase(repository: repository),
+                getClaudeProcessesUseCase: GetClaudeProcessesUseCase(repository: repository)
             )
         }
     }
@@ -375,13 +388,21 @@ extension Container {
             .singleton
     }
 
+    /// User profile repository.
+    var userRepository: Factory<UserRepositoryProtocol> {
+        self { UserRepositoryImpl(networkClient: self.networkClient()) }
+    }
+
     /// Settings ViewModel.
     var settingsViewModel: Factory<SettingsViewModel> {
         self { @MainActor in
-            let repository = self.settingsRepository()
+            let settingsRepo = self.settingsRepository()
+            let userRepo = self.userRepository()
             return SettingsViewModel(
-                loadSettingsUseCase: LoadSettingsUseCase(repository: repository),
-                saveSettingsUseCase: SaveSettingsUseCase(repository: repository)
+                loadSettingsUseCase: LoadSettingsUseCase(repository: settingsRepo),
+                saveSettingsUseCase: SaveSettingsUseCase(repository: settingsRepo),
+                loadProfileUseCase: LoadProfileUseCase(repository: userRepo),
+                updateProfileUseCase: UpdateProfileUseCase(repository: userRepo)
             )
         }
     }

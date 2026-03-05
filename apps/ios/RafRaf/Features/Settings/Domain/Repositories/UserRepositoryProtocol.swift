@@ -6,6 +6,9 @@ protocol UserRepositoryProtocol: Sendable {
     /// Aktif kullanicinin profilini getirir.
     func fetchCurrentUser() async throws -> UserProfile
 
+    /// Goruntu adini gunceller.
+    func updateDisplayName(_ displayName: String) async throws -> UserProfile
+
     /// Cikis yapar.
     func logout() async throws
 }

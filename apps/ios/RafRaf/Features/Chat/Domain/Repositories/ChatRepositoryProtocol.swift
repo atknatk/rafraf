@@ -4,7 +4,7 @@ import Foundation
 /// Domain katmani Data katmanindan izole kalir; bu protokol uzerinden iletisir.
 protocol ChatRepositoryProtocol: Sendable {
     /// Mesaj gonderir ve gonderilen mesaji dondurur.
-    func sendMessage(text: String, sessionId: String, projectId: String?) async throws -> ChatMessage
+    func sendMessage(text: String, sessionId: String, projectId: String?, agentId: String?) async throws -> ChatMessage
 
     /// Mesaj gecmisini yukler (cursor-based pagination).
     /// - Parameters:
@@ -17,6 +17,18 @@ protocol ChatRepositoryProtocol: Sendable {
         cursor: String?,
         limit: Int
     ) async throws -> ChatHistoryResult
+
+    /// Belirtilen zamandan sonraki kacirilmis mesajlari getirir.
+    /// - Parameters:
+    ///   - since: ISO 8601 timestamp
+    ///   - sessionId: Oturum ID'si (opsiyonel)
+    ///   - projectId: Proje ID'si (opsiyonel)
+    /// - Returns: Kacirilmis mesajlar
+    func fetchMissedMessages(
+        since: String,
+        sessionId: String?,
+        projectId: String?
+    ) async throws -> [ChatMessage]
 }
 
 /// Chat gecmisi sonuc modeli.

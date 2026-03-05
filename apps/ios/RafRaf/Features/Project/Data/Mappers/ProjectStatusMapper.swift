@@ -22,6 +22,7 @@ enum ProjectStatusMapper {
             description: dto.description,
             status: ProjectStatus(rawValue: dto.status) ?? .active,
             repositoryURL: dto.repositoryUrl,
+            localPath: dto.localPath,
             techStack: dto.techStack,
             lastActivityAt: parseDate(dto.lastActivityAt),
             lastActivitySummary: dto.lastActivitySummary,

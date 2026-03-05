@@ -22,6 +22,7 @@ from app.api.routes.memory import router as memory_router
 from app.api.routes.notifications import router as notifications_router
 from app.api.routes.personal_memory import router as personal_memory_router
 from app.api.routes.projects import router as projects_router
+from app.api.routes.conversations import router as conversations_router
 from app.api.routes.subscription import router as subscription_router
 from app.api.routes.webhooks import router as webhooks_router
 from app.api.routes.websocket import router as websocket_router
@@ -118,7 +119,8 @@ def create_app() -> FastAPI:
     application.include_router(agents_router)
     application.include_router(webhooks_router)
     application.include_router(memory_router)
-    application.include_router(conversation_memory_router)
+    application.include_router(conversations_router)  # /history, /missed — must be before conversation_memory
+    application.include_router(conversation_memory_router)  # /{session_id} catch-all
     application.include_router(projects_router)
     application.include_router(cost_router)
     application.include_router(files_router)

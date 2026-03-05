@@ -6,14 +6,15 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.repositories.project_repo import ProjectRepository
 from app.models.project import Project
+from app.repositories.project_repo import ProjectRepository
 from app.schemas.projects import (
     ProjectCreateRequest,
     ProjectCreateResponse,
     ProjectDetailResponse,
     ProjectListResponse,
     ProjectStatus,
+    ProjectStatusUpdateRequest,
     ProjectSummary,
     ProjectUpdateRequest,
 )
@@ -91,6 +92,7 @@ class ProjectService:
             description=request.description,
             status=request.status.value,
             repository_url=request.repository_url,
+            local_path=request.local_path,
             tech_stack=request.tech_stack,
             source=request.source,
         )
@@ -118,6 +120,24 @@ class ProjectService:
         project = await self._repo.update(project, **updates)
 
         await logger.ainfo("project_updated", project_id=str(project_id))
+        return self._to_detail_response(project)
+
+    async def update_project_status(
+        self,
+        project_id: uuid.UUID,
+        request: ProjectStatusUpdateRequest,
+    ) -> ProjectDetailResponse:
+        """Proje durumunu gunceller."""
+        project = await self._repo.get_by_id(project_id)
+        if project is None:
+            raise NotFoundError(message=f"Project '{project_id}' not found")
+
+        project = await self._repo.update(project, status=request.status.value)
+        await logger.ainfo(
+            "project_status_updated",
+            project_id=str(project_id),
+            status=request.status.value,
+        )
         return self._to_detail_response(project)
 
     async def upsert_from_agent(
@@ -161,6 +181,7 @@ class ProjectService:
             description=project.description,
             status=ProjectStatus(project.status),
             repository_url=project.repository_url,
+            local_path=project.local_path,
             tech_stack=project.tech_stack,
             source=project.source,
             last_activity_at=project.last_activity_at,

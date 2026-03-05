@@ -80,11 +80,19 @@ class Settings(BaseSettings):
     # --- Claude Code (claude -p) ---
     claude_code_enabled: bool = True
     claude_code_binary: str = "claude"
-    claude_code_project_dir: str = "/opt/rafraf"
+    claude_code_project_dir: str = ""  # Bos ise subprocess CWD kullanilir; Docker'da /opt/rafraf
+    claude_code_default_dir: str = ""  # Proje secilmemisse kullanilacak varsayilan dizin
     claude_code_max_turns: int = 30
     claude_code_model: str = "sonnet"
     claude_code_timeout_seconds: int = 300
     claude_code_fallback_to_api: bool = True
+
+    # APNs Push Notifications
+    apns_key_path: str = ""
+    apns_key_id: str = ""
+    apns_team_id: str = ""
+    apns_bundle_id: str = "com.rafraf.app"
+    apns_use_sandbox: bool = True
 
     # Conversation Memory
     conversation_ttl_seconds: int = 86400  # 24 hours

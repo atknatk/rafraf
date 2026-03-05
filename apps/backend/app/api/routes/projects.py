@@ -6,16 +6,16 @@ from typing import Annotated
 import structlog
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.api.deps import get_db
 from starlette import status
 
+from app.api.deps import get_db
 from app.schemas.projects import (
     ProjectCreateRequest,
     ProjectCreateResponse,
     ProjectDetailResponse,
     ProjectListResponse,
     ProjectStatus,
+    ProjectStatusUpdateRequest,
     ProjectUpdateRequest,
 )
 from app.services.project_service import ProjectService
@@ -83,3 +83,14 @@ async def get_project(
     """Return details for a single project identified by project_id."""
     service = ProjectService(session)
     return await service.get_project_by_id(project_id)
+
+
+@router.patch("/{project_id}/status", response_model=ProjectDetailResponse)
+async def update_project_status(
+    project_id: uuid.UUID,
+    body: ProjectStatusUpdateRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> ProjectDetailResponse:
+    """Update only the status field of a project (active / pending / completed / archived)."""
+    service = ProjectService(session)
+    return await service.update_project_status(project_id, body)

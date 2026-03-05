@@ -162,12 +162,14 @@ actor WebSocketClient {
     func sendText(
         _ text: String,
         sessionId: String? = nil,
-        projectId: String? = nil
+        projectId: String? = nil,
+        agentId: String? = nil
     ) async throws {
         let message = WebSocketMessageFactory.textMessage(
             text,
             sessionId: sessionId,
-            projectId: projectId
+            projectId: projectId,
+            agentId: agentId
         )
         try await send(message: message)
     }

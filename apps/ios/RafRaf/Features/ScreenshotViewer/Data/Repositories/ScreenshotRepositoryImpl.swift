@@ -14,7 +14,7 @@ final class ScreenshotRepositoryImpl: ScreenshotRepositoryProtocol, @unchecked S
     func fetchScreenshot(by screenshotId: String) async throws -> Screenshot {
         logger.info("Screenshot yukleniyor: \(screenshotId)")
         let dto: ScreenshotDTO = try await networkClient.get(
-            path: "/api/v1/screenshots/\(screenshotId)"
+            path: "/screenshots/\(screenshotId)"
         )
         return ScreenshotMapper.toDomain(dto)
     }
@@ -22,7 +22,7 @@ final class ScreenshotRepositoryImpl: ScreenshotRepositoryProtocol, @unchecked S
     func getPreSignedURL(for originalURL: String) async throws -> String {
         logger.info("Pre-signed URL isteniyor")
         let response: PreSignedURLResponse = try await networkClient.post(
-            path: "/api/v1/screenshots/presign",
+            path: "/screenshots/presign",
             body: PreSignedURLRequest(url: originalURL)
         )
         return response.preSignedUrl

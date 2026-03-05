@@ -129,7 +129,10 @@ struct AgentListView: View {
                         AgentDetailView(
                             agent: agent,
                             getUsageUseCase: viewModel.getSubscriptionUsageUseCase,
-                            refreshUsageUseCase: viewModel.refreshSubscriptionUsageUseCase
+                            refreshUsageUseCase: viewModel.refreshSubscriptionUsageUseCase,
+                            getAgentProjectsUseCase: viewModel.getAgentProjectsUseCase,
+                            setProjectActiveUseCase: viewModel.setProjectActiveUseCase,
+                            getClaudeProcessesUseCase: viewModel.getClaudeProcessesUseCase
                         )
                     } label: {
                         AgentCardView(agent: agent)
@@ -176,7 +179,10 @@ struct AgentListView: View {
         viewModel: AgentListViewModel(
             getAgentsUseCase: GetAgentsUseCase(repository: repo),
             getSubscriptionUsageUseCase: GetSubscriptionUsageUseCase(repository: repo),
-            refreshSubscriptionUsageUseCase: RefreshSubscriptionUsageUseCase(repository: repo)
+            refreshSubscriptionUsageUseCase: RefreshSubscriptionUsageUseCase(repository: repo),
+            getAgentProjectsUseCase: GetAgentProjectsUseCase(repository: repo),
+            setProjectActiveUseCase: SetProjectActiveUseCase(repository: repo),
+            getClaudeProcessesUseCase: GetClaudeProcessesUseCase(repository: repo)
         )
     )
 }
@@ -267,5 +273,56 @@ final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable
             total: filtered.count,
             onlineCount: onlineCount
         )
+    }
+
+    func getAgentProjects(agentId: String) async throws -> [AgentProject] {
+        [
+            AgentProject(
+                agentId: agentId,
+                projectId: "proj-1",
+                projectName: "RafRaf",
+                isActive: true,
+                repositoryUrl: "https://github.com/atknatk/rafraf",
+                techStack: ["Swift", "Python"]
+            ),
+            AgentProject(
+                agentId: agentId,
+                projectId: "proj-2",
+                projectName: "SideProject",
+                isActive: false,
+                repositoryUrl: nil,
+                techStack: ["TypeScript"]
+            )
+        ]
+    }
+
+    func setProjectActive(agentId: String, projectId: String, isActive: Bool) async throws -> AgentProject {
+        AgentProject(
+            agentId: agentId,
+            projectId: projectId,
+            projectName: "RafRaf",
+            isActive: isActive,
+            repositoryUrl: nil,
+            techStack: []
+        )
+    }
+
+    func getClaudeProcesses(agentId: String) async throws -> [ClaudeProcess] {
+        [
+            ClaudeProcess(
+                pid: 12345,
+                cpuPercent: 23.5,
+                memoryMb: 512.0,
+                startedAt: Date().addingTimeInterval(-1800),
+                cmdline: "claude --dangerously-skip-permissions"
+            ),
+            ClaudeProcess(
+                pid: 12390,
+                cpuPercent: 8.2,
+                memoryMb: 256.0,
+                startedAt: Date().addingTimeInterval(-900),
+                cmdline: "claude -p 'RafRaf görev'"
+            )
+        ]
     }
 }

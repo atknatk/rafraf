@@ -123,6 +123,39 @@ class CostService:
             cost_usd=cost_usd,
         )
 
+        # Check budget thresholds and send push notification if exceeded
+        try:
+            budget = await self.get_budget_status(repo, user_id=user_id)
+            if budget.daily_limit_exceeded or budget.monthly_limit_exceeded:
+                from app.schemas.notifications import NotificationPayload, NotificationType
+
+                alert_body = ""
+                if budget.daily_limit_exceeded:
+                    alert_body = (
+                        f"Gunluk limit asildi: ${budget.daily_cost_usd:.2f}"
+                        f" / ${budget.daily_limit_usd:.2f}"
+                    )
+                elif budget.monthly_limit_exceeded:
+                    alert_body = (
+                        f"Aylik limit asildi: ${budget.monthly_cost_usd:.2f}"
+                        f" / ${budget.monthly_limit_usd:.2f}"
+                    )
+
+                from app.services.notification_service import NotificationService
+
+                notif_service = NotificationService(repo._session)
+                await notif_service.send_notification(
+                    user_id=user_id,
+                    notification=NotificationPayload(
+                        notification_id=uuid.uuid4(),
+                        type=NotificationType.info,
+                        title="Butce Uyarisi",
+                        body=alert_body,
+                    ),
+                )
+        except Exception:
+            await logger.awarning("cost_alert_notification_failed", user_id=str(user_id))
+
         return self._to_entity(row)
 
     async def get_user_logs(

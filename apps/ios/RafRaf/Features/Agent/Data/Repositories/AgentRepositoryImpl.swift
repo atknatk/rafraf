@@ -44,4 +44,37 @@ final class AgentRepositoryImpl: AgentRepositoryProtocol, @unchecked Sendable {
         logger.info("Subscription kullanim yenilendi: \(dto.subscriptionType)")
         return AgentMapper.toDomain(from: dto)
     }
+
+    func getAgentProjects(agentId: String) async throws -> [AgentProject] {
+        let dto: AgentProjectsResponseDTO = try await networkClient.get(
+            path: "/agents/\(agentId)/projects"
+        )
+        logger.info("Agent projeleri alindi: \(dto.projects.count) proje")
+        return AgentMapper.toDomain(from: dto)
+    }
+
+    func setProjectActive(agentId: String, projectId: String, isActive: Bool) async throws -> AgentProject {
+        struct Body: Encodable { let is_active: Bool }
+        let dto: AgentProjectSummaryDTO = try await networkClient.patch(
+            path: "/agents/\(agentId)/projects/\(projectId)",
+            body: Body(is_active: isActive)
+        )
+        logger.info("Proje aktiflik degistirildi: \(projectId) -> \(isActive)")
+        return AgentProject(
+            agentId: agentId,
+            projectId: dto.projectId,
+            projectName: dto.projectName,
+            isActive: dto.isActive,
+            repositoryUrl: dto.repositoryUrl,
+            techStack: dto.techStack
+        )
+    }
+
+    func getClaudeProcesses(agentId: String) async throws -> [ClaudeProcess] {
+        let dto: AgentProcessesResponseDTO = try await networkClient.get(
+            path: "/agents/\(agentId)/processes"
+        )
+        logger.info("Claude process'ler alindi: \(dto.processes.count) process")
+        return AgentMapper.toDomain(from: dto)
+    }
 }

@@ -200,3 +200,9 @@ brew install python@3.12
 # Ubuntu'da Python 3.12 kurun
 sudo apt install python3.12 python3.12-venv
 ```
+
+
+Kullanici hesabi:
+
+Email: atakan@rafraf.app
+Sifre: rafraf123

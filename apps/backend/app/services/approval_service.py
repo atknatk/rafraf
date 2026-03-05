@@ -96,6 +96,31 @@ class ApprovalService:
 
         self._pending[record.id] = record
 
+        # Persist to DB (best-effort)
+        try:
+            from uuid import UUID as _UUID
+
+            from app.core.database import async_session_factory
+            from app.repositories.approval_repo import ApprovalRepository
+
+            async with async_session_factory() as db:
+                repo = ApprovalRepository(db)
+                await repo.create(
+                    id=_UUID(record.id),
+                    session_id=record.session_id,
+                    connection_id=record.connection_id,
+                    tool_name=record.tool_name,
+                    action=record.action,
+                    description=record.description,
+                    category=category.value,
+                    timeout_seconds=timeout,
+                    timeout_at=record.timeout_at,
+                    params=record.params,
+                )
+                await db.commit()
+        except Exception:
+            await logger.awarning("approval_db_persist_failed", approval_id=record.id)
+
         await logger.ainfo(
             "approval_created",
             approval_id=record.id,
@@ -225,6 +250,24 @@ class ApprovalService:
 
         self._history.append(updated)
 
+        # Persist status to DB (best-effort)
+        try:
+            from uuid import UUID as _UUID
+
+            from app.core.database import async_session_factory
+            from app.repositories.approval_repo import ApprovalRepository
+
+            async with async_session_factory() as db:
+                repo = ApprovalRepository(db)
+                await repo.update_status(
+                    _UUID(approval_id),
+                    new_status.value,
+                    responded_at=now,
+                )
+                await db.commit()
+        except Exception:
+            await logger.awarning("approval_decision_db_failed", approval_id=approval_id)
+
         await logger.ainfo(
             "approval_processed",
             approval_id=approval_id,
@@ -265,6 +308,20 @@ class ApprovalService:
                 created_at=record.created_at,
             )
             self._history.append(expired)
+
+            # Persist expired status to DB (best-effort)
+            try:
+                from uuid import UUID as _UUID
+
+                from app.core.database import async_session_factory
+                from app.repositories.approval_repo import ApprovalRepository
+
+                async with async_session_factory() as db:
+                    repo = ApprovalRepository(db)
+                    await repo.update_status(_UUID(approval_id), "expired")
+                    await db.commit()
+            except Exception:
+                await logger.awarning("approval_expire_db_failed", approval_id=approval_id)
 
         await logger.awarning(
             "approval_expired",

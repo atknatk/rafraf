@@ -19,16 +19,18 @@ final class ProjectListViewModel {
     // MARK: - Private
 
     private let getProjectsUseCase: GetProjectsUseCase
+    private let updateProjectStatusUseCase: UpdateProjectStatusUseCase
     private var currentPage: Int = 1
     private var totalCount: Int = 0
     private var isLoadingMore: Bool = false
-    private let pageSize: Int = 20
+    private let pageSize: Int = 100
     private let logger = AppLogger.logger(for: "ProjectList")
 
     // MARK: - Init
 
-    init(getProjectsUseCase: GetProjectsUseCase) {
+    init(getProjectsUseCase: GetProjectsUseCase, updateProjectStatusUseCase: UpdateProjectStatusUseCase) {
         self.getProjectsUseCase = getProjectsUseCase
+        self.updateProjectStatusUseCase = updateProjectStatusUseCase
         logger.info("ProjectListViewModel baslatildi")
     }
 
@@ -112,6 +114,25 @@ final class ProjectListViewModel {
     func filterByStatus(_ status: ProjectStatus?) async {
         selectedFilter = status
         await loadProjects()
+    }
+
+    /// Proje durumunu gunceller.
+    /// Aktif filtre varsa ve guncellenen proje artik filtre kapsaminda degilse listeden cikarilir.
+    func updateStatus(projectId: String, status: ProjectStatus) async {
+        do {
+            let updated = try await updateProjectStatusUseCase.execute(projectId: projectId, status: status)
+            guard let index = projects.firstIndex(where: { $0.id == projectId }) else { return }
+            // Filtre varsa ve proje artik filtre kapsaminda degilse listeden cikar
+            if let filter = selectedFilter, updated.status != filter {
+                projects.remove(at: index)
+            } else {
+                projects[index] = updated
+            }
+            logger.info("Proje durumu guncellendi: \(projectId) -> \(status.rawValue)")
+        } catch {
+            errorMessage = String(localized: "project.error.updateFailed")
+            logger.error("Proje durum guncelleme hatasi: \(error.localizedDescription)")
+        }
     }
 
     /// Hata mesajini temizler.

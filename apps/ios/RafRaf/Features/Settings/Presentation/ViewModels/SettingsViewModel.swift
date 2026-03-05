@@ -10,10 +10,19 @@ final class SettingsViewModel {
     // MARK: - State
 
     /// Kullanici goruntu adi.
-    var displayName: String = "RafRaf User"
+    var displayName: String = ""
 
     /// Kullanici e-posta adresi.
-    var email: String = "user@rafraf.app"
+    var email: String = ""
+
+    /// Profil yukleniyor mu.
+    var isLoadingProfile: Bool = false
+
+    /// Profil duzenleme sheet'i gosteriliyor mu.
+    var isShowingProfileEdit: Bool = false
+
+    /// Duzenlenen goruntu adi.
+    var editingDisplayName: String = ""
 
     /// Hata mesaji.
     var errorMessage: String?
@@ -42,16 +51,22 @@ final class SettingsViewModel {
 
     private let loadSettingsUseCase: LoadSettingsUseCase
     private let saveSettingsUseCase: SaveSettingsUseCase
+    private let loadProfileUseCase: LoadProfileUseCase
+    private let updateProfileUseCase: UpdateProfileUseCase
     private let logger = AppLogger.logger(for: "Settings")
 
     // MARK: - Init
 
     init(
         loadSettingsUseCase: LoadSettingsUseCase,
-        saveSettingsUseCase: SaveSettingsUseCase
+        saveSettingsUseCase: SaveSettingsUseCase,
+        loadProfileUseCase: LoadProfileUseCase,
+        updateProfileUseCase: UpdateProfileUseCase
     ) {
         self.loadSettingsUseCase = loadSettingsUseCase
         self.saveSettingsUseCase = saveSettingsUseCase
+        self.loadProfileUseCase = loadProfileUseCase
+        self.updateProfileUseCase = updateProfileUseCase
         logger.info("SettingsViewModel baslatildi")
         loadCurrentSettings()
     }
@@ -62,6 +77,41 @@ final class SettingsViewModel {
     func loadCurrentSettings() {
         settings = loadSettingsUseCase.execute()
         logger.info("Ayarlar yuklendi")
+    }
+
+    /// Profili API'den yukler.
+    func loadProfile() async {
+        isLoadingProfile = true
+        do {
+            let profile = try await loadProfileUseCase.execute()
+            displayName = profile.displayName
+            email = profile.email
+            logger.info("Profil yuklendi: \(profile.displayName)")
+        } catch {
+            logger.error("Profil yukleme hatasi: \(error.localizedDescription)")
+            errorMessage = String(localized: "settings.profile.loadError")
+        }
+        isLoadingProfile = false
+    }
+
+    /// Profil duzenleme sheet'ini acar.
+    func showProfileEdit() {
+        editingDisplayName = displayName
+        isShowingProfileEdit = true
+    }
+
+    /// Goruntu adini gunceller.
+    func saveProfileChanges() async {
+        guard !editingDisplayName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        do {
+            let updated = try await updateProfileUseCase.execute(displayName: editingDisplayName)
+            displayName = updated.displayName
+            isShowingProfileEdit = false
+            logger.info("Profil guncellendi: \(updated.displayName)")
+        } catch {
+            logger.error("Profil guncelleme hatasi: \(error.localizedDescription)")
+            errorMessage = String(localized: "settings.profile.updateError")
+        }
     }
 
     /// TTS hizini gunceller.

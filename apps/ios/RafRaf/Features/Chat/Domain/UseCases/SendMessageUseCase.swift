@@ -16,7 +16,7 @@ struct SendMessageUseCase: Sendable {
     ///   - projectId: Proje ID'si (nil ise genel sohbet)
     /// - Returns: Gonderilen mesaj
     /// - Throws: Bos mesaj veya karakter limiti asildiginda hata
-    func execute(text: String, sessionId: String, projectId: String? = nil) async throws -> ChatMessage {
+    func execute(text: String, sessionId: String, projectId: String? = nil, agentId: String? = nil) async throws -> ChatMessage {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !trimmedText.isEmpty else {
@@ -27,7 +27,7 @@ struct SendMessageUseCase: Sendable {
             throw SendMessageError.messageTooLong(count: trimmedText.count, limit: 4096)
         }
 
-        return try await repository.sendMessage(text: trimmedText, sessionId: sessionId, projectId: projectId)
+        return try await repository.sendMessage(text: trimmedText, sessionId: sessionId, projectId: projectId, agentId: agentId)
     }
 }
 

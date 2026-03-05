@@ -163,6 +163,7 @@ struct WebSocketMessageMetadata: Codable, Sendable {
     let timestamp: String
     let sessionId: String?
     let projectId: String?
+    let agentId: String?
     let messageId: String?
     let direction: String
 
@@ -170,12 +171,14 @@ struct WebSocketMessageMetadata: Codable, Sendable {
         timestamp: String = ISO8601DateFormatter().string(from: Date()),
         sessionId: String? = nil,
         projectId: String? = nil,
+        agentId: String? = nil,
         messageId: String? = nil,
         direction: String = WebSocketMessageDirection.clientToServer.rawValue
     ) {
         self.timestamp = timestamp
         self.sessionId = sessionId
         self.projectId = projectId
+        self.agentId = agentId
         self.messageId = messageId
         self.direction = direction
     }
@@ -291,7 +294,8 @@ enum WebSocketMessageFactory {
     static func textMessage(
         _ text: String,
         sessionId: String? = nil,
-        projectId: String? = nil
+        projectId: String? = nil,
+        agentId: String? = nil
     ) -> WebSocketBaseMessage {
         WebSocketBaseMessage(
             type: WebSocketMessageType.text.rawValue,
@@ -299,6 +303,7 @@ enum WebSocketMessageFactory {
             metadata: WebSocketMessageMetadata(
                 sessionId: sessionId,
                 projectId: projectId,
+                agentId: agentId,
                 direction: WebSocketMessageDirection.clientToServer.rawValue
             )
         )

@@ -44,4 +44,16 @@ final class ProjectRepositoryImpl: ProjectStatusRepositoryProtocol, @unchecked S
 
         return ProjectStatusMapper.toDomain(from: dto)
     }
+
+    func updateProjectStatus(projectId: String, status: ProjectStatus) async throws -> Project {
+        let body = UpdateProjectStatusRequestDTO(status: status.rawValue)
+        let dto: ProjectDetailDTO = try await networkClient.patch(
+            path: "/projects/\(projectId)/status",
+            body: body
+        )
+
+        logger.info("Proje durumu guncellendi: \(dto.name) -> \(status.rawValue)")
+
+        return ProjectStatusMapper.toDomain(from: dto)
+    }
 }

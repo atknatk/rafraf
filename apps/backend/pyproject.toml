@@ -20,6 +20,7 @@ dependencies = [
     "anthropic>=0.42.0",
     "aioboto3>=13.0.0",
     "mem0ai>=0.1.0",
+    "aioapns>=3.2",
 ]
 
 [project.optional-dependencies]
@@ -59,6 +60,7 @@ module = [
     "botocore.*",
     "boto3.*",
     "mem0.*",
+    "aioapns.*",
 ]
 ignore_missing_imports = true
 

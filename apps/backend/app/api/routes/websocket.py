@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import uuid as _uuid_mod
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -11,6 +12,7 @@ import structlog
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 from app.core.config import get_settings
+from app.core.database import async_session_factory
 from app.core.security import SecurityError, verify_access_token
 from app.core.websocket import ConnectionManager
 from app.orchestrator.claude_code_runner import ToolProgressEvent
@@ -29,6 +31,7 @@ from app.schemas.messages import (
 )
 from app.services.agent_registry_service import agent_registry
 from app.services.approval_service import get_approval_service
+from app.services.conversation_service import ConversationService
 from app.services.orchestrator_service import OrchestratorService
 
 if TYPE_CHECKING:
@@ -249,6 +252,17 @@ def _extract_project_id(raw_data: dict[str, object]) -> str | None:
     return project_id  # type: ignore[return-value]
 
 
+def _extract_agent_id(raw_data: dict[str, object]) -> str | None:
+    """Extract agent_id from message metadata (iOS sends as agentId)."""
+    metadata = raw_data.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    agent_id = metadata.get("agentId") or metadata.get("agent_id")
+    if agent_id is not None and not isinstance(agent_id, str):
+        return str(agent_id)
+    return agent_id  # type: ignore[return-value]
+
+
 async def _handle_text(
     raw_data: dict[str, object],
     connection_id: str,
@@ -261,6 +275,7 @@ async def _handle_text(
         content = str(content)
 
     project_id = _extract_project_id(raw_data)
+    agent_id = _extract_agent_id(raw_data)
 
     await logger.ainfo(
         "text_message_received",
@@ -268,6 +283,7 @@ async def _handle_text(
         user_id=user_id,
         content_length=len(content),
         project_id=project_id,
+        agent_id=agent_id,
     )
 
     # Route through AI orchestrator
@@ -277,6 +293,7 @@ async def _handle_text(
         session_id=session_id,
         user_id=user_id,
         project_id=project_id,
+        agent_id=agent_id,
     )
 
 
@@ -296,12 +313,14 @@ async def _handle_voice(
         content = str(content)
 
     project_id = _extract_project_id(raw_data)
+    agent_id = _extract_agent_id(raw_data)
 
     await logger.ainfo(
         "voice_message_received",
         connection_id=connection_id,
         user_id=user_id,
         project_id=project_id,
+        agent_id=agent_id,
     )
 
     # Route through AI orchestrator (transcribed text) with TTS streaming
@@ -312,6 +331,7 @@ async def _handle_voice(
         user_id=user_id,
         voice_mode=True,
         project_id=project_id,
+        agent_id=agent_id,
     )
 
 
@@ -347,6 +367,7 @@ async def _process_with_orchestrator(
     user_id: str,
     voice_mode: bool = False,
     project_id: str | None = None,
+    agent_id: str | None = None,
 ) -> None:
     """Process a message through claude -p or API fallback.
 
@@ -502,57 +523,125 @@ async def _process_with_orchestrator(
     # --- Ana islem ---
 
     async def _run_processing() -> None:
-        orchestrator = OrchestratorService()
+        response_text = ""
+        model_used = "none"
+        tokens_in = 0
+        tokens_out = 0
 
-        if settings.claude_code_enabled:
-            # --- PRIMARY PATH: claude -p ---
-            response = await orchestrator.process_with_claude_code(
-                session_id=session_id,
-                user_id=user_id,
-                message=message,
-                project_id=project_id,
-                on_text_delta=_on_text_delta,
-                on_stream_end=_on_stream_end,
-                on_tool_progress=_on_tool_progress,
-                on_question=_on_question,
-            )
-        else:
-            # --- FALLBACK PATH: API ---
-            host_status = await _build_host_status()
-            response = await orchestrator.process_user_message_streaming(
-                session_id=session_id,
-                user_id=user_id,
-                message=message,
-                project_id=project_id,
-                on_text_delta=_on_text_delta,
-                on_stream_end=_on_stream_end,
-                progress_callback=lambda name, _step, _total: _on_tool_progress(
-                    ToolProgressEvent(
-                        phase="tool_calling",
-                        phase_label=f"Calisiyor: {name}",
-                        current_tool=name,
-                        percentage=50,
-                        steps=[],
+        try:
+            # Persist user message
+            try:
+                async with async_session_factory() as _db:
+                    await ConversationService(_db).save_message(
+                        session_id=session_id,
+                        user_id=user_id,
+                        role="user",
+                        content=message,
+                        project_id=_project_uuid,
+                        agent_id=agent_id,
                     )
-                ),
-                host_status=host_status,
-            )
+                    await _db.commit()
+            except Exception:
+                await logger.awarning("user_message_save_failed", session_id=session_id)
 
-        # Send CHAT_STREAM_END with metadata
+            orchestrator = OrchestratorService()
+
+            if settings.claude_code_enabled:
+                # --- PRIMARY PATH: claude -p ---
+                async with async_session_factory() as _proj_db:
+                    response = await orchestrator.process_with_claude_code(
+                        session_id=session_id,
+                        user_id=user_id,
+                        message=message,
+                        project_id=project_id,
+                        db_session=_proj_db,
+                        on_text_delta=_on_text_delta,
+                        on_stream_end=_on_stream_end,
+                        on_tool_progress=_on_tool_progress,
+                        on_question=_on_question,
+                    )
+            else:
+                # --- FALLBACK PATH: API ---
+                host_status = await _build_host_status()
+                response = await orchestrator.process_user_message_streaming(
+                    session_id=session_id,
+                    user_id=user_id,
+                    message=message,
+                    project_id=project_id,
+                    on_text_delta=_on_text_delta,
+                    on_stream_end=_on_stream_end,
+                    progress_callback=lambda name, _step, _total: _on_tool_progress(
+                        ToolProgressEvent(
+                            phase="tool_calling",
+                            phase_label=f"Calisiyor: {name}",
+                            current_tool=name,
+                            percentage=50,
+                            steps=[],
+                        )
+                    ),
+                    host_status=host_status,
+                )
+
+            response_text = response.response_text
+            model_used = response.model_used
+            tokens_in = response.tokens_input
+            tokens_out = response.tokens_output
+
+            # Persist assistant response
+            try:
+                async with async_session_factory() as _db:
+                    await ConversationService(_db).save_message(
+                        session_id=session_id,
+                        user_id=user_id,
+                        role="assistant",
+                        content=response_text,
+                        project_id=_project_uuid,
+                        agent_id=agent_id,
+                        model_used=model_used,
+                        tokens_used=tokens_out,
+                    )
+                    await _db.commit()
+            except Exception:
+                await logger.awarning("assistant_message_save_failed", session_id=session_id)
+
+        except Exception:
+            await logger.aexception(
+                "run_processing_failed",
+                connection_id=connection_id,
+                session_id=session_id,
+            )
+            if not response_text:
+                response_text = "Bir hata olustu. Lutfen tekrar deneyin."
+
+        # ALWAYS send CHAT_STREAM_END so the client never hangs
         end_msg = _build_message(
             MessageType.CHAT_STREAM_END,
             ChatStreamEndPayload(
                 message_id=message_id,
-                full_text=response.response_text,
-                model_used=response.model_used,
+                full_text=response_text,
+                model_used=model_used,
                 tokens_used={
-                    "input": response.tokens_input,
-                    "output": response.tokens_output,
+                    "input": tokens_in,
+                    "output": tokens_out,
                 },
             ).model_dump(),
             session_id=session_id,
         )
-        await manager.send_json(connection_id, end_msg)
+        try:
+            await manager.send_json(connection_id, end_msg)
+        except Exception:
+            await logger.awarning(
+                "chat_stream_end_send_failed",
+                connection_id=connection_id,
+            )
+
+    # Parse project_id as UUID for DB storage
+    _project_uuid: _uuid_mod.UUID | None = None
+    if project_id:
+        try:
+            _project_uuid = _uuid_mod.UUID(project_id)
+        except ValueError:
+            pass
 
     # Run as cancellable task
     task = asyncio.create_task(_run_processing())
@@ -569,6 +658,12 @@ async def _process_with_orchestrator(
         for tts_task in tts_tasks:
             if not tts_task.done():
                 tts_task.cancel()
+    except Exception:
+        await logger.aexception(
+            "process_orchestrator_task_failed",
+            connection_id=connection_id,
+            session_id=session_id,
+        )
     finally:
         _active_streams.pop(connection_id, None)
 

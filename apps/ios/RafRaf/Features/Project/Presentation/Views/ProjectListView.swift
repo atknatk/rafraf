@@ -124,33 +124,41 @@ struct ProjectListView: View {
     }
 
     private var projectList: some View {
-        ScrollView {
-            LazyVStack(spacing: RFSpacing.sm) {
-                ForEach(viewModel.projects) { project in
-                    NavigationLink(value: project.id) {
-                        RFProjectCard(project: project) {
-                            // onTap is handled by NavigationLink
-                        }
+        List {
+            ForEach(viewModel.projects) { project in
+                NavigationLink(value: project.id) {
+                    RFProjectCard(project: project) {}
                         .allowsHitTesting(false)
-                    }
-                    .buttonStyle(.plain)
                 }
-
-                if viewModel.hasMorePages {
-                    RFButton(
-                        String(localized: "project.loadMore"),
-                        style: .ghost,
-                        size: .small
-                    ) {
-                        Task { await viewModel.loadMoreProjects() }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets(
+                    top: RFSpacing.xs,
+                    leading: RFSpacing.md,
+                    bottom: RFSpacing.xs,
+                    trailing: RFSpacing.md
+                ))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    if project.status == .active {
+                        Button(role: .destructive) {
+                            Task { await viewModel.updateStatus(projectId: project.id, status: .archived) }
+                        } label: {
+                            Label(String(localized: "project.action.archive"), systemImage: "archivebox")
+                        }
+                    } else {
+                        Button {
+                            Task { await viewModel.updateStatus(projectId: project.id, status: .active) }
+                        } label: {
+                            Label(String(localized: "project.action.activate"), systemImage: "checkmark.circle")
+                        }
+                        .tint(RFColors.success)
                     }
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, RFSpacing.sm)
                 }
             }
-            .padding(.horizontal, RFSpacing.md)
-            .padding(.vertical, RFSpacing.sm)
+
         }
+        .listStyle(.plain)
         .navigationDestination(for: String.self) { projectId in
             ProjectDetailView(
                 viewModel: ProjectDetailViewModel(
@@ -192,11 +200,11 @@ struct ProjectListView: View {
 }
 
 #Preview {
+    let repo = PreviewProjectRepository()
     ProjectListView(
         viewModel: ProjectListViewModel(
-            getProjectsUseCase: GetProjectsUseCase(
-                repository: PreviewProjectRepository()
-            )
+            getProjectsUseCase: GetProjectsUseCase(repository: repo),
+            updateProjectStatusUseCase: UpdateProjectStatusUseCase(repository: repo)
         )
     )
 }
@@ -265,5 +273,9 @@ final class PreviewProjectRepository: ProjectStatusRepositoryProtocol, @unchecke
             lastActivityAt: Date().addingTimeInterval(-3600),
             lastActivitySummary: "PR #42 merged"
         )
+    }
+
+    func updateProjectStatus(projectId: String, status: ProjectStatus) async throws -> Project {
+        Project(id: projectId, name: "RafRaf", status: status)
     }
 }
