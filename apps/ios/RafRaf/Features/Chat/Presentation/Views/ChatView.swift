@@ -43,6 +43,12 @@ struct ChatView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // Bekleyen kuyruklanmis mesaj banner'i
+                if !viewModel.messageQueue.isEmpty {
+                    queueBannerView
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 messageListView
 
                 // Claude -p ilerleme gostergesi
@@ -137,6 +143,8 @@ struct ChatView: View {
                         Task { await sessionManager.fetchMissedMessagesForAll() }
                     }
                     Task { await loadProjects() }
+                    // Kuyruklanmis mesajlari gonder
+                    Task { await viewModel.flushQueue() }
                 } else {
                     connectionMonitor.connectionLost()
                 }
@@ -162,6 +170,7 @@ struct ChatView: View {
             .animation(RFAnimation.springResponsive, value: progressViewModel.isVisible)
             .animation(RFAnimation.springResponsive, value: viewModel.pendingSuggestions.isEmpty)
             .animation(RFAnimation.springResponsive, value: showCommandPalette)
+            .animation(RFAnimation.springResponsive, value: viewModel.messageQueue.isEmpty)
             .fullScreenCover(isPresented: $showVoiceConversation) {
                 let voiceVM = Container.shared.voiceConversationViewModel()
                 VoiceConversationView(viewModel: voiceVM) {
@@ -243,6 +252,9 @@ struct ChatView: View {
                                         projectId: viewModel.projectId,
                                         projectName: sessionManager.activeProjectName
                                     )
+                                } : nil,
+                                onRating: message.sender == .assistant ? { rating in
+                                    Task { await viewModel.rateMessage(id: message.id, rating: rating) }
                                 } : nil
                             )
                             .id(message.id)
@@ -343,8 +355,11 @@ struct ChatView: View {
             onSend: {
                 Task { @MainActor in
                     let projectName = sessionManager.activeProjectName ?? "RafRaf"
-                    LiveActivityManager.shared.start(projectName: projectName)
-                    await viewModel.sendMessage()
+                    let connected = webSocketManager.isConnected
+                    if connected {
+                        LiveActivityManager.shared.start(projectName: projectName)
+                    }
+                    await viewModel.sendMessage(isConnected: connected)
                 }
             },
             onMicTap: {
@@ -416,6 +431,25 @@ struct ChatView: View {
             }
         }
         .background(RFColors.fallbackSurface)
+    }
+
+    // MARK: - Queue Banner
+
+    private var queueBannerView: some View {
+        HStack(spacing: RFSpacing.xs) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white)
+            RFText(
+                String(format: String(localized: "chat.queue.banner"), viewModel.messageQueue.count),
+                style: .captionBold,
+                color: .white
+            )
+            Spacer()
+        }
+        .padding(.horizontal, RFSpacing.md)
+        .padding(.vertical, RFSpacing.xs)
+        .background(RFColors.fallbackPrimary)
     }
 
     // MARK: - Error Banner
@@ -494,9 +528,12 @@ struct ChatView: View {
             viewModel.messageText = transcription
             showVoiceOverlay = false
             Task { @MainActor in
+                let connected = webSocketManager.isConnected
                 let projectName = sessionManager.activeProjectName ?? "RafRaf"
-                LiveActivityManager.shared.start(projectName: projectName)
-                await viewModel.sendMessage()
+                if connected {
+                    LiveActivityManager.shared.start(projectName: projectName)
+                }
+                await viewModel.sendMessage(isConnected: connected)
             }
         }
     }
@@ -525,7 +562,7 @@ struct ChatView: View {
     private func sendSuggestion(_ text: String) {
         viewModel.messageText = text
         Task {
-            await viewModel.sendMessage()
+            await viewModel.sendMessage(isConnected: webSocketManager.isConnected)
         }
     }
 
@@ -854,5 +891,9 @@ private final class PreviewChatRepository: ChatRepositoryProtocol, @unchecked Se
         projectId: String?
     ) async throws -> [ChatMessage] {
         []
+    }
+
+    func rateMessage(id: String, rating: MessageRating) async throws {
+        // Preview no-op
     }
 }

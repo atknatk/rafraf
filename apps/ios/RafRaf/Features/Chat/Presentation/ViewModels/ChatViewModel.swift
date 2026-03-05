@@ -19,12 +19,14 @@ final class ChatViewModel {
     var hasMoreMessages: Bool = false
     var pendingSuggestions: [String] = []
     var suggestionMessageId: String?
+    var messageQueue = MessageQueue()
 
     // MARK: - Private
 
     private let sendMessageUseCase: SendMessageUseCase
     private let loadHistoryUseCase: LoadChatHistoryUseCase
     private let fetchMissedMessagesUseCase: FetchMissedMessagesUseCase?
+    private let chatRepository: (any ChatRepositoryProtocol)?
     private let sessionId: String
     let projectId: String?
     let agentId: String?
@@ -43,6 +45,7 @@ final class ChatViewModel {
         sendMessageUseCase: SendMessageUseCase,
         loadHistoryUseCase: LoadChatHistoryUseCase,
         fetchMissedMessagesUseCase: FetchMissedMessagesUseCase? = nil,
+        chatRepository: (any ChatRepositoryProtocol)? = nil,
         sessionId: String = UUID().uuidString,
         projectId: String? = nil,
         agentId: String? = nil
@@ -50,6 +53,7 @@ final class ChatViewModel {
         self.sendMessageUseCase = sendMessageUseCase
         self.loadHistoryUseCase = loadHistoryUseCase
         self.fetchMissedMessagesUseCase = fetchMissedMessagesUseCase
+        self.chatRepository = chatRepository
         self.sessionId = sessionId
         self.projectId = projectId
         self.agentId = agentId
@@ -59,11 +63,22 @@ final class ChatViewModel {
     // MARK: - Actions
 
     /// Mesaj gonderir.
-    func sendMessage() async {
+    /// - Parameter isConnected: WebSocket baglanti durumu. `false` ise mesaj kuyruğa alınır.
+    func sendMessage(isConnected: Bool = true) async {
         let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
         messageText = ""
+
+        // Baglanti yoksa kuyruğa al ve bilgi ver
+        guard isConnected else {
+            messageQueue.enqueue(text: text, projectId: projectId, agentId: agentId)
+            errorMessage = String(localized: "chat.queue.queued")
+            HapticManager.error()
+            logger.info("Cevrimdisi: mesaj kuyruga alindi")
+            return
+        }
+
         isSending = true
         errorMessage = nil
 
@@ -87,6 +102,18 @@ final class ChatViewModel {
         }
 
         isSending = false
+    }
+
+    /// Baglanti kurulunca bekleyen kuyruklanmis mesajlari gonderir.
+    /// WebSocket yeniden baglandiginda cagirilir.
+    func flushQueue() async {
+        guard !messageQueue.isEmpty else { return }
+        let queued = messageQueue.dequeueAll()
+        logger.info("Kuyruk bosaltiliyor: \(queued.count) mesaj")
+        for msg in queued {
+            messageText = msg.text
+            await sendMessage(isConnected: true)
+        }
     }
 
     /// Mesaj gecmisini yukler (ilk sayfa).
@@ -255,6 +282,38 @@ final class ChatViewModel {
     func handleSuggestions(messageId: String, suggestions: [String]) {
         self.suggestionMessageId = messageId
         self.pendingSuggestions = suggestions
+    }
+
+    /// Mesaj degerlendirmesi gonderir (thumbs up/down).
+    /// Optimistic update yapar; hata durumunda geri alir.
+    func rateMessage(id: String, rating: MessageRating) async {
+        guard let repo = chatRepository else { return }
+
+        // Optimistic update
+        guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
+        let original = messages[index]
+        let optimistic = ChatMessage(
+            id: original.id,
+            content: original.content,
+            sender: original.sender,
+            timestamp: original.timestamp,
+            type: original.type,
+            attachments: original.attachments,
+            isStreaming: original.isStreaming,
+            tokensUsed: original.tokensUsed,
+            modelUsed: original.modelUsed,
+            rating: rating
+        )
+        messages[index] = optimistic
+
+        do {
+            try await repo.rateMessage(id: id, rating: rating)
+            logger.info("Mesaj degerlendirmesi basarili: \(id) — \(rating.rawValue)")
+        } catch {
+            // Hata durumunda geri al
+            messages[index] = original
+            logger.error("Mesaj degerlendirme hatasi: \(error.localizedDescription)")
+        }
     }
 
     /// Hata mesajini temizler.
