@@ -34,6 +34,7 @@
 		A1B2C3D4E5F647A89012BC32 /* RafRafLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC33 /* RafRafLiveActivity.swift */; };
 		A1B2C3D4E5F647A89012BC37 /* ChatSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC38 /* ChatSearchView.swift */; };
 		A1B2C3D4E5F647A89012BC35 /* RFQuickCommandPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC36 /* RFQuickCommandPalette.swift */; };
+		A1B2C3D4E5F647A89012BC39 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC3A /* HapticManager.swift */; };
 		1925FC51FB504DEEA4A55327 /* AgentDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0BB2A9F00D4ABDB76D5498 /* AgentDTO.swift */; };
 		1D844028D4A04DB79C040EFD /* AgentMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38C6825A0DB485CB0628044 /* AgentMapper.swift */; };
 		ACFB026BE1CC4BBAB04362EE /* AgentRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD505F743CAC48ACA012DF72 /* AgentRepositoryImpl.swift */; };
@@ -584,6 +585,7 @@
 		A95DA37617833E9ED55D85BC /* FileUploadProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileUploadProgress.swift; sourceTree = "<group>"; };
 		A961F116D1108B39252EE3C1 /* SaveSettingsUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveSettingsUseCaseTests.swift; sourceTree = "<group>"; };
 		ABF334A3FB646BB6870AAA85 /* RFHaptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFHaptics.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC3A /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
 		AD54C402190CF29D5AADD728 /* RFPlaybackProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFPlaybackProgressBar.swift; sourceTree = "<group>"; };
 		AD6B51A4354CBB85A0314750 /* FileRepositoryProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileRepositoryProtocol.swift; sourceTree = "<group>"; };
 		B00D12AD59FE69B29E947D16 /* MockAuthRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAuthRepository.swift; sourceTree = "<group>"; };
@@ -1296,6 +1298,7 @@
 			isa = PBXGroup;
 			children = (
 				ABF334A3FB646BB6870AAA85 /* RFHaptics.swift */,
+				A1B2C3D4E5F647A89012BC3A /* HapticManager.swift */,
 			);
 			path = Haptics;
 			sourceTree = "<group>";
@@ -3367,6 +3370,7 @@
 				25523C8B1BFFE6EF66C8222D /* RFFilePreviewView.swift in Sources */,
 				55A1AACABD72718D0C298F14 /* RFGlassBar.swift in Sources */,
 				14BE5EC340AD2B2C9EED5183 /* RFHaptics.swift in Sources */,
+				A1B2C3D4E5F647A89012BC39 /* HapticManager.swift in Sources */,
 				53CD1B6EF64AEBFFE77C7C91 /* RFImageMessageView.swift in Sources */,
 				E37154C32EDE14FFC8288D16 /* RFLanguageSelector.swift in Sources */,
 				9FCD8CB4BFE8F40FC4223322 /* RFLoadingView.swift in Sources */,

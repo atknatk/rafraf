@@ -74,11 +74,13 @@ final class ChatViewModel {
                 projectId: projectId,
                 agentId: agentId
             )
+            HapticManager.messageSent()
             messages.append(sentMessage)
             updateLastMessageTimestamp()
             logger.info("Mesaj gonderildi: \(sentMessage.id)")
         } catch {
             errorMessage = String(localized: "chat.error.sendFailed")
+            HapticManager.error()
             logger.error("Mesaj gonderme hatasi: \(error.localizedDescription)")
             // Mesaj metnini geri yukle kullanici tekrar deneyebilsin
             messageText = text
@@ -193,6 +195,7 @@ final class ChatViewModel {
                 tokensUsed: tokensUsed,
                 modelUsed: modelUsed
             )
+            HapticManager.responseReceived()
         } else if !fullText.isEmpty {
             // Delta gelmeden stream_end gelirse (kısa/hata cevapları) yeni mesaj ekle
             messages.append(ChatMessage(

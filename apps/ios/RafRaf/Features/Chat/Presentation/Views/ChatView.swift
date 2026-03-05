@@ -10,6 +10,8 @@ struct ChatView: View {
     @State private var voiceOutputViewModel = Container.shared.voiceOutputViewModel()
     @State private var progressViewModel = Container.shared.progressViewModel()
     @State private var isProgressExpanded = false
+    @State private var bookmarkService = BookmarkService()
+    @State private var showBookmarks = false
     @State private var showSearch = false
     @State private var showVoiceOverlay = false
     @State private var showVoiceConversation = false
@@ -80,9 +82,20 @@ struct ChatView: View {
                             .accessibilityLabel(String(localized: "chat.search.title"))
                     }
                 }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showBookmarks = true
+                    } label: {
+                        Image(systemName: "bookmark")
+                            .accessibilityLabel(String(localized: "bookmarks.title"))
+                    }
+                }
             }
             .sheet(isPresented: $showSearch) {
                 ChatSearchView(projectId: viewModel.projectId)
+            }
+            .sheet(isPresented: $showBookmarks) {
+                BookmarksView(bookmarkService: bookmarkService)
             }
             .task {
                 setupVoiceCallbacks()
@@ -132,6 +145,40 @@ struct ChatView: View {
                     await voiceVM.enterVoiceMode()
                 }
             }
+            .background {
+                keyboardShortcutsLayer
+            }
+        }
+    }
+
+    // MARK: - Keyboard Shortcuts
+
+    /// Hardware klavye kisayollari icin gorunmez buton katmani.
+    @ViewBuilder
+    private var keyboardShortcutsLayer: some View {
+        Group {
+            // Cmd+K: Komut paleti ac (ilk "/" yazdır)
+            Button("") {
+                if viewModel.messageText.isEmpty {
+                    viewModel.messageText = "/"
+                }
+            }
+            .keyboardShortcut("k", modifiers: .command)
+            .hidden()
+
+            // Cmd+F: Arama
+            Button("") {
+                showSearch = true
+            }
+            .keyboardShortcut("f", modifiers: .command)
+            .hidden()
+
+            // Escape: Odak kaldir / overlay kapat
+            Button("") {
+                viewModel.messageText = ""
+            }
+            .keyboardShortcut(.escape, modifiers: [])
+            .hidden()
         }
     }
 
@@ -163,7 +210,14 @@ struct ChatView: View {
                                 onCopy: { viewModel.copyMessage($0) },
                                 onSpeak: message.sender == .assistant
                                     ? { Task { await voiceOutputViewModel.speak(text: message.content) } }
-                                    : nil
+                                    : nil,
+                                onBookmark: message.sender == .assistant ? {
+                                    bookmarkService.bookmark(
+                                        message,
+                                        projectId: viewModel.projectId,
+                                        projectName: sessionManager.activeProjectName
+                                    )
+                                } : nil
                             )
                             .id(message.id)
                             .transition(RFTransition.chatMessage)
@@ -240,6 +294,7 @@ struct ChatView: View {
             RFQuickCommandPalette(commands: filteredCommands) { command in
                 viewModel.messageText = command.fullText
                 quickCommandQuery = ""
+                HapticManager.commandPaletteOpened()
             }
             .padding(.horizontal, RFSpacing.sm)
             .padding(.bottom, RFSpacing.xs)
