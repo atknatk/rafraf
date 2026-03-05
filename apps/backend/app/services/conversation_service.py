@@ -124,6 +124,26 @@ class ConversationService:
             next_cursor=next_cursor,
         )
 
+    async def search_messages(
+        self,
+        user_id: str,
+        query: str,
+        project_id: str | None = None,
+        limit: int = 20,
+    ) -> list[Message]:
+        """Full-text mesaj arama."""
+        stmt = (
+            select(Message)
+            .where(Message.user_id == user_id)
+            .where(Message.content.ilike(f"%{query}%"))
+            .order_by(Message.created_at.desc())
+            .limit(limit)
+        )
+        if project_id:
+            stmt = stmt.where(Message.project_id == uuid.UUID(project_id))
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
     async def get_messages_since(
         self,
         *,

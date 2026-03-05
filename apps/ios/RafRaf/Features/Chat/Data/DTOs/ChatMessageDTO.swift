@@ -37,6 +37,17 @@ struct ChatTypingDTO: Codable, Sendable {
     let isTyping: Bool
 }
 
+/// Konusma mesaj search response DTO.
+/// GET /api/v1/conversations/search endpoint'i icin.
+struct MessageDTO: Codable, Sendable {
+    let id: String
+    let content: String
+    let role: String
+    let createdAt: String?
+    let modelUsed: String?
+    let tokensUsed: Int?
+}
+
 /// Code diff satiri DTO.
 struct CodeDiffLineDTO: Codable, Sendable {
     let type: String  // "added", "removed", "context"

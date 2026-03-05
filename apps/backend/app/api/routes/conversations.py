@@ -9,8 +9,9 @@ import structlog
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db
-from app.schemas.conversation import ConversationHistoryResponse
+from app.api.deps import get_current_user, get_db
+from app.models.user import User
+from app.schemas.conversation import ConversationHistoryResponse, MessageResponse
 from app.services.conversation_service import ConversationService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -49,6 +50,45 @@ async def get_conversation_history(
         limit=limit,
         cursor=cursor,
     )
+
+
+@router.get("/search")
+async def search_messages(
+    q: Annotated[str, Query(description="Arama metni")],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    project_id: Annotated[
+        str | None,
+        Query(description="Proje ID'si (opsiyonel filtre)"),
+    ] = None,
+    limit: Annotated[
+        int,
+        Query(ge=1, le=50, description="Maksimum sonuc sayisi"),
+    ] = 20,
+) -> list[MessageResponse]:
+    """Mesajlarda tam metin arama."""
+    svc = ConversationService(session)
+    messages = await svc.search_messages(
+        user_id=str(current_user.id),
+        query=q,
+        project_id=project_id,
+        limit=min(limit, 50),
+    )
+    return [
+        MessageResponse(
+            id=m.id,
+            session_id=m.session_id,
+            user_id=m.user_id,
+            project_id=m.project_id,
+            agent_id=m.agent_id,
+            role=m.role,
+            content=m.content,
+            model_used=m.model_used,
+            tokens_used=m.tokens_used,
+            created_at=m.created_at.isoformat(),
+        )
+        for m in messages
+    ]
 
 
 @router.get("/missed", response_model=ConversationHistoryResponse)
