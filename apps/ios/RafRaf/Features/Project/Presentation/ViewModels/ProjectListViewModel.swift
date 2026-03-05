@@ -125,6 +125,19 @@ final class ProjectListViewModel {
         errorMessage = nil
     }
 
+    /// Duplicate projeleri siler ve listeyi yeniler.
+    func deduplicateProjects() async {
+        do {
+            let deleted = try await getProjectsUseCase.deduplicate()
+            logger.info("Deduplicate: \(deleted) proje silindi")
+            currentPage = 1
+            await _fetchProjects(reset: true)
+        } catch {
+            errorMessage = String(localized: "project.error.deduplicateFailed")
+            logger.error("Deduplicate hatasi: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Private Helpers
 
     private func _fetchProjects(reset: Bool) async {

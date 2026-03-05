@@ -47,6 +47,8 @@ final class MockProjectRepository: ProjectStatusRepositoryProtocol, @unchecked S
     func updateProjectStatus(projectId: String, status: ProjectStatus) async throws -> Project {
         Project(id: projectId, name: "Mock Project", status: status)
     }
+
+    func deduplicateProjects() async throws -> Int { 0 }
 }
 
 /// Test icin stub agent repository (proje testleri icin).

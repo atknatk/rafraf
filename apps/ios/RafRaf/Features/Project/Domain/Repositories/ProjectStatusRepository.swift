@@ -27,6 +27,9 @@ protocol ProjectStatusRepositoryProtocol: Sendable {
     ///   - status: Yeni durum
     /// - Returns: Guncellenmis proje
     func updateProjectStatus(projectId: String, status: ProjectStatus) async throws -> Project
+
+    /// Duplicate projeleri temizler, silinen sayisini dondurur.
+    func deduplicateProjects() async throws -> Int
 }
 
 /// Proje listesi sonuc modeli.

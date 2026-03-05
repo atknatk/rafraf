@@ -6,6 +6,7 @@ import SwiftUI
 /// Pull-to-refresh, status bazli section ve sayfalama destegi.
 struct ProjectListView: View {
     @State private var viewModel: ProjectListViewModel
+    @State private var showDeduplicateConfirm = false
     @Namespace private var filterNamespace
     private let projectRepository = Container.shared.projectRepository()
 
@@ -20,6 +21,34 @@ struct ProjectListView: View {
                 contentView
             }
             .navigationTitle(String(localized: "project.list.title"))
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button(role: .destructive) {
+                            showDeduplicateConfirm = true
+                        } label: {
+                            Label(
+                                String(localized: "project.action.deduplicate"),
+                                systemImage: "trash.slash"
+                            )
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
+            }
+            .confirmationDialog(
+                String(localized: "project.deduplicate.title"),
+                isPresented: $showDeduplicateConfirm,
+                titleVisibility: .visible
+            ) {
+                Button(String(localized: "project.deduplicate.confirm"), role: .destructive) {
+                    Task { await viewModel.deduplicateProjects() }
+                }
+                Button(String(localized: "project.action.cancel"), role: .cancel) {}
+            } message: {
+                Text(String(localized: "project.deduplicate.message"))
+            }
             .task {
                 await viewModel.loadProjects()
             }
@@ -350,4 +379,6 @@ final class PreviewProjectRepository: ProjectStatusRepositoryProtocol, @unchecke
     func updateProjectStatus(projectId: String, status: ProjectStatus) async throws -> Project {
         Project(id: projectId, name: "RafRaf", status: status)
     }
+
+    func deduplicateProjects() async throws -> Int { 0 }
 }

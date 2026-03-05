@@ -2673,6 +2673,48 @@
       },
       "extractionState": "manual"
     },
+    "project.action.cancel": {
+      "localizations": {
+        "tr": { "stringUnit": { "state": "translated", "value": "Iptal" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Cancel" } }
+      },
+      "extractionState": "manual"
+    },
+    "project.action.deduplicate": {
+      "localizations": {
+        "tr": { "stringUnit": { "state": "translated", "value": "Duplicate Temizle" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Remove Duplicates" } }
+      },
+      "extractionState": "manual"
+    },
+    "project.deduplicate.confirm": {
+      "localizations": {
+        "tr": { "stringUnit": { "state": "translated", "value": "Duplicate'leri Sil" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Delete Duplicates" } }
+      },
+      "extractionState": "manual"
+    },
+    "project.deduplicate.message": {
+      "localizations": {
+        "tr": { "stringUnit": { "state": "translated", "value": "Ayni klasor veya repository'e sahip duplicate projeler silinecek. Bu islem geri alinamaz." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Duplicate projects with the same folder or repository will be deleted. This cannot be undone." } }
+      },
+      "extractionState": "manual"
+    },
+    "project.deduplicate.title": {
+      "localizations": {
+        "tr": { "stringUnit": { "state": "translated", "value": "Duplicate Projeleri Temizle" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Remove Duplicate Projects" } }
+      },
+      "extractionState": "manual"
+    },
+    "project.error.deduplicateFailed": {
+      "localizations": {
+        "tr": { "stringUnit": { "state": "translated", "value": "Temizleme islemi basarisiz oldu." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Failed to remove duplicates." } }
+      },
+      "extractionState": "manual"
+    },
     "project.filter.allAgents": {
       "localizations": {
         "tr": {

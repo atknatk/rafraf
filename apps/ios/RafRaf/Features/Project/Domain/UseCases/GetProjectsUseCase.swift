@@ -28,4 +28,9 @@ final class GetProjectsUseCase: Sendable {
             pageSize: pageSize
         )
     }
+
+    /// Duplicate projeleri temizler. Silinen proje sayisini dondurur.
+    func deduplicate() async throws -> Int {
+        try await repository.deduplicateProjects()
+    }
 }

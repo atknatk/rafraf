@@ -60,4 +60,14 @@ final class ProjectRepositoryImpl: ProjectStatusRepositoryProtocol, @unchecked S
 
         return ProjectStatusMapper.toDomain(from: dto)
     }
+
+    func deduplicateProjects() async throws -> Int {
+        struct Response: Decodable { let deletedCount: Int }
+        let response: Response = try await networkClient.post(
+            path: "/projects/deduplicate",
+            body: [String: String]()
+        )
+        logger.info("Deduplicate tamamlandi: \(response.deletedCount) silindi")
+        return response.deletedCount
+    }
 }
