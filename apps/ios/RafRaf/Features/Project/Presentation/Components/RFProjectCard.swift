@@ -27,6 +27,13 @@ struct RFProjectCard: View {
 
                 if let description = project.description {
                     RFText(description, style: .caption)
+                } else if let localPath = project.localPath {
+                    HStack(spacing: RFSpacing.xxs) {
+                        Image(systemName: "folder")
+                            .font(.caption2)
+                            .foregroundStyle(RFColors.fallbackTextSecondary)
+                        RFText(shortPath(localPath), style: .caption, color: RFColors.fallbackTextSecondary)
+                    }
                 }
             }
 
@@ -34,6 +41,12 @@ struct RFProjectCard: View {
 
             RFProjectStatusBadge(status: project.status)
         }
+    }
+
+    private func shortPath(_ path: String) -> String {
+        let components = path.split(separator: "/").map(String.init)
+        guard components.count >= 2 else { return path }
+        return "…/" + components.suffix(2).joined(separator: "/")
     }
 
     @ViewBuilder

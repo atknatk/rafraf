@@ -51,7 +51,7 @@ struct RFProjectStatusBadge: View {
         case .completed:
             return RFColors.info
         case .archived:
-            return RFColors.textSecondary
+            return RFColors.fallbackTextSecondary
         }
     }
 

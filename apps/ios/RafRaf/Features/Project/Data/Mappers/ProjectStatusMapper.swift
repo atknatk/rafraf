@@ -8,6 +8,7 @@ enum ProjectStatusMapper {
             id: dto.id,
             name: dto.name,
             status: ProjectStatus(rawValue: dto.status) ?? .active,
+            localPath: dto.localPath,
             techStack: dto.techStack,
             lastActivityAt: parseDate(dto.lastActivityAt),
             lastActivitySummary: dto.lastActivitySummary

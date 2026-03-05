@@ -1,11 +1,13 @@
+import Factory
 import SwiftUI
 
 /// Proje listesi ekrani.
 /// Kullanicinin projelerini filtreleyip goruntuleyebildigi ana liste ekrani.
-/// Pull-to-refresh, LazyVStack ile performansli scroll ve sayfalama destegi.
+/// Pull-to-refresh, status bazli section ve sayfalama destegi.
 struct ProjectListView: View {
     @State private var viewModel: ProjectListViewModel
     @Namespace private var filterNamespace
+    private let projectRepository = Container.shared.projectRepository()
 
     init(viewModel: ProjectListViewModel) {
         self._viewModel = State(initialValue: viewModel)
@@ -123,51 +125,85 @@ struct ProjectListView: View {
         }
     }
 
+    // Filtre yokken projeleri status'a gore grupla
+    private var groupedProjects: [(status: ProjectStatus, projects: [Project])] {
+        let order: [ProjectStatus] = [.active, .pending, .completed, .archived]
+        return order.compactMap { status in
+            let group = viewModel.projects.filter { $0.status == status }
+            return group.isEmpty ? nil : (status: status, projects: group)
+        }
+    }
+
     private var projectList: some View {
         List {
-            ForEach(viewModel.projects) { project in
-                NavigationLink(value: project.id) {
-                    RFProjectCard(project: project) {}
-                        .allowsHitTesting(false)
-                }
-                .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets(
-                    top: RFSpacing.xs,
-                    leading: RFSpacing.md,
-                    bottom: RFSpacing.xs,
-                    trailing: RFSpacing.md
-                ))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    if project.status == .active {
-                        Button(role: .destructive) {
-                            Task { await viewModel.updateStatus(projectId: project.id, status: .archived) }
-                        } label: {
-                            Label(String(localized: "project.action.archive"), systemImage: "archivebox")
+            if viewModel.selectedFilter == nil {
+                // Status bazli section gorunumu
+                ForEach(groupedProjects, id: \.status) { group in
+                    Section {
+                        ForEach(group.projects) { project in
+                            projectRow(project)
                         }
-                    } else {
-                        Button {
-                            Task { await viewModel.updateStatus(projectId: project.id, status: .active) }
-                        } label: {
-                            Label(String(localized: "project.action.activate"), systemImage: "checkmark.circle")
+                    } header: {
+                        HStack(spacing: RFSpacing.xxs) {
+                            RFProjectStatusBadge(status: group.status)
+                            Spacer()
+                            RFText(
+                                "\(group.projects.count)",
+                                style: .captionBold,
+                                color: RFColors.fallbackTextTertiary
+                            )
                         }
-                        .tint(RFColors.success)
+                        .padding(.vertical, RFSpacing.xxs)
                     }
                 }
+            } else {
+                ForEach(viewModel.projects) { project in
+                    projectRow(project)
+                }
             }
-
         }
         .listStyle(.plain)
         .navigationDestination(for: String.self) { projectId in
             ProjectDetailView(
                 viewModel: ProjectDetailViewModel(
                     getProjectDetailUseCase: GetProjectDetailUseCase(
-                        repository: PreviewProjectRepository()
+                        repository: projectRepository
                     ),
                     projectId: projectId
                 )
             )
+        }
+    }
+
+    private func projectRow(_ project: Project) -> some View {
+        NavigationLink(value: project.id) {
+            RFProjectCard(project: project) {}
+                .allowsHitTesting(false)
+        }
+        .buttonStyle(.plain)
+        .listRowInsets(EdgeInsets(
+            top: RFSpacing.xs,
+            leading: RFSpacing.md,
+            bottom: RFSpacing.xs,
+            trailing: RFSpacing.md
+        ))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            if project.status == .active {
+                Button(role: .destructive) {
+                    Task { await viewModel.updateStatus(projectId: project.id, status: .archived) }
+                } label: {
+                    Label(String(localized: "project.action.archive"), systemImage: "archivebox")
+                }
+            } else if project.status != .archived {
+                Button {
+                    Task { await viewModel.updateStatus(projectId: project.id, status: .active) }
+                } label: {
+                    Label(String(localized: "project.action.activate"), systemImage: "checkmark.circle")
+                }
+                .tint(RFColors.success)
+            }
         }
     }
 

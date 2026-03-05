@@ -93,6 +93,7 @@ class ProjectSummary(BaseModel):
     id: uuid.UUID = Field(..., description="Proje benzersiz ID")
     name: str = Field(..., description="Proje adi")
     status: ProjectStatus = Field(..., description="Proje durumu")
+    local_path: str | None = Field(None, description="Projenin lokal dizin yolu")
     last_activity_at: str | None = Field(None, description="Son aktivite zamani")
     last_activity_summary: str | None = Field(None, description="Son aktivite ozeti")
     tech_stack: list[str] = Field(default_factory=list, description="Kullanilan teknolojiler")

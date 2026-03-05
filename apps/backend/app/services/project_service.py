@@ -47,6 +47,7 @@ class ProjectService:
                 id=p.id,
                 name=p.name,
                 status=ProjectStatus(p.status),
+                local_path=p.local_path,
                 last_activity_at=p.last_activity_at,
                 last_activity_summary=p.last_activity_summary,
                 tech_stack=p.tech_stack,

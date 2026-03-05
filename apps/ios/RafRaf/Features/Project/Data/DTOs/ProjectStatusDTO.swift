@@ -7,6 +7,7 @@ struct ProjectSummaryDTO: Codable, Sendable {
     let id: String
     let name: String
     let status: String
+    let localPath: String?
     let lastActivityAt: String?
     let lastActivitySummary: String?
     let techStack: [String]
