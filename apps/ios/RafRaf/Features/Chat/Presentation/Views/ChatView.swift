@@ -23,6 +23,8 @@ struct ChatView: View {
     @State private var githubEventService = GitHubEventService()
     @State private var showGitHubBanner = false
     @State private var latestAgentStatusChange: AgentStatusChangePayload?
+    @State private var isAtBottom = true
+    @State private var unreadCount = 0
     private let webSocketManager = Container.shared.webSocketConnectionManager()
     private let agentRepository: AgentRepositoryProtocol = Container.shared.agentRepository()
 
@@ -249,50 +251,80 @@ struct ChatView: View {
             )
             Spacer()
         } else {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: RFSpacing.sm) {
-                        if viewModel.hasMoreMessages {
-                            loadMoreButton
-                        }
+            ZStack(alignment: .bottomTrailing) {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: RFSpacing.sm) {
+                            if viewModel.hasMoreMessages {
+                                loadMoreButton
+                            }
 
-                        ForEach(viewModel.messages) { message in
-                            RFMessageBubble(
-                                message: message,
-                                onCopy: { viewModel.copyMessage($0) },
-                                onSpeak: message.sender == .assistant
-                                    ? { Task { await voiceOutputViewModel.speak(text: message.content) } }
-                                    : nil,
-                                onBookmark: message.sender == .assistant ? {
-                                    bookmarkService.bookmark(
-                                        message,
-                                        projectId: viewModel.projectId,
-                                        projectName: sessionManager.activeProjectName
-                                    )
-                                } : nil,
-                                onRating: message.sender == .assistant ? { [message] rating in
-                                    let msgId = message.id
-                                    Task<Void, Never> { await viewModel.rateMessage(id: msgId, rating: rating) }
-                                } : nil
-                            )
-                            .id(message.id)
-                            .transition(RFTransition.chatMessage)
-                        }
+                            ForEach(viewModel.messages) { message in
+                                RFMessageBubble(
+                                    message: message,
+                                    onCopy: { viewModel.copyMessage($0) },
+                                    onSpeak: message.sender == .assistant
+                                        ? { Task { await voiceOutputViewModel.speak(text: message.content) } }
+                                        : nil,
+                                    onBookmark: message.sender == .assistant ? {
+                                        bookmarkService.bookmark(
+                                            message,
+                                            projectId: viewModel.projectId,
+                                            projectName: sessionManager.activeProjectName
+                                        )
+                                    } : nil,
+                                    onRating: message.sender == .assistant ? { [message] rating in
+                                        let msgId = message.id
+                                        Task<Void, Never> { await viewModel.rateMessage(id: msgId, rating: rating) }
+                                    } : nil
+                                )
+                                .id(message.id)
+                                .transition(RFTransition.chatMessage)
+                            }
 
-                        if viewModel.isTyping {
-                            RFTypingIndicator()
-                                .id("typing-indicator")
+                            if viewModel.isTyping {
+                                RFTypingIndicator()
+                                    .id("typing-indicator")
+                            }
+
+                            // Bottom sentinel — tracks scroll position
+                            Color.clear
+                                .frame(height: 1)
+                                .id("scroll-bottom")
+                                .onAppear {
+                                    withAnimation(RFAnimation.springResponsive) {
+                                        isAtBottom = true
+                                        unreadCount = 0
+                                    }
+                                }
+                                .onDisappear {
+                                    withAnimation(RFAnimation.springResponsive) {
+                                        isAtBottom = false
+                                    }
+                                }
+                        }
+                        .padding(.horizontal, RFSpacing.md)
+                        .padding(.vertical, RFSpacing.sm)
+                    }
+                    .onChange(of: viewModel.messages.count) {
+                        if isAtBottom {
+                            scrollToBottom(proxy: proxy)
+                        } else {
+                            unreadCount += 1
                         }
                     }
-                    .padding(.horizontal, RFSpacing.md)
-                    .padding(.vertical, RFSpacing.sm)
-                }
-                .onChange(of: viewModel.messages.count) {
-                    scrollToBottom(proxy: proxy)
-                }
-                .onChange(of: viewModel.isTyping) {
-                    if viewModel.isTyping {
-                        scrollToBottom(proxy: proxy)
+                    .onChange(of: viewModel.isTyping) {
+                        if viewModel.isTyping && isAtBottom {
+                            scrollToBottom(proxy: proxy)
+                        }
+                    }
+                    .overlay(alignment: .bottomTrailing) {
+                        if !isAtBottom {
+                            scrollToBottomFAB(proxy: proxy)
+                                .padding(.trailing, RFSpacing.md)
+                                .padding(.bottom, RFSpacing.sm)
+                                .transition(.scale.combined(with: .opacity))
+                        }
                     }
                 }
             }
@@ -310,6 +342,40 @@ struct ChatView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private func scrollToBottomFAB(proxy: ScrollViewProxy) -> some View {
+        Button {
+            withAnimation(RFAnimation.springResponsive) {
+                scrollToBottom(proxy: proxy)
+                unreadCount = 0
+            }
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                Circle()
+                    .fill(RFColors.fallbackSurface)
+                    .frame(width: 40, height: 40)
+                    .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+                    .overlay {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(RFColors.fallbackTextPrimary)
+                    }
+
+                if unreadCount > 0 {
+                    Text(unreadCount > 99 ? "99+" : "\(unreadCount)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(RFColors.fallbackPrimary)
+                        .clipShape(Capsule())
+                        .offset(x: 6, y: -6)
+                }
+            }
+        }
+        .buttonStyle(RFPressButtonStyle())
+        .animation(RFAnimation.springResponsive, value: unreadCount)
     }
 
     // MARK: - Suggestion Chips + Command Palette
@@ -862,14 +928,8 @@ struct ChatView: View {
     // MARK: - Helpers
 
     private func scrollToBottom(proxy: ScrollViewProxy) {
-        if viewModel.isTyping {
-            withAnimation(RFAnimation.springGentle) {
-                proxy.scrollTo("typing-indicator", anchor: .bottom)
-            }
-        } else if let lastMessage = viewModel.messages.last {
-            withAnimation(RFAnimation.springGentle) {
-                proxy.scrollTo(lastMessage.id, anchor: .bottom)
-            }
+        withAnimation(RFAnimation.springGentle) {
+            proxy.scrollTo("scroll-bottom", anchor: .bottom)
         }
     }
 }
