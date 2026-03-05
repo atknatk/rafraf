@@ -676,10 +676,8 @@ async def _process_with_orchestrator(
                                 diff_payload.model_dump(),
                                 session_id=session_id,
                             )
-                            try:
+                            with contextlib.suppress(Exception):
                                 await manager.send_json(_current_conn(), diff_msg)
-                            except Exception:
-                                pass
                 except Exception:
                     await logger.awarning("code_diff_send_failed", session_id=session_id)
 

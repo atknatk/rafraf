@@ -350,8 +350,8 @@ struct RFDiffBubble: View {
     }
 
     private func lineNumberText(_ line: CodeDiffLineDTO) -> String {
-        if let n = line.lineNumberNew { return "\(n)" }
-        if let n = line.lineNumberOld { return "\(n)" }
+        if let num = line.lineNumberNew { return "\(num)" }
+        if let num = line.lineNumberOld { return "\(num)" }
         return ""
     }
 }
