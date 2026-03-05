@@ -24,6 +24,7 @@ struct ProjectListView: View {
                 contentView
             }
             .navigationTitle(String(localized: "project.list.title"))
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
