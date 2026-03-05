@@ -50,6 +50,9 @@ actor WebSocketClient {
     /// Gelen mesaj callback'i
     private var onMessage: (@Sendable (String) -> Void)?
 
+    /// Ping gonderim callback'i — gecikme olcumu icin
+    private var onPingSent: (@Sendable () -> Void)?
+
     init(
         url: URL = AppEnvironment.current.webSocketURL,
         messageRouter: WebSocketMessageRouter = WebSocketMessageRouter(),
@@ -79,6 +82,11 @@ actor WebSocketClient {
     /// Gelen mesaj callback'ini ayarlar.
     func setOnMessage(_ callback: @escaping @Sendable (String) -> Void) {
         self.onMessage = callback
+    }
+
+    /// Ping gonderim callback'ini ayarlar.
+    func setOnPingSent(_ callback: @escaping @Sendable () -> Void) {
+        self.onPingSent = callback
     }
 
     /// WebSocket baglantisini baslatir.
@@ -254,6 +262,7 @@ actor WebSocketClient {
         do {
             try await send(message: pingMessage)
             awaitingPong = true
+            onPingSent?()
             logger.debug("Ping gonderildi")
         } catch {
             logger.warning("Ping gonderilemedi: \(error.localizedDescription)")

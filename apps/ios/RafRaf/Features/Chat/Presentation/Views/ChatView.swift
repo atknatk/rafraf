@@ -121,6 +121,7 @@ struct ChatView: View {
             }
             .task {
                 setupVoiceCallbacks()
+                setupConnectionMonitor()
                 await registerMessageHandlers()
                 await loadProjects()
                 // History REST çağrısı, WebSocket bağlantısına bağlı değil
@@ -472,6 +473,20 @@ struct ChatView: View {
         }
     }
 
+    // MARK: - Connection Monitor
+
+    private func setupConnectionMonitor() {
+        webSocketManager.onPingSent = { [weak connectionMonitor] in
+            Task { @MainActor in
+                connectionMonitor?.recordPingSent()
+            }
+        }
+        // Mevcut baglanti durumunu yansit
+        if webSocketManager.isConnected {
+            connectionMonitor.connectionEstablished()
+        }
+    }
+
     // MARK: - Voice
 
     private func setupVoiceCallbacks() {
@@ -785,6 +800,19 @@ private final class ChatSuggestionHandler: WebSocketMessageHandler {
     func handle(_ message: WebSocketBaseMessage) async {
         guard case .suggestion(let content) = message.content else { return }
         onSuggestionReceived(content.messageId, content.suggestions)
+    }
+}
+
+/// Pong mesajlarini isler — baglanti gecikme olcumu icin.
+private final class ChatPongHandler: WebSocketMessageHandler {
+    private let onPong: @Sendable () -> Void
+
+    init(onPong: @escaping @Sendable () -> Void) {
+        self.onPong = onPong
+    }
+
+    func handle(_ message: WebSocketBaseMessage) async {
+        onPong()
     }
 }
 

@@ -37,6 +37,18 @@ final class WebSocketConnectionManager {
     /// Reconnect callback — app foreground'a donunce veya WebSocket reconnect sonrasi cagirilir.
     var onReconnect: (() async -> Void)?
 
+    /// Ping gonderildiginde cagrilir — gecikme olcumu icin.
+    var onPingSent: (@Sendable () -> Void)? {
+        didSet {
+            let callback = onPingSent
+            Task {
+                if let cb = callback {
+                    await webSocketClient.setOnPingSent(cb)
+                }
+            }
+        }
+    }
+
     private let webSocketClient: WebSocketClient
     private let logger = Logger(
         subsystem: "com.rafraf",
