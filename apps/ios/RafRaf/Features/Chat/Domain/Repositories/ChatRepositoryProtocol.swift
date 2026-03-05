@@ -14,6 +14,7 @@ protocol ChatRepositoryProtocol: Sendable {
     /// - Returns: Mesaj listesi, daha fazla mesaj var mi, sonraki cursor
     func loadHistory(
         sessionId: String,
+        projectId: String?,
         cursor: String?,
         limit: Int
     ) async throws -> ChatHistoryResult

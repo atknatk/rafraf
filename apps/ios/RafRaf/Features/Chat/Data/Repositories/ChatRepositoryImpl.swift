@@ -50,13 +50,19 @@ final class ChatRepositoryImpl: ChatRepositoryProtocol, @unchecked Sendable {
 
     func loadHistory(
         sessionId: String,
+        projectId: String? = nil,
         cursor: String?,
         limit: Int
     ) async throws -> ChatHistoryResult {
         var queryItems: [URLQueryItem] = [
-            URLQueryItem(name: "session_id", value: sessionId),
             URLQueryItem(name: "limit", value: "\(limit)")
         ]
+        // project_id varsa onu kullan — session_id iOS UUID'si, backend UUID'si ile eşleşmez
+        if let projectId {
+            queryItems.append(URLQueryItem(name: "project_id", value: projectId))
+        } else {
+            queryItems.append(URLQueryItem(name: "session_id", value: sessionId))
+        }
         if let cursor {
             queryItems.append(URLQueryItem(name: "cursor", value: cursor))
         }

@@ -46,6 +46,11 @@ manager = ConnectionManager(heartbeat_interval=30, heartbeat_timeout=10)
 # Track active streaming tasks per connection for interrupt support
 _active_streams: dict[str, asyncio.Task[object]] = {}
 
+# User-scoped task tracking for reconnect recovery.
+# key: "{user_id}:{project_id or 'global'}"
+_user_streams: dict[str, asyncio.Task[object]] = {}
+_user_connections: dict[str, str] = {}  # user_project_key → current connection_id
+
 
 def _build_message(
     msg_type: MessageType,
@@ -129,6 +134,33 @@ async def websocket_endpoint(
 
     # Start heartbeat
     await manager.start_heartbeat(connection_id)
+
+    # Re-attach to any in-flight tasks for this user (app closed during processing)
+    active_keys = [k for k, t in _user_streams.items() if k.startswith(f"{user_id}:") and not t.done()]
+    for key in active_keys:
+        _user_connections[key] = connection_id
+        await manager.send_json(
+            connection_id,
+            _build_message(
+                MessageType.PROGRESS,
+                ProgressPayload(
+                    task="Önceki sorgunuz hâlâ işleniyor...",
+                    step=1,
+                    total_steps=1,
+                    percentage=50,
+                    details="Lütfen bekleyin",
+                    phase="starting",
+                    steps_detail=[],
+                ).model_dump(exclude_none=True),
+                session_id=session_id,
+            ),
+        )
+        await logger.ainfo(
+            "websocket_reattached_to_stream",
+            connection_id=connection_id,
+            user_id=user_id,
+            user_project_key=key,
+        )
 
     await logger.ainfo(
         "websocket_session_started",
@@ -391,15 +423,19 @@ async def _process_with_orchestrator(
     tts_tasks: list[asyncio.Task[None]] = []
     chunk_index = 0
 
+    # User-scoped key for reconnect recovery
+    user_project_key = f"{user_id}:{project_id or 'global'}"
+    _user_connections[user_project_key] = connection_id
+
     # --- Progress: islem basladi ---
     startup_progress = _build_message(
         MessageType.PROGRESS,
         ProgressPayload(
-            task="Sorgunuz isleniyor...",
+            task="Sorgunuz işleniyor...",
             step=1,
             total_steps=3,
             percentage=5,
-            details="Baslaniyor",
+            details="Başlanıyor",
             phase="starting",
             steps_detail=[],
         ).model_dump(exclude_none=True),
@@ -408,6 +444,10 @@ async def _process_with_orchestrator(
     await manager.send_json(connection_id, startup_progress)
 
     # --- Callbacks ---
+
+    def _current_conn() -> str:
+        """Return the current active connection for this user+project (supports reconnect)."""
+        return _user_connections.get(user_project_key, connection_id)
 
     async def _on_text_delta(delta: str, index: int) -> None:
         """Send streaming text delta to client."""
@@ -421,7 +461,10 @@ async def _process_with_orchestrator(
             ).model_dump(),
             session_id=session_id,
         )
-        await manager.send_json(connection_id, stream_msg)
+        try:
+            await manager.send_json(_current_conn(), stream_msg)
+        except Exception:
+            pass  # Connection may be temporarily gone (reconnecting)
 
         # TTS: accumulate sentences and send audio chunks
         if tts_service is not None and sentence_acc is not None:
@@ -472,7 +515,10 @@ async def _process_with_orchestrator(
                 {"message_id": message_id},
                 session_id=session_id,
             )
-            await manager.send_json(connection_id, audio_end_msg)
+            try:
+                await manager.send_json(_current_conn(), audio_end_msg)
+            except Exception:
+                pass
 
     async def _on_tool_progress(event: ToolProgressEvent) -> None:
         """Send detailed progress to iOS."""
@@ -505,14 +551,20 @@ async def _process_with_orchestrator(
             ).model_dump(exclude_none=True),
             session_id=session_id,
         )
-        await manager.send_json(connection_id, progress_msg)
+        try:
+            await manager.send_json(_current_conn(), progress_msg)
+        except Exception:
+            pass
 
     async def _on_question(question_payload: dict[str, object]) -> str | None:
         """Forward question to iOS and wait for answer."""
         bridge = get_question_bridge()
 
         async def _send_to_ios(msg: dict[str, object]) -> None:
-            await manager.send_json(connection_id, msg)
+            try:
+                await manager.send_json(_current_conn(), msg)
+            except Exception:
+                pass
 
         return await bridge.ask_user(
             question_payload=question_payload,
@@ -604,6 +656,15 @@ async def _process_with_orchestrator(
             except Exception:
                 await logger.awarning("assistant_message_save_failed", session_id=session_id)
 
+            # Save conversation turn to mem0 (fire-and-forget, non-blocking)
+            if response_text:
+                asyncio.create_task(_save_turn_to_memory(
+                    user_id=user_id,
+                    session_id=session_id,
+                    user_message=message,
+                    assistant_response=response_text,
+                ))
+
         except Exception:
             await logger.aexception(
                 "run_processing_failed",
@@ -628,7 +689,7 @@ async def _process_with_orchestrator(
             session_id=session_id,
         )
         try:
-            await manager.send_json(connection_id, end_msg)
+            await manager.send_json(_current_conn(), end_msg)
         except Exception:
             await logger.awarning(
                 "chat_stream_end_send_failed",
@@ -643,9 +704,10 @@ async def _process_with_orchestrator(
         except ValueError:
             pass
 
-    # Run as cancellable task
+    # Run as cancellable task; track by user+project for reconnect recovery
     task = asyncio.create_task(_run_processing())
     _active_streams[connection_id] = task
+    _user_streams[user_project_key] = task
 
     try:
         await task
@@ -666,6 +728,33 @@ async def _process_with_orchestrator(
         )
     finally:
         _active_streams.pop(connection_id, None)
+        _user_streams.pop(user_project_key, None)
+        _user_connections.pop(user_project_key, None)
+
+
+async def _save_turn_to_memory(
+    user_id: str,
+    session_id: str,
+    user_message: str,
+    assistant_response: str,
+) -> None:
+    """Save a conversation turn to mem0 personal memory (Layer 3). Fire-and-forget."""
+    from app.services.memory_service import MemoryServiceError, memory_service
+
+    try:
+        await memory_service.save_conversation_facts(
+            user_id=user_id,
+            session_id=session_id,
+            messages=[
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": assistant_response},
+            ],
+        )
+        await logger.adebug("turn_memory_saved", user_id=user_id, session_id=session_id)
+    except MemoryServiceError:
+        await logger.awarning("turn_memory_save_failed", user_id=user_id)
+    except Exception:
+        await logger.awarning("turn_memory_save_unexpected", user_id=user_id)
 
 
 async def _send_tts_chunk(

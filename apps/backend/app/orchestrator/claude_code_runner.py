@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
@@ -15,6 +16,72 @@ from app.core.config import get_settings
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
+_TOOL_DISPLAY_NAMES: dict[str, str] = {
+    "Read": "Dosya okunuyor",
+    "Write": "Dosya yazılıyor",
+    "Edit": "Dosya düzenleniyor",
+    "MultiEdit": "Çoklu düzenleme",
+    "Bash": "Komut çalıştırılıyor",
+    "Glob": "Dosya aranıyor",
+    "Grep": "İçerik aranıyor",
+    "LS": "Dizin listeleniyor",
+    "TodoWrite": "Görev listesi güncelleniyor",
+    "WebFetch": "Web sayfası getiriliyor",
+    "WebSearch": "Web araması yapılıyor",
+    "Agent": "Alt görev çalıştırılıyor",
+    "NotebookEdit": "Notebook düzenleniyor",
+    "AskUserQuestion": "Kullanıcıya soru soruluyor",
+    "SendMessage": "Mesaj gönderiliyor",
+}
+
+
+def _tool_display_name(tool_name: str) -> str:
+    """Return Turkish display name for a Claude tool, or raw name as fallback."""
+    return _TOOL_DISPLAY_NAMES.get(tool_name, tool_name)
+
+
+def _tool_input_summary(tool_name: str, input_json: str) -> str | None:
+    """Extract a short human-readable summary from a tool's JSON input."""
+    if not input_json:
+        return None
+    try:
+        data: dict[str, object] = json.loads(input_json)
+    except json.JSONDecodeError:
+        return None
+
+    if tool_name in ("Read", "Write", "Edit", "MultiEdit"):
+        path = data.get("file_path") or data.get("path")
+        if isinstance(path, str):
+            # Show only the last two path components for brevity
+            parts = path.replace("\\", "/").split("/")
+            return "/".join(parts[-2:]) if len(parts) >= 2 else path
+    elif tool_name == "Bash":
+        cmd = data.get("command", "")
+        if isinstance(cmd, str):
+            return cmd[:70] + ("…" if len(cmd) > 70 else "")
+    elif tool_name == "Glob":
+        pattern = data.get("pattern", "")
+        if isinstance(pattern, str):
+            return pattern
+    elif tool_name == "Grep":
+        pattern = data.get("pattern", "")
+        if isinstance(pattern, str):
+            return f'"{pattern}"'
+    elif tool_name == "WebFetch":
+        url = data.get("url", "")
+        if isinstance(url, str):
+            return url[:70] + ("…" if len(url) > 70 else "")
+    elif tool_name == "WebSearch":
+        query = data.get("query", "")
+        if isinstance(query, str):
+            return query
+    elif tool_name == "LS":
+        path = data.get("path", "")
+        if isinstance(path, str):
+            return path
+    return None
+
+
 @dataclass
 class _ToolExecution:
     """Tracks a single tool invocation with timing."""
@@ -23,6 +90,7 @@ class _ToolExecution:
     started_at: float  # time.monotonic()
     completed_at: float | None = None
     status: str = "active"  # "active", "completed", "failed"
+    input_summary: str | None = None
 
 
 @dataclass(frozen=True)
@@ -65,6 +133,8 @@ class ClaudeCodeResult:
     model_used: str
     duration_ms: int
     is_error: bool
+    tokens_input: int = 0
+    tokens_output: int = 0
 
 
 @dataclass
@@ -82,6 +152,8 @@ class _StreamState:
     tool_executions: list[_ToolExecution] = field(default_factory=list)
     phase: str = "starting"
     stream_started_at: float = 0.0
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 class ClaudeCodeError(Exception):
@@ -151,6 +223,10 @@ class ClaudeCodeRunner:
             or None
         )
 
+        # ANTHROPIC_API_KEY olmadan çalıştır: claude -p Max subscription kullanır,
+        # API key varsa ücretli API'ye düşer.
+        subprocess_env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+
         await logger.ainfo(
             "claude_code_starting",
             project_dir=effective_dir,
@@ -165,6 +241,7 @@ class ClaudeCodeRunner:
             self._process = await asyncio.create_subprocess_exec(
                 *cmd,
                 cwd=effective_dir,
+                env=subprocess_env,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -229,6 +306,8 @@ class ClaudeCodeRunner:
                 model_used=state.model or self._settings.claude_code_model,
                 duration_ms=0,
                 is_error=False,
+                tokens_input=state.input_tokens,
+                tokens_output=state.output_tokens,
             )
 
         except ClaudeCodeError:
@@ -298,7 +377,7 @@ class ClaudeCodeRunner:
             ToolStepInfo(
                 id="phase-thinking",
                 step_type="thinking",
-                label="Dusunuyor...",
+                label="Düşünüyor...",
                 status="completed" if thinking_done else "active",
             )
         )
@@ -310,10 +389,11 @@ class ClaudeCodeRunner:
                 ToolStepInfo(
                     id=f"tool-{i}",
                     step_type="tool_calling",
-                    label=tex.tool_name,
+                    label=_tool_display_name(tex.tool_name),
                     status=tex.status,
                     tool_name=tex.tool_name,
                     duration_seconds=round(duration, 1) if tex.completed_at else None,
+                    detail=tex.input_summary,
                 )
             )
 
@@ -323,7 +403,7 @@ class ClaudeCodeRunner:
                 ToolStepInfo(
                     id="phase-generating",
                     step_type="generating",
-                    label="Cevap hazirlaniyor...",
+                    label="Cevap hazırlanıyor...",
                     status="completed" if state.phase == "completed" else "active",
                 )
             )
@@ -341,15 +421,15 @@ class ClaudeCodeRunner:
             pct = 100
 
         phase_labels = {
-            "starting": "Baslatiliyor...",
-            "thinking": "Dusunuyor...",
+            "starting": "Başlatılıyor...",
+            "thinking": "Düşünüyor...",
             "tool_calling": (
-                f"Calisiyor: {state.current_tool_name}"
+                _tool_display_name(state.current_tool_name)
                 if state.current_tool_name
-                else "Tool calisiyor..."
+                else "İşlem yapılıyor..."
             ),
-            "generating": "Cevap hazirlaniyor...",
-            "completed": "Tamamlandi",
+            "generating": "Cevap hazırlanıyor...",
+            "completed": "Tamamlandı",
         }
 
         return ToolProgressEvent(
@@ -428,6 +508,12 @@ class ClaudeCodeRunner:
         if event_type == "result":
             result_text = event.get("result")
             if isinstance(result_text, str) and result_text:
+                # Eğer stream_event text_delta'lar gelmediyse (Max subscription),
+                # result metnini tek seferde delta olarak gönder
+                if not state.full_text and on_text_delta is not None:
+                    state.phase = "generating"
+                    await on_text_delta(result_text, state.delta_index)
+                    state.delta_index += 1
                 state.full_text = result_text
             sid = event.get("session_id")
             if isinstance(sid, str):
@@ -444,13 +530,16 @@ class ClaudeCodeRunner:
 
         inner_type = inner.get("type")
 
-        # message_start: extract model and session info, transition to thinking
+        # message_start: extract model, session info, input tokens; transition to thinking
         if inner_type == "message_start":
             message = inner.get("message")
             if isinstance(message, dict):
                 model = message.get("model")
                 if isinstance(model, str):
                     state.model = model
+                usage = message.get("usage")
+                if isinstance(usage, dict):
+                    state.input_tokens = int(usage.get("input_tokens", 0))
             state.phase = "thinking"
             state.stream_started_at = time.monotonic()
             if on_tool_progress is not None:
@@ -507,6 +596,12 @@ class ClaudeCodeRunner:
                 if isinstance(partial, str) and state.is_collecting_tool_input:
                     state.current_tool_input_json += partial
 
+        # message_delta: extract output token count (end of message)
+        elif inner_type == "message_delta":
+            usage = inner.get("usage")
+            if isinstance(usage, dict):
+                state.output_tokens = int(usage.get("output_tokens", 0))
+
         # content_block_stop: finalize tool input, handle AskUserQuestion
         elif inner_type == "content_block_stop":
             if state.is_collecting_tool_input:
@@ -518,11 +613,15 @@ class ClaudeCodeRunner:
                         on_question=on_question,
                     )
                 else:
-                    # Mark tool as completed with timing
+                    # Mark tool as completed with timing and input summary
                     for tex in reversed(state.tool_executions):
                         if tex.status == "active" and tex.tool_name == state.current_tool_name:
                             tex.completed_at = time.monotonic()
                             tex.status = "completed"
+                            tex.input_summary = _tool_input_summary(
+                                state.current_tool_name,
+                                state.current_tool_input_json,
+                            )
                             break
                     if on_tool_progress is not None:
                         await on_tool_progress(self._build_progress_event(state))

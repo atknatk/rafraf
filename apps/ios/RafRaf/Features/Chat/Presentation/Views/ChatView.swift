@@ -64,19 +64,30 @@ struct ChatView: View {
                 setupVoiceCallbacks()
                 await registerMessageHandlers()
                 await loadProjects()
-                if webSocketManager.isConnected {
-                    await viewModel.loadHistory()
-                }
+                // History REST çağrısı, WebSocket bağlantısına bağlı değil
+                await viewModel.loadHistory()
             }
             .onChange(of: webSocketManager.isConnected) { _, isConnected in
                 if isConnected {
-                    Task { await viewModel.loadHistory() }
+                    // Reconnect'te eksik mesajları getir; history boşsa tam yükle
+                    if viewModel.messages.isEmpty {
+                        Task { await viewModel.loadHistory() }
+                    } else {
+                        Task { await sessionManager.fetchMissedMessagesForAll() }
+                    }
                     Task { await loadProjects() }
                 }
             }
             .onChange(of: sessionManager.activeProjectId) {
                 Task {
                     await viewModel.loadHistory()
+                }
+            }
+            .onChange(of: progressViewModel.isActive) { _, isActive in
+                if isActive {
+                    withAnimation(RFAnimation.springResponsive) {
+                        isProgressExpanded = true
+                    }
                 }
             }
             .overlay {
@@ -327,14 +338,13 @@ struct ChatView: View {
     // MARK: - WebSocket Handlers
 
     private func registerMessageHandlers() async {
-        let vm = viewModel
         let voiceVm = voiceOutputViewModel
         let progressVm = progressViewModel
 
         // Text response handler (non-streaming fallback)
         let handler = ChatIncomingTextHandler { messageId, text in
             Task { @MainActor in
-                vm.handleIncomingMessage(ChatMessage(
+                sessionManager.activeViewModel.handleIncomingMessage(ChatMessage(
                     id: messageId,
                     content: text,
                     sender: .assistant,
@@ -352,7 +362,7 @@ struct ChatView: View {
         // Streaming text delta handler
         let streamHandler = ChatStreamDeltaHandler { messageId, delta in
             Task { @MainActor in
-                vm.handleStreamDelta(messageId: messageId, delta: delta)
+                sessionManager.activeViewModel.handleStreamDelta(messageId: messageId, delta: delta)
             }
         }
         await webSocketManager.registerHandler(
@@ -363,7 +373,7 @@ struct ChatView: View {
         // Stream end handler
         let streamEndHandler = ChatStreamEndHandler { messageId, fullText in
             Task { @MainActor in
-                vm.handleStreamEnd(messageId: messageId, fullText: fullText, type: .text)
+                sessionManager.activeViewModel.handleStreamEnd(messageId: messageId, fullText: fullText, type: .text)
                 progressVm.markCompleted()
             }
         }
@@ -507,6 +517,7 @@ private final class PreviewChatRepository: ChatRepositoryProtocol, @unchecked Se
 
     func loadHistory(
         sessionId: String,
+        projectId: String? = nil,
         cursor: String?,
         limit: Int
     ) async throws -> ChatHistoryResult {

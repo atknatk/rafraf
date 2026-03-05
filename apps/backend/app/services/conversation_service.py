@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
 import structlog
 from sqlalchemy import asc, desc, select
@@ -135,7 +136,8 @@ class ConversationService:
 
         Used for offline sync: iOS fetches missed messages on reconnect.
         """
-        stmt = select(Message).where(Message.created_at > since)
+        since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+        stmt = select(Message).where(Message.created_at > since_dt)
 
         if project_id is not None:
             stmt = stmt.where(Message.project_id == project_id)

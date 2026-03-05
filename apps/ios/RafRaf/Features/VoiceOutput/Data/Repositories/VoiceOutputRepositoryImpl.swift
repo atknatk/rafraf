@@ -9,7 +9,7 @@ final class VoiceOutputRepositoryImpl: VoiceOutputRepositoryProtocol, @unchecked
     private let logger = AppLogger.logger(for: "VoiceOutputRepository")
 
     /// TTS API endpoint yolu.
-    private static let ttsEndpoint = "/api/v1/tts/synthesize"
+    private static let ttsEndpoint = "/tts/synthesize"
 
     init(
         networkClient: NetworkClient,

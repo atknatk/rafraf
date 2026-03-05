@@ -95,6 +95,7 @@ final class ChatViewModel {
         do {
             let result = try await loadHistoryUseCase.execute(
                 sessionId: sessionId,
+                projectId: projectId,
                 cursor: nil
             )
             messages = result.messages
@@ -119,6 +120,7 @@ final class ChatViewModel {
         do {
             let result = try await loadHistoryUseCase.execute(
                 sessionId: sessionId,
+                projectId: projectId,
                 cursor: cursor
             )
             // Eski mesajlari basa ekle (kronolojik sira)
@@ -179,6 +181,16 @@ final class ChatViewModel {
                 attachments: existing.attachments,
                 isStreaming: false
             )
+        } else if !fullText.isEmpty {
+            // Delta gelmeden stream_end gelirse (kısa/hata cevapları) yeni mesaj ekle
+            messages.append(ChatMessage(
+                id: messageId,
+                content: fullText,
+                sender: .assistant,
+                type: type,
+                isStreaming: false
+            ))
+            updateLastMessageTimestamp()
         }
         isTyping = false
     }

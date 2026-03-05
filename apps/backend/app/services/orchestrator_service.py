@@ -342,6 +342,19 @@ class OrchestratorService:
         if claude_session_id is None:
             claude_session_id = await self._get_claude_session(session_key)
 
+        # Rotate session every 40 messages (~20 turns) to avoid context window overflow
+        if project_id and db_session and claude_session_id:
+            msg_count = await self._get_project_message_count(project_id, db_session)
+            if msg_count > 0 and msg_count % 40 == 0:
+                claude_session_id = None
+                await self._clear_claude_session(session_key)
+                await logger.ainfo(
+                    "claude_session_rotated",
+                    session_key=session_key,
+                    project_id=project_id,
+                    msg_count=msg_count,
+                )
+
         # Resolve project local path for claude -p working directory
         project_local_path: str | None = None
         if project_id and db_session is not None:
@@ -351,6 +364,11 @@ class OrchestratorService:
 
         # Build memory context from 3-layer memory system
         memory_ctx = await self._build_memory_context(user_id, message, project_id)
+
+        # When starting a fresh session after rotation, inject recent conversation context
+        recent_ctx = ""
+        if claude_session_id is None and project_id and db_session:
+            recent_ctx = await self._build_recent_context(project_id, db_session)
 
         # Build context info for system prompt
         context_parts: list[str] = [
@@ -363,6 +381,8 @@ class OrchestratorService:
             context_parts.append(f"Project Directory: {project_local_path}")
         if memory_ctx:
             context_parts.append(memory_ctx)
+        if recent_ctx:
+            context_parts.append(recent_ctx)
         append_prompt = "\n".join(context_parts)
 
         try:
@@ -403,8 +423,8 @@ class OrchestratorService:
                 session_id=session_id,
                 response_text=result.response_text,
                 model_used=f"claude-code:{result.model_used}",
-                tokens_input=0,
-                tokens_output=0,
+                tokens_input=result.tokens_input,
+                tokens_output=result.tokens_output,
                 tool_calls_count=0,
             )
 
@@ -438,6 +458,59 @@ class OrchestratorService:
                 tokens_output=0,
                 tool_calls_count=0,
             )
+
+    async def _clear_claude_session(self, ws_session_id: str) -> None:
+        """Remove saved claude -p session ID from Redis (forces fresh session on next call)."""
+        import redis.asyncio as redis
+
+        from app.core.config import get_settings
+
+        settings = get_settings()
+        r = redis.from_url(settings.redis_url)
+        await r.delete(f"claude_session:{ws_session_id}")
+        await r.aclose()
+
+    @staticmethod
+    async def _get_project_message_count(project_id: str, db_session: object) -> int:
+        """Count messages for a project to decide session rotation."""
+        try:
+            from sqlalchemy import func, select
+            from sqlalchemy.ext.asyncio import AsyncSession
+
+            from app.models.message import Message
+
+            if not isinstance(db_session, AsyncSession):
+                return 0
+            result = await db_session.execute(
+                select(func.count()).select_from(Message).where(
+                    Message.project_id == uuid.UUID(project_id)
+                )
+            )
+            return int(result.scalar() or 0)
+        except Exception:
+            await logger.awarning("message_count_failed", project_id=project_id)
+            return 0
+
+    @staticmethod
+    async def _build_recent_context(project_id: str, db_session: object) -> str:
+        """Build a brief recent conversation summary for fresh session injection."""
+        try:
+            from sqlalchemy.ext.asyncio import AsyncSession
+
+            from app.services.conversation_service import ConversationService
+
+            if not isinstance(db_session, AsyncSession):
+                return ""
+            recent = await ConversationService(db_session).get_history(
+                project_id=uuid.UUID(project_id), limit=6
+            )
+            if not recent.messages:
+                return ""
+            lines = [f"{m.role}: {m.content[:200]}" for m in recent.messages]
+            return "\n## Son Konuşmadan Bağlam\n" + "\n".join(lines)
+        except Exception:
+            await logger.awarning("recent_context_build_failed", project_id=project_id)
+            return ""
 
     async def _save_claude_session(self, ws_session_id: str, claude_session_id: str) -> None:
         """Save claude -p session ID to Redis for session continuation."""

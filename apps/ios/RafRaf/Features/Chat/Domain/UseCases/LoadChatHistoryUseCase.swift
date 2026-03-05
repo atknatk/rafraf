@@ -17,12 +17,14 @@ struct LoadChatHistoryUseCase: Sendable {
     /// - Returns: Mesaj listesi ve sayfalama bilgisi
     func execute(
         sessionId: String,
+        projectId: String? = nil,
         cursor: String? = nil,
         limit: Int = 20
     ) async throws -> ChatHistoryResult {
         let clampedLimit = min(max(limit, 1), 50)
         return try await repository.loadHistory(
             sessionId: sessionId,
+            projectId: projectId,
             cursor: cursor,
             limit: clampedLimit
         )
