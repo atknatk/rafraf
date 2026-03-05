@@ -21,6 +21,7 @@ dependencies = [
     "aioboto3>=13.0.0",
     "mem0ai>=0.1.0",
     "aioapns>=3.2",
+    "psutil>=6.0.0",
 ]
 
 [project.optional-dependencies]
