@@ -259,7 +259,15 @@ struct ChatView: View {
                                 loadMoreButton
                             }
 
-                            ForEach(viewModel.messages) { message in
+                            ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
+                                // Date separator between different days
+                                if index == 0 || !Calendar.current.isDate(
+                                    viewModel.messages[index - 1].timestamp,
+                                    inSameDayAs: message.timestamp
+                                ) {
+                                    chatDateSeparator(for: message.timestamp)
+                                }
+
                                 RFMessageBubble(
                                     message: message,
                                     onCopy: { viewModel.copyMessage($0) },
@@ -603,6 +611,35 @@ struct ChatView: View {
             return "Issue \(event.action): \(title)"
         default:
             return "\(event.event) \(event.action)"
+        }
+    }
+
+    // MARK: - Date Separator
+
+    private func chatDateSeparator(for date: Date) -> some View {
+        HStack(spacing: RFSpacing.xs) {
+            Rectangle()
+                .fill(RFColors.fallbackTextTertiary.opacity(0.3))
+                .frame(height: 0.5)
+            RFText(formattedSeparatorDate(date), style: .caption, color: RFColors.fallbackTextTertiary)
+                .fixedSize()
+            Rectangle()
+                .fill(RFColors.fallbackTextTertiary.opacity(0.3))
+                .frame(height: 0.5)
+        }
+        .padding(.vertical, RFSpacing.xs)
+    }
+
+    private func formattedSeparatorDate(_ date: Date) -> String {
+        if Calendar.current.isDateInToday(date) {
+            return String(localized: "chat.date.today")
+        } else if Calendar.current.isDateInYesterday(date) {
+            return String(localized: "chat.date.yesterday")
+        } else {
+            let formatter = DateFormatter()
+            let isThisYear = Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year)
+            formatter.dateFormat = isThisYear ? "d MMMM" : "d MMMM yyyy"
+            return formatter.string(from: date)
         }
     }
 
