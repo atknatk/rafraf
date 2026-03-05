@@ -17,6 +17,9 @@ struct ProjectListView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                if !viewModel.agents.isEmpty {
+                    agentStatusBar
+                }
                 filterBar
                 contentView
             }
@@ -60,6 +63,56 @@ struct ProjectListView: View {
                     errorBanner(message: errorMessage)
                 }
             }
+        }
+    }
+
+    // MARK: - Agent Status Bar
+
+    private var agentStatusBar: some View {
+        let online = viewModel.agents.filter { $0.status == .online }.count
+        let busy = viewModel.agents.filter { $0.status == .busy }.count
+        let offline = viewModel.agents.count - online - busy
+
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: RFSpacing.md) {
+                if online > 0 {
+                    agentStatusPill(
+                        count: online,
+                        label: String(localized: "agent.status.online"),
+                        color: RFColors.success
+                    )
+                }
+                if busy > 0 {
+                    agentStatusPill(
+                        count: busy,
+                        label: String(localized: "agent.status.busy"),
+                        color: RFColors.warning
+                    )
+                }
+                if offline > 0 {
+                    agentStatusPill(
+                        count: offline,
+                        label: String(localized: "agent.status.offline"),
+                        color: RFColors.fallbackTextTertiary
+                    )
+                }
+            }
+            .padding(.horizontal, RFSpacing.md)
+            .padding(.vertical, RFSpacing.xs)
+        }
+        .background(RFColors.fallbackSurface)
+    }
+
+    private func agentStatusPill(count: Int, label: String, color: Color) -> some View {
+        HStack(spacing: RFSpacing.xxs) {
+            Circle()
+                .fill(color)
+                .frame(width: 7, height: 7)
+            RFText(
+                "\(count) \(label)",
+                style: .caption,
+                color: RFColors.fallbackTextSecondary
+            )
         }
     }
 

@@ -378,19 +378,19 @@
         }
       }
     },
-    "tab.home": {
+    "tab.projects": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Home"
+            "value": "Projects"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ana Sayfa"
+            "value": "Projeler"
           }
         }
       }
