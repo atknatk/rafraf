@@ -162,12 +162,21 @@ struct RFMessageBubble: View {
         )
     }
 
+    @ViewBuilder
     private var messageTextView: some View {
-        RFText(
-            message.content,
-            style: .body,
-            color: bubbleTextColor
-        )
+        if message.sender == .assistant {
+            RFMarkdownText(
+                message.content,
+                style: .body,
+                color: bubbleTextColor
+            )
+        } else {
+            RFText(
+                message.content,
+                style: .body,
+                color: bubbleTextColor
+            )
+        }
     }
 
     private var systemMessageView: some View {
