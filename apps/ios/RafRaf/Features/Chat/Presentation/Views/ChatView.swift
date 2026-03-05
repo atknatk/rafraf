@@ -314,6 +314,11 @@ struct ChatView: View {
                         .padding(.horizontal, RFSpacing.md)
                         .padding(.vertical, RFSpacing.sm)
                     }
+                    .refreshable {
+                        await viewModel.loadHistory()
+                        isAtBottom = true
+                        unreadCount = 0
+                    }
                     .onChange(of: viewModel.messages.count) {
                         if isAtBottom {
                             scrollToBottom(proxy: proxy)
