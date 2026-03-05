@@ -463,10 +463,8 @@ async def _process_with_orchestrator(
             ).model_dump(),
             session_id=session_id,
         )
-        try:
+        with contextlib.suppress(Exception):
             await manager.send_json(_current_conn(), stream_msg)
-        except Exception:
-            pass  # Connection may be temporarily gone (reconnecting)
 
         # TTS: accumulate sentences and send audio chunks
         if tts_service is not None and sentence_acc is not None:
@@ -517,10 +515,8 @@ async def _process_with_orchestrator(
                 {"message_id": message_id},
                 session_id=session_id,
             )
-            try:
+            with contextlib.suppress(Exception):
                 await manager.send_json(_current_conn(), audio_end_msg)
-            except Exception:
-                pass
 
     async def _on_tool_progress(event: ToolProgressEvent) -> None:
         """Send detailed progress to iOS."""
@@ -553,20 +549,16 @@ async def _process_with_orchestrator(
             ).model_dump(exclude_none=True),
             session_id=session_id,
         )
-        try:
+        with contextlib.suppress(Exception):
             await manager.send_json(_current_conn(), progress_msg)
-        except Exception:
-            pass
 
     async def _on_question(question_payload: dict[str, object]) -> str | None:
         """Forward question to iOS and wait for answer."""
         bridge = get_question_bridge()
 
         async def _send_to_ios(msg: dict[str, object]) -> None:
-            try:
+            with contextlib.suppress(Exception):
                 await manager.send_json(_current_conn(), msg)
-            except Exception:
-                pass
 
         return await bridge.ask_user(
             question_payload=question_payload,
@@ -749,10 +741,8 @@ async def _process_with_orchestrator(
     # Parse project_id as UUID for DB storage
     _project_uuid: _uuid_mod.UUID | None = None
     if project_id:
-        try:
+        with contextlib.suppress(ValueError):
             _project_uuid = _uuid_mod.UUID(project_id)
-        except ValueError:
-            pass
 
     # Run as cancellable task; track by user+project for reconnect recovery
     task = asyncio.create_task(_run_processing())

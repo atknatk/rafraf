@@ -254,9 +254,7 @@ class TaskManager:
         Includes both running tasks (from _pending) and history.
         """
         history = self._history.get(host_id, deque())
-        # Return latest `limit` entries
-        result = [r.to_summary() for r in list(history)[:limit]]
-        return result
+        return [r.to_summary() for r in list(history)[:limit]]
 
     @property
     def pending_count(self) -> int:

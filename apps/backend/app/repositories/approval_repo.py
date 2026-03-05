@@ -2,7 +2,7 @@
 
 import uuid
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import datetime
 
 import structlog
 from sqlalchemy import select, update
@@ -22,7 +22,7 @@ class ApprovalRepository:
     async def create(
         self,
         *,
-        id: uuid.UUID,
+        id: uuid.UUID,  # noqa: A002
         session_id: str,
         tool_name: str,
         action: str,

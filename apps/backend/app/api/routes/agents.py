@@ -18,10 +18,10 @@ from app.schemas.agent import (
     DispatchTaskRequest,
 )
 from app.schemas.agent_project import (
-    AgentProjectsResponse,
-    AgentProjectUpdateRequest,
     AgentProcessesResponse,
+    AgentProjectsResponse,
     AgentProjectSummary,
+    AgentProjectUpdateRequest,
 )
 from app.services.agent_project_service import AgentProjectService
 from app.services.agent_registry_service import agent_registry
@@ -150,7 +150,7 @@ async def dispatch_agent_task(
 
 
 @router.delete("/{host_id}/tasks/{task_id}", status_code=204)
-async def cancel_agent_task(host_id: str, task_id: str) -> None:
+async def cancel_agent_task(host_id: str, task_id: str) -> None:  # noqa: ARG001
     """Bekleyen veya calisan bir gorevi iptal et."""
     task_manager = get_task_manager()
     cancelled = task_manager.cancel(task_id)
