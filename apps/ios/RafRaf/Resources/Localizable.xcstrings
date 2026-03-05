@@ -50,6 +50,108 @@
         }
       }
     },
+    "agent.setup.step1.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pip install rafraf-agent"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pip install rafraf-agent"
+          }
+        }
+      }
+    },
+    "agent.setup.step1.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install the agent"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent'ı yükleyin"
+          }
+        }
+      }
+    },
+    "agent.setup.step2.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set BACKEND_WS_URL and AGENT_API_KEY in your environment"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BACKEND_WS_URL ve AGENT_API_KEY değişkenlerini ayarlayın"
+          }
+        }
+      }
+    },
+    "agent.setup.step2.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configure environment"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ortam değişkenlerini yapılandırın"
+          }
+        }
+      }
+    },
+    "agent.setup.step3.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "rafraf-agent start — the agent will appear here automatically"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "rafraf-agent start — agent otomatik olarak burada görünecek"
+          }
+        }
+      }
+    },
+    "agent.setup.step3.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start the agent"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agent'ı başlatın"
+          }
+        }
+      }
+    },
     "agent.empty.message": {
       "extractionState": "manual",
       "localizations": {

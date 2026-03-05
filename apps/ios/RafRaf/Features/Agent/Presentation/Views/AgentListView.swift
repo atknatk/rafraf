@@ -142,15 +142,87 @@ struct AgentListView: View {
         if viewModel.isLoading {
             AgentListSkeletonView()
         } else if viewModel.agents.isEmpty {
-            Spacer()
-            RFEmptyStateView(
-                systemImage: "desktopcomputer",
-                title: String(localized: "agent.empty.title"),
-                message: String(localized: "agent.empty.message")
-            )
-            Spacer()
+            agentEmptyStateView
         } else {
             agentList
+        }
+    }
+
+    private var agentEmptyStateView: some View {
+        ScrollView {
+            VStack(spacing: RFSpacing.xl) {
+                Spacer()
+                    .frame(height: RFSpacing.xl)
+
+                VStack(spacing: RFSpacing.md) {
+                    Image(systemName: "desktopcomputer")
+                        .font(.system(size: 64, weight: .thin))
+                        .foregroundStyle(RFColors.fallbackTextTertiary)
+
+                    VStack(spacing: RFSpacing.xs) {
+                        RFText(
+                            String(localized: "agent.empty.title"),
+                            style: .title,
+                            color: RFColors.fallbackTextPrimary
+                        )
+                        .multilineTextAlignment(.center)
+
+                        RFText(
+                            String(localized: "agent.empty.message"),
+                            style: .body,
+                            color: RFColors.fallbackTextSecondary
+                        )
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, RFSpacing.lg)
+                    }
+                }
+
+                VStack(spacing: RFSpacing.sm) {
+                    RFCard {
+                        VStack(alignment: .leading, spacing: RFSpacing.sm) {
+                            settingsStep(
+                                number: "1",
+                                title: String(localized: "agent.setup.step1.title"),
+                                detail: String(localized: "agent.setup.step1.detail")
+                            )
+                            Divider()
+                            settingsStep(
+                                number: "2",
+                                title: String(localized: "agent.setup.step2.title"),
+                                detail: String(localized: "agent.setup.step2.detail")
+                            )
+                            Divider()
+                            settingsStep(
+                                number: "3",
+                                title: String(localized: "agent.setup.step3.title"),
+                                detail: String(localized: "agent.setup.step3.detail")
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, RFSpacing.md)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.bottom, RFSpacing.xxxl)
+        }
+        .refreshable {
+            await viewModel.refreshAgents()
+        }
+    }
+
+    private func settingsStep(number: String, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: RFSpacing.sm) {
+            Text(number)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(width: 24, height: 24)
+                .background(RFColors.fallbackPrimary)
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                RFText(title, style: .bodyBold, color: RFColors.fallbackTextPrimary)
+                RFText(detail, style: .caption, color: RFColors.fallbackTextSecondary)
+            }
         }
     }
 
