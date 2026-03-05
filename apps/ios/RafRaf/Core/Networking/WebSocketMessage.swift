@@ -29,6 +29,10 @@ enum WebSocketMessageType: String, Codable, Sendable {
     // Typing indicators (server → client)
     case typingStart = "typing.start"
     case typingEnd = "typing.end"
+    // Stream control (client → server)
+    case cancelStream = "stream.cancel"
+    // Stream cancelled ack (server → client)
+    case streamCancelled = "stream.cancelled"
 }
 
 /// Mesaj yonu.
@@ -480,6 +484,17 @@ enum WebSocketMessageFactory {
         WebSocketBaseMessage(
             type: "voice",
             content: .text(text),
+            metadata: WebSocketMessageMetadata(
+                sessionId: sessionId,
+                direction: WebSocketMessageDirection.clientToServer.rawValue
+            )
+        )
+    }
+
+    /// Aktif stream'i iptal etmek icin mesaj olusturur.
+    static func cancelStreamMessage(sessionId: String? = nil) -> WebSocketBaseMessage {
+        WebSocketBaseMessage(
+            type: WebSocketMessageType.cancelStream.rawValue,
             metadata: WebSocketMessageMetadata(
                 sessionId: sessionId,
                 direction: WebSocketMessageDirection.clientToServer.rawValue

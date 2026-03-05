@@ -240,6 +240,8 @@ async def _handle_message(
         await _handle_approval_response(raw_data, connection_id, session_id)
     elif msg_type == MessageType.VOICE_INTERRUPT:
         await _handle_voice_interrupt(connection_id)
+    elif msg_type == MessageType.CANCEL_STREAM:
+        await _handle_cancel_stream(connection_id, session_id)
     else:
         error_msg = _build_error_message(
             error_code="UNSUPPORTED_CLIENT_MESSAGE",
@@ -247,6 +249,29 @@ async def _handle_message(
             session_id=session_id,
         )
         await manager.send_json(connection_id, error_msg)
+
+
+async def _handle_cancel_stream(connection_id: str, session_id: str) -> None:
+    """Cancel the active AI stream for this connection."""
+    task = _active_streams.get(connection_id)
+    if task is not None and not task.done():
+        task.cancel()
+        await logger.ainfo("stream_cancelled_by_user", connection_id=connection_id)
+    # Send typing.end so iOS clears the indicator, then cancelled ack
+    with contextlib.suppress(Exception):
+        await manager.send_json(
+            connection_id,
+            _build_message(MessageType.TYPING_END, {}, session_id=session_id),
+        )
+    with contextlib.suppress(Exception):
+        await manager.send_json(
+            connection_id,
+            _build_message(
+                MessageType.STREAM_CANCELLED,
+                {"message": "Stream iptal edildi"},
+                session_id=session_id,
+            ),
+        )
 
 
 async def _handle_pong(connection_id: str) -> None:

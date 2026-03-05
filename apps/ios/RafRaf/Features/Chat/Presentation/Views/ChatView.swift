@@ -290,7 +290,14 @@ struct ChatView: View {
                                 .transition(RFTransition.chatMessage)
                             }
 
-                            if viewModel.isTyping {
+                            // Inline tool aktivite karti — Claude Code tarzi
+                            if let activity = viewModel.currentActivity, !activity.isCompleted {
+                                RFToolActivityCard(activity: activity)
+                                    .id("tool-activity")
+                                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
+
+                            if viewModel.isTyping && viewModel.currentActivity == nil {
                                 RFTypingIndicator()
                                     .id("typing-indicator")
                             }
@@ -447,16 +454,33 @@ struct ChatView: View {
             ),
             isEnabled: !viewModel.isLoading,
             isSending: viewModel.isSending,
+            isProcessing: viewModel.isTyping || viewModel.currentActivity?.isActive == true,
             isRecording: voiceInputViewModel.isRecording,
             audioLevel: voiceInputViewModel.audioLevel.normalizedLevel,
             onSend: {
                 Task { @MainActor in
+                    let text = viewModel.messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    // /export komutu yerel olarak islenir
+                    if text == "/export" {
+                        viewModel.messageText = ""
+                        Task { await exportConversation() }
+                        return
+                    }
                     let projectName = sessionManager.activeProjectName ?? "RafRaf"
                     let connected = webSocketManager.isConnected
                     if connected {
                         LiveActivityManager.shared.start(projectName: projectName)
                     }
                     await viewModel.sendMessage(isConnected: connected)
+                }
+            },
+            onStop: {
+                Task { @MainActor in
+                    let msg = WebSocketMessageFactory.cancelStreamMessage()
+                    try? await webSocketManager.sendMessage(msg)
+                    viewModel.handleTypingIndicator(isTyping: false)
+                    HapticManager.error()
+                    LiveActivityManager.shared.end()
                 }
             },
             onMicTap: {
@@ -885,7 +909,9 @@ struct ChatView: View {
             handler: codeDiffHandler
         )
 
-        // Progress handler
+        let chatVm = sessionManager.activeViewModel
+
+        // Progress handler — hem ProgressVM hem de ChatViewModel'e yonlendir
         let progressHandler = ChatProgressHandler { content in
             Task { @MainActor in
                 let dto = ProgressEventDTO(
@@ -909,6 +935,8 @@ struct ChatView: View {
                 )
                 let state = ProgressMapper.toDomain(from: dto)
                 progressVm.updateProgress(state)
+                // Inline tool aktivite kartini guncelle
+                chatVm.handleProgress(content)
             }
         }
         await webSocketManager.registerHandler(
@@ -966,6 +994,19 @@ struct ChatView: View {
         await webSocketManager.registerHandler(
             type: WebSocketMessageType.typingEnd.rawValue,
             handler: typingEndHandler
+        )
+
+        // Stream cancelled ack — iptal onayı gelince UI temizle
+        let streamCancelledHandler = GenericNoPayloadHandler {
+            Task { @MainActor in
+                sessionManager.activeViewModel.handleTypingIndicator(isTyping: false)
+                progressVm.markCompleted()
+                LiveActivityManager.shared.end()
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.streamCancelled.rawValue,
+            handler: streamCancelledHandler
         )
 
         // Agent status change handler — proactive online/offline notifications

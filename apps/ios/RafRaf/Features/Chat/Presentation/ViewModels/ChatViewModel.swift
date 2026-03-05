@@ -2,6 +2,36 @@ import Foundation
 import os
 import UIKit
 
+// MARK: - Tool Activity Models
+
+/// Tek bir arac calistirma adimi (inline aktivite karti icin).
+struct ToolStep: Sendable, Identifiable {
+    let id: String
+    let label: String
+    let status: String  // "active", "completed", "failed"
+    let detail: String?
+    let durationSeconds: Double?
+
+    var sfIcon: String {
+        switch status {
+        case "completed": return "checkmark.circle.fill"
+        case "failed": return "xmark.circle.fill"
+        default: return "circle"
+        }
+    }
+}
+
+/// Aktif AI calisma durumu — inline aktivite karti icin.
+struct ToolActivityModel: Sendable {
+    let phase: String
+    let phaseLabel: String
+    let percentage: Int
+    let steps: [ToolStep]
+
+    var isCompleted: Bool { phase == "completed" }
+    var isActive: Bool { !["completed", ""].contains(phase) }
+}
+
 /// Sohbet ViewModel.
 /// Chat ekraninin durumunu ve islemlerini yonetir.
 /// Mesaj gonderme, streaming, typing indicator, pagination destegi.
@@ -20,6 +50,8 @@ final class ChatViewModel {
     var pendingSuggestions: [String] = []
     var suggestionMessageId: String?
     var messageQueue = MessageQueue()
+    /// Aktif AI calisma durumu — inline tool aktivite karti icin.
+    var currentActivity: ToolActivityModel?
 
     // MARK: - Private
 
@@ -237,6 +269,7 @@ final class ChatViewModel {
             updateLastMessageTimestamp()
         }
         isTyping = false
+        currentActivity = nil
     }
 
     /// Gelen tam mesaji mesaj listesine ekler.
@@ -249,6 +282,29 @@ final class ChatViewModel {
     /// Typing indicator durumunu gunceller.
     func handleTypingIndicator(isTyping: Bool) {
         self.isTyping = isTyping
+        if !isTyping {
+            // Typing durdu — aktivite bilgisini temizle
+            currentActivity = nil
+        }
+    }
+
+    /// Progress event'ini isler — inline tool aktivite kartini gunceller.
+    func handleProgress(_ content: ProgressMessageContent) {
+        let steps = (content.stepsDetail ?? []).map { step in
+            ToolStep(
+                id: step.id,
+                label: step.label,
+                status: step.status,
+                detail: step.detail,
+                durationSeconds: step.durationSeconds
+            )
+        }
+        currentActivity = ToolActivityModel(
+            phase: content.phase ?? "starting",
+            phaseLabel: content.task,
+            percentage: content.percentage,
+            steps: steps
+        )
     }
 
     /// Mesaj icerigini panoya kopyalar.

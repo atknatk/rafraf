@@ -13,14 +13,7 @@ struct QuickCommand: Identifiable, Sendable {
 /// Tum hazir komutlar.
 enum QuickCommands {
     static let all: [QuickCommand] = [
-        QuickCommand(
-            id: "diff",
-            trigger: "/diff",
-            icon: "doc.text.magnifyingglass",
-            title: "/diff",
-            description: String(localized: "commands.diff.desc"),
-            fullText: String(localized: "commands.diff.text")
-        ),
+        // --- Proje & Durum ---
         QuickCommand(
             id: "status",
             trigger: "/status",
@@ -29,6 +22,15 @@ enum QuickCommands {
             description: String(localized: "commands.status.desc"),
             fullText: String(localized: "commands.status.text")
         ),
+        QuickCommand(
+            id: "diff",
+            trigger: "/diff",
+            icon: "doc.text.magnifyingglass",
+            title: "/diff",
+            description: String(localized: "commands.diff.desc"),
+            fullText: String(localized: "commands.diff.text")
+        ),
+        // --- Kod & Test ---
         QuickCommand(
             id: "test",
             trigger: "/test",
@@ -46,6 +48,31 @@ enum QuickCommands {
             fullText: String(localized: "commands.review.text")
         ),
         QuickCommand(
+            id: "fix",
+            trigger: "/fix",
+            icon: "wrench.and.screwdriver",
+            title: "/fix",
+            description: String(localized: "commands.fix.desc"),
+            fullText: String(localized: "commands.fix.text")
+        ),
+        QuickCommand(
+            id: "optimize",
+            trigger: "/optimize",
+            icon: "bolt",
+            title: "/optimize",
+            description: String(localized: "commands.optimize.desc"),
+            fullText: String(localized: "commands.optimize.text")
+        ),
+        QuickCommand(
+            id: "explain",
+            trigger: "/explain",
+            icon: "text.bubble",
+            title: "/explain",
+            description: String(localized: "commands.explain.desc"),
+            fullText: String(localized: "commands.explain.text")
+        ),
+        // --- Git & Deploy ---
+        QuickCommand(
             id: "commit",
             trigger: "/commit",
             icon: "arrow.triangle.branch",
@@ -62,6 +89,32 @@ enum QuickCommands {
             fullText: String(localized: "commands.deploy.text")
         ),
         QuickCommand(
+            id: "pr",
+            trigger: "/pr",
+            icon: "arrow.triangle.pull",
+            title: "/pr",
+            description: String(localized: "commands.pr.desc"),
+            fullText: String(localized: "commands.pr.text")
+        ),
+        // --- Agent & Memory ---
+        QuickCommand(
+            id: "agents",
+            trigger: "/agents",
+            icon: "desktopcomputer",
+            title: "/agents",
+            description: String(localized: "commands.agents.desc"),
+            fullText: String(localized: "commands.agents.text")
+        ),
+        QuickCommand(
+            id: "memory",
+            trigger: "/memory",
+            icon: "brain",
+            title: "/memory",
+            description: String(localized: "commands.memory.desc"),
+            fullText: String(localized: "commands.memory.text")
+        ),
+        // --- Araçlar ---
+        QuickCommand(
             id: "help",
             trigger: "/help",
             icon: "questionmark.circle",
@@ -70,12 +123,12 @@ enum QuickCommands {
             fullText: String(localized: "commands.help.text")
         ),
         QuickCommand(
-            id: "optimize",
-            trigger: "/optimize",
-            icon: "bolt",
-            title: "/optimize",
-            description: String(localized: "commands.optimize.desc"),
-            fullText: String(localized: "commands.optimize.text")
+            id: "export",
+            trigger: "/export",
+            icon: "square.and.arrow.up",
+            title: "/export",
+            description: String(localized: "commands.export.desc"),
+            fullText: String(localized: "commands.export.text")
         ),
     ]
 

@@ -41,6 +41,10 @@ class MessageType(StrEnum):
     # Typing indicators (server → client)
     TYPING_START = "typing.start"
     TYPING_END = "typing.end"
+    # Stream control (client → server)
+    CANCEL_STREAM = "stream.cancel"
+    # Stream cancelled ack (server → client)
+    STREAM_CANCELLED = "stream.cancelled"
 
 
 class MessageAttachment(BaseModel):
