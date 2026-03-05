@@ -70,37 +70,84 @@ struct RFMessageBubble: View {
         }
         .contextMenu {
             Button {
+                RFHaptics.impact(.light)
                 onCopy?(message.content)
             } label: {
-                Label(
-                    String(localized: "chat.message.copy"),
-                    systemImage: "doc.on.doc"
-                )
+                Label(String(localized: "chat.message.copy"), systemImage: "doc.on.doc")
+            }
+
+            Button {
+                RFHaptics.impact(.light)
+                UIPasteboard.general.string = message.content
+            } label: {
+                Label(String(localized: "chat.message.copyAll"), systemImage: "doc.on.clipboard")
             }
 
             if let onSpeak, message.sender == .assistant {
+                Divider()
                 Button {
                     onSpeak()
                 } label: {
-                    Label(
-                        String(localized: "chat.message.speak"),
-                        systemImage: "speaker.wave.2.fill"
-                    )
+                    Label(String(localized: "chat.message.speak"), systemImage: "speaker.wave.2.fill")
                 }
+            }
+
+            Divider()
+
+            Button {
+                RFHaptics.impact(.light)
+                let activityVC = UIActivityViewController(
+                    activityItems: [message.content],
+                    applicationActivities: nil
+                )
+                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let root = scene.windows.first?.rootViewController {
+                    root.present(activityVC, animated: true)
+                }
+            } label: {
+                Label(String(localized: "chat.message.share"), systemImage: "square.and.arrow.up")
             }
 
             if let onBookmark, message.sender == .assistant {
                 Divider()
                 Button {
+                    RFHaptics.impact(.light)
                     onBookmark()
                 } label: {
-                    Label(
-                        String(localized: "chat.message.bookmark"),
-                        systemImage: "bookmark"
-                    )
+                    Label(String(localized: "chat.message.bookmark"), systemImage: "bookmark")
                 }
             }
+        } preview: {
+            contextMenuPreview
         }
+    }
+
+    // MARK: - Context Menu Preview
+
+    private var contextMenuPreview: some View {
+        VStack(alignment: .leading, spacing: RFSpacing.xs) {
+            HStack(spacing: RFSpacing.xs) {
+                Image(systemName: message.sender == .user ? "person.circle.fill" : "sparkles")
+                    .foregroundStyle(message.sender == .user ? RFColors.fallbackPrimary : RFColors.info)
+                    .font(.caption)
+                RFText(
+                    message.sender == .user
+                        ? String(localized: "chat.message.you")
+                        : "Claude",
+                    style: .captionBold,
+                    color: RFColors.fallbackTextSecondary
+                )
+                Spacer()
+                RFText(formattedTimestamp, style: .caption, color: RFColors.fallbackTextTertiary)
+            }
+            Text(message.content)
+                .font(.body)
+                .lineLimit(8)
+                .foregroundStyle(RFColors.fallbackTextPrimary)
+        }
+        .padding(RFSpacing.md)
+        .frame(maxWidth: 280)
+        .background(RFColors.fallbackSurface)
     }
 
     // MARK: - Subviews
