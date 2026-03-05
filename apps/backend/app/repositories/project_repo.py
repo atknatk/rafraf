@@ -4,7 +4,7 @@ import uuid
 from collections.abc import Sequence
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent_project import AgentProject
@@ -132,6 +132,20 @@ class ProjectRepository:
         result = await self._session.execute(query)
         return result.scalar_one_or_none()
 
+    async def get_by_name(self, name: str) -> Project | None:
+        """Isim ile proje arar. local_path olanlar oncelikli, sonra en son guncellenen."""
+        query = (
+            select(Project)
+            .where(Project.name == name)
+            .order_by(
+                case((Project.local_path.is_(None), 1), else_=0),
+                Project.updated_at.desc(),
+            )
+            .limit(1)
+        )
+        result = await self._session.execute(query)
+        return result.scalar_one_or_none()
+
     async def find_duplicate_local_paths(self) -> dict[str, list[uuid.UUID]]:
         """Ayni local_path'e sahip birden fazla proje grubunu dondurur.
 
@@ -146,6 +160,28 @@ class ProjectRepository:
         groups: dict[str, list[uuid.UUID]] = {}
         for local_path, project_id in result.all():
             groups.setdefault(local_path, []).append(project_id)
+        return {k: v for k, v in groups.items() if len(v) > 1}
+
+    async def find_duplicate_names(self) -> dict[str, list[uuid.UUID]]:
+        """Ayni isme sahip birden fazla proje grubunu dondurur.
+
+        Siralama: local_path olanlar once (NULL sonra), sonra en son guncellenen.
+        Boylece winner = en iyi kayit (local_path varsa + en guncel).
+
+        Returns:
+            {name: [winner_id, dup1_id, dup2_id, ...]}
+        """
+        result = await self._session.execute(
+            select(Project.name, Project.id, Project.local_path)
+            .order_by(
+                Project.name,
+                case((Project.local_path.is_(None), 1), else_=0),  # NULL path sonra
+                Project.updated_at.desc(),
+            )
+        )
+        groups: dict[str, list[uuid.UUID]] = {}
+        for name, project_id, _lp in result.all():
+            groups.setdefault(name, []).append(project_id)
         return {k: v for k, v in groups.items() if len(v) > 1}
 
     async def find_duplicate_repository_urls(self) -> dict[str, list[uuid.UUID]]:

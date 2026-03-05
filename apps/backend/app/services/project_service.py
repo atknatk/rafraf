@@ -162,6 +162,8 @@ class ProjectService:
             existing = await self._repo.get_by_repository_url(repository_url)
         if existing is None and local_path:
             existing = await self._repo.get_by_local_path(local_path)
+        if existing is None:
+            existing = await self._repo.get_by_name(name)
 
         if existing:
             existing = await self._repo.update(
@@ -190,19 +192,27 @@ class ProjectService:
         Strateji:
         1. Ayni local_path'e sahip projeler — en son guncellenen kazanir
         2. Ayni repository_url'e sahip projeler — en son guncellenen kazanir
+        3. Ayni isme sahip projeler — local_path olanlar oncelikli, sonra en son guncellenen
+           (Adim 3, local_path=NULL olan eski kayitlari yakalar)
         Silen kayitlarda: agent_projects CASCADE, messages SET NULL (guvenli).
         """
         deleted = 0
 
-        # local_path bazli dedup
+        # 1. local_path bazli dedup
         by_path = await self._repo.find_duplicate_local_paths()
         for _path, ids in by_path.items():
             for dup_id in ids[1:]:  # ilk = winner (en son update)
                 deleted += 1 if await self._repo.delete_project(dup_id) else 0
 
-        # repository_url bazli dedup (kalan kayitlar arasinda)
+        # 2. repository_url bazli dedup (kalan kayitlar arasinda)
         by_url = await self._repo.find_duplicate_repository_urls()
         for _url, ids in by_url.items():
+            for dup_id in ids[1:]:
+                deleted += 1 if await self._repo.delete_project(dup_id) else 0
+
+        # 3. Isim bazli dedup — NULL local_path'li eski kayitlari da yakalar
+        by_name = await self._repo.find_duplicate_names()
+        for _name, ids in by_name.items():
             for dup_id in ids[1:]:
                 deleted += 1 if await self._repo.delete_project(dup_id) else 0
 
