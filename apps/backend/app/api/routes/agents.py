@@ -35,6 +35,15 @@ async def list_agents(
     return await agent_registry.list_agents(status_filter=status)
 
 
+@router.get("/all-linked-projects", response_model=list[AgentProjectsResponse])
+async def list_all_agent_projects(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> list[AgentProjectsResponse]:
+    """Tum agentlara bagli projeleri DB'den getirir (agent online olmak zorunda degil)."""
+    service = AgentProjectService(session)
+    return await service.get_all_agents_projects()
+
+
 @router.get("/{host_id}", response_model=AgentDetailResponse)
 async def get_agent(host_id: str) -> AgentDetailResponse:
     """Return details for a single agent identified by host_id."""

@@ -328,4 +328,6 @@ final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable
             )
         ]
     }
+
+    func getAllAgentProjects() async throws -> [AgentProject] { [] }
 }

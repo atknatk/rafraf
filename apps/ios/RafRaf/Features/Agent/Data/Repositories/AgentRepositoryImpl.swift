@@ -78,4 +78,12 @@ final class AgentRepositoryImpl: AgentRepositoryProtocol, @unchecked Sendable {
         logger.info("Claude process'ler alindi: \(dto.processes.count) process")
         return AgentMapper.toDomain(from: dto)
     }
+
+    func getAllAgentProjects() async throws -> [AgentProject] {
+        let dtos: [AgentProjectsResponseDTO] = try await networkClient.get(
+            path: "/agents/all-linked-projects"
+        )
+        logger.info("Tum agent projeleri alindi: \(dtos.count) agent")
+        return dtos.flatMap { AgentMapper.toDomain(from: $0) }
+    }
 }

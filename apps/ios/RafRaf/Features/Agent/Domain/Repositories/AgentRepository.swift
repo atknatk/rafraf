@@ -22,4 +22,7 @@ protocol AgentRepositoryProtocol: Sendable {
 
     /// Agent'taki calisan claude process listesini getirir.
     func getClaudeProcesses(agentId: String) async throws -> [ClaudeProcess]
+
+    /// Tum agentlara bagli projeleri DB'den getirir (agent online olmak zorunda degil).
+    func getAllAgentProjects() async throws -> [AgentProject]
 }

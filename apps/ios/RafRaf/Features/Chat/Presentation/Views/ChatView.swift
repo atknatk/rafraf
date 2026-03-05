@@ -71,6 +71,7 @@ struct ChatView: View {
             .onChange(of: webSocketManager.isConnected) { _, isConnected in
                 if isConnected {
                     Task { await viewModel.loadHistory() }
+                    Task { await loadProjects() }
                 }
             }
             .onChange(of: sessionManager.activeProjectId) {
@@ -283,17 +284,13 @@ struct ChatView: View {
     // MARK: - Projects
 
     private func loadProjects() async {
-        // Tum agentlarin aktif projelerini yukle — picker'da agent → proje akisi icin
+        // Tum agent-proje iliskilerini DB'den tek sorguda getir (agent offline olsa bile)
         do {
-            let agentResult = try await agentRepository.getAgents(status: nil)
-            var allAgentProjects: [AgentProject] = []
-            for agent in agentResult.agents {
-                let projects = try await agentRepository.getAgentProjects(agentId: agent.hostId)
-                allAgentProjects.append(contentsOf: projects)
-            }
-            availableAgentProjects = allAgentProjects
+            let projects = try await agentRepository.getAllAgentProjects()
+            print("✅ loadProjects: \(projects.count) proje yuklendi")
+            availableAgentProjects = projects
         } catch {
-            // Agent projeleri opsiyonel — hata sessizce gec
+            print("❌ loadProjects hatasi: \(error)")
         }
     }
 

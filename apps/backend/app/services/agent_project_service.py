@@ -130,6 +130,37 @@ class AgentProjectService:
 
         return archived_count
 
+    async def get_all_agents_projects(self) -> list[AgentProjectsResponse]:
+        """Tum agent-proje iliskilerini DB'den tek sorguda getirir.
+
+        Agent'in online olmasina gerek yok; agent_projects tablosundaki
+        tum kayitlari agent bazinda gruplar.
+        """
+        result = await self._session.execute(
+            select(AgentProject, Project)
+            .join(Project, AgentProject.project_id == Project.id)
+            .where(Project.status != "archived")
+            .order_by(AgentProject.agent_id, Project.name)
+        )
+        rows = result.all()
+
+        grouped: dict[str, list[AgentProjectSummary]] = {}
+        for ap, project in rows:
+            summary = AgentProjectSummary(
+                project_id=ap.project_id,
+                project_name=project.name,
+                is_active=ap.is_active,
+                repository_url=project.repository_url,
+                local_path=project.local_path,
+                tech_stack=list(project.tech_stack),
+            )
+            grouped.setdefault(ap.agent_id, []).append(summary)
+
+        return [
+            AgentProjectsResponse(agent_id=agent_id, projects=projects, total=len(projects))
+            for agent_id, projects in grouped.items()
+        ]
+
     async def get_projects_for_agent(self, agent_id: str) -> AgentProjectsResponse:
         """Agent'a bagli tum projeleri dondurur."""
         result = await self._session.execute(
