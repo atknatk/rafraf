@@ -12,6 +12,7 @@ struct NotificationSettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                pulseSection
                 permissionSection
                 if viewModel.permissionStatus == .authorized {
                     categorySection
@@ -28,6 +29,33 @@ struct NotificationSettingsView: View {
                     )
                 }
             }
+        }
+    }
+
+    // MARK: - Pulse Section
+
+    private var pulseSection: some View {
+        Section {
+            if viewModel.isPulseLoading {
+                HStack {
+                    ProgressView()
+                        .padding(.trailing, RFSpacing.xs)
+                    RFText(
+                        String(localized: "pulse.loading"),
+                        style: .body
+                    )
+                }
+            } else if let pulse = viewModel.pulseReport {
+                PulseCard(pulse: pulse)
+            } else {
+                RFText(
+                    String(localized: "pulse.notAvailable"),
+                    style: .caption
+                )
+                .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text(String(localized: "pulse.section.title"))
         }
     }
 
@@ -137,6 +165,89 @@ struct NotificationSettingsView: View {
             return
         }
         UIApplication.shared.open(url)
+    }
+}
+
+// MARK: - PulseCard
+
+/// Gunluk AI proje ozeti karti.
+private struct PulseCard: View {
+    let pulse: PulseReportDTO
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: RFSpacing.sm) {
+            RFText(pulse.summaryText, style: .body)
+
+            if !pulse.completedItems.isEmpty {
+                itemList(
+                    title: String(localized: "pulse.completed"),
+                    items: pulse.completedItems,
+                    icon: "checkmark.circle.fill",
+                    color: RFColors.success
+                )
+            }
+
+            if !pulse.inProgressItems.isEmpty {
+                itemList(
+                    title: String(localized: "pulse.inProgress"),
+                    items: pulse.inProgressItems,
+                    icon: "clock.fill",
+                    color: RFColors.warning
+                )
+            }
+
+            if !pulse.risks.isEmpty {
+                itemList(
+                    title: String(localized: "pulse.risks"),
+                    items: pulse.risks,
+                    icon: "exclamationmark.triangle.fill",
+                    color: RFColors.error
+                )
+            }
+
+            if !pulse.suggestions.isEmpty {
+                itemList(
+                    title: String(localized: "pulse.suggestions"),
+                    items: pulse.suggestions,
+                    icon: "lightbulb.fill",
+                    color: RFColors.info
+                )
+            }
+
+            RFText(
+                String(localized: "pulse.generatedAt") + " " + pulse.reportDate,
+                style: .caption
+            )
+            .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, RFSpacing.xs)
+    }
+
+    private func itemList(
+        title: String,
+        items: [String],
+        icon: String,
+        color: Color
+    ) -> some View {
+        VStack(alignment: .leading, spacing: RFSpacing.xxs) {
+            HStack(spacing: RFSpacing.xs) {
+                Image(systemName: icon)
+                    .foregroundStyle(color)
+                    .font(.caption)
+                RFText(title, style: .caption)
+                    .foregroundStyle(color)
+            }
+            ForEach(items, id: \.self) { item in
+                HStack(alignment: .top, spacing: RFSpacing.xs) {
+                    Text("•")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    RFText(item, style: .caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.leading, RFSpacing.sm)
+            }
+        }
     }
 }
 

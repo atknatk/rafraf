@@ -1,6 +1,25 @@
 import Foundation
 import os
 
+/// Günlük AI proje özeti (Pulse) veri modeli.
+struct PulseReportDTO: Decodable, Sendable {
+    let id: String
+    let reportDate: String
+    let periodStart: String
+    let periodEnd: String
+    let totalMessages: Int
+    let userMessages: Int
+    let assistantMessages: Int
+    let totalCostUsd: Double?
+    let modelsUsed: [String]
+    let summaryText: String
+    let completedItems: [String]
+    let inProgressItems: [String]
+    let risks: [String]
+    let suggestions: [String]
+    let generatedAt: String
+}
+
 /// Bildirim ayarlari ViewModel.
 /// Push bildirim izin durumu, device token kaydi ve
 /// bildirim kategorisi tercihlerini yonetir.
@@ -30,6 +49,12 @@ final class NotificationSettingsViewModel {
     /// Device token kayit durumu.
     var isTokenRegistered: Bool = false
 
+    /// Gunluk AI proje ozeti (Pulse) verisi.
+    var pulseReport: PulseReportDTO?
+
+    /// Pulse yuklenme durumu.
+    var isPulseLoading: Bool = false
+
     // MARK: - Types
 
     enum PermissionStatus: Sendable {
@@ -44,6 +69,7 @@ final class NotificationSettingsViewModel {
     private let registerDeviceTokenUseCase: RegisterDeviceTokenUseCase
     private let notificationManager: PushNotificationManager
     private let repository: NotificationRepositoryProtocol
+    private let networkClient: NetworkClient
     private let logger = AppLogger.logger(for: "NotificationSettings")
 
     // MARK: - Init
@@ -51,11 +77,13 @@ final class NotificationSettingsViewModel {
     init(
         registerDeviceTokenUseCase: RegisterDeviceTokenUseCase,
         notificationManager: PushNotificationManager,
-        repository: NotificationRepositoryProtocol
+        repository: NotificationRepositoryProtocol,
+        networkClient: NetworkClient = NetworkClient()
     ) {
         self.registerDeviceTokenUseCase = registerDeviceTokenUseCase
         self.notificationManager = notificationManager
         self.repository = repository
+        self.networkClient = networkClient
         logger.info("NotificationSettingsViewModel baslatildi")
     }
 
@@ -66,6 +94,24 @@ final class NotificationSettingsViewModel {
         await notificationManager.refreshAuthorizationStatus()
         updatePermissionStatus()
         await loadSettings()
+        await loadPulse()
+    }
+
+    /// Gunluk AI proje ozetini backend'den yukler.
+    func loadPulse() async {
+        isPulseLoading = true
+        do {
+            let report: PulseReportDTO = try await networkClient.get(
+                path: "/api/v1/pulse/latest"
+            )
+            pulseReport = report
+            logger.info("Pulse raporu yuklendi: \(report.id)")
+        } catch {
+            // Pulse yoksa sessizce gec — kritik hata degil
+            logger.info("Pulse raporu bulunamadi: \(error.localizedDescription)")
+            pulseReport = nil
+        }
+        isPulseLoading = false
     }
 
     /// Bildirim izni ister.
