@@ -83,6 +83,53 @@ class AgentProjectService:
             tech_stack=list(project.tech_stack),
         )
 
+    async def sync_and_archive_removed(
+        self,
+        agent_id: str,
+        synced_project_ids: set[uuid.UUID],
+    ) -> int:
+        """Agent sync'ten artik gelmeyen agent_scan projelerini archived yapar.
+
+        Sadece source='agent_scan' olan projeler etkilenir; manuel projeler dokunulmaz.
+
+        Returns:
+            Archive edilen proje sayisi.
+        """
+        # Bu agent'a bagli tum proje ID'lerini getir
+        linked_result = await self._session.execute(
+            select(AgentProject.project_id).where(AgentProject.agent_id == agent_id)
+        )
+        all_linked_ids: set[uuid.UUID] = {row[0] for row in linked_result.all()}
+
+        removed_ids = all_linked_ids - synced_project_ids
+        if not removed_ids:
+            return 0
+
+        # Sadece agent_scan kaynakli ve henuz archived olmayanlari bul
+        proj_result = await self._session.execute(
+            select(Project).where(
+                Project.id.in_(removed_ids),
+                Project.source == "agent_scan",
+                Project.status != "archived",
+            )
+        )
+        removed_projects = proj_result.scalars().all()
+
+        archived_count = 0
+        for project in removed_projects:
+            project.status = "archived"
+            archived_count += 1
+
+        if archived_count:
+            await self._session.flush()
+            logger.info(
+                "agent_scan_projects_archived",
+                agent_id=agent_id,
+                count=archived_count,
+            )
+
+        return archived_count
+
     async def get_projects_for_agent(self, agent_id: str) -> AgentProjectsResponse:
         """Agent'a bagli tum projeleri dondurur."""
         result = await self._session.execute(

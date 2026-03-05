@@ -4,6 +4,7 @@ Agents authenticate with an API key, register their capabilities,
 and send periodic heartbeat messages.
 """
 
+import uuid
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -254,9 +255,11 @@ async def _handle_project_sync(
 
     host_id = str(content.get("host_id", ""))
     synced_count = 0
+    archived_count = 0
     async with async_session_factory() as session:
         project_svc = ProjectService(session)
         agent_project_svc = AgentProjectService(session)
+        synced_project_ids: set[uuid.UUID] = set()
         for proj in projects_data:
             if not isinstance(proj, dict):
                 continue
@@ -270,13 +273,22 @@ async def _handle_project_sync(
                 tech_stack=proj.get("tech_stack", []),
                 source=str(proj.get("source", "agent_scan")),
             )
+            synced_project_ids.add(result.id)
             if host_id:
                 await agent_project_svc.link_project_to_agent(host_id, result.id)
             synced_count += 1
+
+        # Artik scan'de bulunmayan agent_scan projelerini archive et
+        if host_id:
+            archived_count = await agent_project_svc.sync_and_archive_removed(
+                host_id, synced_project_ids
+            )
+
         await session.commit()
 
     ack = _build_agent_message("project_sync_ack", {
         "synced_count": synced_count,
+        "archived_count": archived_count,
         "status": "ok",
     })
     await agent_manager.send_json(connection_id, ack)
@@ -284,7 +296,8 @@ async def _handle_project_sync(
     await logger.ainfo(
         "project_sync_completed",
         connection_id=connection_id,
-        count=synced_count,
+        synced=synced_count,
+        archived=archived_count,
     )
 
 
