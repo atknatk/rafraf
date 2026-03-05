@@ -203,6 +203,55 @@
         }
       }
     },
+    "agent.task.dispatch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Run Task" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Görev Çalıştır" } }
+      }
+    },
+    "agent.task.runner": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Runner" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Çalıştırıcı" } }
+      }
+    },
+    "agent.task.action": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Action" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Eylem" } }
+      }
+    },
+    "agent.task.command": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Command" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Komut" } }
+      }
+    },
+    "agent.task.command.placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "e.g. ls -la /tmp" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "ör. ls -la /tmp" } }
+      }
+    },
+    "agent.task.send": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Send" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Gönder" } }
+      }
+    },
+    "agent.action.cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Cancel" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "İptal" } }
+      }
+    },
     "agent.refresh.justNow": {
       "extractionState": "manual",
       "localizations": {

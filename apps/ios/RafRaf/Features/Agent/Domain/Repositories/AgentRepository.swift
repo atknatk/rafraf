@@ -31,4 +31,7 @@ protocol AgentRepositoryProtocol: Sendable {
 
     /// Bir gorevi iptal eder.
     func cancelAgentTask(agentId: String, taskId: String) async throws
+
+    /// Agent'a yeni bir gorev gonderir.
+    func dispatchTask(agentId: String, runner: String, action: String, params: [String: String]) async throws
 }

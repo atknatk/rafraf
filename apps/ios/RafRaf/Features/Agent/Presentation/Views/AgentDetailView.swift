@@ -13,6 +13,7 @@ struct AgentDetailView: View {
     @State private var pendingTaskCount = 0
     @State private var isRefreshing = false
     @State private var errorMessage: String?
+    @State private var showDispatchTask = false
 
     private let getUsageUseCase: GetSubscriptionUsageUseCase
     private let refreshUsageUseCase: RefreshSubscriptionUsageUseCase
@@ -21,6 +22,7 @@ struct AgentDetailView: View {
     private let getClaudeProcessesUseCase: GetClaudeProcessesUseCase
     private let getAgentTasksUseCase: GetAgentTasksUseCase
     private let cancelAgentTaskUseCase: CancelAgentTaskUseCase
+    private let dispatchAgentTaskUseCase: DispatchAgentTaskUseCase
 
     init(
         agent: Agent,
@@ -30,7 +32,8 @@ struct AgentDetailView: View {
         setProjectActiveUseCase: SetProjectActiveUseCase,
         getClaudeProcessesUseCase: GetClaudeProcessesUseCase,
         getAgentTasksUseCase: GetAgentTasksUseCase,
-        cancelAgentTaskUseCase: CancelAgentTaskUseCase
+        cancelAgentTaskUseCase: CancelAgentTaskUseCase,
+        dispatchAgentTaskUseCase: DispatchAgentTaskUseCase
     ) {
         self.agent = agent
         self.getUsageUseCase = getUsageUseCase
@@ -40,6 +43,7 @@ struct AgentDetailView: View {
         self.getClaudeProcessesUseCase = getClaudeProcessesUseCase
         self.getAgentTasksUseCase = getAgentTasksUseCase
         self.cancelAgentTaskUseCase = cancelAgentTaskUseCase
+        self.dispatchAgentTaskUseCase = dispatchAgentTaskUseCase
     }
 
     var body: some View {
@@ -63,6 +67,14 @@ struct AgentDetailView: View {
         .background(RFColors.fallbackBackground)
         .navigationTitle(agent.hostId)
         .navigationBarTitleDisplayMode(.large)
+        .sheet(isPresented: $showDispatchTask, onDismiss: {
+            Task { await loadTasks() }
+        }) {
+            DispatchTaskSheet(
+                agentId: agent.hostId,
+                dispatchUseCase: dispatchAgentTaskUseCase
+            )
+        }
         .task {
             async let usageTask: () = loadUsage()
             async let projectsTask: () = loadProjects()
@@ -92,6 +104,15 @@ struct AgentDetailView: View {
                     }
                     Spacer()
                     AgentStatusBadge(status: agent.status)
+                    if agent.status == .online || agent.status == .busy {
+                        RFButton(
+                            String(localized: "agent.task.dispatch"),
+                            style: .primary,
+                            size: .small
+                        ) {
+                            showDispatchTask = true
+                        }
+                    }
                 }
 
                 // Capabilities
@@ -776,6 +797,115 @@ struct AgentDetailView: View {
     }
 }
 
+// MARK: - Dispatch Task Sheet
+
+/// Agent'a gorev gonderme formu.
+private struct DispatchTaskSheet: View {
+    let agentId: String
+    let dispatchUseCase: DispatchAgentTaskUseCase
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedRunner = "shell"
+    @State private var action = ""
+    @State private var command = ""
+    @State private var isSending = false
+    @State private var errorMessage: String?
+
+    private let runners = ["shell", "docker", "playwright", "maestro"]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(String(localized: "agent.task.runner")) {
+                    Picker(String(localized: "agent.task.runner"), selection: $selectedRunner) {
+                        ForEach(runners, id: \.self) { runner in
+                            Text(runner.capitalized).tag(runner)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                }
+
+                Section(String(localized: "agent.task.action")) {
+                    TextField(runnerActionPlaceholder, text: $action)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                }
+
+                Section(String(localized: "agent.task.command")) {
+                    TextField(String(localized: "agent.task.command.placeholder"), text: $command)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .font(.system(.body, design: .monospaced))
+                }
+
+                if let error = errorMessage {
+                    Section {
+                        RFText(error, style: .caption, color: RFColors.error)
+                    }
+                }
+            }
+            .navigationTitle(String(localized: "agent.task.dispatch"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(String(localized: "agent.action.cancel")) {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(String(localized: "agent.task.send")) {
+                        Task { await sendTask() }
+                    }
+                    .disabled(action.isEmpty || isSending)
+                    .fontWeight(.semibold)
+                }
+            }
+            .overlay {
+                if isSending {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.black.opacity(0.1))
+                }
+            }
+        }
+    }
+
+    private var runnerActionPlaceholder: String {
+        switch selectedRunner {
+        case "shell": return "run_command"
+        case "docker": return "up / down / build"
+        case "playwright": return "take_screenshot"
+        case "maestro": return "run_flow"
+        default: return "action"
+        }
+    }
+
+    private func sendTask() async {
+        isSending = true
+        errorMessage = nil
+        var params: [String: String] = [:]
+        if !command.isEmpty {
+            params["command"] = command
+        }
+        do {
+            try await dispatchUseCase.execute(
+                agentId: agentId,
+                runner: selectedRunner,
+                action: action.isEmpty ? runnerActionPlaceholder : action,
+                params: params
+            )
+            HapticManager.success()
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+            HapticManager.error()
+        }
+        isSending = false
+    }
+}
+
 #Preview {
     NavigationStack {
         AgentDetailView(
@@ -813,6 +943,9 @@ struct AgentDetailView: View {
                 repository: PreviewAgentRepository()
             ),
             cancelAgentTaskUseCase: CancelAgentTaskUseCase(
+                repository: PreviewAgentRepository()
+            ),
+            dispatchAgentTaskUseCase: DispatchAgentTaskUseCase(
                 repository: PreviewAgentRepository()
             )
         )

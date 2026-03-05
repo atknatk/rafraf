@@ -100,4 +100,17 @@ final class AgentRepositoryImpl: AgentRepositoryProtocol, @unchecked Sendable {
         try await networkClient.delete(path: "/agents/\(agentId)/tasks/\(taskId)")
         logger.info("Gorev iptal edildi: \(taskId)")
     }
+
+    func dispatchTask(agentId: String, runner: String, action: String, params: [String: String]) async throws {
+        struct Body: Encodable {
+            let runner: String
+            let action: String
+            let params: [String: String]
+        }
+        let _: AgentTaskListResponseDTO = try await networkClient.post(
+            path: "/agents/\(agentId)/tasks",
+            body: Body(runner: runner, action: action, params: params)
+        )
+        logger.info("Gorev gonderildi: \(runner)/\(action) -> \(agentId)")
+    }
 }

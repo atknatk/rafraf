@@ -383,7 +383,8 @@ extension Container {
                 setProjectActiveUseCase: SetProjectActiveUseCase(repository: repository),
                 getClaudeProcessesUseCase: GetClaudeProcessesUseCase(repository: repository),
                 getAgentTasksUseCase: GetAgentTasksUseCase(repository: repository),
-                cancelAgentTaskUseCase: CancelAgentTaskUseCase(repository: repository)
+                cancelAgentTaskUseCase: CancelAgentTaskUseCase(repository: repository),
+                dispatchAgentTaskUseCase: DispatchAgentTaskUseCase(repository: repository)
             )
         }
     }

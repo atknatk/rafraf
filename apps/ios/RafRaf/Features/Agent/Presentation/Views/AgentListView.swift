@@ -239,7 +239,8 @@ struct AgentListView: View {
                             setProjectActiveUseCase: viewModel.setProjectActiveUseCase,
                             getClaudeProcessesUseCase: viewModel.getClaudeProcessesUseCase,
                             getAgentTasksUseCase: viewModel.getAgentTasksUseCase,
-                            cancelAgentTaskUseCase: viewModel.cancelAgentTaskUseCase
+                            cancelAgentTaskUseCase: viewModel.cancelAgentTaskUseCase,
+                            dispatchAgentTaskUseCase: viewModel.dispatchAgentTaskUseCase
                         )
                     } label: {
                         AgentCardView(agent: agent)
@@ -291,7 +292,8 @@ struct AgentListView: View {
             setProjectActiveUseCase: SetProjectActiveUseCase(repository: repo),
             getClaudeProcessesUseCase: GetClaudeProcessesUseCase(repository: repo),
             getAgentTasksUseCase: GetAgentTasksUseCase(repository: repo),
-            cancelAgentTaskUseCase: CancelAgentTaskUseCase(repository: repo)
+            cancelAgentTaskUseCase: CancelAgentTaskUseCase(repository: repo),
+            dispatchAgentTaskUseCase: DispatchAgentTaskUseCase(repository: repo)
         )
     )
 }
@@ -476,4 +478,5 @@ final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable
     }
 
     func cancelAgentTask(agentId: String, taskId: String) async throws {}
+    func dispatchTask(agentId: String, runner: String, action: String, params: [String: String]) async throws {}
 }
