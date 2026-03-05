@@ -445,6 +445,13 @@ async def _process_with_orchestrator(
     )
     await manager.send_json(connection_id, startup_progress)
 
+    # Typing indicator — Claude is thinking
+    with contextlib.suppress(Exception):
+        await manager.send_json(
+            connection_id,
+            _build_message(MessageType.TYPING_START, {}, session_id=session_id),
+        )
+
     # --- Callbacks ---
 
     def _current_conn() -> str:
@@ -691,6 +698,13 @@ async def _process_with_orchestrator(
             )
             if not response_text:
                 response_text = "Bir hata olustu. Lutfen tekrar deneyin."
+
+        # Typing indicator cleared — response ready
+        with contextlib.suppress(Exception):
+            await manager.send_json(
+                _current_conn(),
+                _build_message(MessageType.TYPING_END, {}, session_id=session_id),
+            )
 
         # ALWAYS send CHAT_STREAM_END so the client never hangs
         end_msg = _build_message(

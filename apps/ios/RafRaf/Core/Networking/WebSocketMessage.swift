@@ -26,6 +26,9 @@ enum WebSocketMessageType: String, Codable, Sendable {
     case githubEvent = "github_event"
     // Agent proactive status change broadcasts
     case agentStatusChange = "agent_status_change"
+    // Typing indicators (server → client)
+    case typingStart = "typing.start"
+    case typingEnd = "typing.end"
 }
 
 /// Mesaj yonu.

@@ -68,6 +68,8 @@ class TestMessageType:
             "voice.interrupt",
             "code.diff",
             "suggestion",
+            "typing.start",
+            "typing.end",
         }
         actual = {t.value for t in MessageType}
         assert actual == expected

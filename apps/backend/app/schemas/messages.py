@@ -38,6 +38,9 @@ class MessageType(StrEnum):
     CODE_DIFF = "code.diff"
     # Proactive suggestion type
     SUGGESTION = "suggestion"
+    # Typing indicators (server → client)
+    TYPING_START = "typing.start"
+    TYPING_END = "typing.end"
 
 
 class MessageAttachment(BaseModel):

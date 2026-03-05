@@ -948,6 +948,26 @@ struct ChatView: View {
             handler: githubHandler
         )
 
+        // Typing indicators — show/hide RFTypingIndicator
+        let typingStartHandler = GenericNoPayloadHandler {
+            Task { @MainActor in
+                sessionManager.activeViewModel.handleTypingIndicator(isTyping: true)
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.typingStart.rawValue,
+            handler: typingStartHandler
+        )
+        let typingEndHandler = GenericNoPayloadHandler {
+            Task { @MainActor in
+                sessionManager.activeViewModel.handleTypingIndicator(isTyping: false)
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.typingEnd.rawValue,
+            handler: typingEndHandler
+        )
+
         // Agent status change handler — proactive online/offline notifications
         let agentStatusHandler = AgentStatusChangeHandler { payload in
             Task { @MainActor in
@@ -1116,6 +1136,19 @@ private final class AgentStatusChangeHandler: WebSocketMessageHandler {
     func handle(_ message: WebSocketBaseMessage) async {
         guard case .agentStatusChange(let payload) = message.content else { return }
         onStatusChange(payload)
+    }
+}
+
+/// Payload icermeyen mesajlari (typing.start, typing.end) isler.
+private final class GenericNoPayloadHandler: WebSocketMessageHandler {
+    private let onReceived: @Sendable () -> Void
+
+    init(onReceived: @escaping @Sendable () -> Void) {
+        self.onReceived = onReceived
+    }
+
+    func handle(_ message: WebSocketBaseMessage) async {
+        onReceived()
     }
 }
 
