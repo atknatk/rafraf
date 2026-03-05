@@ -12,9 +12,17 @@ private struct CostSummaryDTO: Codable, Sendable {
     let callCount: Int
 }
 
+/// 7 gunluk maliyet trend noktasi.
+private struct CostTrendPoint: Codable, Sendable, Identifiable {
+    let date: String
+    let costUsd: Double
+    var id: String { date }
+}
+
 /// Gunluk/Haftalik/Aylik API maliyetini gosteren kart.
 struct CostSummaryCard: View {
     @State private var summary: CostSummaryDTO?
+    @State private var trendPoints: [CostTrendPoint] = []
     @State private var selectedPeriod: Period = .daily
     @State private var isLoading = false
 
@@ -62,9 +70,17 @@ struct CostSummaryCard: View {
                         color: RFColors.fallbackTextSecondary
                     )
                 }
+
+                if !trendPoints.isEmpty {
+                    Divider()
+                    trendChart
+                }
             }
         }
-        .task { await loadSummary() }
+        .task {
+            async let _ = loadSummary()
+            async let _ = loadTrend()
+        }
         .onChange(of: selectedPeriod) {
             Task { await loadSummary() }
         }
@@ -104,6 +120,64 @@ struct CostSummaryCard: View {
         .frame(maxWidth: .infinity)
     }
 
+    private var trendChart: some View {
+        VStack(alignment: .leading, spacing: RFSpacing.xxs) {
+            RFText(String(localized: "cost.trend.title"), style: .captionBold, color: RFColors.fallbackTextSecondary)
+
+            Chart(trendPoints) { point in
+                AreaMark(
+                    x: .value("Date", shortDate(point.date)),
+                    y: .value("Cost", point.costUsd)
+                )
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [RFColors.fallbackPrimary.opacity(0.3), RFColors.fallbackPrimary.opacity(0.0)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+
+                LineMark(
+                    x: .value("Date", shortDate(point.date)),
+                    y: .value("Cost", point.costUsd)
+                )
+                .foregroundStyle(RFColors.fallbackPrimary)
+                .lineStyle(StrokeStyle(lineWidth: 1.5))
+            }
+            .chartXAxis {
+                AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                    AxisValueLabel {
+                        if let label = value.as(String.self) {
+                            Text(label)
+                                .font(.system(size: 9))
+                                .foregroundStyle(RFColors.fallbackTextTertiary)
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(values: .automatic(desiredCount: 3)) { value in
+                    AxisValueLabel {
+                        if let v = value.as(Double.self) {
+                            Text(String(format: "$%.3f", v))
+                                .font(.system(size: 9))
+                                .foregroundStyle(RFColors.fallbackTextTertiary)
+                        }
+                    }
+                }
+            }
+            .frame(height: 80)
+        }
+    }
+
+    private func shortDate(_ dateStr: String) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let date = formatter.date(from: dateStr) else { return dateStr }
+        formatter.dateFormat = "d/M"
+        return formatter.string(from: date)
+    }
+
     private func loadSummary() async {
         isLoading = true
         defer { isLoading = false }
@@ -111,6 +185,14 @@ struct CostSummaryCard: View {
             path: "/costs/summary",
             queryItems: [URLQueryItem(name: "period", value: selectedPeriod.rawValue)]
         )
+    }
+
+    private func loadTrend() async {
+        let points: [CostTrendPoint]? = try? await networkClient.get(
+            path: "/costs/trend",
+            queryItems: [URLQueryItem(name: "days", value: "7")]
+        )
+        trendPoints = points ?? []
     }
 
     private func formatNumber(_ n: Int) -> String {

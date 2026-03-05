@@ -5447,6 +5447,13 @@
         "tr": { "stringUnit": { "state": "translated", "value": "Token" } }
       }
     },
+    "cost.trend.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "7-Day Trend" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "7 Günlük Trend" } }
+      }
+    },
     "settings.title": {
       "extractionState": "manual",
       "localizations": {
