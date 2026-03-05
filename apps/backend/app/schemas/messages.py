@@ -34,6 +34,8 @@ class MessageType(StrEnum):
     VOICE_AUDIO_CHUNK = "voice.audio_chunk"
     VOICE_AUDIO_END = "voice.audio_end"
     VOICE_INTERRUPT = "voice.interrupt"
+    # Code diff type
+    CODE_DIFF = "code.diff"
 
 
 class MessageAttachment(BaseModel):
@@ -217,3 +219,39 @@ class VoiceAudioChunkPayload(BaseModel):
     audio_data: str  # base64-encoded MP3
     sentence_text: str
     is_last_chunk: bool = False
+
+
+class CodeDiffLinePayload(BaseModel):
+    """Bir diff satiri."""
+
+    model_config = ConfigDict(frozen=True)
+
+    type: str  # "added", "removed", "context"
+    content: str
+    line_number_old: int | None = None
+    line_number_new: int | None = None
+
+
+class CodeDiffFilePayload(BaseModel):
+    """Bir dosyanin diff'i."""
+
+    model_config = ConfigDict(frozen=True)
+
+    file_path: str
+    is_new_file: bool = False
+    is_deleted: bool = False
+    additions: int = 0
+    deletions: int = 0
+    lines: list[CodeDiffLinePayload]
+
+
+class CodeDiffPayload(BaseModel):
+    """Code diff mesaj payload'i."""
+
+    model_config = ConfigDict(frozen=True)
+
+    project_path: str
+    total_additions: int
+    total_deletions: int
+    files_changed: int
+    files: list[CodeDiffFilePayload]

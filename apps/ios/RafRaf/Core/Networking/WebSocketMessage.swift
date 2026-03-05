@@ -18,6 +18,8 @@ enum WebSocketMessageType: String, Codable, Sendable {
     case voiceAudioChunk = "voice.audio_chunk"
     case voiceAudioEnd = "voice.audio_end"
     case voiceInterrupt = "voice.interrupt"
+    // Code diff type
+    case codeDiff = "code.diff"
 }
 
 /// Mesaj yonu.
@@ -67,6 +69,7 @@ enum WebSocketContent: Codable, Sendable {
     case chatStreamEnd(ChatStreamEndContent)
     case voiceAudioChunk(VoiceAudioChunkContent)
     case voiceAudioEnd(VoiceAudioEndContent)
+    case codeDiff(CodeDiffContent)
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -94,6 +97,11 @@ enum WebSocketContent: Codable, Sendable {
 
         if let audioEnd = try? container.decode(VoiceAudioEndContent.self) {
             self = .voiceAudioEnd(audioEnd)
+            return
+        }
+
+        if let diff = try? container.decode(CodeDiffContent.self) {
+            self = .codeDiff(diff)
             return
         }
 
@@ -151,6 +159,8 @@ enum WebSocketContent: Codable, Sendable {
         case .voiceAudioChunk(let value):
             try container.encode(value)
         case .voiceAudioEnd(let value):
+            try container.encode(value)
+        case .codeDiff(let value):
             try container.encode(value)
         }
     }
@@ -283,6 +293,33 @@ struct VoiceAudioChunkContent: Codable, Sendable {
 /// Ses akisi tamamlanma icerigi.
 struct VoiceAudioEndContent: Codable, Sendable {
     let messageId: String
+}
+
+/// Code diff satiri icerigi.
+struct CodeDiffLineContent: Codable, Sendable {
+    let type: String
+    let content: String
+    let lineNumberOld: Int?
+    let lineNumberNew: Int?
+}
+
+/// Dosya diff icerigi.
+struct CodeDiffFileContent: Codable, Sendable {
+    let filePath: String
+    let isNewFile: Bool?
+    let isDeleted: Bool?
+    let additions: Int
+    let deletions: Int
+    let lines: [CodeDiffLineContent]
+}
+
+/// Code diff mesaj icerigi.
+struct CodeDiffContent: Codable, Sendable {
+    let projectPath: String
+    let totalAdditions: Int
+    let totalDeletions: Int
+    let filesChanged: Int
+    let files: [CodeDiffFileContent]
 }
 
 // MARK: - Message Factory

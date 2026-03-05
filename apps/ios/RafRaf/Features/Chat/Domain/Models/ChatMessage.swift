@@ -43,4 +43,5 @@ enum MessageType: String, Sendable, Equatable, CaseIterable {
     case image
     case file
     case system
+    case codeDiff = "code.diff"
 }

@@ -104,6 +104,17 @@ struct RFMessageBubble: View {
                 if !message.content.isEmpty {
                     messageTextView
                 }
+            case .codeDiff:
+                if let data = message.content.data(using: .utf8),
+                   let payload = try? {
+                       let dec = JSONDecoder()
+                       dec.keyDecodingStrategy = .convertFromSnakeCase
+                       return try dec.decode(CodeDiffPayloadDTO.self, from: data)
+                   }() {
+                    RFDiffBubble(payload: payload)
+                } else {
+                    messageTextView
+                }
             case .text, .system:
                 messageTextView
             }
@@ -207,6 +218,141 @@ struct RFMessageBubble: View {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         return formatter.string(fromByteCount: Int64(bytes))
+    }
+}
+
+// MARK: - RFDiffBubble
+
+/// Code diff goruntuleme bileseni.
+/// Claude'un dosya degisikliklerini satir satir gosterir.
+struct RFDiffBubble: View {
+    let payload: CodeDiffPayloadDTO
+    @State private var expandedFiles: Set<String> = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: RFSpacing.xs) {
+            // Header
+            HStack {
+                Image(systemName: "arrow.triangle.branch")
+                    .foregroundStyle(RFColors.fallbackPrimary)
+                RFText(
+                    String(localized: "chat.diff.title"),
+                    style: .captionBold,
+                    color: RFColors.fallbackPrimary
+                )
+                Spacer()
+                RFText(
+                    "+\(payload.totalAdditions) -\(payload.totalDeletions)",
+                    style: .caption
+                )
+            }
+
+            // Dosyalar
+            ForEach(payload.files, id: \.filePath) { file in
+                diffFileRow(file: file)
+            }
+        }
+        .padding(RFSpacing.sm)
+        .background(RFColors.fallbackSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func diffFileRow(file: CodeDiffFileDTO) -> some View {
+        VStack(alignment: .leading, spacing: RFSpacing.xxs) {
+            // Dosya basligi (tiklanabilir - expand/collapse)
+            Button {
+                if expandedFiles.contains(file.filePath) {
+                    expandedFiles.remove(file.filePath)
+                } else {
+                    expandedFiles.insert(file.filePath)
+                }
+            } label: {
+                HStack {
+                    Image(systemName: expandedFiles.contains(file.filePath) ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 10))
+                        .foregroundStyle(RFColors.fallbackTextSecondary)
+                    RFText(
+                        (file.filePath as NSString).lastPathComponent,
+                        style: .caption,
+                        color: RFColors.fallbackTextPrimary
+                    )
+                    Spacer()
+                    RFText(
+                        "+\(file.additions) -\(file.deletions)",
+                        style: .caption,
+                        color: RFColors.fallbackTextSecondary
+                    )
+                }
+            }
+            .buttonStyle(.plain)
+
+            // Satirlar (expand edilmisse goster, max 30 satir)
+            if expandedFiles.contains(file.filePath) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(file.lines.prefix(30).enumerated()), id: \.offset) { _, line in
+                        diffLineView(line: line)
+                    }
+                    if file.lines.count > 30 {
+                        RFText(
+                            String(localized: "chat.diff.moreLines.\(file.lines.count - 30)"),
+                            style: .caption,
+                            color: RFColors.fallbackTextTertiary
+                        )
+                        .padding(.leading, RFSpacing.xs)
+                    }
+                }
+                .background(Color(.systemBackground).opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+        }
+    }
+
+    private func diffLineView(line: CodeDiffLineDTO) -> some View {
+        HStack(spacing: RFSpacing.xxs) {
+            // Tip rengi
+            Rectangle()
+                .fill(lineColor(for: line.type))
+                .frame(width: 3)
+
+            // Satir numarasi
+            RFText(
+                lineNumberText(line),
+                style: .caption,
+                color: RFColors.fallbackTextTertiary
+            )
+            .frame(width: 28, alignment: .trailing)
+            .monospacedDigit()
+
+            // Icerik
+            Text(line.content)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(lineColor(for: line.type).opacity(line.type == "context" ? 0.7 : 1.0))
+                .lineLimit(1)
+        }
+        .padding(.vertical, 1)
+        .background(lineBgColor(for: line.type))
+    }
+
+    private func lineColor(for type: String) -> Color {
+        switch type {
+        case "added": return .green
+        case "removed": return .red
+        default: return RFColors.fallbackTextSecondary
+        }
+    }
+
+    private func lineBgColor(for type: String) -> Color {
+        switch type {
+        case "added": return Color.green.opacity(0.08)
+        case "removed": return Color.red.opacity(0.08)
+        default: return Color.clear
+        }
+    }
+
+    private func lineNumberText(_ line: CodeDiffLineDTO) -> String {
+        if let n = line.lineNumberNew { return "\(n)" }
+        if let n = line.lineNumberOld { return "\(n)" }
+        return ""
     }
 }
 

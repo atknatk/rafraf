@@ -382,6 +382,40 @@ struct ChatView: View {
             handler: streamEndHandler
         )
 
+        // Code diff handler
+        let codeDiffHandler = ChatCodeDiffHandler { content in
+            Task { @MainActor in
+                let dto = CodeDiffPayloadDTO(
+                    projectPath: content.projectPath,
+                    totalAdditions: content.totalAdditions,
+                    totalDeletions: content.totalDeletions,
+                    filesChanged: content.filesChanged,
+                    files: content.files.map { file in
+                        CodeDiffFileDTO(
+                            filePath: file.filePath,
+                            isNewFile: file.isNewFile,
+                            isDeleted: file.isDeleted,
+                            additions: file.additions,
+                            deletions: file.deletions,
+                            lines: file.lines.map { line in
+                                CodeDiffLineDTO(
+                                    type: line.type,
+                                    content: line.content,
+                                    lineNumberOld: line.lineNumberOld,
+                                    lineNumberNew: line.lineNumberNew
+                                )
+                            }
+                        )
+                    }
+                )
+                sessionManager.activeViewModel.handleCodeDiff(dto)
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.codeDiff.rawValue,
+            handler: codeDiffHandler
+        )
+
         // Progress handler
         let progressHandler = ChatProgressHandler { content in
             Task { @MainActor in
@@ -492,6 +526,20 @@ private final class ChatStreamEndHandler: WebSocketMessageHandler {
     func handle(_ message: WebSocketBaseMessage) async {
         guard case .chatStreamEnd(let content) = message.content else { return }
         onStreamEnd(content.messageId, content.fullText)
+    }
+}
+
+/// Code diff mesajlarini isler.
+private final class ChatCodeDiffHandler: WebSocketMessageHandler {
+    private let onDiffReceived: @Sendable (CodeDiffContent) -> Void
+
+    init(onDiffReceived: @escaping @Sendable (CodeDiffContent) -> Void) {
+        self.onDiffReceived = onDiffReceived
+    }
+
+    func handle(_ message: WebSocketBaseMessage) async {
+        guard case .codeDiff(let content) = message.content else { return }
+        onDiffReceived(content)
     }
 }
 

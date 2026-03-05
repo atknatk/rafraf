@@ -212,6 +212,25 @@ final class ChatViewModel {
         UIPasteboard.general.string = content
     }
 
+    /// Gelen code diff mesajini ekler.
+    /// - Parameter payload: CodeDiffPayloadDTO JSON icerigi
+    func handleCodeDiff(_ payload: CodeDiffPayloadDTO) {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        guard let data = try? encoder.encode(payload),
+              let json = String(data: data, encoding: .utf8) else {
+            return
+        }
+        let diffMessage = ChatMessage(
+            content: json,
+            sender: .assistant,
+            type: .codeDiff
+        )
+        messages.append(diffMessage)
+        updateLastMessageTimestamp()
+        logger.info("Code diff mesaji eklendi: \(payload.filesChanged) dosya")
+    }
+
     /// Hata mesajini temizler.
     func dismissError() {
         errorMessage = nil

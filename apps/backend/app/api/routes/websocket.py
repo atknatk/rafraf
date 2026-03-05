@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import uuid as _uuid_mod
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -655,6 +656,32 @@ async def _process_with_orchestrator(
                     await _db.commit()
             except Exception:
                 await logger.awarning("assistant_message_save_failed", session_id=session_id)
+
+            # CODE_DIFF: proje degisikliklerini gonder
+            if project_id and response_text:
+                try:
+                    from app.services.git_diff_service import get_project_diff
+                    from app.services.project_service import ProjectService
+                    async with async_session_factory() as _diff_db:
+                        _diff_project_uuid = _uuid_mod.UUID(project_id)
+                        _diff_detail = await ProjectService(_diff_db).get_project_by_id(
+                            _diff_project_uuid
+                        )
+                        diff_path = _diff_detail.local_path
+                    if diff_path:
+                        diff_payload = await get_project_diff(diff_path)
+                        if diff_payload is not None:
+                            diff_msg = _build_message(
+                                MessageType.CODE_DIFF,
+                                diff_payload.model_dump(),
+                                session_id=session_id,
+                            )
+                            try:
+                                await manager.send_json(_current_conn(), diff_msg)
+                            except Exception:
+                                pass
+                except Exception:
+                    await logger.awarning("code_diff_send_failed", session_id=session_id)
 
             # Save conversation turn to mem0 (fire-and-forget, non-blocking)
             if response_text:
