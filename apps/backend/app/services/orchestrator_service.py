@@ -362,6 +362,13 @@ class OrchestratorService:
         if not project_local_path:
             project_local_path = settings.claude_code_default_dir or None
 
+        # Build git context for project awareness
+        git_ctx = ""
+        if project_local_path:
+            from app.services.git_context_service import build_git_context
+
+            git_ctx = await build_git_context(project_local_path)
+
         # Build memory context from 3-layer memory system
         memory_ctx = await self._build_memory_context(user_id, message, project_id)
 
@@ -379,6 +386,8 @@ class OrchestratorService:
             context_parts.append(f"Project ID: {project_id}")
         if project_local_path:
             context_parts.append(f"Project Directory: {project_local_path}")
+        if git_ctx:
+            context_parts.append(git_ctx)
         if memory_ctx:
             context_parts.append(memory_ctx)
         if recent_ctx:
