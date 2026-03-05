@@ -22,6 +22,7 @@ from app.api.routes.memory import router as memory_router
 from app.api.routes.notifications import router as notifications_router
 from app.api.routes.personal_memory import router as personal_memory_router
 from app.api.routes.projects import router as projects_router
+from app.api.routes.pulse import router as pulse_router
 from app.api.routes.conversations import router as conversations_router
 from app.api.routes.subscription import router as subscription_router
 from app.api.routes.webhooks import router as webhooks_router
@@ -128,6 +129,7 @@ def create_app() -> FastAPI:
     application.include_router(personal_memory_router)
     application.include_router(maestro_router)
     application.include_router(subscription_router)
+    application.include_router(pulse_router)
 
     return application
 

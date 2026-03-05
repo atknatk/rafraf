@@ -9,6 +9,7 @@ from app.models.device_token import DeviceToken, NotificationSettings
 from app.models.host_agent import HostAgent
 from app.models.memory import ProjectMemory
 from app.models.message import Message
+from app.models.pulse_report import PulseReport
 from app.models.session import Session
 from app.models.user import User
 
@@ -23,6 +24,7 @@ __all__ = [
     "Message",
     "NotificationSettings",
     "ProjectMemory",
+    "PulseReport",
     "Session",
     "User",
 ]
