@@ -117,7 +117,8 @@ extension Container {
             return ChatViewModel(
                 sendMessageUseCase: SendMessageUseCase(repository: repository),
                 loadHistoryUseCase: LoadChatHistoryUseCase(repository: repository),
-                fetchMissedMessagesUseCase: FetchMissedMessagesUseCase(repository: repository)
+                fetchMissedMessagesUseCase: FetchMissedMessagesUseCase(repository: repository),
+                chatRepository: repository
             )
         }
     }
@@ -134,6 +135,9 @@ extension Container {
                 },
                 fetchMissedMessagesUseCaseFactory: {
                     FetchMissedMessagesUseCase(repository: self.chatRepository())
+                },
+                chatRepositoryFactory: {
+                    self.chatRepository()
                 }
             )
         }

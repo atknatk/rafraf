@@ -7,13 +7,17 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.models.user import User
-from app.schemas.conversation import ConversationHistoryResponse, MessageResponse
+from app.schemas.conversation import (
+    ConversationHistoryResponse,
+    MessageRatingRequest,
+    MessageResponse,
+)
 from app.services.conversation_service import ConversationService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -51,6 +55,39 @@ async def get_conversation_history(
         session_id=session_id,
         limit=limit,
         cursor=cursor,
+    )
+
+
+@router.patch("/{message_id}/rating", response_model=MessageResponse)
+async def rate_message(
+    message_id: str,
+    body: MessageRatingRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> MessageResponse:
+    """AI yaniti icin thumbs up/down degerlendirmesi kaydeder."""
+    svc = ConversationService(session)
+    msg = await svc.rate_message(
+        message_id=message_id,
+        user_id=str(current_user.id),
+        body=body,
+    )
+    if msg is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return MessageResponse(
+        id=msg.id,
+        session_id=msg.session_id,
+        user_id=msg.user_id,
+        project_id=msg.project_id,
+        agent_id=msg.agent_id,
+        role=msg.role,
+        content=msg.content,
+        model_used=msg.model_used,
+        tokens_used=msg.tokens_used,
+        created_at=msg.created_at.isoformat(),
+        rating=msg.rating,
+        rating_note=msg.rating_note,
+        rated_at=msg.rated_at.isoformat() if msg.rated_at else None,
     )
 
 
@@ -114,6 +151,9 @@ async def search_messages(
             model_used=m.model_used,
             tokens_used=m.tokens_used,
             created_at=m.created_at.isoformat(),
+            rating=m.rating,
+            rating_note=m.rating_note,
+            rated_at=m.rated_at.isoformat() if m.rated_at else None,
         )
         for m in messages
     ]

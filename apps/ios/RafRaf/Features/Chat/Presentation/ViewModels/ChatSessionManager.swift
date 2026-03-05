@@ -23,17 +23,20 @@ final class ChatSessionManager {
     private let sendMessageUseCaseFactory: () -> SendMessageUseCase
     private let loadHistoryUseCaseFactory: () -> LoadChatHistoryUseCase
     private let fetchMissedMessagesUseCaseFactory: () -> FetchMissedMessagesUseCase
+    private let chatRepositoryFactory: (() -> any ChatRepositoryProtocol)?
 
     // MARK: - Init
 
     init(
         sendMessageUseCaseFactory: @escaping () -> SendMessageUseCase,
         loadHistoryUseCaseFactory: @escaping () -> LoadChatHistoryUseCase,
-        fetchMissedMessagesUseCaseFactory: @escaping () -> FetchMissedMessagesUseCase
+        fetchMissedMessagesUseCaseFactory: @escaping () -> FetchMissedMessagesUseCase,
+        chatRepositoryFactory: (() -> any ChatRepositoryProtocol)? = nil
     ) {
         self.sendMessageUseCaseFactory = sendMessageUseCaseFactory
         self.loadHistoryUseCaseFactory = loadHistoryUseCaseFactory
         self.fetchMissedMessagesUseCaseFactory = fetchMissedMessagesUseCaseFactory
+        self.chatRepositoryFactory = chatRepositoryFactory
     }
 
     // MARK: - Public
@@ -53,6 +56,7 @@ final class ChatSessionManager {
             sendMessageUseCase: sendMessageUseCaseFactory(),
             loadHistoryUseCase: loadHistoryUseCaseFactory(),
             fetchMissedMessagesUseCase: fetchMissedMessagesUseCaseFactory(),
+            chatRepository: chatRepositoryFactory?(),
             projectId: projectId,
             agentId: agentId
         )

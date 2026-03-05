@@ -30,6 +30,12 @@ protocol ChatRepositoryProtocol: Sendable {
         sessionId: String?,
         projectId: String?
     ) async throws -> [ChatMessage]
+
+    /// Mesaj degerlendirmesi gonderir (thumbs up/down).
+    /// - Parameters:
+    ///   - id: Degerlendirilen mesajin ID'si
+    ///   - rating: up veya down
+    func rateMessage(id: String, rating: MessageRating) async throws
 }
 
 /// Chat gecmisi sonuc modeli.

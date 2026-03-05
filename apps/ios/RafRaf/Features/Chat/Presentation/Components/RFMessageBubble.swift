@@ -8,19 +8,22 @@ struct RFMessageBubble: View {
     let onImageTap: ((String) -> Void)?
     let onSpeak: (() -> Void)?
     let onBookmark: (() -> Void)?
+    let onRating: ((MessageRating) -> Void)?
 
     init(
         message: ChatMessage,
         onCopy: ((String) -> Void)? = nil,
         onImageTap: ((String) -> Void)? = nil,
         onSpeak: (() -> Void)? = nil,
-        onBookmark: (() -> Void)? = nil
+        onBookmark: (() -> Void)? = nil,
+        onRating: ((MessageRating) -> Void)? = nil
     ) {
         self.message = message
         self.onCopy = onCopy
         self.onImageTap = onImageTap
         self.onSpeak = onSpeak
         self.onBookmark = onBookmark
+        self.onRating = onRating
     }
 
     var body: some View {
@@ -53,6 +56,10 @@ struct RFMessageBubble: View {
                                 .foregroundStyle(RFColors.fallbackTextTertiary)
                         }
                         .buttonStyle(RFPressButtonStyle())
+                    }
+
+                    if let onRating, message.sender == .assistant, !message.isStreaming {
+                        ratingRow(onRating: onRating)
                     }
                 }
             }
@@ -229,6 +236,42 @@ struct RFMessageBubble: View {
         .clipShape(Capsule())
         .frame(maxWidth: .infinity, alignment: .trailing)
         .padding(.top, 2)
+    }
+
+    @ViewBuilder
+    private func ratingRow(onRating: @escaping (MessageRating) -> Void) -> some View {
+        HStack(spacing: RFSpacing.xxs) {
+            Button {
+                RFHaptics.impact(.light)
+                onRating(.up)
+            } label: {
+                Image(systemName: message.rating == .up ? "hand.thumbsup.fill" : "hand.thumbsup")
+                    .font(.caption)
+                    .foregroundStyle(
+                        message.rating == .up
+                            ? RFColors.fallbackPrimary
+                            : RFColors.fallbackTextTertiary
+                    )
+            }
+            .buttonStyle(RFPressButtonStyle())
+            .accessibilityLabel(String(localized: "chat.message.rateUp"))
+
+            Button {
+                RFHaptics.impact(.light)
+                onRating(.down)
+            } label: {
+                Image(systemName: message.rating == .down ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                    .font(.caption)
+                    .foregroundStyle(
+                        message.rating == .down
+                            ? RFColors.fallbackPrimary
+                            : RFColors.fallbackTextTertiary
+                    )
+            }
+            .buttonStyle(RFPressButtonStyle())
+            .accessibilityLabel(String(localized: "chat.message.rateDown"))
+        }
+        .padding(.top, 4)
     }
 
     // MARK: - Computed Properties

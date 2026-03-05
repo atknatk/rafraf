@@ -1,5 +1,11 @@
 import Foundation
 
+/// Kullanicinin AI yanitina verdigi degerlendirme.
+enum MessageRating: String, Sendable, Codable, Equatable {
+    case up
+    case down
+}
+
 /// Sohbet mesaji domain modeli.
 struct ChatMessage: Identifiable, Sendable, Equatable {
     let id: String
@@ -13,6 +19,8 @@ struct ChatMessage: Identifiable, Sendable, Equatable {
     let tokensUsed: Int?
     /// Kullanilan model adi. Sadece assistant mesajlarinda dolu olur.
     let modelUsed: String?
+    /// Kullanicinin verdigi degerlendirme (thumbs up/down).
+    let rating: MessageRating?
 
     init(
         id: String = UUID().uuidString,
@@ -23,7 +31,8 @@ struct ChatMessage: Identifiable, Sendable, Equatable {
         attachments: [ChatAttachment] = [],
         isStreaming: Bool = false,
         tokensUsed: Int? = nil,
-        modelUsed: String? = nil
+        modelUsed: String? = nil,
+        rating: MessageRating? = nil
     ) {
         self.id = id
         self.content = content
@@ -34,6 +43,7 @@ struct ChatMessage: Identifiable, Sendable, Equatable {
         self.isStreaming = isStreaming
         self.tokensUsed = tokensUsed
         self.modelUsed = modelUsed
+        self.rating = rating
     }
 }
 

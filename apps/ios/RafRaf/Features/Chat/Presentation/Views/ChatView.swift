@@ -253,8 +253,9 @@ struct ChatView: View {
                                         projectName: sessionManager.activeProjectName
                                     )
                                 } : nil,
-                                onRating: message.sender == .assistant ? { rating in
-                                    Task { await viewModel.rateMessage(id: message.id, rating: rating) }
+                                onRating: message.sender == .assistant ? { [message] rating in
+                                    let msgId = message.id
+                                    Task<Void, Never> { await viewModel.rateMessage(id: msgId, rating: rating) }
                                 } : nil
                             )
                             .id(message.id)
