@@ -9,6 +9,10 @@ struct ChatMessage: Identifiable, Sendable, Equatable {
     let type: MessageType
     let attachments: [ChatAttachment]
     let isStreaming: Bool
+    /// Toplam token sayisi (input + output). Sadece assistant mesajlarinda dolu olur.
+    let tokensUsed: Int?
+    /// Kullanilan model adi. Sadece assistant mesajlarinda dolu olur.
+    let modelUsed: String?
 
     init(
         id: String = UUID().uuidString,
@@ -17,7 +21,9 @@ struct ChatMessage: Identifiable, Sendable, Equatable {
         timestamp: Date = Date(),
         type: MessageType = .text,
         attachments: [ChatAttachment] = [],
-        isStreaming: Bool = false
+        isStreaming: Bool = false,
+        tokensUsed: Int? = nil,
+        modelUsed: String? = nil
     ) {
         self.id = id
         self.content = content
@@ -26,6 +32,8 @@ struct ChatMessage: Identifiable, Sendable, Equatable {
         self.type = type
         self.attachments = attachments
         self.isStreaming = isStreaming
+        self.tokensUsed = tokensUsed
+        self.modelUsed = modelUsed
     }
 }
 

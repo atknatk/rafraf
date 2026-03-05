@@ -10,8 +10,10 @@ struct ChatView: View {
     @State private var voiceOutputViewModel = Container.shared.voiceOutputViewModel()
     @State private var progressViewModel = Container.shared.progressViewModel()
     @State private var isProgressExpanded = false
+    @State private var showSearch = false
     @State private var showVoiceOverlay = false
     @State private var showVoiceConversation = false
+    @State private var quickCommandQuery: String = ""
     @State private var availableAgentProjects: [AgentProject] = []
     private let webSocketManager = Container.shared.webSocketConnectionManager()
     private let agentRepository: AgentRepositoryProtocol = Container.shared.agentRepository()
@@ -19,6 +21,14 @@ struct ChatView: View {
     /// Aktif ChatViewModel (session manager uzerinden).
     private var viewModel: ChatViewModel {
         sessionManager.activeViewModel
+    }
+
+    private var showCommandPalette: Bool {
+        viewModel.messageText.hasPrefix("/") && !viewModel.messageText.contains(" ")
+    }
+
+    private var filteredCommands: [QuickCommand] {
+        QuickCommands.filtered(by: viewModel.messageText)
     }
 
     init(sessionManager: ChatSessionManager) {
@@ -71,6 +81,17 @@ struct ChatView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
+                // Hizli komut paleti — "/" ile basladiginda goster
+                if showCommandPalette && !filteredCommands.isEmpty {
+                    RFQuickCommandPalette(commands: filteredCommands) { command in
+                        viewModel.messageText = command.fullText
+                        quickCommandQuery = ""
+                    }
+                    .padding(.horizontal, RFSpacing.sm)
+                    .padding(.bottom, RFSpacing.xs)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+
                 chatInputView
             }
             .background(RFColors.fallbackBackground)
@@ -87,6 +108,17 @@ struct ChatView: View {
                         }
                     )
                 }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showSearch = true
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .accessibilityLabel(String(localized: "chat.search.title"))
+                    }
+                }
+            }
+            .sheet(isPresented: $showSearch) {
+                ChatSearchView(projectId: viewModel.projectId)
             }
             .task {
                 setupVoiceCallbacks()
@@ -126,6 +158,7 @@ struct ChatView: View {
             .animation(RFAnimation.springResponsive, value: showVoiceOverlay)
             .animation(RFAnimation.springResponsive, value: progressViewModel.isVisible)
             .animation(RFAnimation.springResponsive, value: viewModel.pendingSuggestions.isEmpty)
+            .animation(RFAnimation.springResponsive, value: showCommandPalette)
             .fullScreenCover(isPresented: $showVoiceConversation) {
                 let voiceVM = Container.shared.voiceConversationViewModel()
                 VoiceConversationView(viewModel: voiceVM) {
@@ -414,9 +447,15 @@ struct ChatView: View {
         )
 
         // Stream end handler
-        let streamEndHandler = ChatStreamEndHandler { messageId, fullText in
+        let streamEndHandler = ChatStreamEndHandler { messageId, fullText, tokensUsed, modelUsed in
             Task { @MainActor in
-                sessionManager.activeViewModel.handleStreamEnd(messageId: messageId, fullText: fullText, type: .text)
+                sessionManager.activeViewModel.handleStreamEnd(
+                    messageId: messageId,
+                    fullText: fullText,
+                    type: .text,
+                    tokensUsed: tokensUsed,
+                    modelUsed: modelUsed
+                )
                 progressVm.markCompleted()
             }
         }
@@ -573,15 +612,23 @@ private final class ChatStreamDeltaHandler: WebSocketMessageHandler {
 
 /// Stream tamamlanma mesajlarini isler.
 private final class ChatStreamEndHandler: WebSocketMessageHandler {
-    private let onStreamEnd: @Sendable (String, String) -> Void
+    private let onStreamEnd: @Sendable (String, String, Int?, String?) -> Void
 
-    init(onStreamEnd: @escaping @Sendable (String, String) -> Void) {
+    init(onStreamEnd: @escaping @Sendable (String, String, Int?, String?) -> Void) {
         self.onStreamEnd = onStreamEnd
     }
 
     func handle(_ message: WebSocketBaseMessage) async {
         guard case .chatStreamEnd(let content) = message.content else { return }
-        onStreamEnd(content.messageId, content.fullText)
+        let totalTokens: Int?
+        if let usage = content.tokensUsed {
+            let sum = usage.input + usage.output
+            totalTokens = sum > 0 ? sum : nil
+        } else {
+            totalTokens = nil
+        }
+        let model: String? = content.modelUsed.isEmpty ? nil : content.modelUsed
+        onStreamEnd(content.messageId, content.fullText, totalTokens, model)
     }
 }
 

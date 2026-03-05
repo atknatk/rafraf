@@ -122,6 +122,11 @@ struct RFMessageBubble: View {
             if message.isStreaming {
                 streamingIndicator
             }
+
+            // Token sayaci
+            if message.sender == .assistant, let tokens = message.tokensUsed {
+                tokenCostBadge(tokens: tokens, model: message.modelUsed)
+            }
         }
         .padding(.horizontal, RFSpacing.sm)
         .padding(.vertical, RFSpacing.xs + 2)
@@ -184,6 +189,31 @@ struct RFMessageBubble: View {
                     .frame(width: 4, height: 4)
             }
         }
+    }
+
+    @ViewBuilder
+    private func tokenCostBadge(tokens: Int, model: String?) -> some View {
+        let costPerMillion: Double = {
+            let m = (model ?? "").lowercased()
+            if m.contains("haiku") { return 0.25 }
+            if m.contains("opus") { return 15.0 }
+            return 3.0
+        }()
+        let estimatedCost = Double(tokens) / 1_000_000.0 * costPerMillion
+
+        HStack(spacing: 4) {
+            Image(systemName: "bolt.fill")
+                .font(.system(size: 9))
+            Text("\(tokens) tok · $\(String(format: "%.5f", estimatedCost))")
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+        }
+        .foregroundStyle(RFColors.fallbackTextTertiary)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(RFColors.fallbackTextTertiary.opacity(0.08))
+        .clipShape(Capsule())
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(.top, 2)
     }
 
     // MARK: - Computed Properties

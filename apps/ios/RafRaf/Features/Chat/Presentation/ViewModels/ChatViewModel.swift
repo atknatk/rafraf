@@ -171,7 +171,15 @@ final class ChatViewModel {
     ///   - messageId: Tamamlanan mesajin ID'si
     ///   - fullText: Tam mesaj icerigi
     ///   - type: Mesaj tipi
-    func handleStreamEnd(messageId: String, fullText: String, type: MessageType) {
+    ///   - tokensUsed: Toplam token sayisi (input + output), varsa
+    ///   - modelUsed: Kullanilan model adi, varsa
+    func handleStreamEnd(
+        messageId: String,
+        fullText: String,
+        type: MessageType,
+        tokensUsed: Int? = nil,
+        modelUsed: String? = nil
+    ) {
         if let index = messages.firstIndex(where: { $0.id == messageId }) {
             let existing = messages[index]
             messages[index] = ChatMessage(
@@ -181,7 +189,9 @@ final class ChatViewModel {
                 timestamp: existing.timestamp,
                 type: type,
                 attachments: existing.attachments,
-                isStreaming: false
+                isStreaming: false,
+                tokensUsed: tokensUsed,
+                modelUsed: modelUsed
             )
         } else if !fullText.isEmpty {
             // Delta gelmeden stream_end gelirse (kısa/hata cevapları) yeni mesaj ekle
@@ -190,7 +200,9 @@ final class ChatViewModel {
                 content: fullText,
                 sender: .assistant,
                 type: type,
-                isStreaming: false
+                isStreaming: false,
+                tokensUsed: tokensUsed,
+                modelUsed: modelUsed
             ))
             updateLastMessageTimestamp()
         }
