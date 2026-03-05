@@ -7,8 +7,12 @@ Uses an in-memory store for fast access (no DB dependency in F1).
 import asyncio
 import contextlib
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import structlog
+
+if TYPE_CHECKING:
+    from app.core.websocket import ConnectionManager
 
 from app.schemas.agent import (
     AgentCapability,
@@ -77,11 +81,13 @@ class AgentRegistryService:
         self,
         heartbeat_timeout_seconds: int = 90,
         stale_check_interval_seconds: int = 30,
+        ios_manager: "ConnectionManager | None" = None,
     ) -> None:
         self._agents: dict[str, _AgentRecord] = {}
         self._heartbeat_timeout = heartbeat_timeout_seconds
         self._stale_check_interval = stale_check_interval_seconds
         self._stale_task: asyncio.Task[None] | None = None
+        self._ios_manager: "ConnectionManager | None" = ios_manager
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -152,6 +158,16 @@ class AgentRegistryService:
             is_new=is_new,
             capabilities=[c.value for c in payload.capabilities],
         )
+
+        # Proactive broadcast to iOS clients
+        if self._ios_manager:
+            await self._ios_manager.broadcast_json({
+                "type": "agent_status_change",
+                "host_id": payload.host_id,
+                "status": "online",
+                "is_new": is_new,
+            })
+
         return is_new
 
     # ------------------------------------------------------------------
@@ -358,6 +374,13 @@ class AgentRegistryService:
                             elapsed_seconds=elapsed,
                         )
                         record.status = AgentStatus.OFFLINE
+                        if self._ios_manager:
+                            await self._ios_manager.broadcast_json({
+                                "type": "agent_status_change",
+                                "host_id": record.host_id,
+                                "status": "offline",
+                                "reason": "heartbeat_timeout",
+                            })
         except asyncio.CancelledError:
             pass
 
@@ -403,4 +426,13 @@ class AgentRegistryService:
 
 
 # Module-level singleton so that both the WS endpoint and REST endpoint share state.
-agent_registry = AgentRegistryService()
+# ios_manager is injected lazily after the WebSocket module initializes.
+def _make_registry() -> AgentRegistryService:
+    try:
+        from app.api.routes.websocket import manager as _ios_manager  # noqa: PLC0415
+        return AgentRegistryService(ios_manager=_ios_manager)
+    except Exception:
+        return AgentRegistryService()
+
+
+agent_registry = _make_registry()

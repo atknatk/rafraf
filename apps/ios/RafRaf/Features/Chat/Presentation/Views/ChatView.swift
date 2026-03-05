@@ -22,6 +22,7 @@ struct ChatView: View {
     @State private var connectionMonitor = ConnectionQualityMonitor()
     @State private var githubEventService = GitHubEventService()
     @State private var showGitHubBanner = false
+    @State private var latestAgentStatusChange: AgentStatusChangePayload?
     private let webSocketManager = Container.shared.webSocketConnectionManager()
     private let agentRepository: AgentRepositoryProtocol = Container.shared.agentRepository()
 
@@ -54,6 +55,12 @@ struct ChatView: View {
                 // GitHub webhook event banner
                 if let event = githubEventService.latestEvent {
                     githubEventBanner(event)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                // Agent status change banner
+                if let change = latestAgentStatusChange {
+                    agentStatusBanner(change)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
@@ -180,6 +187,7 @@ struct ChatView: View {
             .animation(RFAnimation.springResponsive, value: showCommandPalette)
             .animation(RFAnimation.springResponsive, value: viewModel.messageQueue.isEmpty)
             .animation(RFAnimation.springResponsive, value: githubEventService.latestEvent?.event)
+            .animation(RFAnimation.springResponsive, value: latestAgentStatusChange?.hostId)
             .fullScreenCover(isPresented: $showVoiceConversation) {
                 let voiceVM = Container.shared.voiceConversationViewModel()
                 VoiceConversationView(viewModel: voiceVM) {
@@ -532,6 +540,42 @@ struct ChatView: View {
         }
     }
 
+    // MARK: - Agent Status Banner
+
+    private func agentStatusBanner(_ change: AgentStatusChangePayload) -> some View {
+        let isOnline = change.status == "online"
+        let color: Color = isOnline ? RFColors.success : RFColors.fallbackTextTertiary
+        let icon = isOnline ? "desktopcomputer" : "desktopcomputer.trianglebadge.exclamationmark"
+        let title = isOnline
+            ? (change.isNew == true
+                ? String(format: String(localized: "agent.status.newOnline"), change.hostId)
+                : String(format: String(localized: "agent.status.backOnline"), change.hostId))
+            : String(format: String(localized: "agent.status.wentOffline"), change.hostId)
+
+        return HStack(spacing: RFSpacing.xs) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(color)
+            RFText(title, style: .captionBold, color: RFColors.fallbackTextPrimary)
+            Spacer()
+            Button {
+                withAnimation(RFAnimation.springResponsive) {
+                    latestAgentStatusChange = nil
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(RFColors.fallbackTextTertiary)
+            }
+        }
+        .padding(.horizontal, RFSpacing.md)
+        .padding(.vertical, RFSpacing.xs)
+        .background(RFColors.fallbackSurface)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+    }
+
     // MARK: - Error Banner
 
     private func errorBanner(message: String) -> some View {
@@ -795,6 +839,24 @@ struct ChatView: View {
             type: WebSocketMessageType.githubEvent.rawValue,
             handler: githubHandler
         )
+
+        // Agent status change handler — proactive online/offline notifications
+        let agentStatusHandler = AgentStatusChangeHandler { payload in
+            Task { @MainActor in
+                withAnimation(RFAnimation.springResponsive) {
+                    self.latestAgentStatusChange = payload
+                }
+                // Auto-dismiss after 4s
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                withAnimation(RFAnimation.springResponsive) {
+                    self.latestAgentStatusChange = nil
+                }
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.agentStatusChange.rawValue,
+            handler: agentStatusHandler
+        )
     }
 
     // MARK: - Helpers
@@ -938,6 +1000,20 @@ private final class ChatPongHandler: WebSocketMessageHandler {
 
     func handle(_ message: WebSocketBaseMessage) async {
         onPong()
+    }
+}
+
+/// Agent durum degisikligi mesajlarini isler.
+private final class AgentStatusChangeHandler: WebSocketMessageHandler {
+    private let onStatusChange: @Sendable (AgentStatusChangePayload) -> Void
+
+    init(onStatusChange: @escaping @Sendable (AgentStatusChangePayload) -> Void) {
+        self.onStatusChange = onStatusChange
+    }
+
+    func handle(_ message: WebSocketBaseMessage) async {
+        guard case .agentStatusChange(let payload) = message.content else { return }
+        onStatusChange(payload)
     }
 }
 

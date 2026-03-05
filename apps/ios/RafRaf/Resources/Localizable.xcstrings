@@ -414,6 +414,57 @@
         }
       }
     },
+    "agent.status.backOnline": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is back online"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ tekrar çevrimiçi"
+          }
+        }
+      }
+    },
+    "agent.status.newOnline": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ connected"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ bağlandı"
+          }
+        }
+      }
+    },
+    "agent.status.wentOffline": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ went offline"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ çevrimdışı oldu"
+          }
+        }
+      }
+    },
     "agent.subscription.claudeMessages": {
       "extractionState": "manual",
       "localizations": {

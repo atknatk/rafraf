@@ -24,6 +24,8 @@ enum WebSocketMessageType: String, Codable, Sendable {
     case suggestion = "suggestion"
     // GitHub webhook events (server → client broadcast)
     case githubEvent = "github_event"
+    // Agent proactive status change broadcasts
+    case agentStatusChange = "agent_status_change"
 }
 
 /// Mesaj yonu.
@@ -49,7 +51,7 @@ struct WebSocketBaseMessage: Codable, Sendable {
     }
 
     enum ExtraKeys: String, CodingKey {
-        case event, action, repo, summary
+        case event, action, repo, summary, hostId, status, reason, isNew
     }
 
     init(from decoder: Decoder) throws {
@@ -67,6 +69,13 @@ struct WebSocketBaseMessage: Codable, Sendable {
             let repo = (try? extra.decodeIfPresent(String.self, forKey: .repo)) ?? ""
             let summary = (try? extra.decodeIfPresent(GitHubEventSummaryPayload.self, forKey: .summary)) ?? GitHubEventSummaryPayload()
             self.content = .githubEvent(GitHubEventPayload(event: event, action: action, repo: repo, summary: summary))
+        } else if self.type == WebSocketMessageType.agentStatusChange.rawValue {
+            let extra = try decoder.container(keyedBy: ExtraKeys.self)
+            let hostId = (try? extra.decodeIfPresent(String.self, forKey: .hostId)) ?? ""
+            let status = (try? extra.decodeIfPresent(String.self, forKey: .status)) ?? ""
+            let reason = try? extra.decodeIfPresent(String.self, forKey: .reason)
+            let isNew = try? extra.decodeIfPresent(Bool.self, forKey: .isNew)
+            self.content = .agentStatusChange(AgentStatusChangePayload(hostId: hostId, status: status, reason: reason, isNew: isNew))
         } else {
             self.content = try? container.decodeIfPresent(WebSocketContent.self, forKey: .content)
         }
@@ -105,6 +114,7 @@ enum WebSocketContent: Codable, Sendable {
     case codeDiff(CodeDiffContent)
     case suggestion(SuggestionContent)
     case githubEvent(GitHubEventPayload)
+    case agentStatusChange(AgentStatusChangePayload)
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -205,6 +215,8 @@ enum WebSocketContent: Codable, Sendable {
         case .suggestion(let value):
             try container.encode(value)
         case .githubEvent(let value):
+            try container.encode(value)
+        case .agentStatusChange(let value):
             try container.encode(value)
         }
     }
@@ -407,6 +419,14 @@ struct GitHubEventPayload: Codable, Sendable {
     let action: String
     let repo: String
     let summary: GitHubEventSummaryPayload
+}
+
+/// Agent durum degisikligi broadcast mesaj icerigi.
+struct AgentStatusChangePayload: Codable, Sendable {
+    let hostId: String
+    let status: String
+    let reason: String?
+    let isNew: Bool?
 }
 
 // MARK: - Message Factory
