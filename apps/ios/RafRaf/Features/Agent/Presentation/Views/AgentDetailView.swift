@@ -1,3 +1,4 @@
+import Charts
 import Factory
 import SwiftUI
 
@@ -282,41 +283,40 @@ struct AgentDetailView: View {
         }
     }
 
-    // MARK: - Weekly Chart
+    // MARK: - Weekly Chart (Swift Charts)
 
     private func weeklyChart(days: [DailyUsageStats]) -> some View {
-        let maxCount = days.map(\.messageCount).max() ?? 1
-
-        return HStack(alignment: .bottom, spacing: RFSpacing.xxs) {
-            ForEach(days) { day in
-                VStack(spacing: RFSpacing.xxs) {
-                    RFText(
-                        "\(day.messageCount)",
-                        style: .caption,
-                        color: RFColors.fallbackTextTertiary
-                    )
+        Chart(days) { day in
+            BarMark(
+                x: .value("Day", shortDay(day.date)),
+                y: .value("Messages", day.messageCount)
+            )
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [RFColors.fallbackPrimary, RFColors.fallbackPrimary.opacity(0.5)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .cornerRadius(3)
+        }
+        .chartXAxis {
+            AxisMarks(values: .automatic) { _ in
+                AxisValueLabel()
                     .font(.system(size: 9))
-
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(RFColors.fallbackPrimary.opacity(0.7))
-                        .frame(
-                            height: max(
-                                4,
-                                CGFloat(day.messageCount) / CGFloat(max(maxCount, 1)) * 50
-                            )
-                        )
-
-                    RFText(
-                        shortDay(day.date),
-                        style: .caption,
-                        color: RFColors.fallbackTextTertiary
-                    )
-                    .font(.system(size: 9))
-                }
-                .frame(maxWidth: .infinity)
+                    .foregroundStyle(RFColors.fallbackTextTertiary)
             }
         }
-        .frame(height: 80)
+        .chartYAxis {
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
+                AxisValueLabel()
+                    .font(.system(size: 9))
+                    .foregroundStyle(RFColors.fallbackTextTertiary)
+                AxisGridLine()
+                    .foregroundStyle(RFColors.fallbackSurface)
+            }
+        }
+        .frame(height: 100)
     }
 
     // MARK: - Usage Stat

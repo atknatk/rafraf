@@ -18,8 +18,17 @@ struct AgentListView: View {
                 contentView
             }
             .navigationTitle(String(localized: "agent.list.title"))
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    liveIndicator
+                }
+            }
             .task {
                 await viewModel.loadAgents()
+                viewModel.startAutoRefresh()
+            }
+            .onDisappear {
+                viewModel.stopAutoRefresh()
             }
             .refreshable {
                 await viewModel.refreshAgents()
@@ -30,6 +39,30 @@ struct AgentListView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Live Indicator
+
+    private var liveIndicator: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(viewModel.onlineCount > 0 ? RFColors.success : RFColors.fallbackTextTertiary)
+                .frame(width: 6, height: 6)
+            if let refreshedAt = viewModel.lastRefreshedAt {
+                RFText(
+                    relativeTime(refreshedAt),
+                    style: .caption,
+                    color: RFColors.fallbackTextTertiary
+                )
+            }
+        }
+    }
+
+    private func relativeTime(_ date: Date) -> String {
+        let seconds = Int(-date.timeIntervalSinceNow)
+        if seconds < 5 { return String(localized: "agent.refresh.justNow") }
+        if seconds < 60 { return "\(seconds)s" }
+        return "\(seconds / 60)m"
     }
 
     // MARK: - Filter Bar

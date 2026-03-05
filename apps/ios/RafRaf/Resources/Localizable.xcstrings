@@ -101,6 +101,13 @@
         }
       }
     },
+    "agent.refresh.justNow": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "just now" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "az önce" } }
+      }
+    },
     "agent.error.loadFailed": {
       "extractionState": "manual",
       "localizations": {
