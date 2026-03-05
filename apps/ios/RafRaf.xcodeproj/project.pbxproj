@@ -44,11 +44,17 @@
 		A1B2C3D4E5F647A89012BC55 /* MessageQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC56 /* MessageQueue.swift */; };
 		A1B2C3D4E5F647A89012BC58 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC57 /* OnboardingView.swift */; };
 		A1B2C3D4E5F647A89012BC5A /* OnboardingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC59 /* OnboardingService.swift */; };
+		A1B2C3D4E5F647A89012BC5B /* AskRafRafIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC5C /* AskRafRafIntent.swift */; };
+		A1B2C3D4E5F647A89012BC5D /* CheckProjectStatusIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC5E /* CheckProjectStatusIntent.swift */; };
+		A1B2C3D4E5F647A89012BC5F /* RafRafShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC60 /* RafRafShortcuts.swift */; };
 		A1B2C3D4E5F647A89012BC50 /* WidgetDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC51 /* WidgetDataService.swift */; };
 		A1B2C3D4E5F647A89012BC52 /* RafRafWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC53 /* RafRafWidgetView.swift */; };
 		A1B2C3D4E5F647A89012BC41 /* ProjectAnalyticsDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC42 /* ProjectAnalyticsDTO.swift */; };
 		A1B2C3D4E5F647A89012BC43 /* ProjectAnalyticsMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC44 /* ProjectAnalyticsMapper.swift */; };
 		A1B2C3D4E5F647A89012BC45 /* ProjectDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC46 /* ProjectDashboardView.swift */; };
+		A1B2C3D4E5F647A89012BC5B /* ProjectCreateDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC5C /* ProjectCreateDTO.swift */; };
+		A1B2C3D4E5F647A89012BC5D /* ProjectFormViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC5E /* ProjectFormViewModel.swift */; };
+		A1B2C3D4E5F647A89012BC5F /* ProjectFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC60 /* ProjectFormView.swift */; };
 		1925FC51FB504DEEA4A55327 /* AgentDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0BB2A9F00D4ABDB76D5498 /* AgentDTO.swift */; };
 		1D844028D4A04DB79C040EFD /* AgentMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38C6825A0DB485CB0628044 /* AgentMapper.swift */; };
 		ACFB026BE1CC4BBAB04362EE /* AgentRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD505F743CAC48ACA012DF72 /* AgentRepositoryImpl.swift */; };
@@ -607,6 +613,9 @@
 		A1B2C3D4E5F647A89012BC56 /* MessageQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageQueue.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC57 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC59 /* OnboardingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC5C /* AskRafRafIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskRafRafIntent.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC5E /* CheckProjectStatusIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckProjectStatusIntent.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC60 /* RafRafShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RafRafShortcuts.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC4F /* RFConnectionIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFConnectionIndicator.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC51 /* WidgetDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataService.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC53 /* RafRafWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RafRafWidgetView.swift; sourceTree = "<group>"; };
@@ -614,6 +623,9 @@
 		A1B2C3D4E5F647A89012BC42 /* ProjectAnalyticsDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAnalyticsDTO.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC44 /* ProjectAnalyticsMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAnalyticsMapper.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC46 /* ProjectDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDashboardView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC5C /* ProjectCreateDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectCreateDTO.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC5E /* ProjectFormViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectFormViewModel.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC60 /* ProjectFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectFormView.swift; sourceTree = "<group>"; };
 		AD54C402190CF29D5AADD728 /* RFPlaybackProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFPlaybackProgressBar.swift; sourceTree = "<group>"; };
 		AD6B51A4354CBB85A0314750 /* FileRepositoryProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileRepositoryProtocol.swift; sourceTree = "<group>"; };
 		B00D12AD59FE69B29E947D16 /* MockAuthRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAuthRepository.swift; sourceTree = "<group>"; };
@@ -1536,6 +1548,7 @@
 				FB2779B4FCE83EBBA2D09B1F /* FileSharing */,
 				D14F9A966DB22E931488DEE9 /* Home */,
 				3AB8D2BC83D07BF369195A17 /* Notifications */,
+				A1B2C3D4E5F647A89012BC61 /* Onboarding */,
 				BBDE6C74FF67C05B890B003E /* Progress */,
 				C1C761F83B1C8F02C519D859 /* Project */,
 				14D3DCBD2B4E836B608B57EA /* ScreenshotViewer */,
@@ -1545,6 +1558,30 @@
 				A1B2C3D4E5F647A89012CD01 /* VoiceConversation */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BC61 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC62 /* Presentation */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BC62 /* Presentation */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC63 /* Views */,
+			);
+			path = Presentation;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BC63 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC57 /* OnboardingView.swift */,
+			);
+			path = Views;
 			sourceTree = "<group>";
 		};
 		5DD9A7473C765C12598D89BF /* Auth */ = {
@@ -2037,11 +2074,20 @@
 				CB7A3F66AE349BEBC81EEF0D /* Logging */,
 				46847796711C93DA06BAF33B /* Networking */,
 				BF2C977A8D58E6C89567562F /* Notifications */,
+				A1B2C3D4E5F647A89012BC64 /* Services */,
 				A1B2C3D4E5F647A89012BC4A /* Utilities */,
 				7C1DF105EF3AA515D571A8A5 /* Voice */,
 				A1B2C3D4E5F647A89012BC54 /* Widget */,
 			);
 			path = Core;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BC64 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC59 /* OnboardingService.swift */,
+			);
+			path = Services;
 			sourceTree = "<group>";
 		};
 		A1B2C3D4E5F647A89012BC4A /* Utilities */ = {
@@ -2617,6 +2663,7 @@
 			children = (
 				C7F6D7D2C0636983F1E7E31A /* ProjectStatusDTO.swift */,
 				A1B2C3D4E5F647A89012BC42 /* ProjectAnalyticsDTO.swift */,
+				A1B2C3D4E5F647A89012BC5C /* ProjectCreateDTO.swift */,
 			);
 			path = DTOs;
 			sourceTree = "<group>";
@@ -2770,6 +2817,7 @@
 			children = (
 				CE63BB82B0AF956CDD1A5B38 /* ProjectDetailViewModel.swift */,
 				50917FA7893DF99B7E119E32 /* ProjectListViewModel.swift */,
+				A1B2C3D4E5F647A89012BC5E /* ProjectFormViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -3005,6 +3053,7 @@
 				DCE433D8C6C908371422E9E3 /* ProjectDetailView.swift */,
 				1C56E0953632D7176D2CE8C1 /* ProjectListView.swift */,
 				A1B2C3D4E5F647A89012BC46 /* ProjectDashboardView.swift */,
+				A1B2C3D4E5F647A89012BC60 /* ProjectFormView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -3427,6 +3476,9 @@
 				A1B2C3D4E5F647A89012BC41 /* ProjectAnalyticsDTO.swift in Sources */,
 				A1B2C3D4E5F647A89012BC43 /* ProjectAnalyticsMapper.swift in Sources */,
 				A1B2C3D4E5F647A89012BC45 /* ProjectDashboardView.swift in Sources */,
+				A1B2C3D4E5F647A89012BC5B /* ProjectCreateDTO.swift in Sources */,
+				A1B2C3D4E5F647A89012BC5D /* ProjectFormViewModel.swift in Sources */,
+				A1B2C3D4E5F647A89012BC5F /* ProjectFormView.swift in Sources */,
 				FC7306E255FD9A39D77FFB07 /* ProjectMapper.swift in Sources */,
 				D3587F0CD1FAE5126EE9387F /* ProjectRepositoryImpl.swift in Sources */,
 				6EB280CD6A954C9D2898A59E /* ProjectRepositoryProtocol.swift in Sources */,
