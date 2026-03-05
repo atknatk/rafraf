@@ -1553,6 +1553,55 @@
         }
       }
     },
+    "connection.latency": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Latency" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Gecikme" } }
+      }
+    },
+    "connection.quality.disconnected": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Disconnected" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Bağlantı Yok" } }
+      }
+    },
+    "connection.quality.excellent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Excellent" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Mükemmel" } }
+      }
+    },
+    "connection.quality.fair": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Fair" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Orta" } }
+      }
+    },
+    "connection.quality.good": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Good" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "İyi" } }
+      }
+    },
+    "connection.quality.poor": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Poor" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Zayıf" } }
+      }
+    },
+    "connection.reconnecting": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Reconnecting…" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Yeniden bağlanıyor…" } }
+      }
+    },
     "chat.date.today": {
       "extractionState": "manual",
       "localizations": {
