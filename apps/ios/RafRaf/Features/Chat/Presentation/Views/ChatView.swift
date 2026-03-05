@@ -20,6 +20,8 @@ struct ChatView: View {
     @State private var exportedText: String?
     @State private var showExport = false
     @State private var connectionMonitor = ConnectionQualityMonitor()
+    @State private var githubEventService = GitHubEventService()
+    @State private var showGitHubBanner = false
     private let webSocketManager = Container.shared.webSocketConnectionManager()
     private let agentRepository: AgentRepositoryProtocol = Container.shared.agentRepository()
 
@@ -46,6 +48,12 @@ struct ChatView: View {
                 // Bekleyen kuyruklanmis mesaj banner'i
                 if !viewModel.messageQueue.isEmpty {
                     queueBannerView
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                // GitHub webhook event banner
+                if let event = githubEventService.latestEvent {
+                    githubEventBanner(event)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
@@ -171,6 +179,7 @@ struct ChatView: View {
             .animation(RFAnimation.springResponsive, value: viewModel.pendingSuggestions.isEmpty)
             .animation(RFAnimation.springResponsive, value: showCommandPalette)
             .animation(RFAnimation.springResponsive, value: viewModel.messageQueue.isEmpty)
+            .animation(RFAnimation.springResponsive, value: githubEventService.latestEvent?.event)
             .fullScreenCover(isPresented: $showVoiceConversation) {
                 let voiceVM = Container.shared.voiceConversationViewModel()
                 VoiceConversationView(viewModel: voiceVM) {
@@ -453,6 +462,76 @@ struct ChatView: View {
         .background(RFColors.fallbackPrimary)
     }
 
+    // MARK: - GitHub Event Banner
+
+    private func githubEventBanner(_ event: GitHubEventPayload) -> some View {
+        HStack(spacing: RFSpacing.xs) {
+            Image(systemName: githubEventIcon(event.event))
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white)
+            VStack(alignment: .leading, spacing: 2) {
+                RFText(
+                    githubEventTitle(event),
+                    style: .captionBold,
+                    color: .white
+                )
+                RFText(
+                    event.repo,
+                    style: .caption,
+                    color: .white.opacity(0.8)
+                )
+            }
+            Spacer()
+            Button {
+                withAnimation(RFAnimation.springResponsive) {
+                    githubEventService.clearLatest()
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+        }
+        .padding(.horizontal, RFSpacing.md)
+        .padding(.vertical, RFSpacing.xs)
+        .background(Color(red: 0.1, green: 0.1, blue: 0.1).opacity(0.92))
+        .onTapGesture {
+            // Future: open GitHub URL
+        }
+        .task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            withAnimation(RFAnimation.springResponsive) {
+                githubEventService.clearLatest()
+            }
+        }
+    }
+
+    private func githubEventIcon(_ event: String) -> String {
+        switch event {
+        case "push": return "arrow.up.circle.fill"
+        case "pull_request": return "arrow.triangle.pull"
+        case "issues": return "exclamationmark.circle.fill"
+        default: return "bell.fill"
+        }
+    }
+
+    private func githubEventTitle(_ event: GitHubEventPayload) -> String {
+        switch event.event {
+        case "push":
+            let commits = event.summary.commitCount ?? 0
+            return "\(event.summary.pusher ?? "Someone") pushed \(commits) commit\(commits == 1 ? "" : "s") to \(event.summary.branch ?? "main")"
+        case "pull_request":
+            let action = event.action == "merged" ? "merged" : event.action
+            let title = event.summary.title ?? "PR"
+            return "PR \(action): \(title)"
+        case "issues":
+            let title = event.summary.title ?? "Issue"
+            return "Issue \(event.action): \(title)"
+        default:
+            return "\(event.event) \(event.action)"
+        }
+    }
+
     // MARK: - Error Banner
 
     private func errorBanner(message: String) -> some View {
@@ -707,6 +786,14 @@ struct ChatView: View {
         await webSocketManager.registerHandler(
             type: WebSocketMessageType.pong.rawValue,
             handler: pongHandler
+        )
+
+        // GitHub webhook event handler — real-time GitHub activity
+        let eventService = githubEventService
+        let githubHandler = GitHubEventHandler(service: eventService)
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.githubEvent.rawValue,
+            handler: githubHandler
         )
     }
 

@@ -22,6 +22,8 @@ enum WebSocketMessageType: String, Codable, Sendable {
     case codeDiff = "code.diff"
     // Proactive suggestion type
     case suggestion = "suggestion"
+    // GitHub webhook events (server → client broadcast)
+    case githubEvent = "github_event"
 }
 
 /// Mesaj yonu.
@@ -34,12 +36,41 @@ enum WebSocketMessageDirection: String, Codable, Sendable {
 
 /// Temel WebSocket mesaj yapisi.
 /// Tum mesajlar bu yapiya uygun encode/decode edilir.
+/// `id` alani opsiyoneldir — backend bazi broadcast mesajlarinda gondermeyebilir.
 struct WebSocketBaseMessage: Codable, Sendable {
     let id: String
     let type: String
     let content: WebSocketContent?
     let metadata: WebSocketMessageMetadata?
     let attachments: [WebSocketMessageAttachment]?
+
+    enum CodingKeys: String, CodingKey {
+        case id, type, content, metadata, attachments
+    }
+
+    enum ExtraKeys: String, CodingKey {
+        case event, action, repo, summary
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = (try? container.decodeIfPresent(String.self, forKey: .id)) ?? UUID().uuidString
+        self.type = try container.decode(String.self, forKey: .type)
+        self.metadata = try? container.decodeIfPresent(WebSocketMessageMetadata.self, forKey: .metadata)
+        self.attachments = try? container.decodeIfPresent([WebSocketMessageAttachment].self, forKey: .attachments)
+
+        // GitHub event messages store payload at top level instead of `content`
+        if self.type == WebSocketMessageType.githubEvent.rawValue {
+            let extra = try decoder.container(keyedBy: ExtraKeys.self)
+            let event = (try? extra.decodeIfPresent(String.self, forKey: .event)) ?? ""
+            let action = (try? extra.decodeIfPresent(String.self, forKey: .action)) ?? ""
+            let repo = (try? extra.decodeIfPresent(String.self, forKey: .repo)) ?? ""
+            let summary = (try? extra.decodeIfPresent(GitHubEventSummaryPayload.self, forKey: .summary)) ?? GitHubEventSummaryPayload()
+            self.content = .githubEvent(GitHubEventPayload(event: event, action: action, repo: repo, summary: summary))
+        } else {
+            self.content = try? container.decodeIfPresent(WebSocketContent.self, forKey: .content)
+        }
+    }
 
     init(
         id: String = UUID().uuidString,
@@ -73,6 +104,7 @@ enum WebSocketContent: Codable, Sendable {
     case voiceAudioEnd(VoiceAudioEndContent)
     case codeDiff(CodeDiffContent)
     case suggestion(SuggestionContent)
+    case githubEvent(GitHubEventPayload)
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -171,6 +203,8 @@ enum WebSocketContent: Codable, Sendable {
         case .codeDiff(let value):
             try container.encode(value)
         case .suggestion(let value):
+            try container.encode(value)
+        case .githubEvent(let value):
             try container.encode(value)
         }
     }
@@ -336,6 +370,43 @@ struct CodeDiffContent: Codable, Sendable {
 struct SuggestionContent: Codable, Sendable {
     let messageId: String
     let suggestions: [String]
+}
+
+/// GitHub webhook event ozeti (broadcast payload).
+struct GitHubEventSummaryPayload: Codable, Sendable {
+    let number: Int?
+    let title: String?
+    let url: String?
+    let merged: Bool?
+    let sender: String?
+    let branch: String?
+    let commitCount: Int?
+    let headMessage: String?
+    let pusher: String?
+
+    init(
+        number: Int? = nil, title: String? = nil, url: String? = nil,
+        merged: Bool? = nil, sender: String? = nil, branch: String? = nil,
+        commitCount: Int? = nil, headMessage: String? = nil, pusher: String? = nil
+    ) {
+        self.number = number
+        self.title = title
+        self.url = url
+        self.merged = merged
+        self.sender = sender
+        self.branch = branch
+        self.commitCount = commitCount
+        self.headMessage = headMessage
+        self.pusher = pusher
+    }
+}
+
+/// GitHub webhook event broadcast mesaj icerigi.
+struct GitHubEventPayload: Codable, Sendable {
+    let event: String
+    let action: String
+    let repo: String
+    let summary: GitHubEventSummaryPayload
 }
 
 // MARK: - Message Factory
