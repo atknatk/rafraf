@@ -357,5 +357,5 @@ async def list_github_events(limit: int = 20) -> GitHubEventsResponse:
         List of recent GitHub events.
     """
     capped = min(limit, 100)
-    events = [GitHubEventSummary(**e) for e in list(_recent_events)[:capped]]  # type: ignore[arg-type]
+    events = [GitHubEventSummary(**e) for e in list(_recent_events)[:capped]]
     return GitHubEventsResponse(events=events, total=len(_recent_events))

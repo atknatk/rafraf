@@ -87,7 +87,7 @@ class AgentRegistryService:
         self._heartbeat_timeout = heartbeat_timeout_seconds
         self._stale_check_interval = stale_check_interval_seconds
         self._stale_task: asyncio.Task[None] | None = None
-        self._ios_manager: "ConnectionManager | None" = ios_manager
+        self._ios_manager: ConnectionManager | None = ios_manager
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -234,7 +234,12 @@ class AgentRegistryService:
         if record is None:
             return False
 
-        record.resources = resources
+        record.resources = ResourceInfo(
+            cpu_usage_percent=resources.get("cpu_usage_percent", 0.0),
+            memory_usage_percent=resources.get("memory_usage_percent", 0.0),
+            disk_usage_percent=resources.get("disk_usage_percent", 0.0),
+            disk_free_gb=resources.get("disk_free_gb", 0.0),
+        )
         return True
 
     # ------------------------------------------------------------------

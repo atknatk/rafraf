@@ -56,15 +56,15 @@ class HostAgentRepository:
         if last_resources is not None:
             values["last_resources"] = last_resources
 
-        stmt = pg_insert(HostAgent).values(**values)
+        insert_stmt = pg_insert(HostAgent).values(**values)
         update_cols = {k: v for k, v in values.items() if k != "host_id"}
         update_cols["updated_at"] = now
-        stmt = stmt.on_conflict_do_update(
+        returning_stmt = insert_stmt.on_conflict_do_update(
             index_elements=["host_id"],
             set_=update_cols,
         ).returning(HostAgent)
 
-        result = await self._session.execute(stmt)
+        result = await self._session.execute(returning_stmt)
         agent = result.scalar_one()
         await logger.adebug("host_agent_upserted", host_id=host_id)
         return agent

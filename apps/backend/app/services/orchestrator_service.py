@@ -253,23 +253,25 @@ class OrchestratorService:
         Silently returns empty string on failure to avoid blocking AI responses.
         """
         try:
+            import json
+
+            from app.core.database import async_session_factory
             from app.repositories.memory_repository import MemoryRepository
 
-            repo = MemoryRepository()
             project_uuid = uuid.UUID(project_id) if project_id else None
-            context = await memory_service.get_context_for_message(
-                repo=repo,
-                user_id=user_id,
-                message=message,
-                project_id=project_uuid,
-            )
+            async with async_session_factory() as _mem_db:
+                repo = MemoryRepository(_mem_db)
+                context = await memory_service.get_context_for_message(
+                    repo=repo,
+                    user_id=user_id,
+                    message=message,
+                    project_id=project_uuid,
+                )
             parts: list[str] = []
             if context.personal_memories:
                 items = "\n".join(f"- {m}" for m in context.personal_memories)
                 parts.append(f"Kisisel hafiza:\n{items}")
             if context.project_summary:
-                import json
-
                 summary = json.dumps(context.project_summary, ensure_ascii=False)
                 parts.append(f"Proje hafizasi:\n{summary}")
             if context.conversation_summary:

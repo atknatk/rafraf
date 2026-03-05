@@ -28,7 +28,7 @@ class TTSService:
         """Synthesize a single sentence/chunk to MP3 bytes."""
         response = await self._client.audio.speech.create(
             model="tts-1",
-            voice=voice or self._voice,  # type: ignore[arg-type]
+            voice=voice or self._voice,
             input=text,
             speed=speed or self._speed,
             response_format="mp3",

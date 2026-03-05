@@ -283,7 +283,7 @@ def _extract_project_id(raw_data: dict[str, object]) -> str | None:
     project_id = metadata.get("projectId") or metadata.get("project_id")
     if project_id is not None and not isinstance(project_id, str):
         return str(project_id)
-    return project_id  # type: ignore[return-value]
+    return project_id
 
 
 def _extract_agent_id(raw_data: dict[str, object]) -> str | None:
@@ -294,7 +294,7 @@ def _extract_agent_id(raw_data: dict[str, object]) -> str | None:
     agent_id = metadata.get("agentId") or metadata.get("agent_id")
     if agent_id is not None and not isinstance(agent_id, str):
         return str(agent_id)
-    return agent_id  # type: ignore[return-value]
+    return agent_id
 
 
 async def _handle_text(

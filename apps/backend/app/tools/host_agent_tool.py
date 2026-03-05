@@ -250,8 +250,8 @@ class HostAgentTool(BaseTool):
         runner_params: dict[str, object] = {"command": command}
         if params.get("cwd"):
             runner_params["cwd"] = str(params["cwd"])
-        if params.get("timeout"):
-            runner_params["timeout"] = int(params["timeout"])
+        if timeout_val := params.get("timeout"):
+            runner_params["timeout"] = int(str(timeout_val))
 
         result = await self._task_manager.dispatch(
             host_id=host_id,

@@ -1,7 +1,8 @@
 """APNs client — async Apple Push Notification delivery via aioapns."""
 
 import structlog
-from aioapns import APNs, NotificationRequest, ConnectionError as APNsConnectionError
+from aioapns import APNs, NotificationRequest
+from aioapns import ConnectionError as APNsConnectionError
 
 from app.core.config import get_settings
 
@@ -23,9 +24,7 @@ def _get_apns() -> APNs | None:
     settings = get_settings()
 
     if not settings.apns_key_path or not settings.apns_key_id or not settings.apns_team_id:
-        import structlog as _sl
-
-        _sl.get_logger().warning(
+        logger.warning(
             "apns_not_configured",
             reason="Missing apns_key_path, apns_key_id, or apns_team_id",
         )
@@ -40,8 +39,7 @@ def _get_apns() -> APNs | None:
             use_sandbox=settings.apns_use_sandbox,
         )
     except Exception:
-        _sl = structlog.get_logger()
-        _sl.exception("apns_init_failed")
+        logger.exception("apns_init_failed")
 
     return _apns_client
 
