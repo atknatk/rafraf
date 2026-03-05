@@ -91,7 +91,18 @@ async def update_project(
     body: ProjectUpdateRequest,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> ProjectDetailResponse:
-    """Update an existing project."""
+    """Update an existing project (full or partial)."""
+    service = ProjectService(session)
+    return await service.update_project(project_id, body)
+
+
+@router.patch("/{project_id}", response_model=ProjectDetailResponse)
+async def patch_project(
+    project_id: uuid.UUID,
+    body: ProjectUpdateRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> ProjectDetailResponse:
+    """Partially update an existing project."""
     service = ProjectService(session)
     return await service.update_project(project_id, body)
 

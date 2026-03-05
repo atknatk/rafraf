@@ -56,8 +56,8 @@ class ProjectCreateRequest(BaseModel):
     source: str = Field(default="manual", description="Proje kaynagi: manual, agent_scan, agent_config")
 
 
-class ProjectUpdateRequest(BaseModel):
-    """PUT /api/v1/projects/{project_id} request."""
+class ProjectUpdateRequest(BaseModel, frozen=True):
+    """PUT/PATCH /api/v1/projects/{project_id} request."""
 
     name: str | None = Field(None, min_length=1, max_length=255, description="Proje adi")
     description: str | None = Field(None, description="Proje aciklamasi")

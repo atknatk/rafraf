@@ -44,9 +44,9 @@
 		A1B2C3D4E5F647A89012BC55 /* MessageQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC56 /* MessageQueue.swift */; };
 		A1B2C3D4E5F647A89012BC58 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC57 /* OnboardingView.swift */; };
 		A1B2C3D4E5F647A89012BC5A /* OnboardingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC59 /* OnboardingService.swift */; };
-		A1B2C3D4E5F647A89012BC5B /* AskRafRafIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC5C /* AskRafRafIntent.swift */; };
-		A1B2C3D4E5F647A89012BC5D /* CheckProjectStatusIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC5E /* CheckProjectStatusIntent.swift */; };
-		A1B2C3D4E5F647A89012BC5F /* RafRafShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC60 /* RafRafShortcuts.swift */; };
+		A1B2C3D4E5F647A89012BC65 /* AskRafRafIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC66 /* AskRafRafIntent.swift */; };
+		A1B2C3D4E5F647A89012BC67 /* CheckProjectStatusIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC68 /* CheckProjectStatusIntent.swift */; };
+		A1B2C3D4E5F647A89012BC69 /* RafRafShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC6A /* RafRafShortcuts.swift */; };
 		A1B2C3D4E5F647A89012BC50 /* WidgetDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC51 /* WidgetDataService.swift */; };
 		A1B2C3D4E5F647A89012BC52 /* RafRafWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC53 /* RafRafWidgetView.swift */; };
 		A1B2C3D4E5F647A89012BC41 /* ProjectAnalyticsDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC42 /* ProjectAnalyticsDTO.swift */; };
@@ -613,9 +613,9 @@
 		A1B2C3D4E5F647A89012BC56 /* MessageQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageQueue.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC57 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC59 /* OnboardingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingService.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F647A89012BC5C /* AskRafRafIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskRafRafIntent.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F647A89012BC5E /* CheckProjectStatusIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckProjectStatusIntent.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F647A89012BC60 /* RafRafShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RafRafShortcuts.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC66 /* AskRafRafIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskRafRafIntent.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC68 /* CheckProjectStatusIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckProjectStatusIntent.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC6A /* RafRafShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RafRafShortcuts.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC4F /* RFConnectionIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFConnectionIndicator.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC51 /* WidgetDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataService.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC53 /* RafRafWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RafRafWidgetView.swift; sourceTree = "<group>"; };
@@ -2078,6 +2078,7 @@
 				A1B2C3D4E5F647A89012BC4A /* Utilities */,
 				7C1DF105EF3AA515D571A8A5 /* Voice */,
 				A1B2C3D4E5F647A89012BC54 /* Widget */,
+				A1B2C3D4E5F647A89012BC6B /* AppIntents */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -2105,6 +2106,16 @@
 				A1B2C3D4E5F647A89012BC53 /* RafRafWidgetView.swift */,
 			);
 			path = Widget;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BC6B /* AppIntents */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC66 /* AskRafRafIntent.swift */,
+				A1B2C3D4E5F647A89012BC68 /* CheckProjectStatusIntent.swift */,
+				A1B2C3D4E5F647A89012BC6A /* RafRafShortcuts.swift */,
+			);
+			path = AppIntents;
 			sourceTree = "<group>";
 		};
 		A1B2C3D4E5F647A89012BC34 /* LiveActivity */ = {
@@ -3418,6 +3429,11 @@
 				A1B2C3D4E5F647A89012BC4C /* ConnectionQualityMonitor.swift in Sources */,
 				A1B2C3D4E5F647A89012BC4E /* RFConnectionIndicator.swift in Sources */,
 				A1B2C3D4E5F647A89012BC55 /* MessageQueue.swift in Sources */,
+				A1B2C3D4E5F647A89012BC58 /* OnboardingView.swift in Sources */,
+				A1B2C3D4E5F647A89012BC5A /* OnboardingService.swift in Sources */,
+				A1B2C3D4E5F647A89012BC65 /* AskRafRafIntent.swift in Sources */,
+				A1B2C3D4E5F647A89012BC67 /* CheckProjectStatusIntent.swift in Sources */,
+				A1B2C3D4E5F647A89012BC69 /* RafRafShortcuts.swift in Sources */,
 				A1B2C3D4E5F647A89012BC50 /* WidgetDataService.swift in Sources */,
 				A1B2C3D4E5F647A89012BC52 /* RafRafWidgetView.swift in Sources */,
 				09FD1381D6990FAC0EFC2906 /* ChatViewModel.swift in Sources */,
@@ -3456,6 +3472,8 @@
 				2C934D278CD3A23533150EBD /* NotificationRouter.swift in Sources */,
 				4FA7F667D0D7818078A279CD /* NotificationSettingsView.swift in Sources */,
 				84639ABFFAB351AF7B72C150 /* NotificationSettingsViewModel.swift in Sources */,
+				A1B2C3D4E5F647A89012BC58 /* OnboardingView.swift in Sources */,
+				A1B2C3D4E5F647A89012BC5A /* OnboardingService.swift in Sources */,
 				0B3BA88DE6894D76EA3165AF /* ObserveProgressUseCase.swift in Sources */,
 				FF2F90675AC4434D50B7CC14 /* ProgressEventDTO.swift in Sources */,
 				5202090B497489C821305526 /* ProgressMapper.swift in Sources */,

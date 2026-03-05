@@ -435,4 +435,25 @@ final class PreviewProjectRepository: ProjectStatusRepositoryProtocol, @unchecke
     }
 
     func deduplicateProjects() async throws -> Int { 0 }
+
+    func createProject(
+        name: String,
+        description: String?,
+        repositoryURL: String?,
+        localPath: String?,
+        techStack: [String]
+    ) async throws -> String {
+        UUID().uuidString
+    }
+
+    func updateProject(
+        projectId: String,
+        name: String?,
+        description: String?,
+        repositoryURL: String?,
+        localPath: String?,
+        techStack: [String]?
+    ) async throws -> Project {
+        Project(id: projectId, name: name ?? "RafRaf")
+    }
 }

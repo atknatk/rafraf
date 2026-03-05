@@ -6481,6 +6481,69 @@
           }
         }
       }
+    },
+    "intent.ask.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Ask RafRaf" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "RafRaf'a Sor" } }
+      }
+    },
+    "intent.ask.description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Ask RafRaf AI a question using Siri." } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Siri aracılığıyla RafRaf'a soru sorun." } }
+      }
+    },
+    "intent.ask.parameter.question": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Question" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Soru" } }
+      }
+    },
+    "intent.ask.result": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Opening RafRaf with your question:" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Sorunuzla RafRaf açılıyor:" } }
+      }
+    },
+    "intent.projectStatus.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Check Project Status" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Proje Durumunu Kontrol Et" } }
+      }
+    },
+    "intent.projectStatus.description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "View your RafRaf project statuses." } },
+        "tr": { "stringUnit": { "state": "translated", "value": "RafRaf projelerinizin durumunu görüntüleyin." } }
+      }
+    },
+    "intent.projectStatus.result": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Opening RafRaf projects." } },
+        "tr": { "stringUnit": { "state": "translated", "value": "RafRaf projeleri açılıyor." } }
+      }
+    },
+    "shortcut.ask.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Ask RafRaf" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "RafRaf'a Sor" } }
+      }
+    },
+    "shortcut.projectStatus.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Project Status" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Proje Durumu" } }
+      }
     }
   },
   "version": "1.0"
