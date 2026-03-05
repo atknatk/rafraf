@@ -5027,6 +5027,183 @@
         }
       }
     }
+  ,
+    "commands.diff.desc": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Son git değişikliklerini göster"
+          }
+        }
+      }
+    },
+    "commands.diff.text": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu projedeki son değişiklikleri git diff ile göster"
+          }
+        }
+      }
+    },
+    "commands.status.desc": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proje durumu ve son commit'ler"
+          }
+        }
+      }
+    },
+    "commands.status.text": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proje durumunu ve son commit'leri özetle"
+          }
+        }
+      }
+    },
+    "commands.test.desc": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Testleri çalıştır"
+          }
+        }
+      }
+    },
+    "commands.test.text": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Testleri çalıştır ve sonuçları raporla"
+          }
+        }
+      }
+    },
+    "commands.review.desc": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kod incelemesi yap"
+          }
+        }
+      }
+    },
+    "commands.review.text": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Son kod değişikliklerini gözden geçir ve iyileştirme önerileri sun"
+          }
+        }
+      }
+    },
+    "commands.commit.desc": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Commit mesajı oluştur"
+          }
+        }
+      }
+    },
+    "commands.commit.text": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Değişiklikleri analiz et ve anlamlı bir commit mesajı oluştur"
+          }
+        }
+      }
+    },
+    "commands.deploy.desc": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projeyi deploy et"
+          }
+        }
+      }
+    },
+    "commands.deploy.text": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projeyi deploy et ve sonucu raporla"
+          }
+        }
+      }
+    },
+    "commands.help.desc": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yardım ve örnek komutlar"
+          }
+        }
+      }
+    },
+    "commands.help.text": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neler yapabileceğini listele ve örnek komutlar göster"
+          }
+        }
+      }
+    },
+    "commands.optimize.desc": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Performans optimizasyonu"
+          }
+        }
+      }
+    },
+    "commands.optimize.text": {
+      "extractionState": "manual",
+      "localizations": {
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kod performansını analiz et ve optimizasyon önerileri sun"
+          }
+        }
+      }
+    }
   },
   "version": "1.0"
 }

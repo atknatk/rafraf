@@ -32,6 +32,7 @@
 		A1B2C3D4E5F647A89012BC0D /* GetClaudeProcessesUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC1D /* GetClaudeProcessesUseCase.swift */; };
 		A1B2C3D4E5F647A89012BC30 /* UpdateProjectStatusUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC31 /* UpdateProjectStatusUseCase.swift */; };
 		A1B2C3D4E5F647A89012BC32 /* RafRafLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC33 /* RafRafLiveActivity.swift */; };
+		A1B2C3D4E5F647A89012BC35 /* RFQuickCommandPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC36 /* RFQuickCommandPalette.swift */; };
 		1925FC51FB504DEEA4A55327 /* AgentDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0BB2A9F00D4ABDB76D5498 /* AgentDTO.swift */; };
 		1D844028D4A04DB79C040EFD /* AgentMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38C6825A0DB485CB0628044 /* AgentMapper.swift */; };
 		ACFB026BE1CC4BBAB04362EE /* AgentRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD505F743CAC48ACA012DF72 /* AgentRepositoryImpl.swift */; };
@@ -371,6 +372,7 @@
 		A1B2C3D4E5F647A89012BC1D /* GetClaudeProcessesUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetClaudeProcessesUseCase.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC31 /* UpdateProjectStatusUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateProjectStatusUseCase.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC33 /* RafRafLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RafRafLiveActivity.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC36 /* RFQuickCommandPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFQuickCommandPalette.swift; sourceTree = "<group>"; };
 		1D0BB2A9F00D4ABDB76D5498 /* AgentDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDTO.swift; sourceTree = "<group>"; };
 		C38C6825A0DB485CB0628044 /* AgentMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentMapper.swift; sourceTree = "<group>"; };
 		AD505F743CAC48ACA012DF72 /* AgentRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRepositoryImpl.swift; sourceTree = "<group>"; };
@@ -1335,6 +1337,7 @@
 				B0F0C7A8C0EB877BF24E6FE1 /* RFMessageBubble.swift */,
 				3B34887B85ED882C16492C16 /* RFTypingIndicator.swift */,
 				A1B2C3D4E5F647A89012BC17 /* RFProjectPicker.swift */,
+				A1B2C3D4E5F647A89012BC36 /* RFQuickCommandPalette.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -3243,6 +3246,7 @@
 				A1B2C3D4E5F647A89012BC0D /* GetClaudeProcessesUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC30 /* UpdateProjectStatusUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC32 /* RafRafLiveActivity.swift in Sources */,
+				A1B2C3D4E5F647A89012BC35 /* RFQuickCommandPalette.swift in Sources */,
 				A1B2C3D4E5F647A89012BC21 /* FetchMissedMessagesUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC22 /* LoadProfileUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC23 /* UpdateProfileUseCase.swift in Sources */,
