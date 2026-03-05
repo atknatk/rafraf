@@ -132,7 +132,9 @@ struct AgentListView: View {
                             refreshUsageUseCase: viewModel.refreshSubscriptionUsageUseCase,
                             getAgentProjectsUseCase: viewModel.getAgentProjectsUseCase,
                             setProjectActiveUseCase: viewModel.setProjectActiveUseCase,
-                            getClaudeProcessesUseCase: viewModel.getClaudeProcessesUseCase
+                            getClaudeProcessesUseCase: viewModel.getClaudeProcessesUseCase,
+                            getAgentTasksUseCase: viewModel.getAgentTasksUseCase,
+                            cancelAgentTaskUseCase: viewModel.cancelAgentTaskUseCase
                         )
                     } label: {
                         AgentCardView(agent: agent)
@@ -182,7 +184,9 @@ struct AgentListView: View {
             refreshSubscriptionUsageUseCase: RefreshSubscriptionUsageUseCase(repository: repo),
             getAgentProjectsUseCase: GetAgentProjectsUseCase(repository: repo),
             setProjectActiveUseCase: SetProjectActiveUseCase(repository: repo),
-            getClaudeProcessesUseCase: GetClaudeProcessesUseCase(repository: repo)
+            getClaudeProcessesUseCase: GetClaudeProcessesUseCase(repository: repo),
+            getAgentTasksUseCase: GetAgentTasksUseCase(repository: repo),
+            cancelAgentTaskUseCase: CancelAgentTaskUseCase(repository: repo)
         )
     )
 }
@@ -330,4 +334,41 @@ final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable
     }
 
     func getAllAgentProjects() async throws -> [AgentProject] { [] }
+
+    func getAgentTasks(agentId: String, limit: Int) async throws -> AgentTaskListResult {
+        AgentTaskListResult(
+            tasks: [
+                AgentTask(
+                    id: "task-1",
+                    hostId: agentId,
+                    runner: "shell",
+                    action: "run",
+                    status: .completed,
+                    projectId: nil,
+                    createdAt: Date().addingTimeInterval(-120),
+                    startedAt: Date().addingTimeInterval(-119),
+                    completedAt: Date().addingTimeInterval(-110),
+                    durationMs: 9000,
+                    error: nil
+                ),
+                AgentTask(
+                    id: "task-2",
+                    hostId: agentId,
+                    runner: "docker",
+                    action: "build",
+                    status: .running,
+                    projectId: "proj-1",
+                    createdAt: Date().addingTimeInterval(-30),
+                    startedAt: Date().addingTimeInterval(-29),
+                    completedAt: nil,
+                    durationMs: nil,
+                    error: nil
+                )
+            ],
+            total: 2,
+            pendingCount: 1
+        )
+    }
+
+    func cancelAgentTask(agentId: String, taskId: String) async throws {}
 }

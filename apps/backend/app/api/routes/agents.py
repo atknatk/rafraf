@@ -8,8 +8,15 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
+from app.api.routes.agent_ws import get_task_manager
 from app.core.exceptions import NotFoundError
-from app.schemas.agent import AgentDetailResponse, AgentListResponse, AgentStatus
+from app.schemas.agent import (
+    AgentDetailResponse,
+    AgentListResponse,
+    AgentStatus,
+    AgentTaskListResponse,
+    DispatchTaskRequest,
+)
 from app.schemas.agent_project import (
     AgentProjectsResponse,
     AgentProjectUpdateRequest,
@@ -93,3 +100,61 @@ async def get_agent_processes(host_id: str) -> AgentProcessesResponse:
         processes=processes,
         total=len(processes),
     )
+
+
+@router.get("/{host_id}/tasks", response_model=AgentTaskListResponse)
+async def list_agent_tasks(
+    host_id: str,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> AgentTaskListResponse:
+    """Agent'in gorev gecmisini dondurur (son gorevler once)."""
+    task_manager = get_task_manager()
+    tasks = task_manager.list_tasks(host_id, limit=limit)
+    pending_count = sum(1 for t in tasks if t.status in ("pending", "running"))
+    return AgentTaskListResponse(
+        tasks=tasks,
+        total=len(tasks),
+        pending_count=pending_count,
+    )
+
+
+@router.post("/{host_id}/tasks", response_model=AgentTaskListResponse)
+async def dispatch_agent_task(
+    host_id: str,
+    body: DispatchTaskRequest,
+) -> AgentTaskListResponse:
+    """Agent'a yeni bir gorev gonder ve guncellenmis gorev listesini dondur."""
+    task_manager = get_task_manager()
+    detail = await agent_registry.get_agent(host_id)
+    if detail is None:
+        raise NotFoundError(message=f"Agent '{host_id}' not found")
+    import asyncio
+
+    asyncio.create_task(
+        task_manager.dispatch(
+            host_id=host_id,
+            runner=body.runner,
+            action=body.action,
+            params=body.params,
+            project_id=body.project_id,
+        )
+    )
+    # Return current task list (task is now pending)
+    tasks = task_manager.list_tasks(host_id, limit=50)
+    pending_count = sum(1 for t in tasks if t.status in ("pending", "running"))
+    return AgentTaskListResponse(
+        tasks=tasks,
+        total=len(tasks),
+        pending_count=pending_count,
+    )
+
+
+@router.delete("/{host_id}/tasks/{task_id}", status_code=204)
+async def cancel_agent_task(host_id: str, task_id: str) -> None:
+    """Bekleyen veya calisan bir gorevi iptal et."""
+    task_manager = get_task_manager()
+    cancelled = task_manager.cancel(task_id)
+    if not cancelled:
+        raise NotFoundError(
+            message=f"Task '{task_id}' not found or already completed"
+        )

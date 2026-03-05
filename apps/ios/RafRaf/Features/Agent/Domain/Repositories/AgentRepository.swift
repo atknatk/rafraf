@@ -25,4 +25,10 @@ protocol AgentRepositoryProtocol: Sendable {
 
     /// Tum agentlara bagli projeleri DB'den getirir (agent online olmak zorunda degil).
     func getAllAgentProjects() async throws -> [AgentProject]
+
+    /// Agent gorev gecmisini getirir.
+    func getAgentTasks(agentId: String, limit: Int) async throws -> AgentTaskListResult
+
+    /// Bir gorevi iptal eder.
+    func cancelAgentTask(agentId: String, taskId: String) async throws
 }

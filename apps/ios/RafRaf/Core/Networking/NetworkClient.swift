@@ -89,6 +89,12 @@ actor NetworkClient {
         return try await execute(request)
     }
 
+    /// DELETE istegi gonderir (response body beklenmez, 204 No Content).
+    func delete(path: String) async throws {
+        let request = try buildRequest(path: path, method: .delete)
+        _ = try await executeRaw(request)
+    }
+
     /// POST istegi gonderir ve ham veri dondurur (JSON decode yapmaz).
     /// TTS gibi binary response donen endpoint'ler icin kullanilir.
     func postRawData<B: Encodable & Sendable>(

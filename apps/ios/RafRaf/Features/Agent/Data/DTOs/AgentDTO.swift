@@ -28,3 +28,25 @@ struct AgentListResponseDTO: Codable, Sendable {
     let total: Int
     let onlineCount: Int
 }
+
+/// Agent gorev ozet DTO.
+struct AgentTaskSummaryDTO: Codable, Sendable {
+    let taskId: String
+    let hostId: String
+    let runner: String
+    let action: String
+    let status: String
+    let projectId: String?
+    let createdAt: String
+    let startedAt: String?
+    let completedAt: String?
+    let durationMs: Int?
+    let error: String?
+}
+
+/// Agent gorev listesi response DTO.
+struct AgentTaskListResponseDTO: Codable, Sendable {
+    let tasks: [AgentTaskSummaryDTO]
+    let total: Int
+    let pendingCount: Int
+}

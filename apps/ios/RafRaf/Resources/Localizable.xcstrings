@@ -6544,6 +6544,34 @@
         "en": { "stringUnit": { "state": "translated", "value": "Project Status" } },
         "tr": { "stringUnit": { "state": "translated", "value": "Proje Durumu" } }
       }
+    },
+    "agent.tasks.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Tasks" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Görevler" } }
+      }
+    },
+    "agent.tasks.pending": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "pending" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "bekliyor" } }
+      }
+    },
+    "agent.tasks.refresh": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Refresh" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Yenile" } }
+      }
+    },
+    "agent.tasks.cancelError": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Failed to cancel task." } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Görev iptal edilemedi." } }
+      }
     }
   },
   "version": "1.0"

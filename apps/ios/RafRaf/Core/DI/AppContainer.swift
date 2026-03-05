@@ -381,7 +381,9 @@ extension Container {
                 refreshSubscriptionUsageUseCase: RefreshSubscriptionUsageUseCase(repository: repository),
                 getAgentProjectsUseCase: GetAgentProjectsUseCase(repository: repository),
                 setProjectActiveUseCase: SetProjectActiveUseCase(repository: repository),
-                getClaudeProcessesUseCase: GetClaudeProcessesUseCase(repository: repository)
+                getClaudeProcessesUseCase: GetClaudeProcessesUseCase(repository: repository),
+                getAgentTasksUseCase: GetAgentTasksUseCase(repository: repository),
+                cancelAgentTaskUseCase: CancelAgentTaskUseCase(repository: repository)
             )
         }
     }

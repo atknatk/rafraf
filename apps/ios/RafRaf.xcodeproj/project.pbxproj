@@ -47,6 +47,9 @@
 		A1B2C3D4E5F647A89012BC65 /* AskRafRafIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC66 /* AskRafRafIntent.swift */; };
 		A1B2C3D4E5F647A89012BC67 /* CheckProjectStatusIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC68 /* CheckProjectStatusIntent.swift */; };
 		A1B2C3D4E5F647A89012BC69 /* RafRafShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC6A /* RafRafShortcuts.swift */; };
+		A1B2C3D4E5F647A89012BC6C /* AgentTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC6D /* AgentTask.swift */; };
+		A1B2C3D4E5F647A89012BC6E /* GetAgentTasksUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC6F /* GetAgentTasksUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC70 /* CancelAgentTaskUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC71 /* CancelAgentTaskUseCase.swift */; };
 		A1B2C3D4E5F647A89012BC50 /* WidgetDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC51 /* WidgetDataService.swift */; };
 		A1B2C3D4E5F647A89012BC52 /* RafRafWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC53 /* RafRafWidgetView.swift */; };
 		A1B2C3D4E5F647A89012BC41 /* ProjectAnalyticsDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC42 /* ProjectAnalyticsDTO.swift */; };
@@ -616,6 +619,9 @@
 		A1B2C3D4E5F647A89012BC66 /* AskRafRafIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskRafRafIntent.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC68 /* CheckProjectStatusIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckProjectStatusIntent.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC6A /* RafRafShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RafRafShortcuts.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC6D /* AgentTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTask.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC6F /* GetAgentTasksUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetAgentTasksUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC71 /* CancelAgentTaskUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CancelAgentTaskUseCase.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC4F /* RFConnectionIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFConnectionIndicator.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC51 /* WidgetDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataService.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC53 /* RafRafWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RafRafWidgetView.swift; sourceTree = "<group>"; };
@@ -3094,6 +3100,7 @@
 				A1B2C3D4E5F647A89012BC13 /* SubscriptionUsage.swift */,
 				A1B2C3D4E5F647A89012BC1E /* AgentProject.swift */,
 				A1B2C3D4E5F647A89012BC1F /* ClaudeProcess.swift */,
+				A1B2C3D4E5F647A89012BC6D /* AgentTask.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -3115,6 +3122,8 @@
 				A1B2C3D4E5F647A89012BC1B /* GetAgentProjectsUseCase.swift */,
 				A1B2C3D4E5F647A89012BC1C /* SetProjectActiveUseCase.swift */,
 				A1B2C3D4E5F647A89012BC1D /* GetClaudeProcessesUseCase.swift */,
+				A1B2C3D4E5F647A89012BC6F /* GetAgentTasksUseCase.swift */,
+				A1B2C3D4E5F647A89012BC71 /* CancelAgentTaskUseCase.swift */,
 			);
 			path = UseCases;
 			sourceTree = "<group>";
@@ -3383,6 +3392,9 @@
 				A1B2C3D4E5F647A89012BC0B /* GetAgentProjectsUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC0C /* SetProjectActiveUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC0D /* GetClaudeProcessesUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC6C /* AgentTask.swift in Sources */,
+				A1B2C3D4E5F647A89012BC6E /* GetAgentTasksUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC70 /* CancelAgentTaskUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC30 /* UpdateProjectStatusUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC32 /* RafRafLiveActivity.swift in Sources */,
 				A1B2C3D4E5F647A89012BC35 /* RFQuickCommandPalette.swift in Sources */,

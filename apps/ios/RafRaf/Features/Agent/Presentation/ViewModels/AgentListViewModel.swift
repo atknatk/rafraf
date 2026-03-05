@@ -23,6 +23,8 @@ final class AgentListViewModel {
     let getAgentProjectsUseCase: GetAgentProjectsUseCase
     let setProjectActiveUseCase: SetProjectActiveUseCase
     let getClaudeProcessesUseCase: GetClaudeProcessesUseCase
+    let getAgentTasksUseCase: GetAgentTasksUseCase
+    let cancelAgentTaskUseCase: CancelAgentTaskUseCase
     private let logger = AppLogger.logger(for: "AgentList")
 
     // MARK: - Init
@@ -33,7 +35,9 @@ final class AgentListViewModel {
         refreshSubscriptionUsageUseCase: RefreshSubscriptionUsageUseCase,
         getAgentProjectsUseCase: GetAgentProjectsUseCase,
         setProjectActiveUseCase: SetProjectActiveUseCase,
-        getClaudeProcessesUseCase: GetClaudeProcessesUseCase
+        getClaudeProcessesUseCase: GetClaudeProcessesUseCase,
+        getAgentTasksUseCase: GetAgentTasksUseCase,
+        cancelAgentTaskUseCase: CancelAgentTaskUseCase
     ) {
         self.getAgentsUseCase = getAgentsUseCase
         self.getSubscriptionUsageUseCase = getSubscriptionUsageUseCase
@@ -41,6 +45,8 @@ final class AgentListViewModel {
         self.getAgentProjectsUseCase = getAgentProjectsUseCase
         self.setProjectActiveUseCase = setProjectActiveUseCase
         self.getClaudeProcessesUseCase = getClaudeProcessesUseCase
+        self.getAgentTasksUseCase = getAgentTasksUseCase
+        self.cancelAgentTaskUseCase = cancelAgentTaskUseCase
         logger.info("AgentListViewModel baslatildi")
     }
 

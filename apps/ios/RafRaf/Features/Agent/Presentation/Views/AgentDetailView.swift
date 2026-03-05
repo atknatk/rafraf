@@ -8,6 +8,8 @@ struct AgentDetailView: View {
     @State private var subscriptionUsage: SubscriptionUsage?
     @State private var agentProjects: [AgentProject] = []
     @State private var claudeProcesses: [ClaudeProcess] = []
+    @State private var agentTasks: [AgentTask] = []
+    @State private var pendingTaskCount = 0
     @State private var isRefreshing = false
     @State private var errorMessage: String?
 
@@ -16,6 +18,8 @@ struct AgentDetailView: View {
     private let getAgentProjectsUseCase: GetAgentProjectsUseCase
     private let setProjectActiveUseCase: SetProjectActiveUseCase
     private let getClaudeProcessesUseCase: GetClaudeProcessesUseCase
+    private let getAgentTasksUseCase: GetAgentTasksUseCase
+    private let cancelAgentTaskUseCase: CancelAgentTaskUseCase
 
     init(
         agent: Agent,
@@ -23,7 +27,9 @@ struct AgentDetailView: View {
         refreshUsageUseCase: RefreshSubscriptionUsageUseCase,
         getAgentProjectsUseCase: GetAgentProjectsUseCase,
         setProjectActiveUseCase: SetProjectActiveUseCase,
-        getClaudeProcessesUseCase: GetClaudeProcessesUseCase
+        getClaudeProcessesUseCase: GetClaudeProcessesUseCase,
+        getAgentTasksUseCase: GetAgentTasksUseCase,
+        cancelAgentTaskUseCase: CancelAgentTaskUseCase
     ) {
         self.agent = agent
         self.getUsageUseCase = getUsageUseCase
@@ -31,12 +37,17 @@ struct AgentDetailView: View {
         self.getAgentProjectsUseCase = getAgentProjectsUseCase
         self.setProjectActiveUseCase = setProjectActiveUseCase
         self.getClaudeProcessesUseCase = getClaudeProcessesUseCase
+        self.getAgentTasksUseCase = getAgentTasksUseCase
+        self.cancelAgentTaskUseCase = cancelAgentTaskUseCase
     }
 
     var body: some View {
         ScrollView {
             VStack(spacing: RFSpacing.md) {
                 agentInfoSection
+                if !agentTasks.isEmpty {
+                    tasksSection
+                }
                 if !activeProjects.isEmpty || !discoveredProjects.isEmpty {
                     projectsSection
                 }
@@ -55,7 +66,8 @@ struct AgentDetailView: View {
             async let usageTask: () = loadUsage()
             async let projectsTask: () = loadProjects()
             async let processesTask: () = loadProcesses()
-            _ = await (usageTask, projectsTask, processesTask)
+            async let tasksTask: () = loadTasks()
+            _ = await (usageTask, projectsTask, processesTask, tasksTask)
         }
         .overlay {
             if let errorMessage {
@@ -556,6 +568,98 @@ struct AgentDetailView: View {
         }
     }
 
+    // MARK: - Tasks Section
+
+    private var tasksSection: some View {
+        RFCard {
+            VStack(alignment: .leading, spacing: RFSpacing.sm) {
+                HStack {
+                    RFText(String(localized: "agent.tasks.title"), style: .headline)
+                    Spacer()
+                    if pendingTaskCount > 0 {
+                        RFText(
+                            "\(pendingTaskCount) \(String(localized: "agent.tasks.pending"))",
+                            style: .captionBold,
+                            color: RFColors.warning
+                        )
+                        .padding(.horizontal, RFSpacing.sm)
+                        .padding(.vertical, RFSpacing.xxs)
+                        .background(RFColors.warning.opacity(0.1))
+                        .clipShape(Capsule())
+                    }
+                    RFButton(String(localized: "agent.tasks.refresh"), style: .ghost, size: .small) {
+                        Task { await loadTasks() }
+                    }
+                }
+
+                ForEach(agentTasks.prefix(10)) { task in
+                    taskRow(task)
+                    if task.id != agentTasks.prefix(10).last?.id {
+                        Divider()
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func taskRow(_ task: AgentTask) -> some View {
+        HStack(spacing: RFSpacing.sm) {
+            taskStatusIcon(task.status)
+
+            VStack(alignment: .leading, spacing: RFSpacing.xxs) {
+                HStack(spacing: RFSpacing.xs) {
+                    RFText(task.runner, style: .captionBold)
+                        .padding(.horizontal, RFSpacing.xs)
+                        .padding(.vertical, 2)
+                        .background(RFColors.fallbackSurface)
+                        .clipShape(Capsule())
+                    RFText(task.action, style: .body)
+                        .lineLimit(1)
+                }
+                if let error = task.error {
+                    RFText(error, style: .caption, color: RFColors.error)
+                        .lineLimit(2)
+                }
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: RFSpacing.xxs) {
+                if let duration = task.durationText {
+                    RFText(duration, style: .caption, color: RFColors.fallbackTextTertiary)
+                }
+                if task.status.isCancellable {
+                    Button {
+                        Task { await cancelTask(task) }
+                    } label: {
+                        Image(systemName: "xmark.circle")
+                            .foregroundStyle(RFColors.error)
+                            .font(.system(size: 18))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.vertical, RFSpacing.xxs)
+    }
+
+    @ViewBuilder
+    private func taskStatusIcon(_ status: AgentTaskStatus) -> some View {
+        let (icon, color): (String, Color) = switch status {
+        case .pending: ("clock", RFColors.fallbackTextTertiary)
+        case .running: ("arrow.trianglehead.2.clockwise", RFColors.fallbackPrimary)
+        case .completed: ("checkmark.circle.fill", RFColors.success)
+        case .failed: ("xmark.circle.fill", RFColors.error)
+        case .cancelled: ("minus.circle.fill", RFColors.fallbackTextTertiary)
+        case .timeout: ("timer", RFColors.warning)
+        }
+        Image(systemName: icon)
+            .foregroundStyle(color)
+            .font(.system(size: 16))
+            .frame(width: 20)
+    }
+
     // MARK: - Data Loading
 
     private func loadUsage() async {
@@ -581,6 +685,25 @@ struct AgentDetailView: View {
             claudeProcesses = try await getClaudeProcessesUseCase.execute(agentId: agent.hostId)
         } catch {
             // Sessizce yoksay
+        }
+    }
+
+    private func loadTasks() async {
+        do {
+            let result = try await getAgentTasksUseCase.execute(agentId: agent.hostId)
+            agentTasks = result.tasks
+            pendingTaskCount = result.pendingCount
+        } catch {
+            // Sessizce yoksay — tasks not critical
+        }
+    }
+
+    private func cancelTask(_ task: AgentTask) async {
+        do {
+            try await cancelAgentTaskUseCase.execute(agentId: agent.hostId, taskId: task.id)
+            await loadTasks()
+        } catch {
+            errorMessage = String(localized: "agent.tasks.cancelError")
         }
     }
 
@@ -684,6 +807,12 @@ struct AgentDetailView: View {
                 repository: PreviewAgentRepository()
             ),
             getClaudeProcessesUseCase: GetClaudeProcessesUseCase(
+                repository: PreviewAgentRepository()
+            ),
+            getAgentTasksUseCase: GetAgentTasksUseCase(
+                repository: PreviewAgentRepository()
+            ),
+            cancelAgentTaskUseCase: CancelAgentTaskUseCase(
                 repository: PreviewAgentRepository()
             )
         )

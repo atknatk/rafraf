@@ -86,4 +86,18 @@ final class AgentRepositoryImpl: AgentRepositoryProtocol, @unchecked Sendable {
         logger.info("Tum agent projeleri alindi: \(dtos.count) agent")
         return dtos.flatMap { AgentMapper.toDomain(from: $0) }
     }
+
+    func getAgentTasks(agentId: String, limit: Int) async throws -> AgentTaskListResult {
+        let dto: AgentTaskListResponseDTO = try await networkClient.get(
+            path: "/agents/\(agentId)/tasks",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+        logger.info("Agent gorevleri alindi: \(dto.tasks.count) gorev")
+        return AgentMapper.toDomain(from: dto)
+    }
+
+    func cancelAgentTask(agentId: String, taskId: String) async throws {
+        try await networkClient.delete(path: "/agents/\(agentId)/tasks/\(taskId)")
+        logger.info("Gorev iptal edildi: \(taskId)")
+    }
 }
