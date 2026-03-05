@@ -53,44 +53,8 @@ struct ChatView: View {
                         .background(RFColors.fallbackSurface)
                 }
 
-                // Proaktif oneri chip'leri — input alaninin ustunde
-                if !viewModel.pendingSuggestions.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: RFSpacing.xs) {
-                            ForEach(viewModel.pendingSuggestions, id: \.self) { suggestion in
-                                Button {
-                                    sendSuggestion(suggestion)
-                                    viewModel.pendingSuggestions = []
-                                } label: {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "sparkles")
-                                            .font(.system(size: 11))
-                                        Text(suggestion)
-                                            .font(.system(size: 13))
-                                    }
-                                    .padding(.horizontal, RFSpacing.sm)
-                                    .padding(.vertical, RFSpacing.xs)
-                                    .background(RFColors.fallbackPrimary.opacity(0.1))
-                                    .foregroundStyle(RFColors.fallbackPrimary)
-                                    .clipShape(Capsule())
-                                }
-                            }
-                        }
-                        .padding(.horizontal, RFSpacing.sm)
-                    }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-
-                // Hizli komut paleti — "/" ile basladiginda goster
-                if showCommandPalette && !filteredCommands.isEmpty {
-                    RFQuickCommandPalette(commands: filteredCommands) { command in
-                        viewModel.messageText = command.fullText
-                        quickCommandQuery = ""
-                    }
-                    .padding(.horizontal, RFSpacing.sm)
-                    .padding(.bottom, RFSpacing.xs)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
+                suggestionChipsView
+                commandPaletteView
 
                 chatInputView
             }
@@ -236,6 +200,51 @@ struct ChatView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    // MARK: - Suggestion Chips + Command Palette
+
+    @ViewBuilder
+    private var suggestionChipsView: some View {
+        if !viewModel.pendingSuggestions.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: RFSpacing.xs) {
+                    ForEach(viewModel.pendingSuggestions, id: \.self) { suggestion in
+                        Button {
+                            sendSuggestion(suggestion)
+                            viewModel.pendingSuggestions = []
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 11))
+                                Text(suggestion)
+                                    .font(.system(size: 13))
+                            }
+                            .padding(.horizontal, RFSpacing.sm)
+                            .padding(.vertical, RFSpacing.xs)
+                            .background(RFColors.fallbackPrimary.opacity(0.1))
+                            .foregroundStyle(RFColors.fallbackPrimary)
+                            .clipShape(Capsule())
+                        }
+                    }
+                }
+                .padding(.horizontal, RFSpacing.sm)
+            }
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
+
+    @ViewBuilder
+    private var commandPaletteView: some View {
+        if showCommandPalette && !filteredCommands.isEmpty {
+            RFQuickCommandPalette(commands: filteredCommands) { command in
+                viewModel.messageText = command.fullText
+                quickCommandQuery = ""
+            }
+            .padding(.horizontal, RFSpacing.sm)
+            .padding(.bottom, RFSpacing.xs)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
     }
 
     // MARK: - Chat Input
