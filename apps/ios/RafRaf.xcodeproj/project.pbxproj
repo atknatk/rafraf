@@ -37,7 +37,8 @@
 		A1B2C3D4E5F647A89012BC39 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC3A /* HapticManager.swift */; };
 		A1B2C3D4E5F647A89012BC3B /* BookmarkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC3C /* BookmarkService.swift */; };
 		A1B2C3D4E5F647A89012BC3D /* BookmarksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC3E /* BookmarksView.swift */; };
-		A1B2C3D4E5F647A89012BC3F /* ProjectAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC40 /* ProjectAnalytics.swift */; };
+		A1B2C3D4E5F647A89012BC48 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC49 /* ShareSheet.swift */; };
+		A1B2C3D4E5F647A89012BC4A /* ProjectAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC40 /* ProjectAnalytics.swift */; };
 		A1B2C3D4E5F647A89012BC41 /* ProjectAnalyticsDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC42 /* ProjectAnalyticsDTO.swift */; };
 		A1B2C3D4E5F647A89012BC43 /* ProjectAnalyticsMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC44 /* ProjectAnalyticsMapper.swift */; };
 		A1B2C3D4E5F647A89012BC45 /* ProjectDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC46 /* ProjectDashboardView.swift */; };
@@ -594,6 +595,7 @@
 		A1B2C3D4E5F647A89012BC3A /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC3C /* BookmarkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkService.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC3E /* BookmarksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarksView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC49 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC40 /* ProjectAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAnalytics.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC42 /* ProjectAnalyticsDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAnalyticsDTO.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC44 /* ProjectAnalyticsMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAnalyticsMapper.swift; sourceTree = "<group>"; };
@@ -2017,9 +2019,18 @@
 				CB7A3F66AE349BEBC81EEF0D /* Logging */,
 				46847796711C93DA06BAF33B /* Networking */,
 				BF2C977A8D58E6C89567562F /* Notifications */,
+				A1B2C3D4E5F647A89012BC4A /* Utilities */,
 				7C1DF105EF3AA515D571A8A5 /* Voice */,
 			);
 			path = Core;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BC4A /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC49 /* ShareSheet.swift */,
+			);
+			path = Utilities;
 			sourceTree = "<group>";
 		};
 		A1B2C3D4E5F647A89012BC34 /* LiveActivity */ = {
@@ -3326,6 +3337,7 @@
 				A1B2C3D4E5F647A89012BC37 /* ChatSearchView.swift in Sources */,
 				A1B2C3D4E5F647A89012BC3B /* BookmarkService.swift in Sources */,
 				A1B2C3D4E5F647A89012BC3D /* BookmarksView.swift in Sources */,
+				A1B2C3D4E5F647A89012BC48 /* ShareSheet.swift in Sources */,
 				09FD1381D6990FAC0EFC2906 /* ChatViewModel.swift in Sources */,
 				E4D20264B06E3BA886B7BE9D /* ContentView.swift in Sources */,
 				F71A51CDA2BD295048A36688 /* DebugSetup.swift in Sources */,
@@ -3378,7 +3390,7 @@
 				7E64E885DCFFC0D3949BE488 /* ProjectListSkeletonView.swift in Sources */,
 				78C20ABE8AC8A34BAF0F0952 /* ProjectListView.swift in Sources */,
 				6F623B970925898AF1BA733E /* ProjectListViewModel.swift in Sources */,
-				A1B2C3D4E5F647A89012BC3F /* ProjectAnalytics.swift in Sources */,
+				A1B2C3D4E5F647A89012BC4A /* ProjectAnalytics.swift in Sources */,
 				A1B2C3D4E5F647A89012BC41 /* ProjectAnalyticsDTO.swift in Sources */,
 				A1B2C3D4E5F647A89012BC43 /* ProjectAnalyticsMapper.swift in Sources */,
 				A1B2C3D4E5F647A89012BC45 /* ProjectDashboardView.swift in Sources */,

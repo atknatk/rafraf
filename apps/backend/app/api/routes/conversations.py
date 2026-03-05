@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
@@ -49,6 +51,32 @@ async def get_conversation_history(
         session_id=session_id,
         limit=limit,
         cursor=cursor,
+    )
+
+
+@router.get("/export")
+async def export_conversation(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    project_id: Annotated[
+        uuid.UUID | None,
+        Query(description="Proje ID'si"),
+    ] = None,
+    session_id: Annotated[
+        str | None,
+        Query(description="Oturum ID'si"),
+    ] = None,
+) -> PlainTextResponse:
+    """Konusmayi markdown formatinda disa aktar."""
+    svc = ConversationService(session)
+    content = await svc.export_conversation(
+        project_id=project_id,
+        session_id=session_id,
+    )
+    filename = f"rafraf-export-{datetime.now(tz=UTC).strftime('%Y%m%d-%H%M%S')}.md"
+    return PlainTextResponse(
+        content=content,
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

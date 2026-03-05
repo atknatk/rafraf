@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 import structlog
 from sqlalchemy import asc, desc, select
@@ -123,6 +123,53 @@ class ConversationService:
             has_more=has_more,
             next_cursor=next_cursor,
         )
+
+    async def export_conversation(
+        self,
+        project_id: uuid.UUID | None,
+        session_id: str | None,
+    ) -> str:
+        """Konusmayi markdown formatinda disa aktar.
+
+        Returns the conversation as a formatted string.
+        """
+        stmt = select(Message).order_by(Message.created_at.asc()).limit(500)
+        if project_id:
+            stmt = stmt.where(Message.project_id == project_id)
+        elif session_id:
+            stmt = stmt.where(Message.session_id == session_id)
+
+        result = await self._session.execute(stmt)
+        messages = list(result.scalars().all())
+
+        if not messages:
+            return "# Konusma Gecmisi\n\nMesaj bulunamadi.\n"
+
+        lines: list[str] = [
+            "# Konusma Gecmisi",
+            f"Tarih: {datetime.now(tz=UTC).strftime('%Y-%m-%d %H:%M UTC')}",
+            f"Mesaj Sayisi: {len(messages)}",
+            "",
+            "---",
+            "",
+        ]
+
+        for msg in messages:
+            role_label = "**Kullanici**" if msg.role == "user" else "**Claude**"
+            created = msg.created_at.strftime("%H:%M") if msg.created_at else ""
+            lines.append(f"### {role_label} _{created}_")
+            lines.append("")
+            lines.append(msg.content)
+            if msg.model_used:
+                lines.append("")
+                lines.append(f"*Model: {msg.model_used}*")
+            if msg.tokens_used:
+                lines.append(f"*Tokenlar: {msg.tokens_used}*")
+            lines.append("")
+            lines.append("---")
+            lines.append("")
+
+        return "\n".join(lines)
 
     async def search_messages(
         self,

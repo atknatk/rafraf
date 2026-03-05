@@ -17,6 +17,9 @@ struct ChatView: View {
     @State private var showVoiceConversation = false
     @State private var quickCommandQuery: String = ""
     @State private var availableAgentProjects: [AgentProject] = []
+    @State private var exportedText: String?
+    @State private var showExport = false
+    @State private var connectionMonitor = ConnectionQualityMonitor()
     private let webSocketManager = Container.shared.webSocketConnectionManager()
     private let agentRepository: AgentRepositoryProtocol = Container.shared.agentRepository()
 
@@ -64,6 +67,12 @@ struct ChatView: View {
             .navigationTitle(String(localized: "chat.title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    RFConnectionIndicator(
+                        quality: connectionMonitor.quality,
+                        latencyMs: connectionMonitor.latencyMs
+                    )
+                }
                 ToolbarItem(placement: .principal) {
                     RFProjectPicker(
                         activeProjectName: sessionManager.activeProjectName,
@@ -90,12 +99,25 @@ struct ChatView: View {
                             .accessibilityLabel(String(localized: "bookmarks.title"))
                     }
                 }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        Task { await exportConversation() }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .accessibilityLabel(String(localized: "chat.export.title"))
+                    }
+                }
             }
             .sheet(isPresented: $showSearch) {
                 ChatSearchView(projectId: viewModel.projectId)
             }
             .sheet(isPresented: $showBookmarks) {
                 BookmarksView(bookmarkService: bookmarkService)
+            }
+            .sheet(isPresented: $showExport) {
+                if let text = exportedText {
+                    ShareSheet(items: [text])
+                }
             }
             .task {
                 setupVoiceCallbacks()
@@ -106,6 +128,7 @@ struct ChatView: View {
             }
             .onChange(of: webSocketManager.isConnected) { _, isConnected in
                 if isConnected {
+                    connectionMonitor.connectionEstablished()
                     // Reconnect'te eksik mesajları getir; history boşsa tam yükle
                     if viewModel.messages.isEmpty {
                         Task { await viewModel.loadHistory() }
@@ -113,6 +136,8 @@ struct ChatView: View {
                         Task { await sessionManager.fetchMissedMessagesForAll() }
                     }
                     Task { await loadProjects() }
+                } else {
+                    connectionMonitor.connectionLost()
                 }
             }
             .onChange(of: sessionManager.activeProjectId) {
@@ -420,6 +445,20 @@ struct ChatView: View {
         }
     }
 
+    // MARK: - Export
+
+    private func exportConversation() async {
+        var lines: [String] = [String(localized: "chat.export.header"), ""]
+        for msg in viewModel.messages {
+            let role = msg.sender == .user ? "**\(String(localized: "chat.export.role.user"))**" : "**\(String(localized: "chat.export.role.assistant"))**"
+            lines.append("### \(role)")
+            lines.append(msg.content)
+            lines.append("")
+        }
+        exportedText = lines.joined(separator: "\n")
+        showExport = true
+    }
+
     // MARK: - Projects
 
     private func loadProjects() async {
@@ -604,6 +643,17 @@ struct ChatView: View {
         await webSocketManager.registerHandler(
             type: WebSocketMessageType.suggestion.rawValue,
             handler: suggestionHandler
+        )
+
+        // Pong handler — baglanti gecikme olcumu icin
+        let pongHandler = ChatPongHandler {
+            Task { @MainActor in
+                connectionMonitor.recordPongReceived()
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.pong.rawValue,
+            handler: pongHandler
         )
     }
 
