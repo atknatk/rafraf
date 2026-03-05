@@ -100,6 +100,7 @@ struct RFProjectPicker: View {
                 projectName: "RafRaf",
                 isActive: true,
                 repositoryUrl: nil,
+                localPath: nil,
                 techStack: ["Swift"]
             )
         ],

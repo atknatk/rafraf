@@ -283,6 +283,7 @@ final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable
                 projectName: "RafRaf",
                 isActive: true,
                 repositoryUrl: "https://github.com/atknatk/rafraf",
+                localPath: "/Users/atakan/Projects/rafraf",
                 techStack: ["Swift", "Python"]
             ),
             AgentProject(
@@ -291,6 +292,7 @@ final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable
                 projectName: "SideProject",
                 isActive: false,
                 repositoryUrl: nil,
+                localPath: nil,
                 techStack: ["TypeScript"]
             )
         ]
@@ -303,6 +305,7 @@ final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable
             projectName: "RafRaf",
             isActive: isActive,
             repositoryUrl: nil,
+            localPath: nil,
             techStack: []
         )
     }
