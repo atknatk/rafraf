@@ -35,28 +35,37 @@ struct RFStepProgressView: View {
 
             // Step content (sag kolon)
             VStack(alignment: .leading, spacing: RFSpacing.xxs) {
-                HStack {
-                    RFText(step.label, style: stepLabelStyle(for: step))
+                if step.type == .toolCalling, let toolName = step.toolName {
+                    // Tool calling adimlar icin zengin RFToolStatusView kullan
+                    RFToolStatusView(
+                        toolName: toolName,
+                        action: step.detail ?? step.label,
+                        isRunning: step.status == .active
+                    )
+                } else {
+                    HStack {
+                        RFText(step.label, style: stepLabelStyle(for: step))
 
-                    Spacer()
+                        Spacer()
 
-                    if let duration = step.durationSeconds {
-                        RFText(
-                            formatDuration(duration),
-                            style: .caption,
-                            color: RFColors.fallbackTextTertiary
-                        )
+                        if let duration = step.durationSeconds {
+                            RFText(
+                                formatDuration(duration),
+                                style: .caption,
+                                color: RFColors.fallbackTextTertiary
+                            )
+                        }
                     }
-                }
 
-                if let detail = step.detail {
-                    RFText(detail, style: .caption, color: RFColors.fallbackTextSecondary)
-                        .lineLimit(2)
-                }
+                    if let detail = step.detail {
+                        RFText(detail, style: .caption, color: RFColors.fallbackTextSecondary)
+                            .lineLimit(2)
+                    }
 
-                if step.status == .active {
-                    stepTypeIndicator(type: step.type)
-                        .padding(.top, RFSpacing.xxs)
+                    if step.status == .active {
+                        stepTypeIndicator(type: step.type)
+                            .padding(.top, RFSpacing.xxs)
+                    }
                 }
             }
             .padding(.bottom, isLast ? 0 : RFSpacing.xs)
@@ -193,7 +202,8 @@ struct RFStepProgressView: View {
             type: .toolCalling,
             label: String(localized: "progress.preview.step2"),
             status: .active,
-            detail: "docker: build"
+            detail: "docker build --tag app",
+            toolName: "Bash"
         ),
         ProgressStep(
             type: .generating,

@@ -9,7 +9,8 @@ enum ProgressTestFactory {
         label: String = "Test adimi",
         status: ProgressStepStatus = .pending,
         durationSeconds: Double? = nil,
-        detail: String? = nil
+        detail: String? = nil,
+        toolName: String? = nil
     ) -> ProgressStep {
         ProgressStep(
             id: id,
@@ -17,7 +18,8 @@ enum ProgressTestFactory {
             label: label,
             status: status,
             durationSeconds: durationSeconds,
-            detail: detail
+            detail: detail,
+            toolName: toolName
         )
     }
 
@@ -82,14 +84,16 @@ enum ProgressTestFactory {
         type: String = "thinking",
         label: String = "DTO adimi",
         status: String = "pending",
+        toolName: String? = nil,
         durationSeconds: Double? = nil,
         detail: String? = nil
     ) -> ProgressStepDTO {
         ProgressStepDTO(
             id: id,
-            type: type,
+            stepType: type,
             label: label,
             status: status,
+            toolName: toolName,
             durationSeconds: durationSeconds,
             detail: detail
         )

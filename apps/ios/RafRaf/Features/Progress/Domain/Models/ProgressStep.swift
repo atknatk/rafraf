@@ -15,6 +15,8 @@ struct ProgressStep: Identifiable, Sendable, Equatable {
     let durationSeconds: Double?
     /// Ek detay bilgisi.
     let detail: String?
+    /// Tool adi (tool_calling tipindeki adimlar icin, ornegin "Read", "Bash", "Edit").
+    let toolName: String?
 
     init(
         id: String = UUID().uuidString,
@@ -22,7 +24,8 @@ struct ProgressStep: Identifiable, Sendable, Equatable {
         label: String,
         status: ProgressStepStatus = .pending,
         durationSeconds: Double? = nil,
-        detail: String? = nil
+        detail: String? = nil,
+        toolName: String? = nil
     ) {
         self.id = id
         self.type = type
@@ -30,6 +33,7 @@ struct ProgressStep: Identifiable, Sendable, Equatable {
         self.status = status
         self.durationSeconds = durationSeconds
         self.detail = detail
+        self.toolName = toolName
     }
 }
 

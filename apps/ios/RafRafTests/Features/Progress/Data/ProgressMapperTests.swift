@@ -199,5 +199,49 @@ struct ProgressMapperTests {
 
         #expect(result.durationSeconds == nil)
         #expect(result.detail == nil)
+        #expect(result.toolName == nil)
+    }
+
+    @Test("toDomain(ProgressStepDTO) toolName alanini detail'e birlestirmeden ayri mappelemeli")
+    func mapStepDTOToolNameSeparate() {
+        let dto = ProgressTestFactory.createStepDTO(
+            type: "tool_calling",
+            toolName: "Bash",
+            detail: "npm test"
+        )
+
+        let result = ProgressMapper.toDomain(from: dto)
+
+        #expect(result.toolName == "Bash")
+        #expect(result.detail == "npm test")
+        // toolName detail'e eklenmemeli
+        #expect(result.detail?.contains("Bash") == false)
+    }
+
+    @Test("toDomain(ProgressStepDTO) toolName mevcut oldugunda ayri field'da olmali")
+    func mapStepDTOToolNameField() {
+        let dto = ProgressTestFactory.createStepDTO(
+            type: "tool_calling",
+            toolName: "Read",
+            detail: nil
+        )
+
+        let result = ProgressMapper.toDomain(from: dto)
+
+        #expect(result.toolName == "Read")
+        #expect(result.detail == nil)
+        #expect(result.type == .toolCalling)
+    }
+
+    @Test("toDomain(ProgressStepDTO) nil toolName icin nil donmeli")
+    func mapStepDTONilToolName() {
+        let dto = ProgressTestFactory.createStepDTO(
+            type: "thinking",
+            toolName: nil
+        )
+
+        let result = ProgressMapper.toDomain(from: dto)
+
+        #expect(result.toolName == nil)
     }
 }

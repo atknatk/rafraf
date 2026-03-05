@@ -18,6 +18,36 @@ struct ProgressModelTests {
         #expect(step.status == .pending)
         #expect(step.durationSeconds == nil)
         #expect(step.detail == nil)
+        #expect(step.toolName == nil)
+    }
+
+    @Test("ProgressStep toolName alanini dogru saklamali")
+    func stepToolNameField() {
+        let step = ProgressStep(
+            type: .toolCalling,
+            label: String(localized: "Bash calistiriliyor"),
+            toolName: "Bash"
+        )
+
+        #expect(step.toolName == "Bash")
+        #expect(step.type == .toolCalling)
+    }
+
+    @Test("ProgressStep toolName nil oldugunda nil olmali")
+    func stepToolNameNil() {
+        let step = ProgressStep(type: .thinking, label: "Dusunuyor")
+
+        #expect(step.toolName == nil)
+    }
+
+    @Test("ProgressStep toolName ile Equatable dogru calismali")
+    func stepEquatableWithToolName() {
+        let step1 = ProgressStep(id: "s1", type: .toolCalling, label: "A", toolName: "Read")
+        let step2 = ProgressStep(id: "s1", type: .toolCalling, label: "A", toolName: "Read")
+        let step3 = ProgressStep(id: "s1", type: .toolCalling, label: "A", toolName: "Bash")
+
+        #expect(step1 == step2)
+        #expect(step1 != step3)
     }
 
     @Test("ProgressStep tum tip degerleri dogru olmali")
@@ -58,7 +88,8 @@ struct ProgressModelTests {
             label: "Docker build",
             status: .active,
             durationSeconds: 3.5,
-            detail: "docker build --tag app"
+            detail: "docker build --tag app",
+            toolName: "Bash"
         )
 
         #expect(step.id == "custom")
@@ -67,6 +98,7 @@ struct ProgressModelTests {
         #expect(step.status == .active)
         #expect(step.durationSeconds == 3.5)
         #expect(step.detail == "docker build --tag app")
+        #expect(step.toolName == "Bash")
     }
 
     @Test("ProgressStepType rawValue dogru olmali")

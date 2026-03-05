@@ -51,7 +51,7 @@ struct RFToolStatusView: View {
         .padding(.vertical, RFSpacing.xs)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(RFColors.fallbackSurface)
+                .fill(toolColor(for: toolName))
         )
         .task(id: isRunning) {
             guard isRunning else { return }
@@ -64,6 +64,16 @@ struct RFToolStatusView: View {
     }
 
     // MARK: - Private
+
+    private func toolColor(for tool: String) -> Color {
+        let lowered = tool.lowercased()
+        if lowered.contains("bash") { return Color.orange.opacity(0.12) }
+        if lowered.contains("read") { return Color.blue.opacity(0.10) }
+        if lowered.contains("write") || lowered.contains("edit") { return Color.green.opacity(0.10) }
+        if lowered.contains("glob") || lowered.contains("grep") { return Color.purple.opacity(0.10) }
+        if lowered.contains("web") { return Color.teal.opacity(0.10) }
+        return RFColors.fallbackSurface
+    }
 
     private func iconName(for tool: String) -> String {
         let lowered = tool.lowercased()
