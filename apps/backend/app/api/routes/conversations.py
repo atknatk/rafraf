@@ -36,7 +36,7 @@ async def get_conversation_history(
     ] = 50,
     cursor: Annotated[
         str | None,
-        Query(description="Sayfalama imleci (onceki sayfanin en eski mesajinin created_at ISO tarihi)"),
+        Query(description="Sayfalama imleci (en eski mesajin created_at ISO tarihi)"),
     ] = None,
 ) -> ConversationHistoryResponse:
     """Proje veya session bazinda mesaj gecmisini dondurur.
