@@ -16,6 +16,7 @@ class AgentProjectSummary(BaseModel):
     project_name: str
     is_active: bool
     repository_url: str | None = None
+    local_path: str | None = None
     tech_stack: list[str] = Field(default_factory=list)
 
 

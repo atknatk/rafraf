@@ -115,3 +115,9 @@ class ProjectRepository:
         query = select(Project).where(Project.repository_url == url)
         result = await self._session.execute(query)
         return result.scalar_one_or_none()
+
+    async def get_by_local_path(self, local_path: str) -> Project | None:
+        """Local path ile proje arar (repo URL yoksa fallback)."""
+        query = select(Project).where(Project.local_path == local_path)
+        result = await self._session.execute(query)
+        return result.scalar_one_or_none()

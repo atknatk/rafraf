@@ -11,5 +11,6 @@ struct AgentProject: Identifiable, Sendable, Equatable {
     let projectName: String
     let isActive: Bool
     let repositoryUrl: String?
+    let localPath: String?
     let techStack: [String]
 }

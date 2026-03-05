@@ -145,13 +145,19 @@ class ProjectService:
         *,
         name: str,
         repository_url: str | None,
+        local_path: str | None,
         tech_stack: list[str],
         source: str,
     ) -> ProjectDetailResponse:
-        """Agent'tan gelen projeyi ekler veya gunceller (upsert by repo URL)."""
+        """Agent'tan gelen projeyi ekler veya gunceller.
+
+        Lookup sirasi: repository_url → local_path → yeni kayit.
+        """
         existing = None
         if repository_url:
             existing = await self._repo.get_by_repository_url(repository_url)
+        if existing is None and local_path:
+            existing = await self._repo.get_by_local_path(local_path)
 
         if existing:
             existing = await self._repo.update(
@@ -159,6 +165,7 @@ class ProjectService:
                 name=name,
                 tech_stack=tech_stack,
                 source=source,
+                local_path=local_path,
             )
             await logger.ainfo("project_upserted_update", name=name)
             return self._to_detail_response(existing)
@@ -166,6 +173,7 @@ class ProjectService:
         project = await self._repo.create(
             name=name,
             repository_url=repository_url,
+            local_path=local_path,
             tech_stack=tech_stack,
             source=source,
         )

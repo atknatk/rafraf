@@ -16,11 +16,13 @@ from websockets.asyncio.client import ClientConnection
 from agent.core.protocol import (
     ResourceMetrics,
     build_heartbeat_message,
+    build_project_sync_message,
     build_register_message,
     parse_register_ack,
     parse_server_message,
 )
 from agent.monitoring.metrics import get_claude_processes, get_resource_metrics
+from agent.scanner.project_scanner import scan_projects
 
 if TYPE_CHECKING:
     from agent.core.config import AgentConfig
@@ -50,6 +52,7 @@ class ConnectionManager:
         self._should_run: bool = True
         self._heartbeat_interval: int = config.heartbeat_interval
         self._task_handler: TaskHandler | None = None
+        self._sync_task: asyncio.Task[None] | None = None
 
     def set_task_handler(self, handler: TaskHandler) -> None:
         """Task dispatch handler'ini ayarlar."""
@@ -149,6 +152,47 @@ class ConnectionManager:
                 error=str(exc),
             )
             return False
+
+    async def _send_project_sync(self) -> None:
+        """Tarama yapip project_sync mesaji gonderir."""
+        if not self._config.project_scan_paths:
+            return
+        if self._ws is None or not self._is_connected:
+            return
+
+        try:
+            projects = await asyncio.to_thread(
+                scan_projects,
+                self._config.project_scan_paths,
+                self._config.project_scan_depth,
+            )
+            if not projects:
+                await logger.adebug("project_scan_bos_sonuc")
+                return
+
+            msg = build_project_sync_message(self._config.host_id, projects)
+            await self._ws.send(msg)
+            await logger.ainfo(
+                "project_sync_gonderildi",
+                host_id=self._config.host_id,
+                count=len(projects),
+            )
+        except websockets.exceptions.ConnectionClosed:
+            self._is_connected = False
+        except Exception:
+            await logger.aexception("project_sync_gonderme_hatasi")
+
+    async def _project_sync_loop(self) -> None:
+        """Periyodik proje senkronizasyon dongusu."""
+        while self._is_connected and self._should_run:
+            try:
+                await asyncio.sleep(self._config.project_sync_interval)
+                if self._is_connected:
+                    await self._send_project_sync()
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                await logger.aexception("project_sync_loop_hatasi")
 
     async def _heartbeat_loop(self) -> None:
         """Periyodik heartbeat gonderme dongusu."""
@@ -264,18 +308,23 @@ class ConnectionManager:
                     await asyncio.sleep(delay)
                     continue
 
-                # Heartbeat ve listen basla
+                # Startup: proje taramasi yap
+                await self._send_project_sync()
+
+                # Heartbeat, listen ve periyodik sync basla
                 self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
                 self._listen_task = asyncio.create_task(self._listen_loop())
+                self._sync_task = asyncio.create_task(self._project_sync_loop())
 
                 # Listen task bitene kadar bekle (baglanti kopma)
                 await self._listen_task
 
-                # Heartbeat task'i iptal et
-                if self._heartbeat_task and not self._heartbeat_task.done():
-                    self._heartbeat_task.cancel()
-                    with contextlib.suppress(asyncio.CancelledError):
-                        await self._heartbeat_task
+                # Heartbeat ve sync task'leri iptal et
+                for task in (self._heartbeat_task, self._sync_task):
+                    if task and not task.done():
+                        task.cancel()
+                        with contextlib.suppress(asyncio.CancelledError):
+                            await task
 
             except (
                 OSError,
@@ -304,17 +353,12 @@ class ConnectionManager:
         self._should_run = False
         self._is_connected = False
 
-        # Heartbeat task iptal
-        if self._heartbeat_task and not self._heartbeat_task.done():
-            self._heartbeat_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._heartbeat_task
-
-        # Listen task iptal
-        if self._listen_task and not self._listen_task.done():
-            self._listen_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._listen_task
+        # Heartbeat, sync, listen task'leri iptal et
+        for task in (self._heartbeat_task, self._sync_task, self._listen_task):
+            if task and not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
 
         # WebSocket kapat
         if self._ws is not None:

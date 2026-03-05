@@ -4390,6 +4390,40 @@
         }
       }
     },
+    "agent.projects.active": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Active Projects"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktif Projeler"
+          }
+        }
+      }
+    },
+    "agent.projects.discovered": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discovered Projects"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keşfedilen Projeler"
+          }
+        }
+      }
+    },
     "agent.projects.title": {
       "extractionState": "manual",
       "localizations": {

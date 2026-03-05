@@ -13,6 +13,7 @@ struct AgentProjectSummaryDTO: Codable, Sendable {
     let projectName: String
     let isActive: Bool
     let repositoryUrl: String?
+    let localPath: String?
     let techStack: [String]
 
     enum CodingKeys: String, CodingKey {
@@ -20,6 +21,7 @@ struct AgentProjectSummaryDTO: Codable, Sendable {
         case projectName = "project_name"
         case isActive = "is_active"
         case repositoryUrl = "repository_url"
+        case localPath = "local_path"
         case techStack = "tech_stack"
     }
 }

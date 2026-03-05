@@ -266,6 +266,7 @@ async def _handle_project_sync(
             result = await project_svc.upsert_from_agent(
                 name=name,
                 repository_url=proj.get("repository_url"),
+                local_path=proj.get("local_path"),
                 tech_stack=proj.get("tech_stack", []),
                 source=str(proj.get("source", "agent_scan")),
             )

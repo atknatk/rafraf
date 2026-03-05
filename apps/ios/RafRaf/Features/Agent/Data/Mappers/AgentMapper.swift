@@ -69,6 +69,7 @@ enum AgentMapper {
                 projectName: proj.projectName,
                 isActive: proj.isActive,
                 repositoryUrl: proj.repositoryUrl,
+                localPath: proj.localPath,
                 techStack: proj.techStack
             )
         }

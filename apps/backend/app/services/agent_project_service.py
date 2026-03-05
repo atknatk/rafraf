@@ -27,21 +27,20 @@ class AgentProjectService:
         agent_id: str,
         project_id: uuid.UUID,
     ) -> None:
-        """Proje-agent iliskisini ekler veya gunceller (is_active=True).
+        """Proje-agent iliskisini ekler (pasif olarak).
 
         Agent project_sync yaptiginda cagrilir.
+        Yeni iliski is_active=False ile baslatilir; kullanici aktif yapana kadar
+        chat picker'da gozukmez. Zaten varsa mevcut is_active degeri korunur.
         """
         stmt = (
             pg_insert(AgentProject)
             .values(
                 agent_id=agent_id,
                 project_id=project_id,
-                is_active=True,
+                is_active=False,
             )
-            .on_conflict_do_update(
-                constraint="uq_agent_project",
-                set_={"is_active": True},
-            )
+            .on_conflict_do_nothing(constraint="uq_agent_project")
         )
         await self._session.execute(stmt)
         logger.info("agent_project_linked", agent_id=agent_id, project_id=str(project_id))
@@ -80,6 +79,7 @@ class AgentProjectService:
             project_name=project.name,
             is_active=ap.is_active,
             repository_url=project.repository_url,
+            local_path=project.local_path,
             tech_stack=list(project.tech_stack),
         )
 
@@ -99,6 +99,7 @@ class AgentProjectService:
                 project_name=project.name,
                 is_active=ap.is_active,
                 repository_url=project.repository_url,
+                local_path=project.local_path,
                 tech_stack=list(project.tech_stack),
             )
             for ap, project in rows

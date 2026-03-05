@@ -66,6 +66,7 @@ final class AgentRepositoryImpl: AgentRepositoryProtocol, @unchecked Sendable {
             projectName: dto.projectName,
             isActive: dto.isActive,
             repositoryUrl: dto.repositoryUrl,
+            localPath: dto.localPath,
             techStack: dto.techStack
         )
     }

@@ -37,7 +37,7 @@ struct AgentDetailView: View {
         ScrollView {
             VStack(spacing: RFSpacing.md) {
                 agentInfoSection
-                if !agentProjects.isEmpty {
+                if !activeProjects.isEmpty || !discoveredProjects.isEmpty {
                     projectsSection
                 }
                 if !claudeProcesses.isEmpty {
@@ -396,45 +396,100 @@ struct AgentDetailView: View {
 
     // MARK: - Projects Section
 
-    private var projectsSection: some View {
-        RFCard {
-            VStack(alignment: .leading, spacing: RFSpacing.sm) {
-                RFText(
-                    String(localized: "agent.projects.title"),
-                    style: .headline
-                )
+    private var activeProjects: [AgentProject] { agentProjects.filter(\.isActive) }
+    private var discoveredProjects: [AgentProject] { agentProjects.filter { !$0.isActive } }
 
-                ForEach(agentProjects) { project in
-                    HStack {
-                        VStack(alignment: .leading, spacing: RFSpacing.xxs) {
-                            RFText(project.projectName, style: .body)
-                            if !project.techStack.isEmpty {
-                                RFText(
-                                    project.techStack.joined(separator: ", "),
-                                    style: .caption,
-                                    color: RFColors.fallbackTextTertiary
-                                )
+    private var projectsSection: some View {
+        VStack(spacing: RFSpacing.sm) {
+            if !activeProjects.isEmpty {
+                RFCard {
+                    VStack(alignment: .leading, spacing: RFSpacing.sm) {
+                        HStack {
+                            Circle()
+                                .fill(RFColors.success)
+                                .frame(width: 8, height: 8)
+                            RFText(
+                                String(localized: "agent.projects.active"),
+                                style: .headline
+                            )
+                        }
+
+                        ForEach(activeProjects) { project in
+                            projectRow(project: project)
+                            if project.id != activeProjects.last?.id {
+                                Divider()
                             }
                         }
-                        Spacer()
-                        Toggle("", isOn: Binding(
-                            get: { project.isActive },
-                            set: { newValue in
-                                Task {
-                                    await toggleProjectActive(project: project, isActive: newValue)
-                                }
-                            }
-                        ))
-                        .labelsHidden()
-                        .tint(RFColors.fallbackPrimary)
-                    }
-
-                    if project.id != agentProjects.last?.id {
-                        Divider()
                     }
                 }
             }
+
+            if !discoveredProjects.isEmpty {
+                RFCard {
+                    VStack(alignment: .leading, spacing: RFSpacing.sm) {
+                        HStack {
+                            Circle()
+                                .fill(RFColors.fallbackTextTertiary)
+                                .frame(width: 8, height: 8)
+                            RFText(
+                                String(localized: "agent.projects.discovered"),
+                                style: .headline,
+                                color: RFColors.fallbackTextSecondary
+                            )
+                        }
+
+                        ForEach(discoveredProjects) { project in
+                            projectRow(project: project)
+                            if project.id != discoveredProjects.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+                .opacity(0.85)
+            }
         }
+    }
+
+    @ViewBuilder
+    private func projectRow(project: AgentProject) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: RFSpacing.xxs) {
+                RFText(project.projectName, style: .body)
+                if let localPath = project.localPath {
+                    RFText(
+                        shortPath(localPath),
+                        style: .caption,
+                        color: RFColors.fallbackTextSecondary
+                    )
+                }
+                if !project.techStack.isEmpty {
+                    RFText(
+                        project.techStack.joined(separator: ", "),
+                        style: .caption,
+                        color: RFColors.fallbackTextTertiary
+                    )
+                }
+            }
+            Spacer()
+            Toggle("", isOn: Binding(
+                get: { project.isActive },
+                set: { newValue in
+                    Task {
+                        await toggleProjectActive(project: project, isActive: newValue)
+                    }
+                }
+            ))
+            .labelsHidden()
+            .tint(RFColors.fallbackPrimary)
+        }
+    }
+
+    /// "/Users/atakan/Projects/rafraf" -> "Projects/rafraf"
+    private func shortPath(_ path: String) -> String {
+        let components = path.split(separator: "/").map(String.init)
+        guard components.count >= 2 else { return path }
+        return components.suffix(2).joined(separator: "/")
     }
 
     // MARK: - Claude Processes Section
