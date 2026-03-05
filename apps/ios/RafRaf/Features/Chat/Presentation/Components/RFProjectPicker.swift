@@ -22,9 +22,9 @@ struct RFProjectPicker: View {
         return activeProjectName ?? String(localized: "chat.project.general")
     }
 
-    /// Aktif projeler, agent bazinda gruplanmis.
+    /// Tum agent projeleri, agent bazinda gruplanmis (isActive filtresi yok).
     private var agentGroups: [(agentId: String, projects: [AgentProject])] {
-        let grouped = Dictionary(grouping: agentProjects.filter(\.isActive), by: \.agentId)
+        let grouped = Dictionary(grouping: agentProjects, by: \.agentId)
         return grouped.map { (agentId: $0.key, projects: $0.value) }
             .sorted { $0.agentId < $1.agentId }
     }

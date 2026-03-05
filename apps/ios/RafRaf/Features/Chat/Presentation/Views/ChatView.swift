@@ -289,7 +289,7 @@ struct ChatView: View {
             var allAgentProjects: [AgentProject] = []
             for agent in agentResult.agents {
                 let projects = try await agentRepository.getAgentProjects(agentId: agent.hostId)
-                allAgentProjects.append(contentsOf: projects.filter(\.isActive))
+                allAgentProjects.append(contentsOf: projects)
             }
             availableAgentProjects = allAgentProjects
         } catch {
