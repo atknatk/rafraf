@@ -7,6 +7,7 @@ import SwiftUI
 struct ProjectListView: View {
     @State private var viewModel: ProjectListViewModel
     @State private var showDeduplicateConfirm = false
+    @State private var showCreateProject = false
     @Namespace private var filterNamespace
     private let projectRepository = Container.shared.projectRepository()
 
@@ -27,6 +28,14 @@ struct ProjectListView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showCreateProject = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel(String(localized: "project.action.create"))
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button(role: .destructive) {
                             showDeduplicateConfirm = true
@@ -40,6 +49,13 @@ struct ProjectListView: View {
                         Image(systemName: "ellipsis.circle")
                     }
                 }
+            }
+            .sheet(isPresented: $showCreateProject, onDismiss: {
+                Task { await viewModel.refreshProjects() }
+            }) {
+                ProjectFormView(
+                    viewModel: ProjectFormViewModel(repository: projectRepository)
+                )
             }
             .confirmationDialog(
                 String(localized: "project.deduplicate.title"),
