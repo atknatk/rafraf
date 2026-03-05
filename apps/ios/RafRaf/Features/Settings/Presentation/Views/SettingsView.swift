@@ -24,6 +24,9 @@ struct SettingsView: View {
                     notificationSettingsCard
                         .rfEntrance(isAppeared: isAppeared, delay: 0.15)
 
+                    CostSummaryCard()
+                        .rfEntrance(isAppeared: isAppeared, delay: 0.18)
+
                     appearanceSettingsCard
                         .rfEntrance(isAppeared: isAppeared, delay: 0.2)
 

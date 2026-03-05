@@ -5146,6 +5146,69 @@
         }
       }
     },
+    "cost.card.noData": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "No cost data available" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Maliyet verisi yok" } }
+      }
+    },
+    "cost.card.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "API Cost" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "API Maliyeti" } }
+      }
+    },
+    "cost.period.daily": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Daily" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Günlük" } }
+      }
+    },
+    "cost.period.label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Period" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Dönem" } }
+      }
+    },
+    "cost.period.monthly": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Monthly" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Aylık" } }
+      }
+    },
+    "cost.period.weekly": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Weekly" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Haftalık" } }
+      }
+    },
+    "cost.stat.calls": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Calls" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Çağrı" } }
+      }
+    },
+    "cost.stat.cost": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Cost" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Maliyet" } }
+      }
+    },
+    "cost.stat.tokens": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Tokens" } },
+        "tr": { "stringUnit": { "state": "translated", "value": "Token" } }
+      }
+    },
     "settings.title": {
       "extractionState": "manual",
       "localizations": {
