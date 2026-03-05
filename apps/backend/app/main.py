@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.middleware.rate_limit import RateLimitMiddleware
 from app.api.middleware.request_logging import RequestLoggingMiddleware
 from app.api.routes.agent_ws import router as agent_ws_router
+from app.api.routes.analytics import router as analytics_router
 from app.api.routes.agents import router as agents_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.conversation_memory import router as conversation_memory_router
@@ -130,6 +131,7 @@ def create_app() -> FastAPI:
     application.include_router(maestro_router)
     application.include_router(subscription_router)
     application.include_router(pulse_router)
+    application.include_router(analytics_router)
 
     return application
 
