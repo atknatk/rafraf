@@ -3429,8 +3429,6 @@
 				A1B2C3D4E5F647A89012BC4C /* ConnectionQualityMonitor.swift in Sources */,
 				A1B2C3D4E5F647A89012BC4E /* RFConnectionIndicator.swift in Sources */,
 				A1B2C3D4E5F647A89012BC55 /* MessageQueue.swift in Sources */,
-				A1B2C3D4E5F647A89012BC58 /* OnboardingView.swift in Sources */,
-				A1B2C3D4E5F647A89012BC5A /* OnboardingService.swift in Sources */,
 				A1B2C3D4E5F647A89012BC65 /* AskRafRafIntent.swift in Sources */,
 				A1B2C3D4E5F647A89012BC67 /* CheckProjectStatusIntent.swift in Sources */,
 				A1B2C3D4E5F647A89012BC69 /* RafRafShortcuts.swift in Sources */,
