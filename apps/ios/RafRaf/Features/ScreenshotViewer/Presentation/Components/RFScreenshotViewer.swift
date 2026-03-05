@@ -131,6 +131,7 @@ struct RFScreenshotViewer: View {
     }
 }
 
+// swiftlint:disable force_unwrapping
 #Preview {
     RFScreenshotViewer(
         imageURL: URL(string: "https://picsum.photos/800/600")!,
