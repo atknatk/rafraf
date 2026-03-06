@@ -1,10 +1,9 @@
 """HostAgent SQLAlchemy model — host agent registry persistence."""
 
-import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, String
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, UUIDMixin

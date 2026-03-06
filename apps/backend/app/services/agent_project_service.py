@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent_project import AgentProject
 from app.models.project import Project
-from app.schemas.agent_project import AgentProjectSummary, AgentProjectsResponse
+from app.schemas.agent_project import AgentProjectsResponse, AgentProjectSummary
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 

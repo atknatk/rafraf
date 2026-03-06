@@ -12,6 +12,7 @@ import structlog
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 from app.core.config import get_settings
+from app.core.database import async_session_factory
 from app.core.websocket import ConnectionManager
 from app.schemas.agent import (
     AgentHeartbeatPayload,
@@ -19,7 +20,6 @@ from app.schemas.agent import (
     AgentRegisterPayload,
     ClaudeProcessInfo,
 )
-from app.core.database import async_session_factory
 from app.services.agent_project_service import AgentProjectService
 from app.services.agent_registry_service import agent_registry
 from app.services.project_service import ProjectService
