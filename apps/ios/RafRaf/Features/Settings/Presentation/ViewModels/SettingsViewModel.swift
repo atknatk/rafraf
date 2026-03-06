@@ -54,7 +54,21 @@ final class SettingsViewModel {
     private let loadProfileUseCase: LoadProfileUseCase
     private let updateProfileUseCase: UpdateProfileUseCase
     private let logoutUseCase: LogoutUseCase
+    private let authManager: AuthManager
+    private let biometricManager: BiometricAuthManager
     private let logger = AppLogger.logger(for: "Settings")
+
+    // MARK: - Computed
+
+    /// Biyometrik dogrulama cihazda mevcut mu.
+    var isBiometricAvailable: Bool {
+        biometricManager.isBiometricAvailable
+    }
+
+    /// Biyometrik dogrulama aktif mi.
+    var isBiometricEnabled: Bool {
+        authManager.isBiometricEnabled
+    }
 
     // MARK: - Init
 
@@ -63,13 +77,17 @@ final class SettingsViewModel {
         saveSettingsUseCase: SaveSettingsUseCase,
         loadProfileUseCase: LoadProfileUseCase,
         updateProfileUseCase: UpdateProfileUseCase,
-        logoutUseCase: LogoutUseCase
+        logoutUseCase: LogoutUseCase,
+        authManager: AuthManager,
+        biometricManager: BiometricAuthManager
     ) {
         self.loadSettingsUseCase = loadSettingsUseCase
         self.saveSettingsUseCase = saveSettingsUseCase
         self.loadProfileUseCase = loadProfileUseCase
         self.updateProfileUseCase = updateProfileUseCase
         self.logoutUseCase = logoutUseCase
+        self.authManager = authManager
+        self.biometricManager = biometricManager
         logger.info("SettingsViewModel baslatildi")
         loadCurrentSettings()
     }
@@ -178,6 +196,13 @@ final class SettingsViewModel {
         settings.fontSize = fontSize
         saveCurrentSettings()
         logger.info("Font boyutu guncellendi: \(fontSize.rawValue)")
+    }
+
+    /// Biyometrik dogrulama tercihini gunceller.
+    /// - Parameter enabled: Aktif mi.
+    func updateBiometricEnabled(_ enabled: Bool) {
+        authManager.setBiometricEnabled(enabled)
+        logger.info("Biyometrik tercih guncellendi: \(enabled)")
     }
 
     /// Cikis onay dialogunu gosterir.

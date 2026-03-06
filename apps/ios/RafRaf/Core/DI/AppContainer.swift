@@ -411,12 +411,15 @@ extension Container {
             let settingsRepo = self.settingsRepository()
             let userRepo = self.userRepository()
             let authManager = self.authManager()
+            let biometricManager = self.biometricAuthManager()
             return SettingsViewModel(
                 loadSettingsUseCase: LoadSettingsUseCase(repository: settingsRepo),
                 saveSettingsUseCase: SaveSettingsUseCase(repository: settingsRepo),
                 loadProfileUseCase: LoadProfileUseCase(repository: userRepo),
                 updateProfileUseCase: UpdateProfileUseCase(repository: userRepo),
-                logoutUseCase: LogoutUseCase(authManager: authManager)
+                logoutUseCase: LogoutUseCase(authManager: authManager),
+                authManager: authManager,
+                biometricManager: biometricManager
             )
         }
     }

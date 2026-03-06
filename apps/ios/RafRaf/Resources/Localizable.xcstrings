@@ -1420,6 +1420,74 @@
         }
       }
     },
+    "auth.biometric.setupTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick Login with Face ID"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Face ID ile Hizli Giris"
+          }
+        }
+      }
+    },
+    "auth.biometric.setupMessage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can sign in quickly using Face ID next time."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bir sonraki giriste Face ID kullanarak hizlica oturum acabilirsiniz."
+          }
+        }
+      }
+    },
+    "auth.biometric.enableButton" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etkinlestir"
+          }
+        }
+      }
+    },
+    "auth.biometric.notNowButton" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Now"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simdi Degil"
+          }
+        }
+      }
+    },
     "auth.checking" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6334,6 +6402,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gorev Guncellemeleri"
+          }
+        }
+      }
+    },
+    "settings.security.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Security"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guvenlik"
+          }
+        }
+      }
+    },
+    "settings.security.faceID" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign In with Face ID"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Face ID ile Giris"
           }
         }
       }
