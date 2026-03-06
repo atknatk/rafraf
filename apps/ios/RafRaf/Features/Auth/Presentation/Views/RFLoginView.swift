@@ -51,6 +51,17 @@ struct RFLoginView: View {
         }
         .onAppear { isAppeared = true }
         .background(RFAnimatedGradientBackground())
+        .alert(
+            String(localized: "auth.biometric.setupTitle"),
+            isPresented: $viewModel.showBiometricSetupPrompt
+        ) {
+            Button(String(localized: "auth.biometric.enableButton")) {
+                viewModel.enableBiometric()
+            }
+            Button(String(localized: "auth.biometric.notNowButton"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "auth.biometric.setupMessage"))
+        }
     }
 
     // MARK: - Sections

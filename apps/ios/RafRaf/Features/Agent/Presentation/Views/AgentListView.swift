@@ -18,8 +18,17 @@ struct AgentListView: View {
                 contentView
             }
             .navigationTitle(String(localized: "agent.list.title"))
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    liveIndicator
+                }
+            }
             .task {
                 await viewModel.loadAgents()
+                viewModel.startAutoRefresh()
+            }
+            .onDisappear {
+                viewModel.stopAutoRefresh()
             }
             .refreshable {
                 await viewModel.refreshAgents()
@@ -30,6 +39,30 @@ struct AgentListView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Live Indicator
+
+    private var liveIndicator: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(viewModel.onlineCount > 0 ? RFColors.success : RFColors.fallbackTextTertiary)
+                .frame(width: 6, height: 6)
+            if let refreshedAt = viewModel.lastRefreshedAt {
+                RFText(
+                    relativeTime(refreshedAt),
+                    style: .caption,
+                    color: RFColors.fallbackTextTertiary
+                )
+            }
+        }
+    }
+
+    private func relativeTime(_ date: Date) -> String {
+        let seconds = Int(-date.timeIntervalSinceNow)
+        if seconds < 5 { return String(localized: "agent.refresh.justNow") }
+        if seconds < 60 { return "\(seconds)s" }
+        return "\(seconds / 60)m"
     }
 
     // MARK: - Filter Bar
@@ -109,15 +142,87 @@ struct AgentListView: View {
         if viewModel.isLoading {
             AgentListSkeletonView()
         } else if viewModel.agents.isEmpty {
-            Spacer()
-            RFEmptyStateView(
-                systemImage: "desktopcomputer",
-                title: String(localized: "agent.empty.title"),
-                message: String(localized: "agent.empty.message")
-            )
-            Spacer()
+            agentEmptyStateView
         } else {
             agentList
+        }
+    }
+
+    private var agentEmptyStateView: some View {
+        ScrollView {
+            VStack(spacing: RFSpacing.xl) {
+                Spacer()
+                    .frame(height: RFSpacing.xl)
+
+                VStack(spacing: RFSpacing.md) {
+                    Image(systemName: "desktopcomputer")
+                        .font(.system(size: 64, weight: .thin))
+                        .foregroundStyle(RFColors.fallbackTextTertiary)
+
+                    VStack(spacing: RFSpacing.xs) {
+                        RFText(
+                            String(localized: "agent.empty.title"),
+                            style: .title,
+                            color: RFColors.fallbackTextPrimary
+                        )
+                        .multilineTextAlignment(.center)
+
+                        RFText(
+                            String(localized: "agent.empty.message"),
+                            style: .body,
+                            color: RFColors.fallbackTextSecondary
+                        )
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, RFSpacing.lg)
+                    }
+                }
+
+                VStack(spacing: RFSpacing.sm) {
+                    RFCard {
+                        VStack(alignment: .leading, spacing: RFSpacing.sm) {
+                            settingsStep(
+                                number: "1",
+                                title: String(localized: "agent.setup.step1.title"),
+                                detail: String(localized: "agent.setup.step1.detail")
+                            )
+                            Divider()
+                            settingsStep(
+                                number: "2",
+                                title: String(localized: "agent.setup.step2.title"),
+                                detail: String(localized: "agent.setup.step2.detail")
+                            )
+                            Divider()
+                            settingsStep(
+                                number: "3",
+                                title: String(localized: "agent.setup.step3.title"),
+                                detail: String(localized: "agent.setup.step3.detail")
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, RFSpacing.md)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.bottom, RFSpacing.xxxl)
+        }
+        .refreshable {
+            await viewModel.refreshAgents()
+        }
+    }
+
+    private func settingsStep(number: String, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: RFSpacing.sm) {
+            Text(number)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(width: 24, height: 24)
+                .background(RFColors.fallbackPrimary)
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                RFText(title, style: .bodyBold, color: RFColors.fallbackTextPrimary)
+                RFText(detail, style: .caption, color: RFColors.fallbackTextSecondary)
+            }
         }
     }
 
@@ -132,7 +237,13 @@ struct AgentListView: View {
                             refreshUsageUseCase: viewModel.refreshSubscriptionUsageUseCase,
                             getAgentProjectsUseCase: viewModel.getAgentProjectsUseCase,
                             setProjectActiveUseCase: viewModel.setProjectActiveUseCase,
-                            getClaudeProcessesUseCase: viewModel.getClaudeProcessesUseCase
+                            getClaudeProcessesUseCase: viewModel.getClaudeProcessesUseCase,
+                            getAgentTasksUseCase: viewModel.getAgentTasksUseCase,
+                            cancelAgentTaskUseCase: viewModel.cancelAgentTaskUseCase,
+                            dispatchAgentTaskUseCase: viewModel.dispatchAgentTaskUseCase,
+                            rescanProjectsUseCase: viewModel.rescanProjectsUseCase,
+                            getSkipPermissionsUseCase: viewModel.getSkipPermissionsUseCase,
+                            updateSettingsUseCase: viewModel.updateSettingsUseCase
                         )
                     } label: {
                         AgentCardView(agent: agent)
@@ -182,7 +293,11 @@ struct AgentListView: View {
             refreshSubscriptionUsageUseCase: RefreshSubscriptionUsageUseCase(repository: repo),
             getAgentProjectsUseCase: GetAgentProjectsUseCase(repository: repo),
             setProjectActiveUseCase: SetProjectActiveUseCase(repository: repo),
-            getClaudeProcessesUseCase: GetClaudeProcessesUseCase(repository: repo)
+            getClaudeProcessesUseCase: GetClaudeProcessesUseCase(repository: repo),
+            getAgentTasksUseCase: GetAgentTasksUseCase(repository: repo),
+            cancelAgentTaskUseCase: CancelAgentTaskUseCase(repository: repo),
+            dispatchAgentTaskUseCase: DispatchAgentTaskUseCase(repository: repo),
+            rescanProjectsUseCase: RescanProjectsUseCase(repository: repo)
         )
     )
 }
@@ -230,7 +345,8 @@ final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable
                     memoryUsagePercent: 72,
                     diskUsagePercent: 38,
                     diskFreeGb: 120
-                )
+                ),
+                dangerouslySkipPermissions: false
             ),
             Agent(
                 hostId: "ubuntu-server",
@@ -245,7 +361,8 @@ final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable
                     memoryUsagePercent: 45,
                     diskUsagePercent: 65,
                     diskFreeGb: 80
-                )
+                ),
+                dangerouslySkipPermissions: false
             ),
             Agent(
                 hostId: "imac-dev",
@@ -255,7 +372,8 @@ final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable
                 uptimeSeconds: nil,
                 activeTasks: nil,
                 lastHeartbeatAt: Date().addingTimeInterval(-3600),
-                resources: nil
+                resources: nil,
+                dangerouslySkipPermissions: false
             )
         ]
 
@@ -330,4 +448,45 @@ final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable
     }
 
     func getAllAgentProjects() async throws -> [AgentProject] { [] }
+
+    func getAgentTasks(agentId: String, limit: Int) async throws -> AgentTaskListResult {
+        AgentTaskListResult(
+            tasks: [
+                AgentTask(
+                    id: "task-1",
+                    hostId: agentId,
+                    runner: "shell",
+                    action: "run",
+                    status: .completed,
+                    projectId: nil,
+                    createdAt: Date().addingTimeInterval(-120),
+                    startedAt: Date().addingTimeInterval(-119),
+                    completedAt: Date().addingTimeInterval(-110),
+                    durationMs: 9000,
+                    error: nil
+                ),
+                AgentTask(
+                    id: "task-2",
+                    hostId: agentId,
+                    runner: "docker",
+                    action: "build",
+                    status: .running,
+                    projectId: "proj-1",
+                    createdAt: Date().addingTimeInterval(-30),
+                    startedAt: Date().addingTimeInterval(-29),
+                    completedAt: nil,
+                    durationMs: nil,
+                    error: nil
+                )
+            ],
+            total: 2,
+            pendingCount: 1
+        )
+    }
+
+    func cancelAgentTask(agentId: String, taskId: String) async throws {}
+    func dispatchTask(agentId: String, runner: String, action: String, params: [String: String]) async throws {}
+    func rescanProjects(agentId: String) async throws {}
+    func getAgentSkipPermissions(agentId: String) async throws -> Bool { false }
+    func updateAgentSettings(agentId: String, dangerouslySkipPermissions: Bool) async throws {}
 }

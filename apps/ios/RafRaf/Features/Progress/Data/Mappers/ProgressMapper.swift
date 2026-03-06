@@ -67,23 +67,14 @@ enum ProgressMapper {
         let type = ProgressStepType(rawValue: dto.stepType) ?? .thinking
         let status = ProgressStepStatus(rawValue: dto.status) ?? .pending
 
-        // toolName varsa detay olarak ekle
-        let detail: String?
-        if let toolName = dto.toolName, let existingDetail = dto.detail {
-            detail = "\(toolName): \(existingDetail)"
-        } else if let toolName = dto.toolName {
-            detail = toolName
-        } else {
-            detail = dto.detail
-        }
-
         return ProgressStep(
             id: dto.id,
             type: type,
             label: dto.label,
             status: status,
             durationSeconds: dto.durationSeconds,
-            detail: detail
+            detail: dto.detail,
+            toolName: dto.toolName
         )
     }
 

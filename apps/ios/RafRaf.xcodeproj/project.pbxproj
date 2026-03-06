@@ -31,6 +31,37 @@
 		A1B2C3D4E5F647A89012BC0C /* SetProjectActiveUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC1C /* SetProjectActiveUseCase.swift */; };
 		A1B2C3D4E5F647A89012BC0D /* GetClaudeProcessesUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC1D /* GetClaudeProcessesUseCase.swift */; };
 		A1B2C3D4E5F647A89012BC30 /* UpdateProjectStatusUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC31 /* UpdateProjectStatusUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC32 /* RafRafLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC33 /* RafRafLiveActivity.swift */; };
+		A1B2C3D4E5F647A89012BC37 /* ChatSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC38 /* ChatSearchView.swift */; };
+		A1B2C3D4E5F647A89012BC35 /* RFQuickCommandPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC36 /* RFQuickCommandPalette.swift */; };
+		A1B2C3D4E5F647A89012BC39 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC3A /* HapticManager.swift */; };
+		A1B2C3D4E5F647A89012BC3B /* BookmarkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC3C /* BookmarkService.swift */; };
+		A1B2C3D4E5F647A89012BC3D /* BookmarksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC3E /* BookmarksView.swift */; };
+		A1B2C3D4E5F647A89012BC48 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC49 /* ShareSheet.swift */; };
+		A1B2C3D4E5F647A89012BC4B /* ProjectAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC40 /* ProjectAnalytics.swift */; };
+		A1B2C3D4E5F647A89012BC4C /* ConnectionQualityMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC4D /* ConnectionQualityMonitor.swift */; };
+		A1B2C3D4E5F647A89012BC4E /* RFConnectionIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC4F /* RFConnectionIndicator.swift */; };
+		A1B2C3D4E5F647A89012BC55 /* MessageQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC56 /* MessageQueue.swift */; };
+		A1B2C3D4E5F647A89012BC58 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC57 /* OnboardingView.swift */; };
+		A1B2C3D4E5F647A89012BC5A /* OnboardingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC59 /* OnboardingService.swift */; };
+		A1B2C3D4E5F647A89012BC65 /* AskRafRafIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC66 /* AskRafRafIntent.swift */; };
+		A1B2C3D4E5F647A89012BC67 /* CheckProjectStatusIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC68 /* CheckProjectStatusIntent.swift */; };
+		A1B2C3D4E5F647A89012BC69 /* RafRafShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC6A /* RafRafShortcuts.swift */; };
+		A1B2C3D4E5F647A89012BC6C /* AgentTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC6D /* AgentTask.swift */; };
+		A1B2C3D4E5F647A89012BC6E /* GetAgentTasksUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC6F /* GetAgentTasksUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC70 /* CancelAgentTaskUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC71 /* CancelAgentTaskUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC78 /* DispatchAgentTaskUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC79 /* DispatchAgentTaskUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC7A /* RFToolActivityCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC7B /* RFToolActivityCard.swift */; };
+		A1B2C3D4E5F647A89012BC7C /* RescanProjectsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC7D /* RescanProjectsUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC7E /* UpdateAgentSettingsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC7F /* UpdateAgentSettingsUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC50 /* WidgetDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC51 /* WidgetDataService.swift */; };
+		A1B2C3D4E5F647A89012BC52 /* RafRafWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC53 /* RafRafWidgetView.swift */; };
+		A1B2C3D4E5F647A89012BC41 /* ProjectAnalyticsDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC42 /* ProjectAnalyticsDTO.swift */; };
+		A1B2C3D4E5F647A89012BC43 /* ProjectAnalyticsMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC44 /* ProjectAnalyticsMapper.swift */; };
+		A1B2C3D4E5F647A89012BC45 /* ProjectDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC46 /* ProjectDashboardView.swift */; };
+		A1B2C3D4E5F647A89012BC5B /* ProjectCreateDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC5C /* ProjectCreateDTO.swift */; };
+		A1B2C3D4E5F647A89012BC5D /* ProjectFormViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC5E /* ProjectFormViewModel.swift */; };
+		A1B2C3D4E5F647A89012BC5F /* ProjectFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC60 /* ProjectFormView.swift */; };
 		1925FC51FB504DEEA4A55327 /* AgentDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0BB2A9F00D4ABDB76D5498 /* AgentDTO.swift */; };
 		1D844028D4A04DB79C040EFD /* AgentMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38C6825A0DB485CB0628044 /* AgentMapper.swift */; };
 		ACFB026BE1CC4BBAB04362EE /* AgentRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD505F743CAC48ACA012DF72 /* AgentRepositoryImpl.swift */; };
@@ -191,6 +222,9 @@
 		7F69C861FBECE104AB7AC76E /* WebSocketMessageRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0562ABFC489C98DF5B80B11F /* WebSocketMessageRouter.swift */; };
 		821F0574AAC95057BEE9DC1F /* PushNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910E048030BCE704D1ACC9F8 /* PushNotification.swift */; };
 		82775AD57DA8B1B053EBD608 /* RFText.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6016664D42539CA3682B2BB /* RFText.swift */; };
+		A1B2C3D4E5F647A89012BC72 /* RFMarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC73 /* RFMarkdownText.swift */; };
+		A1B2C3D4E5F647A89012BC74 /* GitHubEventService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC75 /* GitHubEventService.swift */; };
+		A1B2C3D4E5F647A89012BC76 /* CostSummaryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC77 /* CostSummaryCard.swift */; };
 		82DE6F3EE500AE3DFE1424FF /* ScreenshotViewerState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51194784C4D4A291F0B8CEAE /* ScreenshotViewerState.swift */; };
 		82E1E1ED5AE6DD3A5BF0A669 /* MockSettingsRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 036FEC3776B23ACDD23096FA /* MockSettingsRepository.swift */; };
 		8323362B6FCD7F8A0594D05F /* RFVoiceInputButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = D026E5183E0472546C7337C1 /* RFVoiceInputButton.swift */; };
@@ -369,6 +403,9 @@
 		A1B2C3D4E5F647A89012BC1C /* SetProjectActiveUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetProjectActiveUseCase.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC1D /* GetClaudeProcessesUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetClaudeProcessesUseCase.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC31 /* UpdateProjectStatusUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateProjectStatusUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC33 /* RafRafLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RafRafLiveActivity.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC38 /* ChatSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSearchView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC36 /* RFQuickCommandPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFQuickCommandPalette.swift; sourceTree = "<group>"; };
 		1D0BB2A9F00D4ABDB76D5498 /* AgentDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDTO.swift; sourceTree = "<group>"; };
 		C38C6825A0DB485CB0628044 /* AgentMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentMapper.swift; sourceTree = "<group>"; };
 		AD505F743CAC48ACA012DF72 /* AgentRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRepositoryImpl.swift; sourceTree = "<group>"; };
@@ -578,6 +615,31 @@
 		A95DA37617833E9ED55D85BC /* FileUploadProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileUploadProgress.swift; sourceTree = "<group>"; };
 		A961F116D1108B39252EE3C1 /* SaveSettingsUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveSettingsUseCaseTests.swift; sourceTree = "<group>"; };
 		ABF334A3FB646BB6870AAA85 /* RFHaptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFHaptics.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC3A /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC3C /* BookmarkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC3E /* BookmarksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarksView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC49 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC4D /* ConnectionQualityMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionQualityMonitor.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC56 /* MessageQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageQueue.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC57 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC59 /* OnboardingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC66 /* AskRafRafIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskRafRafIntent.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC68 /* CheckProjectStatusIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckProjectStatusIntent.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC6A /* RafRafShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RafRafShortcuts.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC6D /* AgentTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTask.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC6F /* GetAgentTasksUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetAgentTasksUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC71 /* CancelAgentTaskUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CancelAgentTaskUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC79 /* DispatchAgentTaskUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchAgentTaskUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC4F /* RFConnectionIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFConnectionIndicator.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC51 /* WidgetDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC53 /* RafRafWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RafRafWidgetView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC40 /* ProjectAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAnalytics.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC42 /* ProjectAnalyticsDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAnalyticsDTO.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC44 /* ProjectAnalyticsMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectAnalyticsMapper.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC46 /* ProjectDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDashboardView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC5C /* ProjectCreateDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectCreateDTO.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC5E /* ProjectFormViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectFormViewModel.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC60 /* ProjectFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectFormView.swift; sourceTree = "<group>"; };
 		AD54C402190CF29D5AADD728 /* RFPlaybackProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFPlaybackProgressBar.swift; sourceTree = "<group>"; };
 		AD6B51A4354CBB85A0314750 /* FileRepositoryProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileRepositoryProtocol.swift; sourceTree = "<group>"; };
 		B00D12AD59FE69B29E947D16 /* MockAuthRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAuthRepository.swift; sourceTree = "<group>"; };
@@ -641,6 +703,12 @@
 		E4D0B1722F9261441B62830E /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		E57A611E9759F629A8F4C5ED /* VoiceInputTestFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputTestFactory.swift; sourceTree = "<group>"; };
 		E6016664D42539CA3682B2BB /* RFText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFText.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC73 /* RFMarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFMarkdownText.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC75 /* GitHubEventService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubEventService.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC77 /* CostSummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CostSummaryCard.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC7B /* RFToolActivityCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFToolActivityCard.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC7D /* RescanProjectsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RescanProjectsUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC7F /* UpdateAgentSettingsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateAgentSettingsUseCase.swift; sourceTree = "<group>"; };
 		E6124D6E1DECAB58D50AE8B0 /* View+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+Extensions.swift"; sourceTree = "<group>"; };
 		E745D17E31094BA30A4732FD /* ProjectRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectRepositoryImpl.swift; sourceTree = "<group>"; };
 		EA8C45FE6EB4CB9BC35B709B /* VoiceOutputState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOutputState.swift; sourceTree = "<group>"; };
@@ -918,6 +986,8 @@
 				CFF23DA4CF45F234EE2CD216 /* RFAnimatedGradientBackground.swift */,
 				822D1B3519782E19AAE6B807 /* RFAvatar.swift */,
 				2B6378F006F2E44C0E575BBC /* RFButton.swift */,
+				A1B2C3D4E5F647A89012BC4F /* RFConnectionIndicator.swift */,
+				A1B2C3D4E5F647A89012BC4F /* RFConnectionIndicator.swift */,
 				F252D49D3EC1D709A56B1673 /* RFCard.swift */,
 				9B14A5823261777D9A44ECCE /* RFEmptyStateView.swift */,
 				73EDDECB3A8862452651E8E2 /* RFErrorView.swift */,
@@ -925,6 +995,7 @@
 				747F8B6AF88D6C525824A2B4 /* RFLoadingView.swift */,
 				7CAB4ABB8E67FFA103513EF2 /* RFShimmerModifier.swift */,
 				E6016664D42539CA3682B2BB /* RFText.swift */,
+				A1B2C3D4E5F647A89012BC73 /* RFMarkdownText.swift */,
 				F50CEA586C89F51C32CEF461 /* RFTextField.swift */,
 			);
 			path = Components;
@@ -1262,9 +1333,11 @@
 			children = (
 				A28FA43D580A4C8DCD750BFD /* NetworkClient.swift */,
 				9D1BED62AE03EC1F750E0D07 /* WebSocketClient.swift */,
+				A1B2C3D4E5F647A89012BC4D /* ConnectionQualityMonitor.swift */,
 				48E6F1382915379B3048B07A /* WebSocketConnectionManager.swift */,
 				CDB4EC51AF46B7F748D4DDB1 /* WebSocketMessage.swift */,
 				0562ABFC489C98DF5B80B11F /* WebSocketMessageRouter.swift */,
+				A1B2C3D4E5F647A89012BC56 /* MessageQueue.swift */,
 			);
 			path = Networking;
 			sourceTree = "<group>";
@@ -1290,6 +1363,7 @@
 			isa = PBXGroup;
 			children = (
 				ABF334A3FB646BB6870AAA85 /* RFHaptics.swift */,
+				A1B2C3D4E5F647A89012BC3A /* HapticManager.swift */,
 			);
 			path = Haptics;
 			sourceTree = "<group>";
@@ -1331,8 +1405,10 @@
 				20CD7C997F970FBA36D3C074 /* RFCodeBlock.swift */,
 				9B3C516BC231E3C69265CF80 /* RFImageMessageView.swift */,
 				B0F0C7A8C0EB877BF24E6FE1 /* RFMessageBubble.swift */,
-				3B34887B85ED882C16492C16 /* RFTypingIndicator.swift */,
 				A1B2C3D4E5F647A89012BC17 /* RFProjectPicker.swift */,
+				A1B2C3D4E5F647A89012BC36 /* RFQuickCommandPalette.swift */,
+				3B34887B85ED882C16492C16 /* RFTypingIndicator.swift */,
+			A1B2C3D4E5F647A89012BC7B /* RFToolActivityCard.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -1494,6 +1570,7 @@
 				FB2779B4FCE83EBBA2D09B1F /* FileSharing */,
 				D14F9A966DB22E931488DEE9 /* Home */,
 				3AB8D2BC83D07BF369195A17 /* Notifications */,
+				A1B2C3D4E5F647A89012BC61 /* Onboarding */,
 				BBDE6C74FF67C05B890B003E /* Progress */,
 				C1C761F83B1C8F02C519D859 /* Project */,
 				14D3DCBD2B4E836B608B57EA /* ScreenshotViewer */,
@@ -1503,6 +1580,30 @@
 				A1B2C3D4E5F647A89012CD01 /* VoiceConversation */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BC61 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC62 /* Presentation */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BC62 /* Presentation */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC63 /* Views */,
+			);
+			path = Presentation;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BC63 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC57 /* OnboardingView.swift */,
+			);
+			path = Views;
 			sourceTree = "<group>";
 		};
 		5DD9A7473C765C12598D89BF /* Auth */ = {
@@ -1722,6 +1823,8 @@
 			isa = PBXGroup;
 			children = (
 				F503BC69A6F011BBD9C5C7A1 /* ChatView.swift */,
+				A1B2C3D4E5F647A89012BC38 /* ChatSearchView.swift */,
+				A1B2C3D4E5F647A89012BC3E /* BookmarksView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1989,12 +2092,61 @@
 				8875A2614B1B2A658EA924CA /* DI */,
 				D6E529154A3F1E39AE3D1E9B /* Extensions */,
 				47AFA008F9C5313B8DF2A68E /* Haptics */,
+				A1B2C3D4E5F647A89012BC34 /* LiveActivity */,
 				CB7A3F66AE349BEBC81EEF0D /* Logging */,
 				46847796711C93DA06BAF33B /* Networking */,
 				BF2C977A8D58E6C89567562F /* Notifications */,
+				A1B2C3D4E5F647A89012BC64 /* Services */,
+				A1B2C3D4E5F647A89012BC4A /* Utilities */,
 				7C1DF105EF3AA515D571A8A5 /* Voice */,
+				A1B2C3D4E5F647A89012BC54 /* Widget */,
+				A1B2C3D4E5F647A89012BC6B /* AppIntents */,
 			);
 			path = Core;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BC64 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC59 /* OnboardingService.swift */,
+				A1B2C3D4E5F647A89012BC75 /* GitHubEventService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BC4A /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC49 /* ShareSheet.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BC54 /* Widget */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC51 /* WidgetDataService.swift */,
+				A1B2C3D4E5F647A89012BC53 /* RafRafWidgetView.swift */,
+			);
+			path = Widget;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BC6B /* AppIntents */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC66 /* AskRafRafIntent.swift */,
+				A1B2C3D4E5F647A89012BC68 /* CheckProjectStatusIntent.swift */,
+				A1B2C3D4E5F647A89012BC6A /* RafRafShortcuts.swift */,
+			);
+			path = AppIntents;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BC34 /* LiveActivity */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC33 /* RafRafLiveActivity.swift */,
+			);
+			path = LiveActivity;
 			sourceTree = "<group>";
 		};
 		98F2F4EA4F9814837DF581E7 /* Data */ = {
@@ -2508,10 +2660,19 @@
 		CBD54391BE4B1DF1968D7A7B /* Domain */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D4E5F647A89012BC47 /* Models */,
 				60A49E2DB4FA240E7690B242 /* Repositories */,
 				3C40B159CCF466173FD5ECDF /* UseCases */,
 			);
 			path = Domain;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BC47 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC40 /* ProjectAnalytics.swift */,
+			);
+			path = Models;
 			sourceTree = "<group>";
 		};
 		CCA3DA17B8A0C50ECF6BB3B4 = {
@@ -2535,6 +2696,8 @@
 			isa = PBXGroup;
 			children = (
 				C7F6D7D2C0636983F1E7E31A /* ProjectStatusDTO.swift */,
+				A1B2C3D4E5F647A89012BC42 /* ProjectAnalyticsDTO.swift */,
+				A1B2C3D4E5F647A89012BC5C /* ProjectCreateDTO.swift */,
 			);
 			path = DTOs;
 			sourceTree = "<group>";
@@ -2688,6 +2851,7 @@
 			children = (
 				CE63BB82B0AF956CDD1A5B38 /* ProjectDetailViewModel.swift */,
 				50917FA7893DF99B7E119E32 /* ProjectListViewModel.swift */,
+				A1B2C3D4E5F647A89012BC5E /* ProjectFormViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -2773,6 +2937,7 @@
 			isa = PBXGroup;
 			children = (
 				629C0C741A2EA1DCC248E89B /* RFSettingsRow.swift */,
+				A1B2C3D4E5F647A89012BC77 /* CostSummaryCard.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -2789,6 +2954,7 @@
 			isa = PBXGroup;
 			children = (
 				4959793D375BCA1E8998696B /* ProjectStatusMapper.swift */,
+				A1B2C3D4E5F647A89012BC44 /* ProjectAnalyticsMapper.swift */,
 			);
 			path = Mappers;
 			sourceTree = "<group>";
@@ -2834,12 +3000,21 @@
 			path = Presentation;
 			sourceTree = "<group>";
 		};
+		A1B2C3D4E5F647A89012BC3F /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BC3C /* BookmarkService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
 		F888B785B2F2F0EA8512845D /* Data */ = {
 			isa = PBXGroup;
 			children = (
 				B71946E9C5270228B87FF414 /* DTOs */,
 				D3E3DA3BC38545FDC79454F0 /* Mappers */,
 				3285F82E0B01932D835642AE /* Repositories */,
+				A1B2C3D4E5F647A89012BC3F /* Services */,
 			);
 			path = Data;
 			sourceTree = "<group>";
@@ -2912,6 +3087,8 @@
 			children = (
 				DCE433D8C6C908371422E9E3 /* ProjectDetailView.swift */,
 				1C56E0953632D7176D2CE8C1 /* ProjectListView.swift */,
+				A1B2C3D4E5F647A89012BC46 /* ProjectDashboardView.swift */,
+				A1B2C3D4E5F647A89012BC60 /* ProjectFormView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -2941,6 +3118,7 @@
 				A1B2C3D4E5F647A89012BC13 /* SubscriptionUsage.swift */,
 				A1B2C3D4E5F647A89012BC1E /* AgentProject.swift */,
 				A1B2C3D4E5F647A89012BC1F /* ClaudeProcess.swift */,
+				A1B2C3D4E5F647A89012BC6D /* AgentTask.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -2962,6 +3140,11 @@
 				A1B2C3D4E5F647A89012BC1B /* GetAgentProjectsUseCase.swift */,
 				A1B2C3D4E5F647A89012BC1C /* SetProjectActiveUseCase.swift */,
 				A1B2C3D4E5F647A89012BC1D /* GetClaudeProcessesUseCase.swift */,
+				A1B2C3D4E5F647A89012BC6F /* GetAgentTasksUseCase.swift */,
+				A1B2C3D4E5F647A89012BC71 /* CancelAgentTaskUseCase.swift */,
+				A1B2C3D4E5F647A89012BC79 /* DispatchAgentTaskUseCase.swift */,
+				A1B2C3D4E5F647A89012BC7D /* RescanProjectsUseCase.swift */,
+			A1B2C3D4E5F647A89012BC7F /* UpdateAgentSettingsUseCase.swift */,
 			);
 			path = UseCases;
 			sourceTree = "<group>";
@@ -3230,7 +3413,15 @@
 				A1B2C3D4E5F647A89012BC0B /* GetAgentProjectsUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC0C /* SetProjectActiveUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC0D /* GetClaudeProcessesUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC6C /* AgentTask.swift in Sources */,
+				A1B2C3D4E5F647A89012BC6E /* GetAgentTasksUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC70 /* CancelAgentTaskUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC78 /* DispatchAgentTaskUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC7C /* RescanProjectsUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC7E /* UpdateAgentSettingsUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC30 /* UpdateProjectStatusUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC32 /* RafRafLiveActivity.swift in Sources */,
+				A1B2C3D4E5F647A89012BC35 /* RFQuickCommandPalette.swift in Sources */,
 				A1B2C3D4E5F647A89012BC21 /* FetchMissedMessagesUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC22 /* LoadProfileUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC23 /* UpdateProfileUseCase.swift in Sources */,
@@ -3267,6 +3458,18 @@
 				6B80EC328FFA12586B465DD0 /* ChatRepositoryProtocol.swift in Sources */,
 				304C4F20A6983A344404EC79 /* ChatSkeletonView.swift in Sources */,
 				00E71759402C5B52C67BE896 /* ChatView.swift in Sources */,
+				A1B2C3D4E5F647A89012BC37 /* ChatSearchView.swift in Sources */,
+				A1B2C3D4E5F647A89012BC3B /* BookmarkService.swift in Sources */,
+				A1B2C3D4E5F647A89012BC3D /* BookmarksView.swift in Sources */,
+				A1B2C3D4E5F647A89012BC48 /* ShareSheet.swift in Sources */,
+				A1B2C3D4E5F647A89012BC4C /* ConnectionQualityMonitor.swift in Sources */,
+				A1B2C3D4E5F647A89012BC4E /* RFConnectionIndicator.swift in Sources */,
+				A1B2C3D4E5F647A89012BC55 /* MessageQueue.swift in Sources */,
+				A1B2C3D4E5F647A89012BC65 /* AskRafRafIntent.swift in Sources */,
+				A1B2C3D4E5F647A89012BC67 /* CheckProjectStatusIntent.swift in Sources */,
+				A1B2C3D4E5F647A89012BC69 /* RafRafShortcuts.swift in Sources */,
+				A1B2C3D4E5F647A89012BC50 /* WidgetDataService.swift in Sources */,
+				A1B2C3D4E5F647A89012BC52 /* RafRafWidgetView.swift in Sources */,
 				09FD1381D6990FAC0EFC2906 /* ChatViewModel.swift in Sources */,
 				E4D20264B06E3BA886B7BE9D /* ContentView.swift in Sources */,
 				F71A51CDA2BD295048A36688 /* DebugSetup.swift in Sources */,
@@ -3303,6 +3506,8 @@
 				2C934D278CD3A23533150EBD /* NotificationRouter.swift in Sources */,
 				4FA7F667D0D7818078A279CD /* NotificationSettingsView.swift in Sources */,
 				84639ABFFAB351AF7B72C150 /* NotificationSettingsViewModel.swift in Sources */,
+				A1B2C3D4E5F647A89012BC58 /* OnboardingView.swift in Sources */,
+				A1B2C3D4E5F647A89012BC5A /* OnboardingService.swift in Sources */,
 				0B3BA88DE6894D76EA3165AF /* ObserveProgressUseCase.swift in Sources */,
 				FF2F90675AC4434D50B7CC14 /* ProgressEventDTO.swift in Sources */,
 				5202090B497489C821305526 /* ProgressMapper.swift in Sources */,
@@ -3319,6 +3524,13 @@
 				7E64E885DCFFC0D3949BE488 /* ProjectListSkeletonView.swift in Sources */,
 				78C20ABE8AC8A34BAF0F0952 /* ProjectListView.swift in Sources */,
 				6F623B970925898AF1BA733E /* ProjectListViewModel.swift in Sources */,
+				A1B2C3D4E5F647A89012BC4B /* ProjectAnalytics.swift in Sources */,
+				A1B2C3D4E5F647A89012BC41 /* ProjectAnalyticsDTO.swift in Sources */,
+				A1B2C3D4E5F647A89012BC43 /* ProjectAnalyticsMapper.swift in Sources */,
+				A1B2C3D4E5F647A89012BC45 /* ProjectDashboardView.swift in Sources */,
+				A1B2C3D4E5F647A89012BC5B /* ProjectCreateDTO.swift in Sources */,
+				A1B2C3D4E5F647A89012BC5D /* ProjectFormViewModel.swift in Sources */,
+				A1B2C3D4E5F647A89012BC5F /* ProjectFormView.swift in Sources */,
 				FC7306E255FD9A39D77FFB07 /* ProjectMapper.swift in Sources */,
 				D3587F0CD1FAE5126EE9387F /* ProjectRepositoryImpl.swift in Sources */,
 				6EB280CD6A954C9D2898A59E /* ProjectRepositoryProtocol.swift in Sources */,
@@ -3347,6 +3559,7 @@
 				25523C8B1BFFE6EF66C8222D /* RFFilePreviewView.swift in Sources */,
 				55A1AACABD72718D0C298F14 /* RFGlassBar.swift in Sources */,
 				14BE5EC340AD2B2C9EED5183 /* RFHaptics.swift in Sources */,
+				A1B2C3D4E5F647A89012BC39 /* HapticManager.swift in Sources */,
 				53CD1B6EF64AEBFFE77C7C91 /* RFImageMessageView.swift in Sources */,
 				E37154C32EDE14FFC8288D16 /* RFLanguageSelector.swift in Sources */,
 				9FCD8CB4BFE8F40FC4223322 /* RFLoadingView.swift in Sources */,
@@ -3368,11 +3581,15 @@
 				E4B632FB67D23B0519699CB1 /* RFSpeedControl.swift in Sources */,
 				4340763335A59253756E7E95 /* RFStepProgressView.swift in Sources */,
 				82775AD57DA8B1B053EBD608 /* RFText.swift in Sources */,
+				A1B2C3D4E5F647A89012BC72 /* RFMarkdownText.swift in Sources */,
+				A1B2C3D4E5F647A89012BC74 /* GitHubEventService.swift in Sources */,
+				A1B2C3D4E5F647A89012BC76 /* CostSummaryCard.swift in Sources */,
 				6DE6DB6F070257976E7861F6 /* RFTextField.swift in Sources */,
 				494E791ED2621314109FC9AA /* RFToolStatusView.swift in Sources */,
 				466CA6F0C0CD819EFFE6D1B7 /* RFTranscriptionOverlay.swift in Sources */,
 				4F6C1FB2D7AB80DBD0590C48 /* RFTransitions.swift in Sources */,
 				CE6768C80CB433F3BBC46ED5 /* RFTypingIndicator.swift in Sources */,
+				A1B2C3D4E5F647A89012BC7A /* RFToolActivityCard.swift in Sources */,
 				AE78026CAD68EE7743A9CF0B /* RFTypography.swift in Sources */,
 				5293CB1747FECB9D94975F73 /* RFUploadProgressView.swift in Sources */,
 				8323362B6FCD7F8A0594D05F /* RFVoiceInputButton.swift in Sources */,

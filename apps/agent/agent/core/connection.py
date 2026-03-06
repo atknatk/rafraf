@@ -53,6 +53,7 @@ class ConnectionManager:
         self._heartbeat_interval: int = config.heartbeat_interval
         self._task_handler: TaskHandler | None = None
         self._sync_task: asyncio.Task[None] | None = None
+        self._dangerously_skip_permissions: bool = False
 
     def set_task_handler(self, handler: TaskHandler) -> None:
         """Task dispatch handler'ini ayarlar."""
@@ -228,6 +229,36 @@ class ConnectionManager:
                 self._is_connected = False
                 break
 
+    def _inject_skip_permissions(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Shell task'inde claude komutuna --dangerously-skip-permissions ekler.
+
+        Sadece runner=shell, command 'claude' ile basliyorsa ve flag aktifse inject eder.
+        Orijinal data'yi mutate etmez, yeni dict dondurur.
+        """
+        content = data.get("content")
+        if not isinstance(content, dict):
+            return data
+        if content.get("runner") != "shell":
+            return data
+        params = content.get("params")
+        if not isinstance(params, dict):
+            return data
+        cmd = params.get("command")
+        if not isinstance(cmd, str):
+            return data
+        cmd_stripped = cmd.strip()
+        if cmd_stripped != "claude" and not cmd_stripped.startswith("claude "):
+            return data
+
+        new_cmd = cmd_stripped.replace("claude", "claude --dangerously-skip-permissions", 1)
+        return {
+            **data,
+            "content": {
+                **content,
+                "params": {**params, "command": new_cmd},
+            },
+        }
+
     async def _listen_loop(self) -> None:
         """Server'dan gelen mesajlari dinler."""
         if self._ws is None:
@@ -244,8 +275,12 @@ class ConnectionManager:
                     )
 
                     if msg_type == "task_execute" and self._task_handler:
+                        if self._dangerously_skip_permissions:
+                            data = self._inject_skip_permissions(data)
                         self._active_tasks += 1
                         asyncio.create_task(self._run_task(data))
+                    elif msg_type == "config_update":
+                        await self._handle_config_update(data)
                 except ValueError as exc:
                     await logger.awarning(
                         "Mesaj parse hatasi",
@@ -255,6 +290,16 @@ class ConnectionManager:
             await logger.awarning("Listen sirasinda baglanti koptu")
         finally:
             self._is_connected = False
+
+    async def _handle_config_update(self, data: dict[str, Any]) -> None:
+        """config_update mesajini isleer ve ayarlari gunceller."""
+        skip = data.get("dangerously_skip_permissions")
+        if isinstance(skip, bool):
+            self._dangerously_skip_permissions = skip
+            await logger.ainfo(
+                "config_update alindi",
+                dangerously_skip_permissions=skip,
+            )
 
     async def send_message(self, message: str) -> None:
         """WebSocket uzerinden mesaj gonderir."""

@@ -18,6 +18,21 @@ enum WebSocketMessageType: String, Codable, Sendable {
     case voiceAudioChunk = "voice.audio_chunk"
     case voiceAudioEnd = "voice.audio_end"
     case voiceInterrupt = "voice.interrupt"
+    // Code diff type
+    case codeDiff = "code.diff"
+    // Proactive suggestion type
+    case suggestion = "suggestion"
+    // GitHub webhook events (server → client broadcast)
+    case githubEvent = "github_event"
+    // Agent proactive status change broadcasts
+    case agentStatusChange = "agent_status_change"
+    // Typing indicators (server → client)
+    case typingStart = "typing.start"
+    case typingEnd = "typing.end"
+    // Stream control (client → server)
+    case cancelStream = "stream.cancel"
+    // Stream cancelled ack (server → client)
+    case streamCancelled = "stream.cancelled"
 }
 
 /// Mesaj yonu.
@@ -30,12 +45,48 @@ enum WebSocketMessageDirection: String, Codable, Sendable {
 
 /// Temel WebSocket mesaj yapisi.
 /// Tum mesajlar bu yapiya uygun encode/decode edilir.
+/// `id` alani opsiyoneldir — backend bazi broadcast mesajlarinda gondermeyebilir.
 struct WebSocketBaseMessage: Codable, Sendable {
     let id: String
     let type: String
     let content: WebSocketContent?
     let metadata: WebSocketMessageMetadata?
     let attachments: [WebSocketMessageAttachment]?
+
+    enum CodingKeys: String, CodingKey {
+        case id, type, content, metadata, attachments
+    }
+
+    enum ExtraKeys: String, CodingKey {
+        case event, action, repo, summary, hostId, status, reason, isNew
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = (try? container.decodeIfPresent(String.self, forKey: .id)) ?? UUID().uuidString
+        self.type = try container.decode(String.self, forKey: .type)
+        self.metadata = try? container.decodeIfPresent(WebSocketMessageMetadata.self, forKey: .metadata)
+        self.attachments = try? container.decodeIfPresent([WebSocketMessageAttachment].self, forKey: .attachments)
+
+        // GitHub event messages store payload at top level instead of `content`
+        if self.type == WebSocketMessageType.githubEvent.rawValue {
+            let extra = try decoder.container(keyedBy: ExtraKeys.self)
+            let event = (try? extra.decodeIfPresent(String.self, forKey: .event)) ?? ""
+            let action = (try? extra.decodeIfPresent(String.self, forKey: .action)) ?? ""
+            let repo = (try? extra.decodeIfPresent(String.self, forKey: .repo)) ?? ""
+            let summary = (try? extra.decodeIfPresent(GitHubEventSummaryPayload.self, forKey: .summary)) ?? GitHubEventSummaryPayload()
+            self.content = .githubEvent(GitHubEventPayload(event: event, action: action, repo: repo, summary: summary))
+        } else if self.type == WebSocketMessageType.agentStatusChange.rawValue {
+            let extra = try decoder.container(keyedBy: ExtraKeys.self)
+            let hostId = (try? extra.decodeIfPresent(String.self, forKey: .hostId)) ?? ""
+            let status = (try? extra.decodeIfPresent(String.self, forKey: .status)) ?? ""
+            let reason = try? extra.decodeIfPresent(String.self, forKey: .reason)
+            let isNew = try? extra.decodeIfPresent(Bool.self, forKey: .isNew)
+            self.content = .agentStatusChange(AgentStatusChangePayload(hostId: hostId, status: status, reason: reason, isNew: isNew))
+        } else {
+            self.content = try? container.decodeIfPresent(WebSocketContent.self, forKey: .content)
+        }
+    }
 
     init(
         id: String = UUID().uuidString,
@@ -67,6 +118,10 @@ enum WebSocketContent: Codable, Sendable {
     case chatStreamEnd(ChatStreamEndContent)
     case voiceAudioChunk(VoiceAudioChunkContent)
     case voiceAudioEnd(VoiceAudioEndContent)
+    case codeDiff(CodeDiffContent)
+    case suggestion(SuggestionContent)
+    case githubEvent(GitHubEventPayload)
+    case agentStatusChange(AgentStatusChangePayload)
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -94,6 +149,16 @@ enum WebSocketContent: Codable, Sendable {
 
         if let audioEnd = try? container.decode(VoiceAudioEndContent.self) {
             self = .voiceAudioEnd(audioEnd)
+            return
+        }
+
+        if let diff = try? container.decode(CodeDiffContent.self) {
+            self = .codeDiff(diff)
+            return
+        }
+
+        if let suggestion = try? container.decode(SuggestionContent.self) {
+            self = .suggestion(suggestion)
             return
         }
 
@@ -151,6 +216,14 @@ enum WebSocketContent: Codable, Sendable {
         case .voiceAudioChunk(let value):
             try container.encode(value)
         case .voiceAudioEnd(let value):
+            try container.encode(value)
+        case .codeDiff(let value):
+            try container.encode(value)
+        case .suggestion(let value):
+            try container.encode(value)
+        case .githubEvent(let value):
+            try container.encode(value)
+        case .agentStatusChange(let value):
             try container.encode(value)
         }
     }
@@ -285,6 +358,84 @@ struct VoiceAudioEndContent: Codable, Sendable {
     let messageId: String
 }
 
+/// Code diff satiri icerigi.
+struct CodeDiffLineContent: Codable, Sendable {
+    let type: String
+    let content: String
+    let lineNumberOld: Int?
+    let lineNumberNew: Int?
+}
+
+/// Dosya diff icerigi.
+struct CodeDiffFileContent: Codable, Sendable {
+    let filePath: String
+    let isNewFile: Bool?
+    let isDeleted: Bool?
+    let additions: Int
+    let deletions: Int
+    let lines: [CodeDiffLineContent]
+}
+
+/// Code diff mesaj icerigi.
+struct CodeDiffContent: Codable, Sendable {
+    let projectPath: String
+    let totalAdditions: Int
+    let totalDeletions: Int
+    let filesChanged: Int
+    let files: [CodeDiffFileContent]
+}
+
+/// Proaktif oneri mesaj icerigi.
+struct SuggestionContent: Codable, Sendable {
+    let messageId: String
+    let suggestions: [String]
+}
+
+/// GitHub webhook event ozeti (broadcast payload).
+struct GitHubEventSummaryPayload: Codable, Sendable {
+    let number: Int?
+    let title: String?
+    let url: String?
+    let merged: Bool?
+    let sender: String?
+    let branch: String?
+    let commitCount: Int?
+    let headMessage: String?
+    let pusher: String?
+
+    init(
+        number: Int? = nil, title: String? = nil, url: String? = nil,
+        merged: Bool? = nil, sender: String? = nil, branch: String? = nil,
+        commitCount: Int? = nil, headMessage: String? = nil, pusher: String? = nil
+    ) {
+        self.number = number
+        self.title = title
+        self.url = url
+        self.merged = merged
+        self.sender = sender
+        self.branch = branch
+        self.commitCount = commitCount
+        self.headMessage = headMessage
+        self.pusher = pusher
+    }
+}
+
+/// GitHub webhook event broadcast mesaj icerigi.
+struct GitHubEventPayload: Codable, Sendable {
+    let event: String
+    let action: String
+    let repo: String
+    let summary: GitHubEventSummaryPayload
+}
+
+/// Agent durum degisikligi broadcast mesaj icerigi.
+struct AgentStatusChangePayload: Codable, Sendable {
+    let hostId: String
+    let status: String
+    let reason: String?
+    let isNew: Bool?
+}
+
 // MARK: - Message Factory
 
 /// WebSocket mesaj olusturma yardimci fonksiyonlari.
@@ -333,6 +484,17 @@ enum WebSocketMessageFactory {
         WebSocketBaseMessage(
             type: "voice",
             content: .text(text),
+            metadata: WebSocketMessageMetadata(
+                sessionId: sessionId,
+                direction: WebSocketMessageDirection.clientToServer.rawValue
+            )
+        )
+    }
+
+    /// Aktif stream'i iptal etmek icin mesaj olusturur.
+    static func cancelStreamMessage(sessionId: String? = nil) -> WebSocketBaseMessage {
+        WebSocketBaseMessage(
+            type: WebSocketMessageType.cancelStream.rawValue,
             metadata: WebSocketMessageMetadata(
                 sessionId: sessionId,
                 direction: WebSocketMessageDirection.clientToServer.rawValue

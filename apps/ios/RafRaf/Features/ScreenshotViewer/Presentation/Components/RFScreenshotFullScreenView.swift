@@ -180,6 +180,7 @@ struct RFScreenshotFullScreenView: View {
     }
 }
 
+// swiftlint:disable force_unwrapping
 #Preview {
     RFScreenshotFullScreenView(
         imageURL: URL(string: "https://picsum.photos/800/600")!,

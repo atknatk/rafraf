@@ -24,6 +24,8 @@ final class AuthViewModel {
     var isBiometricAvailable: Bool = false
     /// Biyometrik dogrulama tipi.
     var biometricType: BiometricType = .none
+    /// Face ID kurulum uyarisi gosteriliyor mu.
+    var showBiometricSetupPrompt: Bool = false
 
     // MARK: - Private
 
@@ -54,6 +56,13 @@ final class AuthViewModel {
 
         self.isBiometricAvailable = biometricManager.isBiometricAvailable
         self.biometricType = biometricManager.availableBiometricType
+    }
+
+    // MARK: - Computed
+
+    /// Biyometrik dogrulama aktif mi.
+    var isBiometricEnabled: Bool {
+        authManager.isBiometricEnabled
     }
 
     // MARK: - Validation
@@ -103,6 +112,9 @@ final class AuthViewModel {
             )
             logger.info("Login basarili")
             clearForm()
+            if biometricManager.isBiometricAvailable && !authManager.isBiometricEnabled {
+                showBiometricSetupPrompt = true
+            }
         } catch {
             logger.error("Login hatasi: \(error.localizedDescription)")
             errorMessage = String(localized: "auth.error.loginFailed")
@@ -166,6 +178,19 @@ final class AuthViewModel {
             logger.error("Token yenileme hatasi: \(error.localizedDescription)")
             authManager.clearTokens()
         }
+    }
+
+    /// Face ID'yi etkinlestirir.
+    func enableBiometric() {
+        authManager.setBiometricEnabled(true)
+        showBiometricSetupPrompt = false
+        logger.info("Face ID etkinlestirildi")
+    }
+
+    /// Face ID'yi devre disi birakir.
+    func disableBiometric() {
+        authManager.setBiometricEnabled(false)
+        logger.info("Face ID devre disi birakildi")
     }
 
     /// Login/register arasinda gecis yapar.

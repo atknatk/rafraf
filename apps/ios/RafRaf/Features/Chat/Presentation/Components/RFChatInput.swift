@@ -1,79 +1,177 @@
 import SwiftUI
 
-/// Chat mesaj girdi cubugu — Claude-inspired temiz gorunum.
-/// Sicak yuzey arkaplan, mikrofon butonu ve terracotta gonder butonu.
+/// Chat mesaj girdi cubugu — Claude Code'dan ilham alan profesyonel tasarim.
+/// Cok satirli giriş, Claude calısırken durdurma butonu, komut paleti entegrasyonu.
 struct RFChatInput: View {
     @Binding var text: String
     let isEnabled: Bool
     let isSending: Bool
+    let isProcessing: Bool  // Claude aktif olarak yanıt uretirken true
     let isRecording: Bool
     let audioLevel: Float
     let onSend: () -> Void
+    let onStop: () -> Void   // aktif stream'i iptal et
     let onMicTap: () -> Void
     let onMicLongPress: () -> Void
+
+    @FocusState private var isFocused: Bool
+    @State private var textHeight: CGFloat = 36
+
+    private let minHeight: CGFloat = 36
+    private let maxHeight: CGFloat = 120  // ~5 satır
 
     init(
         text: Binding<String>,
         isEnabled: Bool = true,
         isSending: Bool = false,
+        isProcessing: Bool = false,
         isRecording: Bool = false,
         audioLevel: Float = 0,
         onSend: @escaping () -> Void,
+        onStop: @escaping () -> Void = {},
         onMicTap: @escaping () -> Void = {},
         onMicLongPress: @escaping () -> Void = {}
     ) {
         self._text = text
         self.isEnabled = isEnabled
         self.isSending = isSending
+        self.isProcessing = isProcessing
         self.isRecording = isRecording
         self.audioLevel = audioLevel
         self.onSend = onSend
+        self.onStop = onStop
         self.onMicTap = onMicTap
         self.onMicLongPress = onMicLongPress
     }
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: RFSpacing.xs) {
-            textField
-            actionButton
+        VStack(spacing: 0) {
+            HStack(alignment: .bottom, spacing: RFSpacing.sm) {
+                // + attachment placeholder
+                Button { } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(RFColors.fallbackTextSecondary)
+                        .frame(width: 34, height: 34)
+                        .background(RFColors.fallbackSurface)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(RFColors.divider, lineWidth: 0.5))
+                }
+                .buttonStyle(.plain)
+                .disabled(isProcessing)
+
+                HStack(alignment: .bottom, spacing: RFSpacing.xs) {
+                    multiLineTextField
+                    actionButton
+                }
+                .padding(.horizontal, RFSpacing.sm)
+                .padding(.vertical, RFSpacing.xs)
+                .background(
+                    RoundedRectangle(cornerRadius: RFCornerRadius.extraLarge)
+                        .fill(RFColors.fallbackSurface)
+                        .shadow(color: Color.black.opacity(0.08), radius: 10, x: 0, y: -2)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: RFCornerRadius.extraLarge)
+                        .stroke(
+                            isFocused ? RFColors.fallbackPrimary.opacity(0.3) : RFColors.divider.opacity(0.6),
+                            lineWidth: isFocused ? 1.5 : 0.5
+                        )
+                )
+                .animation(RFAnimation.springSnappy, value: isFocused)
+            }
+            .padding(.horizontal, RFSpacing.md)
+            .padding(.top, RFSpacing.sm)
+            .padding(.bottom, RFSpacing.xs)
         }
-        .padding(.horizontal, RFSpacing.md)
-        .padding(.vertical, RFSpacing.sm)
-        .background(RFColors.fallbackSurface)
-        .overlay(alignment: .top) {
-            RFColors.divider.frame(height: 0.5)
-        }
+        .background(RFColors.fallbackBackground.ignoresSafeArea(edges: .bottom))
     }
 
-    // MARK: - Subviews
+    // MARK: - Multi-line TextField
 
-    private var textField: some View {
-        RFTextField(
-            String(localized: "chat.input.placeholder"),
-            text: $text
-        )
-        .disabled(!isEnabled || isRecording)
+    private var multiLineTextField: some View {
+        ZStack(alignment: .leading) {
+            // Placeholder
+            if text.isEmpty && !isFocused {
+                Text(String(localized: "chat.input.placeholder"))
+                    .font(RFTypography.body)
+                    .foregroundStyle(RFColors.fallbackTextTertiary)
+                    .padding(.horizontal, RFSpacing.sm)
+                    .padding(.vertical, RFSpacing.xs + 2)
+                    .allowsHitTesting(false)
+            }
+
+            // Hidden size reader
+            Text(text.isEmpty ? " " : text)
+                .font(RFTypography.body)
+                .padding(.horizontal, RFSpacing.sm)
+                .padding(.vertical, RFSpacing.xs + 2)
+                .lineLimit(5)
+                .opacity(0)
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.onAppear {
+                            textHeight = min(max(geo.size.height, minHeight), maxHeight)
+                        }
+                        .onChange(of: text) {
+                            textHeight = min(max(geo.size.height, minHeight), maxHeight)
+                        }
+                    }
+                )
+
+            TextEditor(text: $text)
+                .font(RFTypography.body)
+                .foregroundStyle(RFColors.fallbackTextPrimary)
+                .scrollContentBackground(.hidden)
+                .background(Color.clear)
+                .frame(height: textHeight)
+                .focused($isFocused)
+                .disabled(!isEnabled || isRecording || isProcessing)
+                .padding(.horizontal, RFSpacing.xs)
+        }
+        .background(Color.clear)
     }
 
-    /// Metin bos ve gonderim yokken mikrofon, aksi halde gonder butonu gosterir.
+    // MARK: - Action Button
+
+    /// Claude işlenirken: durdur butonu.
+    /// Metin varsa: gönder butonu.
+    /// Metin yoksa: mikrofon butonu.
     @ViewBuilder
     private var actionButton: some View {
-        if hasText || isSending {
+        if isProcessing {
+            stopButton
+        } else if hasText || isSending {
             sendButton
         } else {
             micButton
         }
     }
 
+    private var stopButton: some View {
+        Button {
+            RFHaptics.impact(.rigid)
+            onStop()
+        } label: {
+            Image(systemName: "stop.fill")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background(RFColors.error)
+                .clipShape(Circle())
+        }
+        .buttonStyle(RFPressButtonStyle())
+        .transition(.scale.combined(with: .opacity))
+        .animation(RFAnimation.springSnappy, value: isProcessing)
+    }
+
     private var micButton: some View {
         ZStack {
             if isRecording {
-                // Pulse ring — ses seviyesine gore buyur
                 Circle()
                     .stroke(RFColors.error.opacity(0.4), lineWidth: 2)
                     .scaleEffect(1.0 + CGFloat(audioLevel) * 0.3)
                     .animation(RFAnimation.springSnappy, value: audioLevel)
-
                 Image(systemName: "stop.fill")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.white)
@@ -138,28 +236,29 @@ struct RFChatInput: View {
 }
 
 #Preview {
-    VStack {
+    VStack(spacing: 0) {
         Spacer()
         RFChatInput(
-            text: .constant("Merhaba"),
+            text: .constant("Merhaba, projemin durumunu kontrol eder misin?"),
             onSend: {},
             onMicTap: {}
         )
         RFChatInput(
             text: .constant(""),
             onSend: {},
+            onMicTap: {}
+        )
+        RFChatInput(
+            text: .constant(""),
+            isProcessing: true,
+            onSend: {},
+            onStop: {},
             onMicTap: {}
         )
         RFChatInput(
             text: .constant(""),
             isRecording: true,
             audioLevel: 0.6,
-            onSend: {},
-            onMicTap: {}
-        )
-        RFChatInput(
-            text: .constant("Gonderiliyor..."),
-            isSending: true,
             onSend: {},
             onMicTap: {}
         )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import uuid as _uuid_mod
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -27,6 +28,7 @@ from app.schemas.messages import (
     MessageType,
     ProgressPayload,
     ProgressStepPayload,
+    SuggestionPayload,
     VoiceAudioChunkPayload,
 )
 from app.services.agent_registry_service import agent_registry
@@ -238,6 +240,8 @@ async def _handle_message(
         await _handle_approval_response(raw_data, connection_id, session_id)
     elif msg_type == MessageType.VOICE_INTERRUPT:
         await _handle_voice_interrupt(connection_id)
+    elif msg_type == MessageType.CANCEL_STREAM:
+        await _handle_cancel_stream(connection_id, session_id)
     else:
         error_msg = _build_error_message(
             error_code="UNSUPPORTED_CLIENT_MESSAGE",
@@ -245,6 +249,29 @@ async def _handle_message(
             session_id=session_id,
         )
         await manager.send_json(connection_id, error_msg)
+
+
+async def _handle_cancel_stream(connection_id: str, session_id: str) -> None:
+    """Cancel the active AI stream for this connection."""
+    task = _active_streams.get(connection_id)
+    if task is not None and not task.done():
+        task.cancel()
+        await logger.ainfo("stream_cancelled_by_user", connection_id=connection_id)
+    # Send typing.end so iOS clears the indicator, then cancelled ack
+    with contextlib.suppress(Exception):
+        await manager.send_json(
+            connection_id,
+            _build_message(MessageType.TYPING_END, {}, session_id=session_id),
+        )
+    with contextlib.suppress(Exception):
+        await manager.send_json(
+            connection_id,
+            _build_message(
+                MessageType.STREAM_CANCELLED,
+                {"message": "Stream iptal edildi"},
+                session_id=session_id,
+            ),
+        )
 
 
 async def _handle_pong(connection_id: str) -> None:
@@ -281,7 +308,7 @@ def _extract_project_id(raw_data: dict[str, object]) -> str | None:
     project_id = metadata.get("projectId") or metadata.get("project_id")
     if project_id is not None and not isinstance(project_id, str):
         return str(project_id)
-    return project_id  # type: ignore[return-value]
+    return project_id
 
 
 def _extract_agent_id(raw_data: dict[str, object]) -> str | None:
@@ -292,7 +319,7 @@ def _extract_agent_id(raw_data: dict[str, object]) -> str | None:
     agent_id = metadata.get("agentId") or metadata.get("agent_id")
     if agent_id is not None and not isinstance(agent_id, str):
         return str(agent_id)
-    return agent_id  # type: ignore[return-value]
+    return agent_id
 
 
 async def _handle_text(
@@ -443,6 +470,13 @@ async def _process_with_orchestrator(
     )
     await manager.send_json(connection_id, startup_progress)
 
+    # Typing indicator — Claude is thinking
+    with contextlib.suppress(Exception):
+        await manager.send_json(
+            connection_id,
+            _build_message(MessageType.TYPING_START, {}, session_id=session_id),
+        )
+
     # --- Callbacks ---
 
     def _current_conn() -> str:
@@ -461,10 +495,8 @@ async def _process_with_orchestrator(
             ).model_dump(),
             session_id=session_id,
         )
-        try:
+        with contextlib.suppress(Exception):
             await manager.send_json(_current_conn(), stream_msg)
-        except Exception:
-            pass  # Connection may be temporarily gone (reconnecting)
 
         # TTS: accumulate sentences and send audio chunks
         if tts_service is not None and sentence_acc is not None:
@@ -515,10 +547,8 @@ async def _process_with_orchestrator(
                 {"message_id": message_id},
                 session_id=session_id,
             )
-            try:
+            with contextlib.suppress(Exception):
                 await manager.send_json(_current_conn(), audio_end_msg)
-            except Exception:
-                pass
 
     async def _on_tool_progress(event: ToolProgressEvent) -> None:
         """Send detailed progress to iOS."""
@@ -551,20 +581,16 @@ async def _process_with_orchestrator(
             ).model_dump(exclude_none=True),
             session_id=session_id,
         )
-        try:
+        with contextlib.suppress(Exception):
             await manager.send_json(_current_conn(), progress_msg)
-        except Exception:
-            pass
 
     async def _on_question(question_payload: dict[str, object]) -> str | None:
         """Forward question to iOS and wait for answer."""
         bridge = get_question_bridge()
 
         async def _send_to_ios(msg: dict[str, object]) -> None:
-            try:
+            with contextlib.suppress(Exception):
                 await manager.send_json(_current_conn(), msg)
-            except Exception:
-                pass
 
         return await bridge.ask_user(
             question_payload=question_payload,
@@ -656,6 +682,30 @@ async def _process_with_orchestrator(
             except Exception:
                 await logger.awarning("assistant_message_save_failed", session_id=session_id)
 
+            # CODE_DIFF: proje degisikliklerini gonder
+            if project_id and response_text:
+                try:
+                    from app.services.git_diff_service import get_project_diff
+                    from app.services.project_service import ProjectService
+                    async with async_session_factory() as _diff_db:
+                        _diff_project_uuid = _uuid_mod.UUID(project_id)
+                        _diff_detail = await ProjectService(_diff_db).get_project_by_id(
+                            _diff_project_uuid
+                        )
+                        diff_path = _diff_detail.local_path
+                    if diff_path:
+                        diff_payload = await get_project_diff(diff_path)
+                        if diff_payload is not None:
+                            diff_msg = _build_message(
+                                MessageType.CODE_DIFF,
+                                diff_payload.model_dump(),
+                                session_id=session_id,
+                            )
+                            with contextlib.suppress(Exception):
+                                await manager.send_json(_current_conn(), diff_msg)
+                except Exception:
+                    await logger.awarning("code_diff_send_failed", session_id=session_id)
+
             # Save conversation turn to mem0 (fire-and-forget, non-blocking)
             if response_text:
                 asyncio.create_task(_save_turn_to_memory(
@@ -673,6 +723,13 @@ async def _process_with_orchestrator(
             )
             if not response_text:
                 response_text = "Bir hata olustu. Lutfen tekrar deneyin."
+
+        # Typing indicator cleared — response ready
+        with contextlib.suppress(Exception):
+            await manager.send_json(
+                _current_conn(),
+                _build_message(MessageType.TYPING_END, {}, session_id=session_id),
+            )
 
         # ALWAYS send CHAT_STREAM_END so the client never hangs
         end_msg = _build_message(
@@ -696,13 +753,35 @@ async def _process_with_orchestrator(
                 connection_id=connection_id,
             )
 
+        # Suggestions: arka planda uret ve gonder (fire-and-forget, voice modda degil)
+        if response_text and not voice_mode:
+            async def _send_suggestions() -> None:
+                try:
+                    from app.services.suggestion_service import generate_suggestions
+                    suggestions = await generate_suggestions(
+                        user_message=message,
+                        ai_response=response_text,
+                    )
+                    if suggestions:
+                        sugg_msg = _build_message(
+                            MessageType.SUGGESTION,
+                            SuggestionPayload(
+                                message_id=message_id,
+                                suggestions=suggestions,
+                            ).model_dump(),
+                            session_id=session_id,
+                        )
+                        await manager.send_json(_current_conn(), sugg_msg)
+                except Exception:
+                    await logger.awarning("suggestions_send_failed", session_id=session_id)
+
+            asyncio.create_task(_send_suggestions())
+
     # Parse project_id as UUID for DB storage
     _project_uuid: _uuid_mod.UUID | None = None
     if project_id:
-        try:
+        with contextlib.suppress(ValueError):
             _project_uuid = _uuid_mod.UUID(project_id)
-        except ValueError:
-            pass
 
     # Run as cancellable task; track by user+project for reconnect recovery
     task = asyncio.create_task(_run_processing())

@@ -25,4 +25,22 @@ protocol AgentRepositoryProtocol: Sendable {
 
     /// Tum agentlara bagli projeleri DB'den getirir (agent online olmak zorunda degil).
     func getAllAgentProjects() async throws -> [AgentProject]
+
+    /// Agent gorev gecmisini getirir.
+    func getAgentTasks(agentId: String, limit: Int) async throws -> AgentTaskListResult
+
+    /// Bir gorevi iptal eder.
+    func cancelAgentTask(agentId: String, taskId: String) async throws
+
+    /// Agent'a yeni bir gorev gonderir.
+    func dispatchTask(agentId: String, runner: String, action: String, params: [String: String]) async throws
+
+    /// Agent'in proje dizinlerini yeniden tarar.
+    func rescanProjects(agentId: String) async throws
+
+    /// Agent'in dangerouslySkipPermissions ayarini getirir.
+    func getAgentSkipPermissions(agentId: String) async throws -> Bool
+
+    /// Agent ayarlarini gunceller.
+    func updateAgentSettings(agentId: String, dangerouslySkipPermissions: Bool) async throws
 }

@@ -12,8 +12,14 @@ enum AgentMapper {
             uptimeSeconds: dto.uptimeSeconds,
             activeTasks: dto.activeTasks,
             lastHeartbeatAt: parseDate(dto.lastHeartbeatAt),
-            resources: dto.resources.map { toDomain(from: $0) }
+            resources: dto.resources.map { toDomain(from: $0) },
+            dangerouslySkipPermissions: false
         )
+    }
+
+    /// AgentDetailResponseDTO'dan dangerouslySkipPermissions degerini cikartir.
+    static func skipPermissions(from dto: AgentDetailResponseDTO) -> Bool {
+        dto.dangerouslySkipPermissions
     }
 
     /// ResourceInfoDTO'yu AgentResourceInfo domain modeline donusturur.
@@ -86,6 +92,32 @@ enum AgentMapper {
                 cmdline: proc.cmdline
             )
         }
+    }
+
+    /// AgentTaskListResponseDTO'yu AgentTaskListResult domain modeline donusturur.
+    static func toDomain(from dto: AgentTaskListResponseDTO) -> AgentTaskListResult {
+        AgentTaskListResult(
+            tasks: dto.tasks.map { toDomain(from: $0) },
+            total: dto.total,
+            pendingCount: dto.pendingCount
+        )
+    }
+
+    /// AgentTaskSummaryDTO'yu AgentTask domain modeline donusturur.
+    static func toDomain(from dto: AgentTaskSummaryDTO) -> AgentTask {
+        AgentTask(
+            id: dto.taskId,
+            hostId: dto.hostId,
+            runner: dto.runner,
+            action: dto.action,
+            status: AgentTaskStatus(rawValue: dto.status) ?? .failed,
+            projectId: dto.projectId,
+            createdAt: parseDate(dto.createdAt) ?? Date(),
+            startedAt: parseDate(dto.startedAt),
+            completedAt: parseDate(dto.completedAt),
+            durationMs: dto.durationMs,
+            error: dto.error
+        )
     }
 
     // MARK: - Private Helpers

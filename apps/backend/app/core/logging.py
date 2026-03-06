@@ -4,7 +4,7 @@ import logging
 import sys
 from io import TextIOBase
 from pathlib import Path
-from typing import IO
+from typing import IO, TextIO, cast
 
 import structlog
 
@@ -15,7 +15,7 @@ class TeeFile(TextIOBase):
     def __init__(self, *files: IO[str]) -> None:
         self._files = files
 
-    def write(self, data: str) -> int:  # type: ignore[override]
+    def write(self, data: str) -> int:
         for f in self._files:
             f.write(data)
             f.flush()
@@ -49,6 +49,6 @@ def setup_logging(*, debug: bool = False) -> None:
         ],
         wrapper_class=structlog.make_filtering_bound_logger(log_level),
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(file=tee),
+        logger_factory=structlog.PrintLoggerFactory(file=cast(TextIO, tee)),
         cache_logger_on_first_use=True,
     )

@@ -1,5 +1,11 @@
 import Foundation
 
+/// Kullanicinin AI yanitina verdigi degerlendirme.
+enum MessageRating: String, Sendable, Codable, Equatable {
+    case up
+    case down
+}
+
 /// Sohbet mesaji domain modeli.
 struct ChatMessage: Identifiable, Sendable, Equatable {
     let id: String
@@ -9,6 +15,12 @@ struct ChatMessage: Identifiable, Sendable, Equatable {
     let type: MessageType
     let attachments: [ChatAttachment]
     let isStreaming: Bool
+    /// Toplam token sayisi (input + output). Sadece assistant mesajlarinda dolu olur.
+    let tokensUsed: Int?
+    /// Kullanilan model adi. Sadece assistant mesajlarinda dolu olur.
+    let modelUsed: String?
+    /// Kullanicinin verdigi degerlendirme (thumbs up/down).
+    let rating: MessageRating?
 
     init(
         id: String = UUID().uuidString,
@@ -17,7 +29,10 @@ struct ChatMessage: Identifiable, Sendable, Equatable {
         timestamp: Date = Date(),
         type: MessageType = .text,
         attachments: [ChatAttachment] = [],
-        isStreaming: Bool = false
+        isStreaming: Bool = false,
+        tokensUsed: Int? = nil,
+        modelUsed: String? = nil,
+        rating: MessageRating? = nil
     ) {
         self.id = id
         self.content = content
@@ -26,6 +41,9 @@ struct ChatMessage: Identifiable, Sendable, Equatable {
         self.type = type
         self.attachments = attachments
         self.isStreaming = isStreaming
+        self.tokensUsed = tokensUsed
+        self.modelUsed = modelUsed
+        self.rating = rating
     }
 }
 
@@ -43,4 +61,5 @@ enum MessageType: String, Sendable, Equatable, CaseIterable {
     case image
     case file
     case system
+    case codeDiff = "code.diff"
 }

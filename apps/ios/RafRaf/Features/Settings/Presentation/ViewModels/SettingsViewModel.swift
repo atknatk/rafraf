@@ -53,7 +53,22 @@ final class SettingsViewModel {
     private let saveSettingsUseCase: SaveSettingsUseCase
     private let loadProfileUseCase: LoadProfileUseCase
     private let updateProfileUseCase: UpdateProfileUseCase
+    private let logoutUseCase: LogoutUseCase
+    private let authManager: AuthManager
+    private let biometricManager: BiometricAuthManager
     private let logger = AppLogger.logger(for: "Settings")
+
+    // MARK: - Computed
+
+    /// Biyometrik dogrulama cihazda mevcut mu.
+    var isBiometricAvailable: Bool {
+        biometricManager.isBiometricAvailable
+    }
+
+    /// Biyometrik dogrulama aktif mi.
+    var isBiometricEnabled: Bool {
+        authManager.isBiometricEnabled
+    }
 
     // MARK: - Init
 
@@ -61,12 +76,18 @@ final class SettingsViewModel {
         loadSettingsUseCase: LoadSettingsUseCase,
         saveSettingsUseCase: SaveSettingsUseCase,
         loadProfileUseCase: LoadProfileUseCase,
-        updateProfileUseCase: UpdateProfileUseCase
+        updateProfileUseCase: UpdateProfileUseCase,
+        logoutUseCase: LogoutUseCase,
+        authManager: AuthManager,
+        biometricManager: BiometricAuthManager
     ) {
         self.loadSettingsUseCase = loadSettingsUseCase
         self.saveSettingsUseCase = saveSettingsUseCase
         self.loadProfileUseCase = loadProfileUseCase
         self.updateProfileUseCase = updateProfileUseCase
+        self.logoutUseCase = logoutUseCase
+        self.authManager = authManager
+        self.biometricManager = biometricManager
         logger.info("SettingsViewModel baslatildi")
         loadCurrentSettings()
     }
@@ -177,6 +198,13 @@ final class SettingsViewModel {
         logger.info("Font boyutu guncellendi: \(fontSize.rawValue)")
     }
 
+    /// Biyometrik dogrulama tercihini gunceller.
+    /// - Parameter enabled: Aktif mi.
+    func updateBiometricEnabled(_ enabled: Bool) {
+        authManager.setBiometricEnabled(enabled)
+        logger.info("Biyometrik tercih guncellendi: \(enabled)")
+    }
+
     /// Cikis onay dialogunu gosterir.
     func showLogoutConfirmation() {
         isShowingLogoutConfirmation = true
@@ -185,8 +213,7 @@ final class SettingsViewModel {
     /// Cikis yapar.
     func logout() async {
         logger.info("Cikis yapiliyor")
-        // AuthManager uzerinden logout islemi yapilir.
-        // Bu ViewModel sadece Settings scope'unda calisir.
+        logoutUseCase.execute()
     }
 
     // MARK: - Private

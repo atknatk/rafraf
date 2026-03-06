@@ -70,4 +70,49 @@ final class ProjectRepositoryImpl: ProjectStatusRepositoryProtocol, @unchecked S
         logger.info("Deduplicate tamamlandi: \(response.deletedCount) silindi")
         return response.deletedCount
     }
+
+    func createProject(
+        name: String,
+        description: String?,
+        repositoryURL: String?,
+        localPath: String?,
+        techStack: [String]
+    ) async throws -> String {
+        let body = ProjectCreateRequestDTO(
+            name: name,
+            description: description,
+            repositoryUrl: repositoryURL,
+            localPath: localPath,
+            techStack: techStack
+        )
+        let dto: ProjectCreateResponseDTO = try await networkClient.post(
+            path: "/projects",
+            body: body
+        )
+        logger.info("Proje olusturuldu: \(dto.name) (\(dto.id))")
+        return dto.id
+    }
+
+    func updateProject(
+        projectId: String,
+        name: String?,
+        description: String?,
+        repositoryURL: String?,
+        localPath: String?,
+        techStack: [String]?
+    ) async throws -> Project {
+        let body = ProjectUpdateRequestDTO(
+            name: name,
+            description: description,
+            repositoryUrl: repositoryURL,
+            localPath: localPath,
+            techStack: techStack
+        )
+        let dto: ProjectDetailDTO = try await networkClient.patch(
+            path: "/projects/\(projectId)",
+            body: body
+        )
+        logger.info("Proje guncellendi: \(dto.name)")
+        return ProjectStatusMapper.toDomain(from: dto)
+    }
 }

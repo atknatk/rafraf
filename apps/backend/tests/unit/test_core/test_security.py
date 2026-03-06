@@ -5,6 +5,7 @@ from datetime import timedelta
 import pytest
 from jose import jwt
 
+from app.core.config import get_settings
 from app.core.security import (
     SecurityError,
     create_access_token,
@@ -54,19 +55,19 @@ class TestAccessToken:
     def test_create_access_token_contains_subject(self) -> None:
         """create_access_token should embed the subject in payload."""
         token = create_access_token(subject="user-123")
-        payload = jwt.decode(token, "dev-secret-change-in-production", algorithms=["HS256"])
+        payload = jwt.decode(token, get_settings().jwt_secret_key, algorithms=["HS256"])
         assert payload["sub"] == "user-123"
 
     def test_create_access_token_contains_type_field(self) -> None:
         """create_access_token should set type to 'access'."""
         token = create_access_token(subject="user-123")
-        payload = jwt.decode(token, "dev-secret-change-in-production", algorithms=["HS256"])
+        payload = jwt.decode(token, get_settings().jwt_secret_key, algorithms=["HS256"])
         assert payload["type"] == "access"
 
     def test_create_access_token_contains_exp_and_iat(self) -> None:
         """create_access_token should include exp and iat claims."""
         token = create_access_token(subject="user-123")
-        payload = jwt.decode(token, "dev-secret-change-in-production", algorithms=["HS256"])
+        payload = jwt.decode(token, get_settings().jwt_secret_key, algorithms=["HS256"])
         assert "exp" in payload
         assert "iat" in payload
 
@@ -76,7 +77,7 @@ class TestAccessToken:
             subject="user-123",
             expires_delta=timedelta(minutes=5),
         )
-        payload = jwt.decode(token, "dev-secret-change-in-production", algorithms=["HS256"])
+        payload = jwt.decode(token, get_settings().jwt_secret_key, algorithms=["HS256"])
         assert payload["exp"] - payload["iat"] == 300
 
     def test_verify_access_token_valid(self) -> None:
@@ -109,7 +110,7 @@ class TestAccessToken:
         """verify_access_token should raise SecurityError when subject is missing."""
         # Create a token without 'sub' claim
         payload = {"type": "access", "exp": 9999999999, "iat": 1000000000}
-        token = jwt.encode(payload, "dev-secret-change-in-production", algorithm="HS256")
+        token = jwt.encode(payload, get_settings().jwt_secret_key, algorithm="HS256")
         with pytest.raises(SecurityError, match="missing subject"):
             verify_access_token(token)
 
@@ -126,7 +127,7 @@ class TestRefreshToken:
     def test_create_refresh_token_contains_type_field(self) -> None:
         """create_refresh_token should set type to 'refresh'."""
         token = create_refresh_token(subject="user-123")
-        payload = jwt.decode(token, "dev-secret-change-in-production", algorithms=["HS256"])
+        payload = jwt.decode(token, get_settings().jwt_secret_key, algorithms=["HS256"])
         assert payload["type"] == "refresh"
 
     def test_verify_refresh_token_valid(self) -> None:
@@ -161,5 +162,5 @@ class TestRefreshToken:
             subject="user-123",
             expires_delta=timedelta(days=1),
         )
-        payload = jwt.decode(token, "dev-secret-change-in-production", algorithms=["HS256"])
+        payload = jwt.decode(token, get_settings().jwt_secret_key, algorithms=["HS256"])
         assert payload["exp"] - payload["iat"] == 86400

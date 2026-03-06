@@ -86,4 +86,56 @@ final class AgentRepositoryImpl: AgentRepositoryProtocol, @unchecked Sendable {
         logger.info("Tum agent projeleri alindi: \(dtos.count) agent")
         return dtos.flatMap { AgentMapper.toDomain(from: $0) }
     }
+
+    func getAgentTasks(agentId: String, limit: Int) async throws -> AgentTaskListResult {
+        let dto: AgentTaskListResponseDTO = try await networkClient.get(
+            path: "/agents/\(agentId)/tasks",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+        logger.info("Agent gorevleri alindi: \(dto.tasks.count) gorev")
+        return AgentMapper.toDomain(from: dto)
+    }
+
+    func cancelAgentTask(agentId: String, taskId: String) async throws {
+        try await networkClient.delete(path: "/agents/\(agentId)/tasks/\(taskId)")
+        logger.info("Gorev iptal edildi: \(taskId)")
+    }
+
+    func dispatchTask(agentId: String, runner: String, action: String, params: [String: String]) async throws {
+        struct Body: Encodable {
+            let runner: String
+            let action: String
+            let params: [String: String]
+        }
+        let _: AgentTaskListResponseDTO = try await networkClient.post(
+            path: "/agents/\(agentId)/tasks",
+            body: Body(runner: runner, action: action, params: params)
+        )
+        logger.info("Gorev gonderildi: \(runner)/\(action) -> \(agentId)")
+    }
+
+    func rescanProjects(agentId: String) async throws {
+        struct RescanResponse: Decodable { let status: String }
+        let _: RescanResponse = try await networkClient.post(
+            path: "/agents/\(agentId)/projects/rescan",
+            body: [String: String]()
+        )
+        logger.info("Proje rescan tetiklendi: \(agentId)")
+    }
+
+    func getAgentSkipPermissions(agentId: String) async throws -> Bool {
+        let dto: AgentDetailResponseDTO = try await networkClient.get(
+            path: "/agents/\(agentId)"
+        )
+        logger.info("Agent detay alindi: \(agentId), skipPermissions: \(dto.dangerouslySkipPermissions)")
+        return AgentMapper.skipPermissions(from: dto)
+    }
+
+    func updateAgentSettings(agentId: String, dangerouslySkipPermissions: Bool) async throws {
+        let _: AgentDetailResponseDTO = try await networkClient.patch(
+            path: "/agents/\(agentId)/settings",
+            body: AgentSettingsRequestDTO(dangerouslySkipPermissions: dangerouslySkipPermissions)
+        )
+        logger.info("Agent ayarlari guncellendi: \(agentId), skipPermissions: \(dangerouslySkipPermissions)")
+    }
 }

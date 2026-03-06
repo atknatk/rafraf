@@ -1,3 +1,4 @@
+import Charts
 import Factory
 import SwiftUI
 
@@ -8,14 +9,26 @@ struct AgentDetailView: View {
     @State private var subscriptionUsage: SubscriptionUsage?
     @State private var agentProjects: [AgentProject] = []
     @State private var claudeProcesses: [ClaudeProcess] = []
+    @State private var agentTasks: [AgentTask] = []
+    @State private var pendingTaskCount = 0
     @State private var isRefreshing = false
+    @State private var isRescanning = false
     @State private var errorMessage: String?
+    @State private var showDispatchTask = false
+    @State private var processPollingTask: Task<Void, Never>?
+    @State private var skipPermissions: Bool = false
 
     private let getUsageUseCase: GetSubscriptionUsageUseCase
     private let refreshUsageUseCase: RefreshSubscriptionUsageUseCase
     private let getAgentProjectsUseCase: GetAgentProjectsUseCase
     private let setProjectActiveUseCase: SetProjectActiveUseCase
     private let getClaudeProcessesUseCase: GetClaudeProcessesUseCase
+    private let getAgentTasksUseCase: GetAgentTasksUseCase
+    private let cancelAgentTaskUseCase: CancelAgentTaskUseCase
+    private let dispatchAgentTaskUseCase: DispatchAgentTaskUseCase
+    private let rescanProjectsUseCase: RescanProjectsUseCase
+    private let getSkipPermissionsUseCase: GetAgentSkipPermissionsUseCase
+    private let updateSettingsUseCase: UpdateAgentSettingsUseCase
 
     init(
         agent: Agent,
@@ -23,7 +36,13 @@ struct AgentDetailView: View {
         refreshUsageUseCase: RefreshSubscriptionUsageUseCase,
         getAgentProjectsUseCase: GetAgentProjectsUseCase,
         setProjectActiveUseCase: SetProjectActiveUseCase,
-        getClaudeProcessesUseCase: GetClaudeProcessesUseCase
+        getClaudeProcessesUseCase: GetClaudeProcessesUseCase,
+        getAgentTasksUseCase: GetAgentTasksUseCase,
+        cancelAgentTaskUseCase: CancelAgentTaskUseCase,
+        dispatchAgentTaskUseCase: DispatchAgentTaskUseCase,
+        rescanProjectsUseCase: RescanProjectsUseCase,
+        getSkipPermissionsUseCase: GetAgentSkipPermissionsUseCase,
+        updateSettingsUseCase: UpdateAgentSettingsUseCase
     ) {
         self.agent = agent
         self.getUsageUseCase = getUsageUseCase
@@ -31,12 +50,22 @@ struct AgentDetailView: View {
         self.getAgentProjectsUseCase = getAgentProjectsUseCase
         self.setProjectActiveUseCase = setProjectActiveUseCase
         self.getClaudeProcessesUseCase = getClaudeProcessesUseCase
+        self.getAgentTasksUseCase = getAgentTasksUseCase
+        self.cancelAgentTaskUseCase = cancelAgentTaskUseCase
+        self.dispatchAgentTaskUseCase = dispatchAgentTaskUseCase
+        self.rescanProjectsUseCase = rescanProjectsUseCase
+        self.getSkipPermissionsUseCase = getSkipPermissionsUseCase
+        self.updateSettingsUseCase = updateSettingsUseCase
     }
 
     var body: some View {
         ScrollView {
             VStack(spacing: RFSpacing.md) {
                 agentInfoSection
+                settingsSection
+                if !agentTasks.isEmpty {
+                    tasksSection
+                }
                 if !activeProjects.isEmpty || !discoveredProjects.isEmpty {
                     projectsSection
                 }
@@ -51,11 +80,26 @@ struct AgentDetailView: View {
         .background(RFColors.fallbackBackground)
         .navigationTitle(agent.hostId)
         .navigationBarTitleDisplayMode(.large)
+        .sheet(isPresented: $showDispatchTask, onDismiss: {
+            Task { await loadTasks() }
+        }) {
+            DispatchTaskSheet(
+                agentId: agent.hostId,
+                dispatchUseCase: dispatchAgentTaskUseCase
+            )
+        }
         .task {
             async let usageTask: () = loadUsage()
             async let projectsTask: () = loadProjects()
             async let processesTask: () = loadProcesses()
-            _ = await (usageTask, projectsTask, processesTask)
+            async let tasksTask: () = loadTasks()
+            async let skipTask: () = loadSkipPermissions()
+            _ = await (usageTask, projectsTask, processesTask, tasksTask, skipTask)
+            startProcessPolling()
+        }
+        .onDisappear {
+            processPollingTask?.cancel()
+            processPollingTask = nil
         }
         .overlay {
             if let errorMessage {
@@ -79,6 +123,15 @@ struct AgentDetailView: View {
                     }
                     Spacer()
                     AgentStatusBadge(status: agent.status)
+                    if agent.status == .online || agent.status == .busy {
+                        RFButton(
+                            String(localized: "agent.task.dispatch"),
+                            style: .primary,
+                            size: .small
+                        ) {
+                            showDispatchTask = true
+                        }
+                    }
                 }
 
                 // Capabilities
@@ -123,6 +176,39 @@ struct AgentDetailView: View {
                             color: RFColors.fallbackTextTertiary
                         )
                     }
+                }
+            }
+        }
+    }
+
+    // MARK: - Settings Section
+
+    private var settingsSection: some View {
+        RFCard {
+            VStack(alignment: .leading, spacing: RFSpacing.sm) {
+                RFText(String(localized: "agent.settings.title"), style: .headline)
+
+                HStack {
+                    VStack(alignment: .leading, spacing: RFSpacing.xxs) {
+                        RFText(
+                            String(localized: "agent.settings.skipPermissions"),
+                            style: .body
+                        )
+                        RFText(
+                            String(localized: "agent.settings.skipPermissions.subtitle"),
+                            style: .caption,
+                            color: RFColors.fallbackTextSecondary
+                        )
+                    }
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { skipPermissions },
+                        set: { newValue in
+                            Task { await toggleSkipPermissions(newValue) }
+                        }
+                    ))
+                    .labelsHidden()
+                    .tint(RFColors.warning)
                 }
             }
         }
@@ -270,41 +356,40 @@ struct AgentDetailView: View {
         }
     }
 
-    // MARK: - Weekly Chart
+    // MARK: - Weekly Chart (Swift Charts)
 
     private func weeklyChart(days: [DailyUsageStats]) -> some View {
-        let maxCount = days.map(\.messageCount).max() ?? 1
-
-        return HStack(alignment: .bottom, spacing: RFSpacing.xxs) {
-            ForEach(days) { day in
-                VStack(spacing: RFSpacing.xxs) {
-                    RFText(
-                        "\(day.messageCount)",
-                        style: .caption,
-                        color: RFColors.fallbackTextTertiary
-                    )
+        Chart(days) { day in
+            BarMark(
+                x: .value("Day", shortDay(day.date)),
+                y: .value("Messages", day.messageCount)
+            )
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [RFColors.fallbackPrimary, RFColors.fallbackPrimary.opacity(0.5)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .cornerRadius(3)
+        }
+        .chartXAxis {
+            AxisMarks(values: .automatic) { _ in
+                AxisValueLabel()
                     .font(.system(size: 9))
-
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(RFColors.fallbackPrimary.opacity(0.7))
-                        .frame(
-                            height: max(
-                                4,
-                                CGFloat(day.messageCount) / CGFloat(max(maxCount, 1)) * 50
-                            )
-                        )
-
-                    RFText(
-                        shortDay(day.date),
-                        style: .caption,
-                        color: RFColors.fallbackTextTertiary
-                    )
-                    .font(.system(size: 9))
-                }
-                .frame(maxWidth: .infinity)
+                    .foregroundStyle(RFColors.fallbackTextTertiary)
             }
         }
-        .frame(height: 80)
+        .chartYAxis {
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
+                AxisValueLabel()
+                    .font(.system(size: 9))
+                    .foregroundStyle(RFColors.fallbackTextTertiary)
+                AxisGridLine()
+                    .foregroundStyle(RFColors.fallbackSurface)
+            }
+        }
+        .frame(height: 100)
     }
 
     // MARK: - Usage Stat
@@ -399,6 +484,34 @@ struct AgentDetailView: View {
     private var activeProjects: [AgentProject] { agentProjects.filter(\.isActive) }
     private var discoveredProjects: [AgentProject] { agentProjects.filter { !$0.isActive } }
 
+    private var rescanButton: some View {
+        Button {
+            Task { await triggerRescan() }
+        } label: {
+            HStack(spacing: RFSpacing.xxs) {
+                if isRescanning {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption.weight(.semibold))
+                }
+                RFText(
+                    isRescanning
+                        ? String(localized: "agent.projects.rescanning")
+                        : String(localized: "agent.projects.rescan"),
+                    style: .captionBold,
+                    color: RFColors.fallbackPrimary
+                )
+            }
+            .padding(.horizontal, RFSpacing.sm)
+            .padding(.vertical, RFSpacing.xxs)
+            .background(RFColors.fallbackPrimary.opacity(0.08))
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(isRescanning || agent.status == .offline)
+    }
+
     private var projectsSection: some View {
         VStack(spacing: RFSpacing.sm) {
             if !activeProjects.isEmpty {
@@ -412,6 +525,8 @@ struct AgentDetailView: View {
                                 String(localized: "agent.projects.active"),
                                 style: .headline
                             )
+                            Spacer()
+                            rescanButton
                         }
 
                         ForEach(activeProjects) { project in
@@ -436,6 +551,10 @@ struct AgentDetailView: View {
                                 style: .headline,
                                 color: RFColors.fallbackTextSecondary
                             )
+                            Spacer()
+                            if activeProjects.isEmpty {
+                                rescanButton
+                            }
                         }
 
                         ForEach(discoveredProjects) { project in
@@ -556,6 +675,98 @@ struct AgentDetailView: View {
         }
     }
 
+    // MARK: - Tasks Section
+
+    private var tasksSection: some View {
+        RFCard {
+            VStack(alignment: .leading, spacing: RFSpacing.sm) {
+                HStack {
+                    RFText(String(localized: "agent.tasks.title"), style: .headline)
+                    Spacer()
+                    if pendingTaskCount > 0 {
+                        RFText(
+                            "\(pendingTaskCount) \(String(localized: "agent.tasks.pending"))",
+                            style: .captionBold,
+                            color: RFColors.warning
+                        )
+                        .padding(.horizontal, RFSpacing.sm)
+                        .padding(.vertical, RFSpacing.xxs)
+                        .background(RFColors.warning.opacity(0.1))
+                        .clipShape(Capsule())
+                    }
+                    RFButton(String(localized: "agent.tasks.refresh"), style: .ghost, size: .small) {
+                        Task { await loadTasks() }
+                    }
+                }
+
+                ForEach(agentTasks.prefix(10)) { task in
+                    taskRow(task)
+                    if task.id != agentTasks.prefix(10).last?.id {
+                        Divider()
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func taskRow(_ task: AgentTask) -> some View {
+        HStack(spacing: RFSpacing.sm) {
+            taskStatusIcon(task.status)
+
+            VStack(alignment: .leading, spacing: RFSpacing.xxs) {
+                HStack(spacing: RFSpacing.xs) {
+                    RFText(task.runner, style: .captionBold)
+                        .padding(.horizontal, RFSpacing.xs)
+                        .padding(.vertical, 2)
+                        .background(RFColors.fallbackSurface)
+                        .clipShape(Capsule())
+                    RFText(task.action, style: .body)
+                        .lineLimit(1)
+                }
+                if let error = task.error {
+                    RFText(error, style: .caption, color: RFColors.error)
+                        .lineLimit(2)
+                }
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: RFSpacing.xxs) {
+                if let duration = task.durationText {
+                    RFText(duration, style: .caption, color: RFColors.fallbackTextTertiary)
+                }
+                if task.status.isCancellable {
+                    Button {
+                        Task { await cancelTask(task) }
+                    } label: {
+                        Image(systemName: "xmark.circle")
+                            .foregroundStyle(RFColors.error)
+                            .font(.system(size: 18))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.vertical, RFSpacing.xxs)
+    }
+
+    @ViewBuilder
+    private func taskStatusIcon(_ status: AgentTaskStatus) -> some View {
+        let (icon, color): (String, Color) = switch status {
+        case .pending: ("clock", RFColors.fallbackTextTertiary)
+        case .running: ("arrow.trianglehead.2.clockwise", RFColors.fallbackPrimary)
+        case .completed: ("checkmark.circle.fill", RFColors.success)
+        case .failed: ("xmark.circle.fill", RFColors.error)
+        case .cancelled: ("minus.circle.fill", RFColors.fallbackTextTertiary)
+        case .timeout: ("timer", RFColors.warning)
+        }
+        Image(systemName: icon)
+            .foregroundStyle(color)
+            .font(.system(size: 16))
+            .frame(width: 20)
+    }
+
     // MARK: - Data Loading
 
     private func loadUsage() async {
@@ -584,6 +795,48 @@ struct AgentDetailView: View {
         }
     }
 
+    private func startProcessPolling() {
+        processPollingTask?.cancel()
+        processPollingTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                guard !Task.isCancelled else { break }
+                await loadProcesses()
+            }
+        }
+    }
+
+    private func triggerRescan() async {
+        isRescanning = true
+        do {
+            try await rescanProjectsUseCase.execute(agentId: agent.hostId)
+            try? await Task.sleep(for: .seconds(2))
+            await loadProjects()
+        } catch {
+            errorMessage = String(localized: "agent.projects.rescanError")
+        }
+        isRescanning = false
+    }
+
+    private func loadTasks() async {
+        do {
+            let result = try await getAgentTasksUseCase.execute(agentId: agent.hostId)
+            agentTasks = result.tasks
+            pendingTaskCount = result.pendingCount
+        } catch {
+            // Sessizce yoksay — tasks not critical
+        }
+    }
+
+    private func cancelTask(_ task: AgentTask) async {
+        do {
+            try await cancelAgentTaskUseCase.execute(agentId: agent.hostId, taskId: task.id)
+            await loadTasks()
+        } catch {
+            errorMessage = String(localized: "agent.tasks.cancelError")
+        }
+    }
+
     private func toggleProjectActive(project: AgentProject, isActive: Bool) async {
         do {
             let updated = try await setProjectActiveUseCase.execute(
@@ -607,6 +860,27 @@ struct AgentDetailView: View {
             errorMessage = String(localized: "agent.subscription.loadError")
         }
         isRefreshing = false
+    }
+
+    private func loadSkipPermissions() async {
+        do {
+            skipPermissions = try await getSkipPermissionsUseCase.execute(agentId: agent.hostId)
+        } catch {
+            // Sessizce yoksay — default false kalir
+        }
+    }
+
+    private func toggleSkipPermissions(_ value: Bool) async {
+        skipPermissions = value
+        do {
+            try await updateSettingsUseCase.execute(
+                agentId: agent.hostId,
+                dangerouslySkipPermissions: value
+            )
+        } catch {
+            skipPermissions = !value
+            errorMessage = String(localized: "agent.settings.updateError")
+        }
     }
 
     // MARK: - Helpers
@@ -653,7 +927,117 @@ struct AgentDetailView: View {
     }
 }
 
+// MARK: - Dispatch Task Sheet
+
+/// Agent'a gorev gonderme formu.
+private struct DispatchTaskSheet: View {
+    let agentId: String
+    let dispatchUseCase: DispatchAgentTaskUseCase
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedRunner = "shell"
+    @State private var action = ""
+    @State private var command = ""
+    @State private var isSending = false
+    @State private var errorMessage: String?
+
+    private let runners = ["shell", "docker", "playwright", "maestro"]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(String(localized: "agent.task.runner")) {
+                    Picker(String(localized: "agent.task.runner"), selection: $selectedRunner) {
+                        ForEach(runners, id: \.self) { runner in
+                            Text(runner.capitalized).tag(runner)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                }
+
+                Section(String(localized: "agent.task.action")) {
+                    TextField(runnerActionPlaceholder, text: $action)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                }
+
+                Section(String(localized: "agent.task.command")) {
+                    TextField(String(localized: "agent.task.command.placeholder"), text: $command)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .font(.system(.body, design: .monospaced))
+                }
+
+                if let error = errorMessage {
+                    Section {
+                        RFText(error, style: .caption, color: RFColors.error)
+                    }
+                }
+            }
+            .navigationTitle(String(localized: "agent.task.dispatch"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(String(localized: "agent.action.cancel")) {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(String(localized: "agent.task.send")) {
+                        Task { await sendTask() }
+                    }
+                    .disabled(action.isEmpty || isSending)
+                    .fontWeight(.semibold)
+                }
+            }
+            .overlay {
+                if isSending {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.black.opacity(0.1))
+                }
+            }
+        }
+    }
+
+    private var runnerActionPlaceholder: String {
+        switch selectedRunner {
+        case "shell": return "run_command"
+        case "docker": return "up / down / build"
+        case "playwright": return "take_screenshot"
+        case "maestro": return "run_flow"
+        default: return "action"
+        }
+    }
+
+    private func sendTask() async {
+        isSending = true
+        errorMessage = nil
+        var params: [String: String] = [:]
+        if !command.isEmpty {
+            params["command"] = command
+        }
+        do {
+            try await dispatchUseCase.execute(
+                agentId: agentId,
+                runner: selectedRunner,
+                action: action.isEmpty ? runnerActionPlaceholder : action,
+                params: params
+            )
+            HapticManager.success()
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+            HapticManager.error()
+        }
+        isSending = false
+    }
+}
+
 #Preview {
+    let repo = PreviewAgentRepository()
     NavigationStack {
         AgentDetailView(
             agent: Agent(
@@ -669,23 +1053,20 @@ struct AgentDetailView: View {
                     memoryUsagePercent: 72,
                     diskUsagePercent: 38,
                     diskFreeGb: 120
-                )
+                ),
+                dangerouslySkipPermissions: false
             ),
-            getUsageUseCase: GetSubscriptionUsageUseCase(
-                repository: PreviewAgentRepository()
-            ),
-            refreshUsageUseCase: RefreshSubscriptionUsageUseCase(
-                repository: PreviewAgentRepository()
-            ),
-            getAgentProjectsUseCase: GetAgentProjectsUseCase(
-                repository: PreviewAgentRepository()
-            ),
-            setProjectActiveUseCase: SetProjectActiveUseCase(
-                repository: PreviewAgentRepository()
-            ),
-            getClaudeProcessesUseCase: GetClaudeProcessesUseCase(
-                repository: PreviewAgentRepository()
-            )
+            getUsageUseCase: GetSubscriptionUsageUseCase(repository: repo),
+            refreshUsageUseCase: RefreshSubscriptionUsageUseCase(repository: repo),
+            getAgentProjectsUseCase: GetAgentProjectsUseCase(repository: repo),
+            setProjectActiveUseCase: SetProjectActiveUseCase(repository: repo),
+            getClaudeProcessesUseCase: GetClaudeProcessesUseCase(repository: repo),
+            getAgentTasksUseCase: GetAgentTasksUseCase(repository: repo),
+            cancelAgentTaskUseCase: CancelAgentTaskUseCase(repository: repo),
+            dispatchAgentTaskUseCase: DispatchAgentTaskUseCase(repository: repo),
+            rescanProjectsUseCase: RescanProjectsUseCase(repository: repo),
+            getSkipPermissionsUseCase: GetAgentSkipPermissionsUseCase(repository: repo),
+            updateSettingsUseCase: UpdateAgentSettingsUseCase(repository: repo)
         )
     }
 }

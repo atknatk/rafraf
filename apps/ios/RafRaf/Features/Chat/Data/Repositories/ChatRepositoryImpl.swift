@@ -14,6 +14,11 @@ private struct MessageResponseDTO: Decodable, Sendable {
     let role: String
     let content: String
     let createdAt: String
+    let rating: String?
+}
+
+private struct MessageRatingRequestDTO: Encodable, Sendable {
+    let rating: String
 }
 
 /// Chat repository implementasyonu.
@@ -74,17 +79,28 @@ final class ChatRepositoryImpl: ChatRepositoryProtocol, @unchecked Sendable {
 
         let messages = dto.messages.compactMap { msg -> ChatMessage? in
             let sender: MessageSender = msg.role == "user" ? .user : .assistant
+            let rating: MessageRating? = msg.rating.flatMap { MessageRating(rawValue: $0) }
             return ChatMessage(
                 id: msg.id,
                 content: msg.content,
                 sender: sender,
                 timestamp: ISO8601DateFormatter().date(from: msg.createdAt) ?? Date(),
-                type: .text
+                type: .text,
+                rating: rating
             )
         }
 
         logger.info("Mesaj gecmisi yuklendi - session: \(sessionId), count: \(messages.count)")
         return ChatHistoryResult(messages: messages, hasMore: dto.hasMore, nextCursor: dto.nextCursor)
+    }
+
+    func rateMessage(id: String, rating: MessageRating) async throws {
+        let body = MessageRatingRequestDTO(rating: rating.rawValue)
+        let _: MessageResponseDTO = try await networkClient.patch(
+            path: "/conversations/\(id)/rating",
+            body: body
+        )
+        logger.info("Mesaj degerlendirmesi gonderildi: \(id) — \(rating.rawValue)")
     }
 
     func fetchMissedMessages(

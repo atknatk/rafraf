@@ -140,7 +140,7 @@ class NotificationService:
             )
             return False
 
-        from app.services.apns_client import is_token_invalid_reason, send_push
+        from app.services.apns_client import send_push
 
         sent_count = 0
         for device_token in tokens:

@@ -7,8 +7,12 @@ Uses an in-memory store for fast access (no DB dependency in F1).
 import asyncio
 import contextlib
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import structlog
+
+if TYPE_CHECKING:
+    from app.core.websocket import ConnectionManager
 
 from app.schemas.agent import (
     AgentCapability,
@@ -42,6 +46,7 @@ class _AgentRecord:
         "metadata",
         "connection_id",
         "claude_processes",
+        "dangerously_skip_permissions",
     )
 
     def __init__(
@@ -65,6 +70,7 @@ class _AgentRecord:
         self.metadata: dict[str, object] = {}
         self.connection_id = connection_id
         self.claude_processes: list[ClaudeProcessInfo] = []
+        self.dangerously_skip_permissions: bool = False
 
 
 class AgentRegistryService:
@@ -77,11 +83,13 @@ class AgentRegistryService:
         self,
         heartbeat_timeout_seconds: int = 90,
         stale_check_interval_seconds: int = 30,
+        ios_manager: "ConnectionManager | None" = None,
     ) -> None:
         self._agents: dict[str, _AgentRecord] = {}
         self._heartbeat_timeout = heartbeat_timeout_seconds
         self._stale_check_interval = stale_check_interval_seconds
         self._stale_task: asyncio.Task[None] | None = None
+        self._ios_manager: ConnectionManager | None = ios_manager
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -152,6 +160,16 @@ class AgentRegistryService:
             is_new=is_new,
             capabilities=[c.value for c in payload.capabilities],
         )
+
+        # Proactive broadcast to iOS clients
+        if self._ios_manager:
+            await self._ios_manager.broadcast_json({
+                "type": "agent_status_change",
+                "host_id": payload.host_id,
+                "status": "online",
+                "is_new": is_new,
+            })
+
         return is_new
 
     # ------------------------------------------------------------------
@@ -218,7 +236,12 @@ class AgentRegistryService:
         if record is None:
             return False
 
-        record.resources = resources
+        record.resources = ResourceInfo(
+            cpu_usage_percent=resources.get("cpu_usage_percent", 0.0),
+            memory_usage_percent=resources.get("memory_usage_percent", 0.0),
+            disk_usage_percent=resources.get("disk_usage_percent", 0.0),
+            disk_free_gb=resources.get("disk_free_gb", 0.0),
+        )
         return True
 
     # ------------------------------------------------------------------
@@ -358,6 +381,13 @@ class AgentRegistryService:
                             elapsed_seconds=elapsed,
                         )
                         record.status = AgentStatus.OFFLINE
+                        if self._ios_manager:
+                            await self._ios_manager.broadcast_json({
+                                "type": "agent_status_change",
+                                "host_id": record.host_id,
+                                "status": "offline",
+                                "reason": "heartbeat_timeout",
+                            })
         except asyncio.CancelledError:
             pass
 
@@ -383,6 +413,22 @@ class AgentRegistryService:
             return []
         return list(record.claude_processes)
 
+    async def update_skip_permissions(
+        self,
+        host_id: str,
+        value: bool,
+    ) -> bool:
+        """Update dangerously_skip_permissions for a given agent in-memory.
+
+        Returns True if the agent was found, False otherwise.
+        Caller is responsible for DB persistence and WS notification.
+        """
+        record = self._agents.get(host_id)
+        if record is None:
+            return False
+        record.dangerously_skip_permissions = value
+        return True
+
     @staticmethod
     def _to_detail(record: _AgentRecord) -> AgentDetailResponse:
         return AgentDetailResponse(
@@ -399,8 +445,18 @@ class AgentRegistryService:
             active_tasks=record.active_tasks,
             resources=record.resources,
             claude_processes=list(record.claude_processes),
+            dangerously_skip_permissions=record.dangerously_skip_permissions,
         )
 
 
 # Module-level singleton so that both the WS endpoint and REST endpoint share state.
-agent_registry = AgentRegistryService()
+# ios_manager is injected lazily after the WebSocket module initializes.
+def _make_registry() -> AgentRegistryService:
+    try:
+        from app.api.routes.websocket import manager as _ios_manager  # noqa: PLC0415
+        return AgentRegistryService(ios_manager=_ios_manager)
+    except Exception:
+        return AgentRegistryService()
+
+
+agent_registry = _make_registry()

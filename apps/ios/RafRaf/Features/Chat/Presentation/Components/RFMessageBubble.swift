@@ -7,17 +7,23 @@ struct RFMessageBubble: View {
     let onCopy: ((String) -> Void)?
     let onImageTap: ((String) -> Void)?
     let onSpeak: (() -> Void)?
+    let onBookmark: (() -> Void)?
+    let onRating: ((MessageRating) -> Void)?
 
     init(
         message: ChatMessage,
         onCopy: ((String) -> Void)? = nil,
         onImageTap: ((String) -> Void)? = nil,
-        onSpeak: (() -> Void)? = nil
+        onSpeak: (() -> Void)? = nil,
+        onBookmark: (() -> Void)? = nil,
+        onRating: ((MessageRating) -> Void)? = nil
     ) {
         self.message = message
         self.onCopy = onCopy
         self.onImageTap = onImageTap
         self.onSpeak = onSpeak
+        self.onBookmark = onBookmark
+        self.onRating = onRating
     }
 
     var body: some View {
@@ -51,6 +57,10 @@ struct RFMessageBubble: View {
                         }
                         .buttonStyle(RFPressButtonStyle())
                     }
+
+                    if let onRating, message.sender == .assistant, !message.isStreaming {
+                        ratingRow(onRating: onRating)
+                    }
                 }
             }
 
@@ -60,25 +70,84 @@ struct RFMessageBubble: View {
         }
         .contextMenu {
             Button {
+                RFHaptics.impact(.light)
                 onCopy?(message.content)
             } label: {
-                Label(
-                    String(localized: "chat.message.copy"),
-                    systemImage: "doc.on.doc"
-                )
+                Label(String(localized: "chat.message.copy"), systemImage: "doc.on.doc")
+            }
+
+            Button {
+                RFHaptics.impact(.light)
+                UIPasteboard.general.string = message.content
+            } label: {
+                Label(String(localized: "chat.message.copyAll"), systemImage: "doc.on.clipboard")
             }
 
             if let onSpeak, message.sender == .assistant {
+                Divider()
                 Button {
                     onSpeak()
                 } label: {
-                    Label(
-                        String(localized: "chat.message.speak"),
-                        systemImage: "speaker.wave.2.fill"
-                    )
+                    Label(String(localized: "chat.message.speak"), systemImage: "speaker.wave.2.fill")
                 }
             }
+
+            Divider()
+
+            Button {
+                RFHaptics.impact(.light)
+                let activityVC = UIActivityViewController(
+                    activityItems: [message.content],
+                    applicationActivities: nil
+                )
+                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let root = scene.windows.first?.rootViewController {
+                    root.present(activityVC, animated: true)
+                }
+            } label: {
+                Label(String(localized: "chat.message.share"), systemImage: "square.and.arrow.up")
+            }
+
+            if let onBookmark, message.sender == .assistant {
+                Divider()
+                Button {
+                    RFHaptics.impact(.light)
+                    onBookmark()
+                } label: {
+                    Label(String(localized: "chat.message.bookmark"), systemImage: "bookmark")
+                }
+            }
+        } preview: {
+            contextMenuPreview
         }
+    }
+
+    // MARK: - Context Menu Preview
+
+    private var contextMenuPreview: some View {
+        VStack(alignment: .leading, spacing: RFSpacing.xs) {
+            HStack(spacing: RFSpacing.xs) {
+                Image(systemName: message.sender == .user ? "person.circle.fill" : "sparkles")
+                    .foregroundStyle(message.sender == .user ? RFColors.fallbackPrimary : RFColors.info)
+                    .font(.caption)
+                RFText(
+                    message.sender == .user
+                        ? String(localized: "chat.message.you")
+                        : "Claude",
+                    style: .captionBold,
+                    color: RFColors.fallbackTextSecondary
+                )
+                Spacer()
+                RFText(formattedTimestamp, style: .caption, color: RFColors.fallbackTextTertiary)
+            }
+            Text(message.content)
+                .font(.body)
+                .lineLimit(8)
+                .foregroundStyle(RFColors.fallbackTextPrimary)
+        }
+        .padding(RFSpacing.md)
+        .frame(maxWidth: 280)
+        .background(RFColors.fallbackSurface)
     }
 
     // MARK: - Subviews
@@ -104,12 +173,28 @@ struct RFMessageBubble: View {
                 if !message.content.isEmpty {
                     messageTextView
                 }
+            case .codeDiff:
+                if let data = message.content.data(using: .utf8),
+                   let payload = try? {
+                       let dec = JSONDecoder()
+                       dec.keyDecodingStrategy = .convertFromSnakeCase
+                       return try dec.decode(CodeDiffPayloadDTO.self, from: data)
+                   }() {
+                    RFDiffBubble(payload: payload)
+                } else {
+                    messageTextView
+                }
             case .text, .system:
                 messageTextView
             }
 
             if message.isStreaming {
                 streamingIndicator
+            }
+
+            // Token sayaci
+            if message.sender == .assistant, let tokens = message.tokensUsed {
+                tokenCostBadge(tokens: tokens, model: message.modelUsed)
             }
         }
         .padding(.horizontal, RFSpacing.sm)
@@ -124,12 +209,21 @@ struct RFMessageBubble: View {
         )
     }
 
+    @ViewBuilder
     private var messageTextView: some View {
-        RFText(
-            message.content,
-            style: .body,
-            color: bubbleTextColor
-        )
+        if message.sender == .assistant {
+            RFMarkdownText(
+                message.content,
+                style: .body,
+                color: bubbleTextColor
+            )
+        } else {
+            RFText(
+                message.content,
+                style: .body,
+                color: bubbleTextColor
+            )
+        }
     }
 
     private var systemMessageView: some View {
@@ -175,6 +269,67 @@ struct RFMessageBubble: View {
         }
     }
 
+    @ViewBuilder
+    private func tokenCostBadge(tokens: Int, model: String?) -> some View {
+        let costPerMillion: Double = {
+            let m = (model ?? "").lowercased()
+            if m.contains("haiku") { return 0.25 }
+            if m.contains("opus") { return 15.0 }
+            return 3.0
+        }()
+        let estimatedCost = Double(tokens) / 1_000_000.0 * costPerMillion
+
+        HStack(spacing: 4) {
+            Image(systemName: "bolt.fill")
+                .font(.system(size: 9))
+            Text("\(tokens) tok · $\(String(format: "%.5f", estimatedCost))")
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+        }
+        .foregroundStyle(RFColors.fallbackTextTertiary)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(RFColors.fallbackTextTertiary.opacity(0.08))
+        .clipShape(Capsule())
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(.top, 2)
+    }
+
+    @ViewBuilder
+    private func ratingRow(onRating: @escaping (MessageRating) -> Void) -> some View {
+        HStack(spacing: RFSpacing.xxs) {
+            Button {
+                RFHaptics.impact(.light)
+                onRating(.up)
+            } label: {
+                Image(systemName: message.rating == .up ? "hand.thumbsup.fill" : "hand.thumbsup")
+                    .font(.caption)
+                    .foregroundStyle(
+                        message.rating == .up
+                            ? RFColors.fallbackPrimary
+                            : RFColors.fallbackTextTertiary
+                    )
+            }
+            .buttonStyle(RFPressButtonStyle())
+            .accessibilityLabel(String(localized: "chat.message.rateUp"))
+
+            Button {
+                RFHaptics.impact(.light)
+                onRating(.down)
+            } label: {
+                Image(systemName: message.rating == .down ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                    .font(.caption)
+                    .foregroundStyle(
+                        message.rating == .down
+                            ? RFColors.fallbackPrimary
+                            : RFColors.fallbackTextTertiary
+                    )
+            }
+            .buttonStyle(RFPressButtonStyle())
+            .accessibilityLabel(String(localized: "chat.message.rateDown"))
+        }
+        .padding(.top, 4)
+    }
+
     // MARK: - Computed Properties
 
     private var bubbleAlignment: HorizontalAlignment {
@@ -207,6 +362,141 @@ struct RFMessageBubble: View {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         return formatter.string(fromByteCount: Int64(bytes))
+    }
+}
+
+// MARK: - RFDiffBubble
+
+/// Code diff goruntuleme bileseni.
+/// Claude'un dosya degisikliklerini satir satir gosterir.
+struct RFDiffBubble: View {
+    let payload: CodeDiffPayloadDTO
+    @State private var expandedFiles: Set<String> = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: RFSpacing.xs) {
+            // Header
+            HStack {
+                Image(systemName: "arrow.triangle.branch")
+                    .foregroundStyle(RFColors.fallbackPrimary)
+                RFText(
+                    String(localized: "chat.diff.title"),
+                    style: .captionBold,
+                    color: RFColors.fallbackPrimary
+                )
+                Spacer()
+                RFText(
+                    "+\(payload.totalAdditions) -\(payload.totalDeletions)",
+                    style: .caption
+                )
+            }
+
+            // Dosyalar
+            ForEach(payload.files, id: \.filePath) { file in
+                diffFileRow(file: file)
+            }
+        }
+        .padding(RFSpacing.sm)
+        .background(RFColors.fallbackSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func diffFileRow(file: CodeDiffFileDTO) -> some View {
+        VStack(alignment: .leading, spacing: RFSpacing.xxs) {
+            // Dosya basligi (tiklanabilir - expand/collapse)
+            Button {
+                if expandedFiles.contains(file.filePath) {
+                    expandedFiles.remove(file.filePath)
+                } else {
+                    expandedFiles.insert(file.filePath)
+                }
+            } label: {
+                HStack {
+                    Image(systemName: expandedFiles.contains(file.filePath) ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 10))
+                        .foregroundStyle(RFColors.fallbackTextSecondary)
+                    RFText(
+                        (file.filePath as NSString).lastPathComponent,
+                        style: .caption,
+                        color: RFColors.fallbackTextPrimary
+                    )
+                    Spacer()
+                    RFText(
+                        "+\(file.additions) -\(file.deletions)",
+                        style: .caption,
+                        color: RFColors.fallbackTextSecondary
+                    )
+                }
+            }
+            .buttonStyle(.plain)
+
+            // Satirlar (expand edilmisse goster, max 30 satir)
+            if expandedFiles.contains(file.filePath) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(file.lines.prefix(30).enumerated()), id: \.offset) { _, line in
+                        diffLineView(line: line)
+                    }
+                    if file.lines.count > 30 {
+                        RFText(
+                            String(localized: "chat.diff.moreLines.\(file.lines.count - 30)"),
+                            style: .caption,
+                            color: RFColors.fallbackTextTertiary
+                        )
+                        .padding(.leading, RFSpacing.xs)
+                    }
+                }
+                .background(Color(.systemBackground).opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+        }
+    }
+
+    private func diffLineView(line: CodeDiffLineDTO) -> some View {
+        HStack(spacing: RFSpacing.xxs) {
+            // Tip rengi
+            Rectangle()
+                .fill(lineColor(for: line.type))
+                .frame(width: 3)
+
+            // Satir numarasi
+            RFText(
+                lineNumberText(line),
+                style: .caption,
+                color: RFColors.fallbackTextTertiary
+            )
+            .frame(width: 28, alignment: .trailing)
+            .monospacedDigit()
+
+            // Icerik
+            Text(line.content)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(lineColor(for: line.type).opacity(line.type == "context" ? 0.7 : 1.0))
+                .lineLimit(1)
+        }
+        .padding(.vertical, 1)
+        .background(lineBgColor(for: line.type))
+    }
+
+    private func lineColor(for type: String) -> Color {
+        switch type {
+        case "added": return .green
+        case "removed": return .red
+        default: return RFColors.fallbackTextSecondary
+        }
+    }
+
+    private func lineBgColor(for type: String) -> Color {
+        switch type {
+        case "added": return Color.green.opacity(0.08)
+        case "removed": return Color.red.opacity(0.08)
+        default: return Color.clear
+        }
+    }
+
+    private func lineNumberText(_ line: CodeDiffLineDTO) -> String {
+        if let num = line.lineNumberNew { return "\(num)" }
+        if let num = line.lineNumberOld { return "\(num)" }
+        return ""
     }
 }
 

@@ -95,6 +95,55 @@ class AgentRegisterAckPayload(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Task management schemas
+# ---------------------------------------------------------------------------
+
+
+class TaskStatus(StrEnum):
+    """Agent task lifecycle states."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    TIMEOUT = "timeout"
+
+
+class AgentTaskSummary(BaseModel):
+    """Summary of a single agent task."""
+
+    task_id: str
+    host_id: str
+    runner: str
+    action: str
+    status: TaskStatus
+    project_id: str | None = None
+    created_at: str
+    started_at: str | None = None
+    completed_at: str | None = None
+    duration_ms: int | None = None
+    error: str | None = None
+
+
+class AgentTaskListResponse(BaseModel):
+    """Response for GET /api/v1/agents/{host_id}/tasks."""
+
+    tasks: list[AgentTaskSummary]
+    total: int
+    pending_count: int
+
+
+class DispatchTaskRequest(BaseModel):
+    """Request body for POST /api/v1/agents/{host_id}/tasks."""
+
+    runner: str = Field(..., description="Runner tipi: shell, docker, playwright, maestro")
+    action: str = Field(..., description="Runner aksiyonu")
+    params: dict[str, object] = Field(default_factory=dict)
+    project_id: str | None = None
+
+
+# ---------------------------------------------------------------------------
 # REST response schemas (not frozen — these are DTOs)
 # ---------------------------------------------------------------------------
 
@@ -134,3 +183,10 @@ class AgentDetailResponse(BaseModel):
     active_tasks: int | None = None
     resources: ResourceInfo | None = None
     claude_processes: list[ClaudeProcessInfo] = Field(default_factory=list)
+    dangerously_skip_permissions: bool = False
+
+
+class AgentSettingsRequest(BaseModel):
+    """Request body for PATCH /api/v1/agents/{host_id}/settings."""
+
+    dangerously_skip_permissions: bool

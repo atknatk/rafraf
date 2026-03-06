@@ -1,9 +1,12 @@
+import Factory
 import SwiftUI
 
 /// Proje detay ekrani.
 /// Secilen projenin tum bilgilerini gosteren detay gorunumu.
 struct ProjectDetailView: View {
     @State private var viewModel: ProjectDetailViewModel
+    @State private var showEditSheet = false
+    private let projectRepository = Container.shared.projectRepository()
 
     init(viewModel: ProjectDetailViewModel) {
         self._viewModel = State(initialValue: viewModel)
@@ -26,6 +29,43 @@ struct ProjectDetailView: View {
         }
         .navigationTitle(viewModel.project?.name ?? String(localized: "project.detail.title"))
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            if let project = viewModel.project {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    HStack(spacing: RFSpacing.xs) {
+                        Button {
+                            showEditSheet = true
+                        } label: {
+                            Label(
+                                String(localized: "project.action.edit"),
+                                systemImage: "pencil"
+                            )
+                        }
+                        NavigationLink(
+                            destination: ProjectDashboardView(
+                                projectId: project.id,
+                                projectName: project.name
+                            )
+                        ) {
+                            Label(String(localized: "dashboard.title"), systemImage: "chart.bar")
+                        }
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showEditSheet) {
+            Task { await viewModel.loadProject() }
+        } content: {
+            if let project = viewModel.project {
+                ProjectFormView(
+                    viewModel: ProjectFormViewModel(
+                        repository: projectRepository,
+                        projectId: project.id,
+                        existingProject: project
+                    )
+                )
+            }
+        }
         .task {
             await viewModel.loadProject()
         }

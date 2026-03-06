@@ -253,23 +253,25 @@ class OrchestratorService:
         Silently returns empty string on failure to avoid blocking AI responses.
         """
         try:
+            import json
+
+            from app.core.database import async_session_factory
             from app.repositories.memory_repository import MemoryRepository
 
-            repo = MemoryRepository()
             project_uuid = uuid.UUID(project_id) if project_id else None
-            context = await memory_service.get_context_for_message(
-                repo=repo,
-                user_id=user_id,
-                message=message,
-                project_id=project_uuid,
-            )
+            async with async_session_factory() as _mem_db:
+                repo = MemoryRepository(_mem_db)
+                context = await memory_service.get_context_for_message(
+                    repo=repo,
+                    user_id=user_id,
+                    message=message,
+                    project_id=project_uuid,
+                )
             parts: list[str] = []
             if context.personal_memories:
                 items = "\n".join(f"- {m}" for m in context.personal_memories)
                 parts.append(f"Kisisel hafiza:\n{items}")
             if context.project_summary:
-                import json
-
                 summary = json.dumps(context.project_summary, ensure_ascii=False)
                 parts.append(f"Proje hafizasi:\n{summary}")
             if context.conversation_summary:
@@ -362,6 +364,13 @@ class OrchestratorService:
         if not project_local_path:
             project_local_path = settings.claude_code_default_dir or None
 
+        # Build git context for project awareness
+        git_ctx = ""
+        if project_local_path:
+            from app.services.git_context_service import build_git_context
+
+            git_ctx = await build_git_context(project_local_path)
+
         # Build memory context from 3-layer memory system
         memory_ctx = await self._build_memory_context(user_id, message, project_id)
 
@@ -379,6 +388,8 @@ class OrchestratorService:
             context_parts.append(f"Project ID: {project_id}")
         if project_local_path:
             context_parts.append(f"Project Directory: {project_local_path}")
+        if git_ctx:
+            context_parts.append(git_ctx)
         if memory_ctx:
             context_parts.append(memory_ctx)
         if recent_ctx:

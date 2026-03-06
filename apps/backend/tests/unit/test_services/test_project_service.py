@@ -27,6 +27,8 @@ def _make_project_model(
     project.tech_stack = tech_stack or ["Python"]
     project.last_activity_at = "2026-03-03T10:00:00Z"
     project.last_activity_summary = "PR merged"
+    project.local_path = None
+    project.source = "manual"
     project.created_at = datetime.now(tz=UTC)
     project.updated_at = datetime.now(tz=UTC)
     return project
@@ -76,6 +78,7 @@ class TestGetProjects:
 
         mock_get.assert_called_once_with(
             status_filter="active",
+            agent_id=None,
             page=1,
             page_size=20,
         )

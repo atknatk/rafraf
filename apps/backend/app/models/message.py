@@ -1,8 +1,9 @@
 """Message SQLAlchemy model — chat mesaji kaliciligi."""
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -51,5 +52,18 @@ class Message(Base, UUIDMixin, TimestampMixin):
     )
     tokens_used: Mapped[int | None] = mapped_column(
         Integer,
+        nullable=True,
+    )
+    rating: Mapped[str | None] = mapped_column(
+        String(10),
+        nullable=True,
+        index=True,
+    )
+    rating_note: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+    rated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         nullable=True,
     )

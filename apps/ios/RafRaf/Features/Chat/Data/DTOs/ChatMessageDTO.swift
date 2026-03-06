@@ -36,3 +36,41 @@ struct ChatStreamEndDTO: Codable, Sendable {
 struct ChatTypingDTO: Codable, Sendable {
     let isTyping: Bool
 }
+
+/// Konusma mesaj search response DTO.
+/// GET /api/v1/conversations/search endpoint'i icin.
+struct MessageDTO: Codable, Sendable {
+    let id: String
+    let content: String
+    let role: String
+    let createdAt: String?
+    let modelUsed: String?
+    let tokensUsed: Int?
+}
+
+/// Code diff satiri DTO.
+struct CodeDiffLineDTO: Codable, Sendable {
+    let type: String  // "added", "removed", "context"
+    let content: String
+    let lineNumberOld: Int?
+    let lineNumberNew: Int?
+}
+
+/// Dosya diff DTO.
+struct CodeDiffFileDTO: Codable, Sendable {
+    let filePath: String
+    let isNewFile: Bool?
+    let isDeleted: Bool?
+    let additions: Int
+    let deletions: Int
+    let lines: [CodeDiffLineDTO]
+}
+
+/// Code diff mesaj payload DTO.
+struct CodeDiffPayloadDTO: Codable, Sendable {
+    let projectPath: String
+    let totalAdditions: Int
+    let totalDeletions: Int
+    let filesChanged: Int
+    let files: [CodeDiffFileDTO]
+}

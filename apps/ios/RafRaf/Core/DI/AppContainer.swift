@@ -9,7 +9,7 @@ extension Container {
 
     /// Ag istemcisi.
     var networkClient: Factory<NetworkClient> {
-        self { NetworkClient() }
+        self { NetworkClient(authInterceptor: self.authInterceptor()) }
             .singleton
     }
 
@@ -117,7 +117,8 @@ extension Container {
             return ChatViewModel(
                 sendMessageUseCase: SendMessageUseCase(repository: repository),
                 loadHistoryUseCase: LoadChatHistoryUseCase(repository: repository),
-                fetchMissedMessagesUseCase: FetchMissedMessagesUseCase(repository: repository)
+                fetchMissedMessagesUseCase: FetchMissedMessagesUseCase(repository: repository),
+                chatRepository: repository
             )
         }
     }
@@ -134,6 +135,9 @@ extension Container {
                 },
                 fetchMissedMessagesUseCaseFactory: {
                     FetchMissedMessagesUseCase(repository: self.chatRepository())
+                },
+                chatRepositoryFactory: {
+                    self.chatRepository()
                 }
             )
         }
@@ -377,7 +381,13 @@ extension Container {
                 refreshSubscriptionUsageUseCase: RefreshSubscriptionUsageUseCase(repository: repository),
                 getAgentProjectsUseCase: GetAgentProjectsUseCase(repository: repository),
                 setProjectActiveUseCase: SetProjectActiveUseCase(repository: repository),
-                getClaudeProcessesUseCase: GetClaudeProcessesUseCase(repository: repository)
+                getClaudeProcessesUseCase: GetClaudeProcessesUseCase(repository: repository),
+                getAgentTasksUseCase: GetAgentTasksUseCase(repository: repository),
+                cancelAgentTaskUseCase: CancelAgentTaskUseCase(repository: repository),
+                dispatchAgentTaskUseCase: DispatchAgentTaskUseCase(repository: repository),
+                rescanProjectsUseCase: RescanProjectsUseCase(repository: repository),
+                getSkipPermissionsUseCase: GetAgentSkipPermissionsUseCase(repository: repository),
+                updateSettingsUseCase: UpdateAgentSettingsUseCase(repository: repository)
             )
         }
     }
@@ -400,11 +410,16 @@ extension Container {
         self { @MainActor in
             let settingsRepo = self.settingsRepository()
             let userRepo = self.userRepository()
+            let authManager = self.authManager()
+            let biometricManager = self.biometricAuthManager()
             return SettingsViewModel(
                 loadSettingsUseCase: LoadSettingsUseCase(repository: settingsRepo),
                 saveSettingsUseCase: SaveSettingsUseCase(repository: settingsRepo),
                 loadProfileUseCase: LoadProfileUseCase(repository: userRepo),
-                updateProfileUseCase: UpdateProfileUseCase(repository: userRepo)
+                updateProfileUseCase: UpdateProfileUseCase(repository: userRepo),
+                logoutUseCase: LogoutUseCase(authManager: authManager),
+                authManager: authManager,
+                biometricManager: biometricManager
             )
         }
     }

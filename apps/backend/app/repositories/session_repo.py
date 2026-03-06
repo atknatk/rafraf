@@ -69,8 +69,14 @@ class SessionRepository:
             return
         record.message_count += message_count_increment
         current_tokens = record.total_tokens_used or {"input": 0, "output": 0}
-        current_tokens["input"] = int(current_tokens.get("input", 0)) + tokens_input
-        current_tokens["output"] = int(current_tokens.get("output", 0)) + tokens_output
+        input_val = current_tokens.get("input", 0)
+        output_val = current_tokens.get("output", 0)
+        current_tokens["input"] = (
+            int(input_val) if isinstance(input_val, (int, float)) else 0
+        ) + tokens_input
+        current_tokens["output"] = (
+            int(output_val) if isinstance(output_val, (int, float)) else 0
+        ) + tokens_output
         record.total_tokens_used = current_tokens
         from decimal import Decimal
         record.total_cost_usd += Decimal(str(cost_usd_increment))

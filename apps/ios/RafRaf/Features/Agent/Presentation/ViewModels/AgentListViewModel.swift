@@ -3,7 +3,7 @@ import os
 
 /// Agent listesi ViewModel.
 /// Agent listesinin durumunu ve islemlerini yonetir.
-/// Filtreleme ve pull-to-refresh destegi.
+/// Filtreleme, pull-to-refresh ve 30s otomatik yenileme destegi.
 @Observable
 @MainActor
 final class AgentListViewModel {
@@ -14,15 +14,24 @@ final class AgentListViewModel {
     var errorMessage: String?
     var selectedFilter: AgentStatus?
     var onlineCount: Int = 0
+    var lastRefreshedAt: Date?
 
     // MARK: - Private
 
     private let getAgentsUseCase: GetAgentsUseCase
+    private var autoRefreshTask: Task<Void, Never>?
+    private let autoRefreshInterval: UInt64 = 30_000_000_000 // 30 seconds
     let getSubscriptionUsageUseCase: GetSubscriptionUsageUseCase
     let refreshSubscriptionUsageUseCase: RefreshSubscriptionUsageUseCase
     let getAgentProjectsUseCase: GetAgentProjectsUseCase
     let setProjectActiveUseCase: SetProjectActiveUseCase
     let getClaudeProcessesUseCase: GetClaudeProcessesUseCase
+    let getAgentTasksUseCase: GetAgentTasksUseCase
+    let cancelAgentTaskUseCase: CancelAgentTaskUseCase
+    let dispatchAgentTaskUseCase: DispatchAgentTaskUseCase
+    let rescanProjectsUseCase: RescanProjectsUseCase
+    let getSkipPermissionsUseCase: GetAgentSkipPermissionsUseCase
+    let updateSettingsUseCase: UpdateAgentSettingsUseCase
     private let logger = AppLogger.logger(for: "AgentList")
 
     // MARK: - Init
@@ -33,7 +42,13 @@ final class AgentListViewModel {
         refreshSubscriptionUsageUseCase: RefreshSubscriptionUsageUseCase,
         getAgentProjectsUseCase: GetAgentProjectsUseCase,
         setProjectActiveUseCase: SetProjectActiveUseCase,
-        getClaudeProcessesUseCase: GetClaudeProcessesUseCase
+        getClaudeProcessesUseCase: GetClaudeProcessesUseCase,
+        getAgentTasksUseCase: GetAgentTasksUseCase,
+        cancelAgentTaskUseCase: CancelAgentTaskUseCase,
+        dispatchAgentTaskUseCase: DispatchAgentTaskUseCase,
+        rescanProjectsUseCase: RescanProjectsUseCase,
+        getSkipPermissionsUseCase: GetAgentSkipPermissionsUseCase,
+        updateSettingsUseCase: UpdateAgentSettingsUseCase
     ) {
         self.getAgentsUseCase = getAgentsUseCase
         self.getSubscriptionUsageUseCase = getSubscriptionUsageUseCase
@@ -41,12 +56,18 @@ final class AgentListViewModel {
         self.getAgentProjectsUseCase = getAgentProjectsUseCase
         self.setProjectActiveUseCase = setProjectActiveUseCase
         self.getClaudeProcessesUseCase = getClaudeProcessesUseCase
+        self.getAgentTasksUseCase = getAgentTasksUseCase
+        self.cancelAgentTaskUseCase = cancelAgentTaskUseCase
+        self.dispatchAgentTaskUseCase = dispatchAgentTaskUseCase
+        self.rescanProjectsUseCase = rescanProjectsUseCase
+        self.getSkipPermissionsUseCase = getSkipPermissionsUseCase
+        self.updateSettingsUseCase = updateSettingsUseCase
         logger.info("AgentListViewModel baslatildi")
     }
 
     // MARK: - Actions
 
-    /// Agent'lari yukler.
+    /// Agent'lari yukler ve otomatik yenilemeyi baslatir.
     func loadAgents() async {
         guard !isLoading else { return }
 
@@ -57,6 +78,7 @@ final class AgentListViewModel {
             let result = try await getAgentsUseCase.execute(status: selectedFilter)
             agents = result.agents
             onlineCount = result.onlineCount
+            lastRefreshedAt = Date()
             logger.info("Agent'lar yuklendi: \(result.agents.count) agent, online: \(result.onlineCount)")
         } catch {
             errorMessage = String(localized: "agent.error.loadFailed")
@@ -66,12 +88,31 @@ final class AgentListViewModel {
         isLoading = false
     }
 
+    /// 30 saniyede bir otomatik yenileme baslatir.
+    func startAutoRefresh() {
+        autoRefreshTask?.cancel()
+        autoRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: self?.autoRefreshInterval ?? 30_000_000_000)
+                guard !Task.isCancelled else { break }
+                await self?.refreshAgents()
+            }
+        }
+    }
+
+    /// Otomatik yenilemeyi durdurur.
+    func stopAutoRefresh() {
+        autoRefreshTask?.cancel()
+        autoRefreshTask = nil
+    }
+
     /// Pull-to-refresh ile agent'lari yeniden yukler.
     func refreshAgents() async {
         do {
             let result = try await getAgentsUseCase.execute(status: selectedFilter)
             agents = result.agents
             onlineCount = result.onlineCount
+            lastRefreshedAt = Date()
             logger.info("Agent'lar yenilendi: \(result.agents.count) agent")
         } catch {
             errorMessage = String(localized: "agent.error.refreshFailed")

@@ -30,6 +30,25 @@ protocol ProjectStatusRepositoryProtocol: Sendable {
 
     /// Duplicate projeleri temizler, silinen sayisini dondurur.
     func deduplicateProjects() async throws -> Int
+
+    /// Yeni proje olusturur.
+    func createProject(
+        name: String,
+        description: String?,
+        repositoryURL: String?,
+        localPath: String?,
+        techStack: [String]
+    ) async throws -> String
+
+    /// Mevcut projeyi gunceller.
+    func updateProject(
+        projectId: String,
+        name: String?,
+        description: String?,
+        repositoryURL: String?,
+        localPath: String?,
+        techStack: [String]?
+    ) async throws -> Project
 }
 
 /// Proje listesi sonuc modeli.

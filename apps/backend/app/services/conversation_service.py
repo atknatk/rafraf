@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 import structlog
 from sqlalchemy import asc, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.message import Message
-from app.schemas.conversation import ConversationHistoryResponse, MessageResponse
+from app.schemas.conversation import (
+    ConversationHistoryResponse,
+    MessageRatingRequest,
+    MessageResponse,
+)
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -113,6 +117,9 @@ class ConversationService:
                 model_used=m.model_used,
                 tokens_used=m.tokens_used,
                 created_at=m.created_at.isoformat(),
+                rating=m.rating,
+                rating_note=m.rating_note,
+                rated_at=m.rated_at.isoformat() if m.rated_at else None,
             )
             for m in rows
         ]
@@ -123,6 +130,106 @@ class ConversationService:
             has_more=has_more,
             next_cursor=next_cursor,
         )
+
+    async def export_conversation(
+        self,
+        project_id: uuid.UUID | None,
+        session_id: str | None,
+    ) -> str:
+        """Konusmayi markdown formatinda disa aktar.
+
+        Returns the conversation as a formatted string.
+        """
+        stmt = select(Message).order_by(Message.created_at.asc()).limit(500)
+        if project_id:
+            stmt = stmt.where(Message.project_id == project_id)
+        elif session_id:
+            stmt = stmt.where(Message.session_id == session_id)
+
+        result = await self._session.execute(stmt)
+        messages = list(result.scalars().all())
+
+        if not messages:
+            return "# Konusma Gecmisi\n\nMesaj bulunamadi.\n"
+
+        lines: list[str] = [
+            "# Konusma Gecmisi",
+            f"Tarih: {datetime.now(tz=UTC).strftime('%Y-%m-%d %H:%M UTC')}",
+            f"Mesaj Sayisi: {len(messages)}",
+            "",
+            "---",
+            "",
+        ]
+
+        for msg in messages:
+            role_label = "**Kullanici**" if msg.role == "user" else "**Claude**"
+            created = msg.created_at.strftime("%H:%M") if msg.created_at else ""
+            lines.append(f"### {role_label} _{created}_")
+            lines.append("")
+            lines.append(msg.content)
+            if msg.model_used:
+                lines.append("")
+                lines.append(f"*Model: {msg.model_used}*")
+            if msg.tokens_used:
+                lines.append(f"*Tokenlar: {msg.tokens_used}*")
+            lines.append("")
+            lines.append("---")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    async def rate_message(
+        self,
+        *,
+        message_id: str,
+        user_id: str,
+        body: MessageRatingRequest,
+    ) -> Message | None:
+        """Mesaj degerlendirmesini kaydeder (thumbs up/down).
+
+        Sadece kendi mesajlarini degerlendirmeye izin verilir.
+        Mesaj bulunamazsa None dondurur.
+        """
+        stmt = select(Message).where(
+            Message.id == message_id,
+            Message.user_id == user_id,
+        )
+        result = await self._session.execute(stmt)
+        msg = result.scalar_one_or_none()
+
+        if msg is None:
+            return None
+
+        msg.rating = body.rating
+        msg.rating_note = body.note
+        msg.rated_at = datetime.now(tz=UTC)
+        await self._session.flush()
+        logger.info(
+            "message_rated",
+            message_id=message_id,
+            rating=body.rating,
+        )
+        return msg
+
+    async def search_messages(
+        self,
+        user_id: str,
+        query: str,
+        project_id: str | None = None,
+        limit: int = 20,
+    ) -> list[Message]:
+        """Full-text mesaj arama."""
+        stmt = (
+            select(Message)
+            .where(Message.user_id == user_id)
+            .where(Message.content.ilike(f"%{query}%"))
+            .order_by(Message.created_at.desc())
+            .limit(limit)
+        )
+        if project_id:
+            stmt = stmt.where(Message.project_id == uuid.UUID(project_id))
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
 
     async def get_messages_since(
         self,
@@ -160,6 +267,9 @@ class ConversationService:
                 model_used=m.model_used,
                 tokens_used=m.tokens_used,
                 created_at=m.created_at.isoformat(),
+                rating=m.rating,
+                rating_note=m.rating_note,
+                rated_at=m.rated_at.isoformat() if m.rated_at else None,
             )
             for m in rows
         ]

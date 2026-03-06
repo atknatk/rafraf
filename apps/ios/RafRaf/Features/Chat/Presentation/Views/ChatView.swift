@@ -10,15 +10,35 @@ struct ChatView: View {
     @State private var voiceOutputViewModel = Container.shared.voiceOutputViewModel()
     @State private var progressViewModel = Container.shared.progressViewModel()
     @State private var isProgressExpanded = false
+    @State private var bookmarkService = BookmarkService()
+    @State private var showBookmarks = false
+    @State private var showSearch = false
     @State private var showVoiceOverlay = false
     @State private var showVoiceConversation = false
+    @State private var quickCommandQuery: String = ""
     @State private var availableAgentProjects: [AgentProject] = []
+    @State private var exportedText: String?
+    @State private var showExport = false
+    @State private var connectionMonitor = ConnectionQualityMonitor()
+    @State private var githubEventService = GitHubEventService()
+    @State private var showGitHubBanner = false
+    @State private var latestAgentStatusChange: AgentStatusChangePayload?
+    @State private var isAtBottom = true
+    @State private var unreadCount = 0
     private let webSocketManager = Container.shared.webSocketConnectionManager()
     private let agentRepository: AgentRepositoryProtocol = Container.shared.agentRepository()
 
     /// Aktif ChatViewModel (session manager uzerinden).
     private var viewModel: ChatViewModel {
         sessionManager.activeViewModel
+    }
+
+    private var showCommandPalette: Bool {
+        viewModel.messageText.hasPrefix("/") && !viewModel.messageText.contains(" ")
+    }
+
+    private var filteredCommands: [QuickCommand] {
+        QuickCommands.filtered(by: viewModel.messageText)
     }
 
     init(sessionManager: ChatSessionManager) {
@@ -28,6 +48,24 @@ struct ChatView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // Bekleyen kuyruklanmis mesaj banner'i
+                if !viewModel.messageQueue.isEmpty {
+                    queueBannerView
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                // GitHub webhook event banner
+                if let event = githubEventService.latestEvent {
+                    githubEventBanner(event)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                // Agent status change banner
+                if let change = latestAgentStatusChange {
+                    agentStatusBanner(change)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 messageListView
 
                 // Claude -p ilerleme gostergesi
@@ -43,12 +81,21 @@ struct ChatView: View {
                         .background(RFColors.fallbackSurface)
                 }
 
+                suggestionChipsView
+                commandPaletteView
+
                 chatInputView
             }
             .background(RFColors.fallbackBackground)
             .navigationTitle(String(localized: "chat.title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    RFConnectionIndicator(
+                        quality: connectionMonitor.quality,
+                        latencyMs: connectionMonitor.latencyMs
+                    )
+                }
                 ToolbarItem(placement: .principal) {
                     RFProjectPicker(
                         activeProjectName: sessionManager.activeProjectName,
@@ -59,9 +106,42 @@ struct ChatView: View {
                         }
                     )
                 }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        Button {
+                            showSearch = true
+                        } label: {
+                            Label(String(localized: "chat.search.title"), systemImage: "magnifyingglass")
+                        }
+                        Button {
+                            showBookmarks = true
+                        } label: {
+                            Label(String(localized: "bookmarks.title"), systemImage: "bookmark")
+                        }
+                        Button {
+                            Task { await exportConversation() }
+                        } label: {
+                            Label(String(localized: "chat.export.title"), systemImage: "square.and.arrow.up")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
+            }
+            .sheet(isPresented: $showSearch) {
+                ChatSearchView(projectId: viewModel.projectId)
+            }
+            .sheet(isPresented: $showBookmarks) {
+                BookmarksView(bookmarkService: bookmarkService)
+            }
+            .sheet(isPresented: $showExport) {
+                if let text = exportedText {
+                    ShareSheet(items: [text])
+                }
             }
             .task {
                 setupVoiceCallbacks()
+                setupConnectionMonitor()
                 await registerMessageHandlers()
                 await loadProjects()
                 // History REST çağrısı, WebSocket bağlantısına bağlı değil
@@ -69,6 +149,7 @@ struct ChatView: View {
             }
             .onChange(of: webSocketManager.isConnected) { _, isConnected in
                 if isConnected {
+                    connectionMonitor.connectionEstablished()
                     // Reconnect'te eksik mesajları getir; history boşsa tam yükle
                     if viewModel.messages.isEmpty {
                         Task { await viewModel.loadHistory() }
@@ -76,11 +157,19 @@ struct ChatView: View {
                         Task { await sessionManager.fetchMissedMessagesForAll() }
                     }
                     Task { await loadProjects() }
+                    // Kuyruklanmis mesajlari gonder
+                    Task { await viewModel.flushQueue() }
+                } else {
+                    connectionMonitor.connectionLost()
                 }
             }
             .onChange(of: sessionManager.activeProjectId) {
+                // Proje degistiyse sadece mesaj gecmisi bossa yukle
+                // (geri geldigimizde mevcut mesajlar korunur)
                 Task {
-                    await viewModel.loadHistory()
+                    if viewModel.messages.isEmpty {
+                        await viewModel.loadHistory()
+                    }
                 }
             }
             .onChange(of: progressViewModel.isActive) { _, isActive in
@@ -97,6 +186,11 @@ struct ChatView: View {
             }
             .animation(RFAnimation.springResponsive, value: showVoiceOverlay)
             .animation(RFAnimation.springResponsive, value: progressViewModel.isVisible)
+            .animation(RFAnimation.springResponsive, value: viewModel.pendingSuggestions.isEmpty)
+            .animation(RFAnimation.springResponsive, value: showCommandPalette)
+            .animation(RFAnimation.springResponsive, value: viewModel.messageQueue.isEmpty)
+            .animation(RFAnimation.springResponsive, value: githubEventService.latestEvent?.event)
+            .animation(RFAnimation.springResponsive, value: latestAgentStatusChange?.hostId)
             .fullScreenCover(isPresented: $showVoiceConversation) {
                 let voiceVM = Container.shared.voiceConversationViewModel()
                 VoiceConversationView(viewModel: voiceVM) {
@@ -106,6 +200,40 @@ struct ChatView: View {
                     await voiceVM.enterVoiceMode()
                 }
             }
+            .background {
+                keyboardShortcutsLayer
+            }
+        }
+    }
+
+    // MARK: - Keyboard Shortcuts
+
+    /// Hardware klavye kisayollari icin gorunmez buton katmani.
+    @ViewBuilder
+    private var keyboardShortcutsLayer: some View {
+        Group {
+            // Cmd+K: Komut paleti ac (ilk "/" yazdır)
+            Button("") {
+                if viewModel.messageText.isEmpty {
+                    viewModel.messageText = "/"
+                }
+            }
+            .keyboardShortcut("k", modifiers: .command)
+            .hidden()
+
+            // Cmd+F: Arama
+            Button("") {
+                showSearch = true
+            }
+            .keyboardShortcut("f", modifiers: .command)
+            .hidden()
+
+            // Escape: Odak kaldir / overlay kapat
+            Button("") {
+                viewModel.messageText = ""
+            }
+            .keyboardShortcut(.escape, modifiers: [])
+            .hidden()
         }
     }
 
@@ -124,39 +252,100 @@ struct ChatView: View {
             )
             Spacer()
         } else {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: RFSpacing.sm) {
-                        if viewModel.hasMoreMessages {
-                            loadMoreButton
-                        }
+            ZStack(alignment: .bottomTrailing) {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: RFSpacing.sm) {
+                            if viewModel.hasMoreMessages {
+                                loadMoreButton
+                            }
 
-                        ForEach(viewModel.messages) { message in
-                            RFMessageBubble(
-                                message: message,
-                                onCopy: { viewModel.copyMessage($0) },
-                                onSpeak: message.sender == .assistant
-                                    ? { Task { await voiceOutputViewModel.speak(text: message.content) } }
-                                    : nil
-                            )
-                            .id(message.id)
-                            .transition(RFTransition.chatMessage)
-                        }
+                            ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
+                                // Date separator between different days
+                                if index == 0 || !Calendar.current.isDate(
+                                    viewModel.messages[index - 1].timestamp,
+                                    inSameDayAs: message.timestamp
+                                ) {
+                                    chatDateSeparator(for: message.timestamp)
+                                }
 
-                        if viewModel.isTyping {
-                            RFTypingIndicator()
-                                .id("typing-indicator")
+                                RFMessageBubble(
+                                    message: message,
+                                    onCopy: { viewModel.copyMessage($0) },
+                                    onSpeak: message.sender == .assistant
+                                        ? { Task { await voiceOutputViewModel.speak(text: message.content) } }
+                                        : nil,
+                                    onBookmark: message.sender == .assistant ? {
+                                        bookmarkService.bookmark(
+                                            message,
+                                            projectId: viewModel.projectId,
+                                            projectName: sessionManager.activeProjectName
+                                        )
+                                    } : nil,
+                                    onRating: message.sender == .assistant ? { [message] rating in
+                                        let msgId = message.id
+                                        Task<Void, Never> { await viewModel.rateMessage(id: msgId, rating: rating) }
+                                    } : nil
+                                )
+                                .id(message.id)
+                                .transition(RFTransition.chatMessage)
+                            }
+
+                            // Inline tool aktivite karti — Claude Code tarzi
+                            if let activity = viewModel.currentActivity, !activity.isCompleted {
+                                RFToolActivityCard(activity: activity)
+                                    .id("tool-activity")
+                                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
+
+                            if viewModel.isTyping && viewModel.currentActivity == nil {
+                                RFTypingIndicator()
+                                    .id("typing-indicator")
+                            }
+
+                            // Bottom sentinel — tracks scroll position
+                            Color.clear
+                                .frame(height: 1)
+                                .id("scroll-bottom")
+                                .onAppear {
+                                    withAnimation(RFAnimation.springResponsive) {
+                                        isAtBottom = true
+                                        unreadCount = 0
+                                    }
+                                }
+                                .onDisappear {
+                                    withAnimation(RFAnimation.springResponsive) {
+                                        isAtBottom = false
+                                    }
+                                }
+                        }
+                        .padding(.horizontal, RFSpacing.md)
+                        .padding(.vertical, RFSpacing.sm)
+                    }
+                    .refreshable {
+                        await viewModel.loadHistory()
+                        isAtBottom = true
+                        unreadCount = 0
+                    }
+                    .onChange(of: viewModel.messages.count) {
+                        if isAtBottom {
+                            scrollToBottom(proxy: proxy)
+                        } else {
+                            unreadCount += 1
                         }
                     }
-                    .padding(.horizontal, RFSpacing.md)
-                    .padding(.vertical, RFSpacing.sm)
-                }
-                .onChange(of: viewModel.messages.count) {
-                    scrollToBottom(proxy: proxy)
-                }
-                .onChange(of: viewModel.isTyping) {
-                    if viewModel.isTyping {
-                        scrollToBottom(proxy: proxy)
+                    .onChange(of: viewModel.isTyping) {
+                        if viewModel.isTyping && isAtBottom {
+                            scrollToBottom(proxy: proxy)
+                        }
+                    }
+                    .overlay(alignment: .bottomTrailing) {
+                        if !isAtBottom {
+                            scrollToBottomFAB(proxy: proxy)
+                                .padding(.trailing, RFSpacing.md)
+                                .padding(.bottom, RFSpacing.sm)
+                                .transition(.scale.combined(with: .opacity))
+                        }
                     }
                 }
             }
@@ -176,6 +365,86 @@ struct ChatView: View {
         .frame(maxWidth: .infinity, alignment: .center)
     }
 
+    private func scrollToBottomFAB(proxy: ScrollViewProxy) -> some View {
+        Button {
+            withAnimation(RFAnimation.springResponsive) {
+                scrollToBottom(proxy: proxy)
+                unreadCount = 0
+            }
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                Circle()
+                    .fill(RFColors.fallbackSurface)
+                    .frame(width: 40, height: 40)
+                    .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+                    .overlay {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(RFColors.fallbackTextPrimary)
+                    }
+
+                if unreadCount > 0 {
+                    Text(unreadCount > 99 ? "99+" : "\(unreadCount)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(RFColors.fallbackPrimary)
+                        .clipShape(Capsule())
+                        .offset(x: 6, y: -6)
+                }
+            }
+        }
+        .buttonStyle(RFPressButtonStyle())
+        .animation(RFAnimation.springResponsive, value: unreadCount)
+    }
+
+    // MARK: - Suggestion Chips + Command Palette
+
+    @ViewBuilder
+    private var suggestionChipsView: some View {
+        if !viewModel.pendingSuggestions.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: RFSpacing.xs) {
+                    ForEach(viewModel.pendingSuggestions, id: \.self) { suggestion in
+                        Button {
+                            sendSuggestion(suggestion)
+                            viewModel.pendingSuggestions = []
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 11))
+                                Text(suggestion)
+                                    .font(.system(size: 13))
+                            }
+                            .padding(.horizontal, RFSpacing.sm)
+                            .padding(.vertical, RFSpacing.xs)
+                            .background(RFColors.fallbackPrimary.opacity(0.1))
+                            .foregroundStyle(RFColors.fallbackPrimary)
+                            .clipShape(Capsule())
+                        }
+                    }
+                }
+                .padding(.horizontal, RFSpacing.sm)
+            }
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
+
+    @ViewBuilder
+    private var commandPaletteView: some View {
+        if showCommandPalette && !filteredCommands.isEmpty {
+            RFQuickCommandPalette(commands: filteredCommands) { command in
+                viewModel.messageText = command.fullText
+                quickCommandQuery = ""
+                HapticManager.commandPaletteOpened()
+            }
+            .padding(.horizontal, RFSpacing.sm)
+            .padding(.bottom, RFSpacing.xs)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
+
     // MARK: - Chat Input
 
     private var chatInputView: some View {
@@ -186,11 +455,33 @@ struct ChatView: View {
             ),
             isEnabled: !viewModel.isLoading,
             isSending: viewModel.isSending,
+            isProcessing: viewModel.isTyping || viewModel.currentActivity?.isActive == true,
             isRecording: voiceInputViewModel.isRecording,
             audioLevel: voiceInputViewModel.audioLevel.normalizedLevel,
             onSend: {
-                Task {
-                    await viewModel.sendMessage()
+                Task { @MainActor in
+                    let text = viewModel.messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    // /export komutu yerel olarak islenir
+                    if text == "/export" {
+                        viewModel.messageText = ""
+                        Task { await exportConversation() }
+                        return
+                    }
+                    let projectName = sessionManager.activeProjectName ?? "RafRaf"
+                    let connected = webSocketManager.isConnected
+                    if connected {
+                        LiveActivityManager.shared.start(projectName: projectName)
+                    }
+                    await viewModel.sendMessage(isConnected: connected)
+                }
+            },
+            onStop: {
+                Task { @MainActor in
+                    let msg = WebSocketMessageFactory.cancelStreamMessage()
+                    try? await webSocketManager.sendMessage(msg)
+                    viewModel.handleTypingIndicator(isTyping: false)
+                    HapticManager.error()
+                    LiveActivityManager.shared.end()
                 }
             },
             onMicTap: {
@@ -264,6 +555,160 @@ struct ChatView: View {
         .background(RFColors.fallbackSurface)
     }
 
+    // MARK: - Queue Banner
+
+    private var queueBannerView: some View {
+        HStack(spacing: RFSpacing.xs) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white)
+            RFText(
+                String(format: String(localized: "chat.queue.banner"), viewModel.messageQueue.count),
+                style: .captionBold,
+                color: .white
+            )
+            Spacer()
+        }
+        .padding(.horizontal, RFSpacing.md)
+        .padding(.vertical, RFSpacing.xs)
+        .background(RFColors.fallbackPrimary)
+    }
+
+    // MARK: - GitHub Event Banner
+
+    private func githubEventBanner(_ event: GitHubEventPayload) -> some View {
+        HStack(spacing: RFSpacing.xs) {
+            Image(systemName: githubEventIcon(event.event))
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white)
+            VStack(alignment: .leading, spacing: 2) {
+                RFText(
+                    githubEventTitle(event),
+                    style: .captionBold,
+                    color: .white
+                )
+                RFText(
+                    event.repo,
+                    style: .caption,
+                    color: .white.opacity(0.8)
+                )
+            }
+            Spacer()
+            Button {
+                withAnimation(RFAnimation.springResponsive) {
+                    githubEventService.clearLatest()
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+        }
+        .padding(.horizontal, RFSpacing.md)
+        .padding(.vertical, RFSpacing.xs)
+        .background(Color(red: 0.1, green: 0.1, blue: 0.1).opacity(0.92))
+        .onTapGesture {
+            // Future: open GitHub URL
+        }
+        .task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            withAnimation(RFAnimation.springResponsive) {
+                githubEventService.clearLatest()
+            }
+        }
+    }
+
+    private func githubEventIcon(_ event: String) -> String {
+        switch event {
+        case "push": return "arrow.up.circle.fill"
+        case "pull_request": return "arrow.triangle.pull"
+        case "issues": return "exclamationmark.circle.fill"
+        default: return "bell.fill"
+        }
+    }
+
+    private func githubEventTitle(_ event: GitHubEventPayload) -> String {
+        switch event.event {
+        case "push":
+            let commits = event.summary.commitCount ?? 0
+            return "\(event.summary.pusher ?? "Someone") pushed \(commits) commit\(commits == 1 ? "" : "s") to \(event.summary.branch ?? "main")"
+        case "pull_request":
+            let action = event.action == "merged" ? "merged" : event.action
+            let title = event.summary.title ?? "PR"
+            return "PR \(action): \(title)"
+        case "issues":
+            let title = event.summary.title ?? "Issue"
+            return "Issue \(event.action): \(title)"
+        default:
+            return "\(event.event) \(event.action)"
+        }
+    }
+
+    // MARK: - Date Separator
+
+    private func chatDateSeparator(for date: Date) -> some View {
+        HStack(spacing: RFSpacing.xs) {
+            Rectangle()
+                .fill(RFColors.fallbackTextTertiary.opacity(0.3))
+                .frame(height: 0.5)
+            RFText(formattedSeparatorDate(date), style: .caption, color: RFColors.fallbackTextTertiary)
+                .fixedSize()
+            Rectangle()
+                .fill(RFColors.fallbackTextTertiary.opacity(0.3))
+                .frame(height: 0.5)
+        }
+        .padding(.vertical, RFSpacing.xs)
+    }
+
+    private func formattedSeparatorDate(_ date: Date) -> String {
+        if Calendar.current.isDateInToday(date) {
+            return String(localized: "chat.date.today")
+        } else if Calendar.current.isDateInYesterday(date) {
+            return String(localized: "chat.date.yesterday")
+        } else {
+            let formatter = DateFormatter()
+            let isThisYear = Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year)
+            formatter.dateFormat = isThisYear ? "d MMMM" : "d MMMM yyyy"
+            return formatter.string(from: date)
+        }
+    }
+
+    // MARK: - Agent Status Banner
+
+    private func agentStatusBanner(_ change: AgentStatusChangePayload) -> some View {
+        let isOnline = change.status == "online"
+        let color: Color = isOnline ? RFColors.success : RFColors.fallbackTextTertiary
+        let icon = isOnline ? "desktopcomputer" : "desktopcomputer.trianglebadge.exclamationmark"
+        let title = isOnline
+            ? (change.isNew == true
+                ? String(format: String(localized: "agent.status.newOnline"), change.hostId)
+                : String(format: String(localized: "agent.status.backOnline"), change.hostId))
+            : String(format: String(localized: "agent.status.wentOffline"), change.hostId)
+
+        return HStack(spacing: RFSpacing.xs) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(color)
+            RFText(title, style: .captionBold, color: RFColors.fallbackTextPrimary)
+            Spacer()
+            Button {
+                withAnimation(RFAnimation.springResponsive) {
+                    latestAgentStatusChange = nil
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(RFColors.fallbackTextTertiary)
+            }
+        }
+        .padding(.horizontal, RFSpacing.md)
+        .padding(.vertical, RFSpacing.xs)
+        .background(RFColors.fallbackSurface)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+    }
+
     // MARK: - Error Banner
 
     private func errorBanner(message: String) -> some View {
@@ -292,6 +737,20 @@ struct ChatView: View {
         }
     }
 
+    // MARK: - Export
+
+    private func exportConversation() async {
+        var lines: [String] = [String(localized: "chat.export.header"), ""]
+        for msg in viewModel.messages {
+            let role = msg.sender == .user ? "**\(String(localized: "chat.export.role.user"))**" : "**\(String(localized: "chat.export.role.assistant"))**"
+            lines.append("### \(role)")
+            lines.append(msg.content)
+            lines.append("")
+        }
+        exportedText = lines.joined(separator: "\n")
+        showExport = true
+    }
+
     // MARK: - Projects
 
     private func loadProjects() async {
@@ -305,14 +764,33 @@ struct ChatView: View {
         }
     }
 
+    // MARK: - Connection Monitor
+
+    private func setupConnectionMonitor() {
+        webSocketManager.onPingSent = { [weak connectionMonitor] in
+            Task { @MainActor in
+                connectionMonitor?.recordPingSent()
+            }
+        }
+        // Mevcut baglanti durumunu yansit
+        if webSocketManager.isConnected {
+            connectionMonitor.connectionEstablished()
+        }
+    }
+
     // MARK: - Voice
 
     private func setupVoiceCallbacks() {
         voiceInputViewModel.onTranscriptionComplete = { transcription in
             viewModel.messageText = transcription
             showVoiceOverlay = false
-            Task {
-                await viewModel.sendMessage()
+            Task { @MainActor in
+                let connected = webSocketManager.isConnected
+                let projectName = sessionManager.activeProjectName ?? "RafRaf"
+                if connected {
+                    LiveActivityManager.shared.start(projectName: projectName)
+                }
+                await viewModel.sendMessage(isConnected: connected)
             }
         }
     }
@@ -332,6 +810,16 @@ struct ChatView: View {
             Task {
                 await voiceInputViewModel.startRecording()
             }
+        }
+    }
+
+    // MARK: - Suggestion
+
+    /// Oneri chip'ine tıklandığında öneriyi mesaj olarak gönderir.
+    private func sendSuggestion(_ text: String) {
+        viewModel.messageText = text
+        Task {
+            await viewModel.sendMessage(isConnected: webSocketManager.isConnected)
         }
     }
 
@@ -371,9 +859,15 @@ struct ChatView: View {
         )
 
         // Stream end handler
-        let streamEndHandler = ChatStreamEndHandler { messageId, fullText in
+        let streamEndHandler = ChatStreamEndHandler { messageId, fullText, tokensUsed, modelUsed in
             Task { @MainActor in
-                sessionManager.activeViewModel.handleStreamEnd(messageId: messageId, fullText: fullText, type: .text)
+                sessionManager.activeViewModel.handleStreamEnd(
+                    messageId: messageId,
+                    fullText: fullText,
+                    type: .text,
+                    tokensUsed: tokensUsed,
+                    modelUsed: modelUsed
+                )
                 progressVm.markCompleted()
             }
         }
@@ -382,7 +876,43 @@ struct ChatView: View {
             handler: streamEndHandler
         )
 
-        // Progress handler
+        // Code diff handler
+        let codeDiffHandler = ChatCodeDiffHandler { content in
+            Task { @MainActor in
+                let dto = CodeDiffPayloadDTO(
+                    projectPath: content.projectPath,
+                    totalAdditions: content.totalAdditions,
+                    totalDeletions: content.totalDeletions,
+                    filesChanged: content.filesChanged,
+                    files: content.files.map { file in
+                        CodeDiffFileDTO(
+                            filePath: file.filePath,
+                            isNewFile: file.isNewFile,
+                            isDeleted: file.isDeleted,
+                            additions: file.additions,
+                            deletions: file.deletions,
+                            lines: file.lines.map { line in
+                                CodeDiffLineDTO(
+                                    type: line.type,
+                                    content: line.content,
+                                    lineNumberOld: line.lineNumberOld,
+                                    lineNumberNew: line.lineNumberNew
+                                )
+                            }
+                        )
+                    }
+                )
+                sessionManager.activeViewModel.handleCodeDiff(dto)
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.codeDiff.rawValue,
+            handler: codeDiffHandler
+        )
+
+        let chatVm = sessionManager.activeViewModel
+
+        // Progress handler — hem ProgressVM hem de ChatViewModel'e yonlendir
         let progressHandler = ChatProgressHandler { content in
             Task { @MainActor in
                 let dto = ProgressEventDTO(
@@ -406,25 +936,104 @@ struct ChatView: View {
                 )
                 let state = ProgressMapper.toDomain(from: dto)
                 progressVm.updateProgress(state)
+                // Inline tool aktivite kartini guncelle
+                chatVm.handleProgress(content)
             }
         }
         await webSocketManager.registerHandler(
             type: WebSocketMessageType.progress.rawValue,
             handler: progressHandler
         )
+
+        // Suggestion handler
+        let suggestionHandler = ChatSuggestionHandler { messageId, suggestions in
+            Task { @MainActor in
+                sessionManager.activeViewModel.handleSuggestions(
+                    messageId: messageId, suggestions: suggestions
+                )
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.suggestion.rawValue,
+            handler: suggestionHandler
+        )
+
+        // Pong handler — baglanti gecikme olcumu icin
+        let pongHandler = ChatPongHandler {
+            Task { @MainActor in
+                connectionMonitor.recordPongReceived()
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.pong.rawValue,
+            handler: pongHandler
+        )
+
+        // GitHub webhook event handler — real-time GitHub activity
+        let eventService = githubEventService
+        let githubHandler = GitHubEventHandler(service: eventService)
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.githubEvent.rawValue,
+            handler: githubHandler
+        )
+
+        // Typing indicators — show/hide RFTypingIndicator
+        let typingStartHandler = GenericNoPayloadHandler {
+            Task { @MainActor in
+                sessionManager.activeViewModel.handleTypingIndicator(isTyping: true)
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.typingStart.rawValue,
+            handler: typingStartHandler
+        )
+        let typingEndHandler = GenericNoPayloadHandler {
+            Task { @MainActor in
+                sessionManager.activeViewModel.handleTypingIndicator(isTyping: false)
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.typingEnd.rawValue,
+            handler: typingEndHandler
+        )
+
+        // Stream cancelled ack — iptal onayı gelince UI temizle
+        let streamCancelledHandler = GenericNoPayloadHandler {
+            Task { @MainActor in
+                sessionManager.activeViewModel.handleTypingIndicator(isTyping: false)
+                progressVm.markCompleted()
+                LiveActivityManager.shared.end()
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.streamCancelled.rawValue,
+            handler: streamCancelledHandler
+        )
+
+        // Agent status change handler — proactive online/offline notifications
+        let agentStatusHandler = AgentStatusChangeHandler { payload in
+            Task { @MainActor in
+                withAnimation(RFAnimation.springResponsive) {
+                    self.latestAgentStatusChange = payload
+                }
+                // Auto-dismiss after 4s
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                withAnimation(RFAnimation.springResponsive) {
+                    self.latestAgentStatusChange = nil
+                }
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.agentStatusChange.rawValue,
+            handler: agentStatusHandler
+        )
     }
 
     // MARK: - Helpers
 
     private func scrollToBottom(proxy: ScrollViewProxy) {
-        if viewModel.isTyping {
-            withAnimation(RFAnimation.springGentle) {
-                proxy.scrollTo("typing-indicator", anchor: .bottom)
-            }
-        } else if let lastMessage = viewModel.messages.last {
-            withAnimation(RFAnimation.springGentle) {
-                proxy.scrollTo(lastMessage.id, anchor: .bottom)
-            }
+        withAnimation(RFAnimation.springGentle) {
+            proxy.scrollTo("scroll-bottom", anchor: .bottom)
         }
     }
 }
@@ -483,15 +1092,37 @@ private final class ChatStreamDeltaHandler: WebSocketMessageHandler {
 
 /// Stream tamamlanma mesajlarini isler.
 private final class ChatStreamEndHandler: WebSocketMessageHandler {
-    private let onStreamEnd: @Sendable (String, String) -> Void
+    private let onStreamEnd: @Sendable (String, String, Int?, String?) -> Void
 
-    init(onStreamEnd: @escaping @Sendable (String, String) -> Void) {
+    init(onStreamEnd: @escaping @Sendable (String, String, Int?, String?) -> Void) {
         self.onStreamEnd = onStreamEnd
     }
 
     func handle(_ message: WebSocketBaseMessage) async {
         guard case .chatStreamEnd(let content) = message.content else { return }
-        onStreamEnd(content.messageId, content.fullText)
+        let totalTokens: Int?
+        if let usage = content.tokensUsed {
+            let sum = usage.input + usage.output
+            totalTokens = sum > 0 ? sum : nil
+        } else {
+            totalTokens = nil
+        }
+        let model: String? = content.modelUsed.isEmpty ? nil : content.modelUsed
+        onStreamEnd(content.messageId, content.fullText, totalTokens, model)
+    }
+}
+
+/// Code diff mesajlarini isler.
+private final class ChatCodeDiffHandler: WebSocketMessageHandler {
+    private let onDiffReceived: @Sendable (CodeDiffContent) -> Void
+
+    init(onDiffReceived: @escaping @Sendable (CodeDiffContent) -> Void) {
+        self.onDiffReceived = onDiffReceived
+    }
+
+    func handle(_ message: WebSocketBaseMessage) async {
+        guard case .codeDiff(let content) = message.content else { return }
+        onDiffReceived(content)
     }
 }
 
@@ -506,6 +1137,60 @@ private final class ChatProgressHandler: WebSocketMessageHandler {
     func handle(_ message: WebSocketBaseMessage) async {
         guard case .progress(let content) = message.content else { return }
         onProgressReceived(content)
+    }
+}
+
+/// Proaktif oneri mesajlarini isler.
+private final class ChatSuggestionHandler: WebSocketMessageHandler {
+    private let onSuggestionReceived: @Sendable (String, [String]) -> Void
+
+    init(onSuggestionReceived: @escaping @Sendable (String, [String]) -> Void) {
+        self.onSuggestionReceived = onSuggestionReceived
+    }
+
+    func handle(_ message: WebSocketBaseMessage) async {
+        guard case .suggestion(let content) = message.content else { return }
+        onSuggestionReceived(content.messageId, content.suggestions)
+    }
+}
+
+/// Pong mesajlarini isler — baglanti gecikme olcumu icin.
+private final class ChatPongHandler: WebSocketMessageHandler {
+    private let onPong: @Sendable () -> Void
+
+    init(onPong: @escaping @Sendable () -> Void) {
+        self.onPong = onPong
+    }
+
+    func handle(_ message: WebSocketBaseMessage) async {
+        onPong()
+    }
+}
+
+/// Agent durum degisikligi mesajlarini isler.
+private final class AgentStatusChangeHandler: WebSocketMessageHandler {
+    private let onStatusChange: @Sendable (AgentStatusChangePayload) -> Void
+
+    init(onStatusChange: @escaping @Sendable (AgentStatusChangePayload) -> Void) {
+        self.onStatusChange = onStatusChange
+    }
+
+    func handle(_ message: WebSocketBaseMessage) async {
+        guard case .agentStatusChange(let payload) = message.content else { return }
+        onStatusChange(payload)
+    }
+}
+
+/// Payload icermeyen mesajlari (typing.start, typing.end) isler.
+private final class GenericNoPayloadHandler: WebSocketMessageHandler {
+    private let onReceived: @Sendable () -> Void
+
+    init(onReceived: @escaping @Sendable () -> Void) {
+        self.onReceived = onReceived
+    }
+
+    func handle(_ message: WebSocketBaseMessage) async {
+        onReceived()
     }
 }
 
@@ -547,5 +1232,9 @@ private final class PreviewChatRepository: ChatRepositoryProtocol, @unchecked Se
         projectId: String?
     ) async throws -> [ChatMessage] {
         []
+    }
+
+    func rateMessage(id: String, rating: MessageRating) async throws {
+        // Preview no-op
     }
 }

@@ -18,11 +18,19 @@ struct SettingsView: View {
                     profileCard
                         .rfEntrance(isAppeared: isAppeared, delay: 0.05)
 
+                    if viewModel.isBiometricAvailable {
+                        securityCard
+                            .rfEntrance(isAppeared: isAppeared, delay: 0.08)
+                    }
+
                     voiceSettingsCard
                         .rfEntrance(isAppeared: isAppeared, delay: 0.1)
 
                     notificationSettingsCard
                         .rfEntrance(isAppeared: isAppeared, delay: 0.15)
+
+                    CostSummaryCard()
+                        .rfEntrance(isAppeared: isAppeared, delay: 0.18)
 
                     appearanceSettingsCard
                         .rfEntrance(isAppeared: isAppeared, delay: 0.2)
@@ -131,6 +139,29 @@ struct SettingsView: View {
             }
         }
         .presentationDetents([.medium])
+    }
+
+    // MARK: - Security Card
+
+    private var securityCard: some View {
+        RFCard {
+            VStack(spacing: RFSpacing.md) {
+                settingsCardHeader(
+                    icon: "faceid",
+                    title: String(localized: "settings.security.title"),
+                    color: .green
+                )
+
+                Toggle(isOn: Binding(
+                    get: { viewModel.isBiometricEnabled },
+                    set: { viewModel.updateBiometricEnabled($0) }
+                )) {
+                    RFText(String(localized: "settings.security.faceID"), style: .body)
+                }
+                .tint(RFColors.fallbackPrimary)
+            }
+        }
+        .sensoryFeedback(.selection, trigger: viewModel.isBiometricEnabled)
     }
 
     // MARK: - Voice Settings Card
@@ -352,11 +383,17 @@ struct SettingsView: View {
 #Preview {
     let settingsRepo = SettingsRepositoryImpl()
     let userRepo = UserRepositoryImpl(networkClient: NetworkClient())
+    let keychain = KeychainHelper()
+    let authManager = AuthManager(keychain: keychain)
+    let biometricManager = BiometricAuthManager()
     let viewModel = SettingsViewModel(
         loadSettingsUseCase: LoadSettingsUseCase(repository: settingsRepo),
         saveSettingsUseCase: SaveSettingsUseCase(repository: settingsRepo),
         loadProfileUseCase: LoadProfileUseCase(repository: userRepo),
-        updateProfileUseCase: UpdateProfileUseCase(repository: userRepo)
+        updateProfileUseCase: UpdateProfileUseCase(repository: userRepo),
+        logoutUseCase: LogoutUseCase(authManager: authManager),
+        authManager: authManager,
+        biometricManager: biometricManager
     )
     SettingsView(viewModel: viewModel)
 }

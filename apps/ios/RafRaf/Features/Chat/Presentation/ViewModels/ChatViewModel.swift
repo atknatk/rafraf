@@ -2,6 +2,36 @@ import Foundation
 import os
 import UIKit
 
+// MARK: - Tool Activity Models
+
+/// Tek bir arac calistirma adimi (inline aktivite karti icin).
+struct ToolStep: Sendable, Identifiable {
+    let id: String
+    let label: String
+    let status: String  // "active", "completed", "failed"
+    let detail: String?
+    let durationSeconds: Double?
+
+    var sfIcon: String {
+        switch status {
+        case "completed": return "checkmark.circle.fill"
+        case "failed": return "xmark.circle.fill"
+        default: return "circle"
+        }
+    }
+}
+
+/// Aktif AI calisma durumu — inline aktivite karti icin.
+struct ToolActivityModel: Sendable {
+    let phase: String
+    let phaseLabel: String
+    let percentage: Int
+    let steps: [ToolStep]
+
+    var isCompleted: Bool { phase == "completed" }
+    var isActive: Bool { !["completed", ""].contains(phase) }
+}
+
 /// Sohbet ViewModel.
 /// Chat ekraninin durumunu ve islemlerini yonetir.
 /// Mesaj gonderme, streaming, typing indicator, pagination destegi.
@@ -17,12 +47,18 @@ final class ChatViewModel {
     var isTyping: Bool = false
     var errorMessage: String?
     var hasMoreMessages: Bool = false
+    var pendingSuggestions: [String] = []
+    var suggestionMessageId: String?
+    var messageQueue = MessageQueue()
+    /// Aktif AI calisma durumu — inline tool aktivite karti icin.
+    var currentActivity: ToolActivityModel?
 
     // MARK: - Private
 
     private let sendMessageUseCase: SendMessageUseCase
     private let loadHistoryUseCase: LoadChatHistoryUseCase
     private let fetchMissedMessagesUseCase: FetchMissedMessagesUseCase?
+    private let chatRepository: (any ChatRepositoryProtocol)?
     private let sessionId: String
     let projectId: String?
     let agentId: String?
@@ -41,6 +77,7 @@ final class ChatViewModel {
         sendMessageUseCase: SendMessageUseCase,
         loadHistoryUseCase: LoadChatHistoryUseCase,
         fetchMissedMessagesUseCase: FetchMissedMessagesUseCase? = nil,
+        chatRepository: (any ChatRepositoryProtocol)? = nil,
         sessionId: String = UUID().uuidString,
         projectId: String? = nil,
         agentId: String? = nil
@@ -48,6 +85,7 @@ final class ChatViewModel {
         self.sendMessageUseCase = sendMessageUseCase
         self.loadHistoryUseCase = loadHistoryUseCase
         self.fetchMissedMessagesUseCase = fetchMissedMessagesUseCase
+        self.chatRepository = chatRepository
         self.sessionId = sessionId
         self.projectId = projectId
         self.agentId = agentId
@@ -57,11 +95,22 @@ final class ChatViewModel {
     // MARK: - Actions
 
     /// Mesaj gonderir.
-    func sendMessage() async {
+    /// - Parameter isConnected: WebSocket baglanti durumu. `false` ise mesaj kuyruğa alınır.
+    func sendMessage(isConnected: Bool = true) async {
         let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
         messageText = ""
+
+        // Baglanti yoksa kuyruğa al ve bilgi ver
+        guard isConnected else {
+            messageQueue.enqueue(text: text, projectId: projectId, agentId: agentId)
+            errorMessage = String(localized: "chat.queue.queued")
+            HapticManager.error()
+            logger.info("Cevrimdisi: mesaj kuyruga alindi")
+            return
+        }
+
         isSending = true
         errorMessage = nil
 
@@ -72,17 +121,31 @@ final class ChatViewModel {
                 projectId: projectId,
                 agentId: agentId
             )
+            HapticManager.messageSent()
             messages.append(sentMessage)
             updateLastMessageTimestamp()
             logger.info("Mesaj gonderildi: \(sentMessage.id)")
         } catch {
             errorMessage = String(localized: "chat.error.sendFailed")
+            HapticManager.error()
             logger.error("Mesaj gonderme hatasi: \(error.localizedDescription)")
             // Mesaj metnini geri yukle kullanici tekrar deneyebilsin
             messageText = text
         }
 
         isSending = false
+    }
+
+    /// Baglanti kurulunca bekleyen kuyruklanmis mesajlari gonderir.
+    /// WebSocket yeniden baglandiginda cagirilir.
+    func flushQueue() async {
+        guard !messageQueue.isEmpty else { return }
+        let queued = messageQueue.dequeueAll()
+        logger.info("Kuyruk bosaltiliyor: \(queued.count) mesaj")
+        for msg in queued {
+            messageText = msg.text
+            await sendMessage(isConnected: true)
+        }
     }
 
     /// Mesaj gecmisini yukler (ilk sayfa).
@@ -169,7 +232,15 @@ final class ChatViewModel {
     ///   - messageId: Tamamlanan mesajin ID'si
     ///   - fullText: Tam mesaj icerigi
     ///   - type: Mesaj tipi
-    func handleStreamEnd(messageId: String, fullText: String, type: MessageType) {
+    ///   - tokensUsed: Toplam token sayisi (input + output), varsa
+    ///   - modelUsed: Kullanilan model adi, varsa
+    func handleStreamEnd(
+        messageId: String,
+        fullText: String,
+        type: MessageType,
+        tokensUsed: Int? = nil,
+        modelUsed: String? = nil
+    ) {
         if let index = messages.firstIndex(where: { $0.id == messageId }) {
             let existing = messages[index]
             messages[index] = ChatMessage(
@@ -179,8 +250,11 @@ final class ChatViewModel {
                 timestamp: existing.timestamp,
                 type: type,
                 attachments: existing.attachments,
-                isStreaming: false
+                isStreaming: false,
+                tokensUsed: tokensUsed,
+                modelUsed: modelUsed
             )
+            HapticManager.responseReceived()
         } else if !fullText.isEmpty {
             // Delta gelmeden stream_end gelirse (kısa/hata cevapları) yeni mesaj ekle
             messages.append(ChatMessage(
@@ -188,11 +262,14 @@ final class ChatViewModel {
                 content: fullText,
                 sender: .assistant,
                 type: type,
-                isStreaming: false
+                isStreaming: false,
+                tokensUsed: tokensUsed,
+                modelUsed: modelUsed
             ))
             updateLastMessageTimestamp()
         }
         isTyping = false
+        currentActivity = nil
     }
 
     /// Gelen tam mesaji mesaj listesine ekler.
@@ -205,11 +282,94 @@ final class ChatViewModel {
     /// Typing indicator durumunu gunceller.
     func handleTypingIndicator(isTyping: Bool) {
         self.isTyping = isTyping
+        if !isTyping {
+            // Typing durdu — aktivite bilgisini temizle
+            currentActivity = nil
+        }
+    }
+
+    /// Progress event'ini isler — inline tool aktivite kartini gunceller.
+    func handleProgress(_ content: ProgressMessageContent) {
+        let steps = (content.stepsDetail ?? []).map { step in
+            ToolStep(
+                id: step.id,
+                label: step.label,
+                status: step.status,
+                detail: step.detail,
+                durationSeconds: step.durationSeconds
+            )
+        }
+        currentActivity = ToolActivityModel(
+            phase: content.phase ?? "starting",
+            phaseLabel: content.task,
+            percentage: content.percentage,
+            steps: steps
+        )
     }
 
     /// Mesaj icerigini panoya kopyalar.
     func copyMessage(_ content: String) {
         UIPasteboard.general.string = content
+    }
+
+    /// Gelen code diff mesajini ekler.
+    /// - Parameter payload: CodeDiffPayloadDTO JSON icerigi
+    func handleCodeDiff(_ payload: CodeDiffPayloadDTO) {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        guard let data = try? encoder.encode(payload),
+              let json = String(data: data, encoding: .utf8) else {
+            return
+        }
+        let diffMessage = ChatMessage(
+            content: json,
+            sender: .assistant,
+            type: .codeDiff
+        )
+        messages.append(diffMessage)
+        updateLastMessageTimestamp()
+        logger.info("Code diff mesaji eklendi: \(payload.filesChanged) dosya")
+    }
+
+    /// Proaktif takip onerilerini gunceller.
+    /// - Parameters:
+    ///   - messageId: Onerilerle iliskili AI mesajinin ID'si
+    ///   - suggestions: Kisa aksiyonable oneri metinleri
+    func handleSuggestions(messageId: String, suggestions: [String]) {
+        self.suggestionMessageId = messageId
+        self.pendingSuggestions = suggestions
+    }
+
+    /// Mesaj degerlendirmesi gonderir (thumbs up/down).
+    /// Optimistic update yapar; hata durumunda geri alir.
+    func rateMessage(id: String, rating: MessageRating) async {
+        guard let repo = chatRepository else { return }
+
+        // Optimistic update
+        guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
+        let original = messages[index]
+        let optimistic = ChatMessage(
+            id: original.id,
+            content: original.content,
+            sender: original.sender,
+            timestamp: original.timestamp,
+            type: original.type,
+            attachments: original.attachments,
+            isStreaming: original.isStreaming,
+            tokensUsed: original.tokensUsed,
+            modelUsed: original.modelUsed,
+            rating: rating
+        )
+        messages[index] = optimistic
+
+        do {
+            try await repo.rateMessage(id: id, rating: rating)
+            logger.info("Mesaj degerlendirmesi basarili: \(id) — \(rating.rawValue)")
+        } catch {
+            // Hata durumunda geri al
+            messages[index] = original
+            logger.error("Mesaj degerlendirme hatasi: \(error.localizedDescription)")
+        }
     }
 
     /// Hata mesajini temizler.
