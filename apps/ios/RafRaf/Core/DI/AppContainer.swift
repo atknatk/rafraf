@@ -385,7 +385,9 @@ extension Container {
                 getAgentTasksUseCase: GetAgentTasksUseCase(repository: repository),
                 cancelAgentTaskUseCase: CancelAgentTaskUseCase(repository: repository),
                 dispatchAgentTaskUseCase: DispatchAgentTaskUseCase(repository: repository),
-                rescanProjectsUseCase: RescanProjectsUseCase(repository: repository)
+                rescanProjectsUseCase: RescanProjectsUseCase(repository: repository),
+                getSkipPermissionsUseCase: GetAgentSkipPermissionsUseCase(repository: repository),
+                updateSettingsUseCase: UpdateAgentSettingsUseCase(repository: repository)
             )
         }
     }

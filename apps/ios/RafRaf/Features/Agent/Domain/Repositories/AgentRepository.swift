@@ -37,4 +37,10 @@ protocol AgentRepositoryProtocol: Sendable {
 
     /// Agent'in proje dizinlerini yeniden tarar.
     func rescanProjects(agentId: String) async throws
+
+    /// Agent'in dangerouslySkipPermissions ayarini getirir.
+    func getAgentSkipPermissions(agentId: String) async throws -> Bool
+
+    /// Agent ayarlarini gunceller.
+    func updateAgentSettings(agentId: String, dangerouslySkipPermissions: Bool) async throws
 }

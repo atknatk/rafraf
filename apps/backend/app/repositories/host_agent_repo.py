@@ -92,3 +92,21 @@ class HostAgentRepository:
             .values(status="offline", updated_at=datetime.now(tz=UTC))
         )
         await self._session.execute(stmt)
+
+    async def update_settings(
+        self,
+        host_id: str,
+        *,
+        dangerously_skip_permissions: bool,
+    ) -> bool:
+        """Update agent settings. Returns True if record was found and updated."""
+        stmt = (
+            update(HostAgent)
+            .where(HostAgent.host_id == host_id)
+            .values(
+                dangerously_skip_permissions=dangerously_skip_permissions,
+                updated_at=datetime.now(tz=UTC),
+            )
+        )
+        result = await self._session.execute(stmt)
+        return result.rowcount > 0

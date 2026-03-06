@@ -46,6 +46,7 @@ class _AgentRecord:
         "metadata",
         "connection_id",
         "claude_processes",
+        "dangerously_skip_permissions",
     )
 
     def __init__(
@@ -69,6 +70,7 @@ class _AgentRecord:
         self.metadata: dict[str, object] = {}
         self.connection_id = connection_id
         self.claude_processes: list[ClaudeProcessInfo] = []
+        self.dangerously_skip_permissions: bool = False
 
 
 class AgentRegistryService:
@@ -411,6 +413,22 @@ class AgentRegistryService:
             return []
         return list(record.claude_processes)
 
+    async def update_skip_permissions(
+        self,
+        host_id: str,
+        value: bool,
+    ) -> bool:
+        """Update dangerously_skip_permissions for a given agent in-memory.
+
+        Returns True if the agent was found, False otherwise.
+        Caller is responsible for DB persistence and WS notification.
+        """
+        record = self._agents.get(host_id)
+        if record is None:
+            return False
+        record.dangerously_skip_permissions = value
+        return True
+
     @staticmethod
     def _to_detail(record: _AgentRecord) -> AgentDetailResponse:
         return AgentDetailResponse(
@@ -427,6 +445,7 @@ class AgentRegistryService:
             active_tasks=record.active_tasks,
             resources=record.resources,
             claude_processes=list(record.claude_processes),
+            dangerously_skip_permissions=record.dangerously_skip_permissions,
         )
 
 

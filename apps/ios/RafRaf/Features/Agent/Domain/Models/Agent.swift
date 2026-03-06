@@ -11,6 +11,7 @@ struct Agent: Identifiable, Sendable, Equatable {
     let activeTasks: Int?
     let lastHeartbeatAt: Date?
     let resources: AgentResourceInfo?
+    let dangerouslySkipPermissions: Bool
 }
 
 /// Agent baglanti durumu.

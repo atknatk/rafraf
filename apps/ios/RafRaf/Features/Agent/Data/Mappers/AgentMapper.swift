@@ -12,8 +12,14 @@ enum AgentMapper {
             uptimeSeconds: dto.uptimeSeconds,
             activeTasks: dto.activeTasks,
             lastHeartbeatAt: parseDate(dto.lastHeartbeatAt),
-            resources: dto.resources.map { toDomain(from: $0) }
+            resources: dto.resources.map { toDomain(from: $0) },
+            dangerouslySkipPermissions: false
         )
+    }
+
+    /// AgentDetailResponseDTO'dan dangerouslySkipPermissions degerini cikartir.
+    static func skipPermissions(from dto: AgentDetailResponseDTO) -> Bool {
+        dto.dangerouslySkipPermissions
     }
 
     /// ResourceInfoDTO'yu AgentResourceInfo domain modeline donusturur.

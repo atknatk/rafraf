@@ -50,3 +50,22 @@ struct AgentTaskListResponseDTO: Codable, Sendable {
     let total: Int
     let pendingCount: Int
 }
+
+/// Agent detay response DTO.
+/// Backend `GET /api/v1/agents/{host_id}` kontratina uygun.
+struct AgentDetailResponseDTO: Codable, Sendable {
+    let hostId: String
+    let status: String
+    let capabilities: [String]
+    let dangerouslySkipPermissions: Bool
+}
+
+/// Agent ayar guncelleme request DTO.
+/// Backend `PATCH /api/v1/agents/{host_id}/settings` kontratina uygun.
+struct AgentSettingsRequestDTO: Encodable, Sendable {
+    let dangerouslySkipPermissions: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case dangerouslySkipPermissions = "dangerously_skip_permissions"
+    }
+}

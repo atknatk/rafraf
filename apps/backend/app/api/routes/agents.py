@@ -13,6 +13,7 @@ from app.core.exceptions import NotFoundError
 from app.schemas.agent import (
     AgentDetailResponse,
     AgentListResponse,
+    AgentSettingsRequest,
     AgentStatus,
     AgentTaskListResponse,
     DispatchTaskRequest,
@@ -147,6 +148,48 @@ async def dispatch_agent_task(
         total=len(tasks),
         pending_count=pending_count,
     )
+
+
+@router.patch("/{host_id}/settings", response_model=AgentDetailResponse)
+async def update_agent_settings(
+    host_id: str,
+    body: AgentSettingsRequest,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> AgentDetailResponse:
+    """Agent ayarlarini guncelle ve agent'a config_update mesaji gonder."""
+    from app.repositories.host_agent_repo import HostAgentRepository
+
+    # DB'ye yaz
+    repo = HostAgentRepository(session)
+    updated = await repo.update_settings(
+        host_id,
+        dangerously_skip_permissions=body.dangerously_skip_permissions,
+    )
+    if not updated:
+        raise NotFoundError(message=f"Agent '{host_id}' not found")
+    await session.commit()
+
+    # In-memory guncelle
+    await agent_registry.update_skip_permissions(host_id, body.dangerously_skip_permissions)
+
+    # Agent online ise WS config_update gonder
+    connection_id = agent_registry.get_connection_id(host_id)
+    if connection_id is not None:
+        msg = {
+            "type": "config_update",
+            "dangerously_skip_permissions": body.dangerously_skip_permissions,
+        }
+        await agent_manager.send_json(connection_id, msg)
+        await logger.ainfo(
+            "agent_config_update_sent",
+            host_id=host_id,
+            dangerously_skip_permissions=body.dangerously_skip_permissions,
+        )
+
+    detail = await agent_registry.get_agent(host_id)
+    if detail is None:
+        raise NotFoundError(message=f"Agent '{host_id}' not found")
+    return detail
 
 
 @router.post("/{host_id}/projects/rescan", status_code=202)

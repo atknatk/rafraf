@@ -241,7 +241,9 @@ struct AgentListView: View {
                             getAgentTasksUseCase: viewModel.getAgentTasksUseCase,
                             cancelAgentTaskUseCase: viewModel.cancelAgentTaskUseCase,
                             dispatchAgentTaskUseCase: viewModel.dispatchAgentTaskUseCase,
-                            rescanProjectsUseCase: viewModel.rescanProjectsUseCase
+                            rescanProjectsUseCase: viewModel.rescanProjectsUseCase,
+                            getSkipPermissionsUseCase: viewModel.getSkipPermissionsUseCase,
+                            updateSettingsUseCase: viewModel.updateSettingsUseCase
                         )
                     } label: {
                         AgentCardView(agent: agent)
@@ -343,7 +345,8 @@ final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable
                     memoryUsagePercent: 72,
                     diskUsagePercent: 38,
                     diskFreeGb: 120
-                )
+                ),
+                dangerouslySkipPermissions: false
             ),
             Agent(
                 hostId: "ubuntu-server",
@@ -358,7 +361,8 @@ final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable
                     memoryUsagePercent: 45,
                     diskUsagePercent: 65,
                     diskFreeGb: 80
-                )
+                ),
+                dangerouslySkipPermissions: false
             ),
             Agent(
                 hostId: "imac-dev",
@@ -368,7 +372,8 @@ final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable
                 uptimeSeconds: nil,
                 activeTasks: nil,
                 lastHeartbeatAt: Date().addingTimeInterval(-3600),
-                resources: nil
+                resources: nil,
+                dangerouslySkipPermissions: false
             )
         ]
 
@@ -482,4 +487,6 @@ final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable
     func cancelAgentTask(agentId: String, taskId: String) async throws {}
     func dispatchTask(agentId: String, runner: String, action: String, params: [String: String]) async throws {}
     func rescanProjects(agentId: String) async throws {}
+    func getAgentSkipPermissions(agentId: String) async throws -> Bool { false }
+    func updateAgentSettings(agentId: String, dangerouslySkipPermissions: Bool) async throws {}
 }

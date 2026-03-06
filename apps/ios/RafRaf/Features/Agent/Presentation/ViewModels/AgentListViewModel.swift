@@ -30,6 +30,8 @@ final class AgentListViewModel {
     let cancelAgentTaskUseCase: CancelAgentTaskUseCase
     let dispatchAgentTaskUseCase: DispatchAgentTaskUseCase
     let rescanProjectsUseCase: RescanProjectsUseCase
+    let getSkipPermissionsUseCase: GetAgentSkipPermissionsUseCase
+    let updateSettingsUseCase: UpdateAgentSettingsUseCase
     private let logger = AppLogger.logger(for: "AgentList")
 
     // MARK: - Init
@@ -44,7 +46,9 @@ final class AgentListViewModel {
         getAgentTasksUseCase: GetAgentTasksUseCase,
         cancelAgentTaskUseCase: CancelAgentTaskUseCase,
         dispatchAgentTaskUseCase: DispatchAgentTaskUseCase,
-        rescanProjectsUseCase: RescanProjectsUseCase
+        rescanProjectsUseCase: RescanProjectsUseCase,
+        getSkipPermissionsUseCase: GetAgentSkipPermissionsUseCase,
+        updateSettingsUseCase: UpdateAgentSettingsUseCase
     ) {
         self.getAgentsUseCase = getAgentsUseCase
         self.getSubscriptionUsageUseCase = getSubscriptionUsageUseCase
@@ -56,6 +60,8 @@ final class AgentListViewModel {
         self.cancelAgentTaskUseCase = cancelAgentTaskUseCase
         self.dispatchAgentTaskUseCase = dispatchAgentTaskUseCase
         self.rescanProjectsUseCase = rescanProjectsUseCase
+        self.getSkipPermissionsUseCase = getSkipPermissionsUseCase
+        self.updateSettingsUseCase = updateSettingsUseCase
         logger.info("AgentListViewModel baslatildi")
     }
 

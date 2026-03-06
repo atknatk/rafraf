@@ -122,4 +122,20 @@ final class AgentRepositoryImpl: AgentRepositoryProtocol, @unchecked Sendable {
         )
         logger.info("Proje rescan tetiklendi: \(agentId)")
     }
+
+    func getAgentSkipPermissions(agentId: String) async throws -> Bool {
+        let dto: AgentDetailResponseDTO = try await networkClient.get(
+            path: "/agents/\(agentId)"
+        )
+        logger.info("Agent detay alindi: \(agentId), skipPermissions: \(dto.dangerouslySkipPermissions)")
+        return AgentMapper.skipPermissions(from: dto)
+    }
+
+    func updateAgentSettings(agentId: String, dangerouslySkipPermissions: Bool) async throws {
+        let _: AgentDetailResponseDTO = try await networkClient.patch(
+            path: "/agents/\(agentId)/settings",
+            body: AgentSettingsRequestDTO(dangerouslySkipPermissions: dangerouslySkipPermissions)
+        )
+        logger.info("Agent ayarlari guncellendi: \(agentId), skipPermissions: \(dangerouslySkipPermissions)")
+    }
 }

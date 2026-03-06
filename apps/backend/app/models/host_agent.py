@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, String
+from sqlalchemy import Boolean, DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -60,4 +60,9 @@ class HostAgent(Base, UUIDMixin, TimestampMixin):
     agent_version: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
+    )
+    dangerously_skip_permissions: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default="false",
     )

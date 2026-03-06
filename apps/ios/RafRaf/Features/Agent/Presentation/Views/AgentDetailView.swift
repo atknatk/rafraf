@@ -16,6 +16,7 @@ struct AgentDetailView: View {
     @State private var errorMessage: String?
     @State private var showDispatchTask = false
     @State private var processPollingTask: Task<Void, Never>?
+    @State private var skipPermissions: Bool = false
 
     private let getUsageUseCase: GetSubscriptionUsageUseCase
     private let refreshUsageUseCase: RefreshSubscriptionUsageUseCase
@@ -26,6 +27,8 @@ struct AgentDetailView: View {
     private let cancelAgentTaskUseCase: CancelAgentTaskUseCase
     private let dispatchAgentTaskUseCase: DispatchAgentTaskUseCase
     private let rescanProjectsUseCase: RescanProjectsUseCase
+    private let getSkipPermissionsUseCase: GetAgentSkipPermissionsUseCase
+    private let updateSettingsUseCase: UpdateAgentSettingsUseCase
 
     init(
         agent: Agent,
@@ -37,7 +40,9 @@ struct AgentDetailView: View {
         getAgentTasksUseCase: GetAgentTasksUseCase,
         cancelAgentTaskUseCase: CancelAgentTaskUseCase,
         dispatchAgentTaskUseCase: DispatchAgentTaskUseCase,
-        rescanProjectsUseCase: RescanProjectsUseCase
+        rescanProjectsUseCase: RescanProjectsUseCase,
+        getSkipPermissionsUseCase: GetAgentSkipPermissionsUseCase,
+        updateSettingsUseCase: UpdateAgentSettingsUseCase
     ) {
         self.agent = agent
         self.getUsageUseCase = getUsageUseCase
@@ -49,12 +54,15 @@ struct AgentDetailView: View {
         self.cancelAgentTaskUseCase = cancelAgentTaskUseCase
         self.dispatchAgentTaskUseCase = dispatchAgentTaskUseCase
         self.rescanProjectsUseCase = rescanProjectsUseCase
+        self.getSkipPermissionsUseCase = getSkipPermissionsUseCase
+        self.updateSettingsUseCase = updateSettingsUseCase
     }
 
     var body: some View {
         ScrollView {
             VStack(spacing: RFSpacing.md) {
                 agentInfoSection
+                settingsSection
                 if !agentTasks.isEmpty {
                     tasksSection
                 }
@@ -85,7 +93,8 @@ struct AgentDetailView: View {
             async let projectsTask: () = loadProjects()
             async let processesTask: () = loadProcesses()
             async let tasksTask: () = loadTasks()
-            _ = await (usageTask, projectsTask, processesTask, tasksTask)
+            async let skipTask: () = loadSkipPermissions()
+            _ = await (usageTask, projectsTask, processesTask, tasksTask, skipTask)
             startProcessPolling()
         }
         .onDisappear {
@@ -167,6 +176,39 @@ struct AgentDetailView: View {
                             color: RFColors.fallbackTextTertiary
                         )
                     }
+                }
+            }
+        }
+    }
+
+    // MARK: - Settings Section
+
+    private var settingsSection: some View {
+        RFCard {
+            VStack(alignment: .leading, spacing: RFSpacing.sm) {
+                RFText(String(localized: "agent.settings.title"), style: .headline)
+
+                HStack {
+                    VStack(alignment: .leading, spacing: RFSpacing.xxs) {
+                        RFText(
+                            String(localized: "agent.settings.skipPermissions"),
+                            style: .body
+                        )
+                        RFText(
+                            String(localized: "agent.settings.skipPermissions.subtitle"),
+                            style: .caption,
+                            color: RFColors.fallbackTextSecondary
+                        )
+                    }
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { skipPermissions },
+                        set: { newValue in
+                            Task { await toggleSkipPermissions(newValue) }
+                        }
+                    ))
+                    .labelsHidden()
+                    .tint(RFColors.warning)
                 }
             }
         }
@@ -820,6 +862,27 @@ struct AgentDetailView: View {
         isRefreshing = false
     }
 
+    private func loadSkipPermissions() async {
+        do {
+            skipPermissions = try await getSkipPermissionsUseCase.execute(agentId: agent.hostId)
+        } catch {
+            // Sessizce yoksay — default false kalir
+        }
+    }
+
+    private func toggleSkipPermissions(_ value: Bool) async {
+        skipPermissions = value
+        do {
+            try await updateSettingsUseCase.execute(
+                agentId: agent.hostId,
+                dangerouslySkipPermissions: value
+            )
+        } catch {
+            skipPermissions = !value
+            errorMessage = String(localized: "agent.settings.updateError")
+        }
+    }
+
     // MARK: - Helpers
 
     private func capabilityLabel(_ capability: AgentCapability) -> String {
@@ -974,6 +1037,7 @@ private struct DispatchTaskSheet: View {
 }
 
 #Preview {
+    let repo = PreviewAgentRepository()
     NavigationStack {
         AgentDetailView(
             agent: Agent(
@@ -989,35 +1053,20 @@ private struct DispatchTaskSheet: View {
                     memoryUsagePercent: 72,
                     diskUsagePercent: 38,
                     diskFreeGb: 120
-                )
+                ),
+                dangerouslySkipPermissions: false
             ),
-            getUsageUseCase: GetSubscriptionUsageUseCase(
-                repository: PreviewAgentRepository()
-            ),
-            refreshUsageUseCase: RefreshSubscriptionUsageUseCase(
-                repository: PreviewAgentRepository()
-            ),
-            getAgentProjectsUseCase: GetAgentProjectsUseCase(
-                repository: PreviewAgentRepository()
-            ),
-            setProjectActiveUseCase: SetProjectActiveUseCase(
-                repository: PreviewAgentRepository()
-            ),
-            getClaudeProcessesUseCase: GetClaudeProcessesUseCase(
-                repository: PreviewAgentRepository()
-            ),
-            getAgentTasksUseCase: GetAgentTasksUseCase(
-                repository: PreviewAgentRepository()
-            ),
-            cancelAgentTaskUseCase: CancelAgentTaskUseCase(
-                repository: PreviewAgentRepository()
-            ),
-            dispatchAgentTaskUseCase: DispatchAgentTaskUseCase(
-                repository: PreviewAgentRepository()
-            ),
-            rescanProjectsUseCase: RescanProjectsUseCase(
-                repository: PreviewAgentRepository()
-            )
+            getUsageUseCase: GetSubscriptionUsageUseCase(repository: repo),
+            refreshUsageUseCase: RefreshSubscriptionUsageUseCase(repository: repo),
+            getAgentProjectsUseCase: GetAgentProjectsUseCase(repository: repo),
+            setProjectActiveUseCase: SetProjectActiveUseCase(repository: repo),
+            getClaudeProcessesUseCase: GetClaudeProcessesUseCase(repository: repo),
+            getAgentTasksUseCase: GetAgentTasksUseCase(repository: repo),
+            cancelAgentTaskUseCase: CancelAgentTaskUseCase(repository: repo),
+            dispatchAgentTaskUseCase: DispatchAgentTaskUseCase(repository: repo),
+            rescanProjectsUseCase: RescanProjectsUseCase(repository: repo),
+            getSkipPermissionsUseCase: GetAgentSkipPermissionsUseCase(repository: repo),
+            updateSettingsUseCase: UpdateAgentSettingsUseCase(repository: repo)
         )
     }
 }

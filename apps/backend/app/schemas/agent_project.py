@@ -6,6 +6,8 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.agent import ClaudeProcessInfo as ClaudeProcessInfo  # re-export
+
 
 class AgentProjectSummary(BaseModel):
     """Tek proje ozeti — agent'in proje listesi icin."""
@@ -32,18 +34,6 @@ class AgentProjectUpdateRequest(BaseModel):
     """PATCH /agents/{host_id}/projects/{project_id} istegi."""
 
     is_active: bool
-
-
-class ClaudeProcessInfo(BaseModel):
-    """Calisan tek bir claude -p process bilgisi."""
-
-    model_config = ConfigDict(frozen=True)
-
-    pid: int
-    cpu_percent: float = Field(ge=0)
-    memory_mb: float = Field(ge=0)
-    started_at: str | None = None
-    cmdline: str | None = None
 
 
 class AgentProcessesResponse(BaseModel):
