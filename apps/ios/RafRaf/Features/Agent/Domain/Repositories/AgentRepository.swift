@@ -34,4 +34,7 @@ protocol AgentRepositoryProtocol: Sendable {
 
     /// Agent'a yeni bir gorev gonderir.
     func dispatchTask(agentId: String, runner: String, action: String, params: [String: String]) async throws
+
+    /// Agent'in proje dizinlerini yeniden tarar.
+    func rescanProjects(agentId: String) async throws
 }

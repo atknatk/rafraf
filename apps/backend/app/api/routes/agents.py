@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.api.routes.agent_ws import get_task_manager
+from app.api.routes.agent_ws import agent_manager, get_task_manager
 from app.core.exceptions import NotFoundError
 from app.schemas.agent import (
     AgentDetailResponse,
@@ -147,6 +147,18 @@ async def dispatch_agent_task(
         total=len(tasks),
         pending_count=pending_count,
     )
+
+
+@router.post("/{host_id}/projects/rescan", status_code=202)
+async def rescan_agent_projects(host_id: str) -> dict[str, str]:
+    """Agent'a bagli projeleri yeniden tarar (rescan komutu gonderir)."""
+    record = agent_registry.get_connection_id(host_id)
+    if record is None:
+        raise NotFoundError(message=f"Agent '{host_id}' not connected")
+    msg = {"type": "rescan_projects", "request_id": str(uuid.uuid4())}
+    await agent_manager.send_json(record, msg)
+    await logger.ainfo("rescan_projects_requested", host_id=host_id)
+    return {"status": "rescan_requested", "host_id": host_id}
 
 
 @router.delete("/{host_id}/tasks/{task_id}", status_code=204)

@@ -281,6 +281,57 @@
         }
       }
     },
+    "agent.projects.rescan" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rescan"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yeniden Tara"
+          }
+        }
+      }
+    },
+    "agent.projects.rescanning" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanning..."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taranıyor..."
+          }
+        }
+      }
+    },
+    "agent.projects.rescanError" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rescan failed. Agent may be offline."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tarama başarısız. Agent çevrimdışı olabilir."
+          }
+        }
+      }
+    },
     "agent.projects.discovered" : {
       "extractionState" : "manual",
       "localizations" : {

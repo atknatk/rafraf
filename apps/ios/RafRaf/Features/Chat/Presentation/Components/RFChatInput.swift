@@ -46,16 +46,45 @@ struct RFChatInput: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            RFColors.divider.frame(height: 0.5)
+            HStack(alignment: .bottom, spacing: RFSpacing.sm) {
+                // + attachment placeholder
+                Button { } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(RFColors.fallbackTextSecondary)
+                        .frame(width: 34, height: 34)
+                        .background(RFColors.fallbackSurface)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(RFColors.divider, lineWidth: 0.5))
+                }
+                .buttonStyle(.plain)
+                .disabled(isProcessing)
 
-            HStack(alignment: .bottom, spacing: RFSpacing.xs) {
-                multiLineTextField
-                actionButton
+                HStack(alignment: .bottom, spacing: RFSpacing.xs) {
+                    multiLineTextField
+                    actionButton
+                }
+                .padding(.horizontal, RFSpacing.sm)
+                .padding(.vertical, RFSpacing.xs)
+                .background(
+                    RoundedRectangle(cornerRadius: RFCornerRadius.extraLarge)
+                        .fill(RFColors.fallbackSurface)
+                        .shadow(color: Color.black.opacity(0.08), radius: 10, x: 0, y: -2)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: RFCornerRadius.extraLarge)
+                        .stroke(
+                            isFocused ? RFColors.fallbackPrimary.opacity(0.3) : RFColors.divider.opacity(0.6),
+                            lineWidth: isFocused ? 1.5 : 0.5
+                        )
+                )
+                .animation(RFAnimation.springSnappy, value: isFocused)
             }
             .padding(.horizontal, RFSpacing.md)
-            .padding(.vertical, RFSpacing.sm)
+            .padding(.top, RFSpacing.sm)
+            .padding(.bottom, RFSpacing.xs)
         }
-        .background(RFColors.fallbackSurface)
+        .background(RFColors.fallbackBackground.ignoresSafeArea(edges: .bottom))
     }
 
     // MARK: - Multi-line TextField
@@ -100,16 +129,7 @@ struct RFChatInput: View {
                 .disabled(!isEnabled || isRecording || isProcessing)
                 .padding(.horizontal, RFSpacing.xs)
         }
-        .background(RFColors.fallbackBackground.opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: RFCornerRadius.medium))
-        .overlay(
-            RoundedRectangle(cornerRadius: RFCornerRadius.medium)
-                .stroke(
-                    isFocused ? RFColors.fallbackPrimary.opacity(0.4) : RFColors.divider,
-                    lineWidth: isFocused ? 1.5 : 0.5
-                )
-        )
-        .animation(RFAnimation.springSnappy, value: isFocused)
+        .background(Color.clear)
     }
 
     // MARK: - Action Button

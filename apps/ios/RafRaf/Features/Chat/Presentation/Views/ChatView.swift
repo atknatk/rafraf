@@ -107,27 +107,24 @@ struct ChatView: View {
                     )
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showSearch = true
+                    Menu {
+                        Button {
+                            showSearch = true
+                        } label: {
+                            Label(String(localized: "chat.search.title"), systemImage: "magnifyingglass")
+                        }
+                        Button {
+                            showBookmarks = true
+                        } label: {
+                            Label(String(localized: "bookmarks.title"), systemImage: "bookmark")
+                        }
+                        Button {
+                            Task { await exportConversation() }
+                        } label: {
+                            Label(String(localized: "chat.export.title"), systemImage: "square.and.arrow.up")
+                        }
                     } label: {
-                        Image(systemName: "magnifyingglass")
-                            .accessibilityLabel(String(localized: "chat.search.title"))
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showBookmarks = true
-                    } label: {
-                        Image(systemName: "bookmark")
-                            .accessibilityLabel(String(localized: "bookmarks.title"))
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        Task { await exportConversation() }
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                            .accessibilityLabel(String(localized: "chat.export.title"))
+                        Image(systemName: "ellipsis.circle")
                     }
                 }
             }
@@ -167,8 +164,12 @@ struct ChatView: View {
                 }
             }
             .onChange(of: sessionManager.activeProjectId) {
+                // Proje degistiyse sadece mesaj gecmisi bossa yukle
+                // (geri geldigimizde mevcut mesajlar korunur)
                 Task {
-                    await viewModel.loadHistory()
+                    if viewModel.messages.isEmpty {
+                        await viewModel.loadHistory()
+                    }
                 }
             }
             .onChange(of: progressViewModel.isActive) { _, isActive in

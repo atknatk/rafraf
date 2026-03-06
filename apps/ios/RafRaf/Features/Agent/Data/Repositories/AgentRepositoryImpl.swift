@@ -113,4 +113,13 @@ final class AgentRepositoryImpl: AgentRepositoryProtocol, @unchecked Sendable {
         )
         logger.info("Gorev gonderildi: \(runner)/\(action) -> \(agentId)")
     }
+
+    func rescanProjects(agentId: String) async throws {
+        struct RescanResponse: Decodable { let status: String }
+        let _: RescanResponse = try await networkClient.post(
+            path: "/agents/\(agentId)/projects/rescan",
+            body: [String: String]()
+        )
+        logger.info("Proje rescan tetiklendi: \(agentId)")
+    }
 }

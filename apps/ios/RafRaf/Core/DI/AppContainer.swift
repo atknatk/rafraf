@@ -9,7 +9,7 @@ extension Container {
 
     /// Ag istemcisi.
     var networkClient: Factory<NetworkClient> {
-        self { NetworkClient() }
+        self { NetworkClient(authInterceptor: self.authInterceptor()) }
             .singleton
     }
 
@@ -384,7 +384,8 @@ extension Container {
                 getClaudeProcessesUseCase: GetClaudeProcessesUseCase(repository: repository),
                 getAgentTasksUseCase: GetAgentTasksUseCase(repository: repository),
                 cancelAgentTaskUseCase: CancelAgentTaskUseCase(repository: repository),
-                dispatchAgentTaskUseCase: DispatchAgentTaskUseCase(repository: repository)
+                dispatchAgentTaskUseCase: DispatchAgentTaskUseCase(repository: repository),
+                rescanProjectsUseCase: RescanProjectsUseCase(repository: repository)
             )
         }
     }
@@ -407,11 +408,13 @@ extension Container {
         self { @MainActor in
             let settingsRepo = self.settingsRepository()
             let userRepo = self.userRepository()
+            let authManager = self.authManager()
             return SettingsViewModel(
                 loadSettingsUseCase: LoadSettingsUseCase(repository: settingsRepo),
                 saveSettingsUseCase: SaveSettingsUseCase(repository: settingsRepo),
                 loadProfileUseCase: LoadProfileUseCase(repository: userRepo),
-                updateProfileUseCase: UpdateProfileUseCase(repository: userRepo)
+                updateProfileUseCase: UpdateProfileUseCase(repository: userRepo),
+                logoutUseCase: LogoutUseCase(authManager: authManager)
             )
         }
     }

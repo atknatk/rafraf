@@ -355,11 +355,14 @@ struct SettingsView: View {
 #Preview {
     let settingsRepo = SettingsRepositoryImpl()
     let userRepo = UserRepositoryImpl(networkClient: NetworkClient())
+    let keychain = KeychainHelper()
+    let authManager = AuthManager(keychain: keychain)
     let viewModel = SettingsViewModel(
         loadSettingsUseCase: LoadSettingsUseCase(repository: settingsRepo),
         saveSettingsUseCase: SaveSettingsUseCase(repository: settingsRepo),
         loadProfileUseCase: LoadProfileUseCase(repository: userRepo),
-        updateProfileUseCase: UpdateProfileUseCase(repository: userRepo)
+        updateProfileUseCase: UpdateProfileUseCase(repository: userRepo),
+        logoutUseCase: LogoutUseCase(authManager: authManager)
     )
     SettingsView(viewModel: viewModel)
 }

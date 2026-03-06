@@ -53,6 +53,7 @@ final class SettingsViewModel {
     private let saveSettingsUseCase: SaveSettingsUseCase
     private let loadProfileUseCase: LoadProfileUseCase
     private let updateProfileUseCase: UpdateProfileUseCase
+    private let logoutUseCase: LogoutUseCase
     private let logger = AppLogger.logger(for: "Settings")
 
     // MARK: - Init
@@ -61,12 +62,14 @@ final class SettingsViewModel {
         loadSettingsUseCase: LoadSettingsUseCase,
         saveSettingsUseCase: SaveSettingsUseCase,
         loadProfileUseCase: LoadProfileUseCase,
-        updateProfileUseCase: UpdateProfileUseCase
+        updateProfileUseCase: UpdateProfileUseCase,
+        logoutUseCase: LogoutUseCase
     ) {
         self.loadSettingsUseCase = loadSettingsUseCase
         self.saveSettingsUseCase = saveSettingsUseCase
         self.loadProfileUseCase = loadProfileUseCase
         self.updateProfileUseCase = updateProfileUseCase
+        self.logoutUseCase = logoutUseCase
         logger.info("SettingsViewModel baslatildi")
         loadCurrentSettings()
     }
@@ -185,8 +188,7 @@ final class SettingsViewModel {
     /// Cikis yapar.
     func logout() async {
         logger.info("Cikis yapiliyor")
-        // AuthManager uzerinden logout islemi yapilir.
-        // Bu ViewModel sadece Settings scope'unda calisir.
+        logoutUseCase.execute()
     }
 
     // MARK: - Private

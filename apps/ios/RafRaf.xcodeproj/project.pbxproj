@@ -52,6 +52,7 @@
 		A1B2C3D4E5F647A89012BC70 /* CancelAgentTaskUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC71 /* CancelAgentTaskUseCase.swift */; };
 		A1B2C3D4E5F647A89012BC78 /* DispatchAgentTaskUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC79 /* DispatchAgentTaskUseCase.swift */; };
 		A1B2C3D4E5F647A89012BC7A /* RFToolActivityCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC7B /* RFToolActivityCard.swift */; };
+		A1B2C3D4E5F647A89012BC7C /* RescanProjectsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC7D /* RescanProjectsUseCase.swift */; };
 		A1B2C3D4E5F647A89012BC50 /* WidgetDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC51 /* WidgetDataService.swift */; };
 		A1B2C3D4E5F647A89012BC52 /* RafRafWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC53 /* RafRafWidgetView.swift */; };
 		A1B2C3D4E5F647A89012BC41 /* ProjectAnalyticsDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC42 /* ProjectAnalyticsDTO.swift */; };
@@ -705,6 +706,7 @@
 		A1B2C3D4E5F647A89012BC75 /* GitHubEventService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubEventService.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC77 /* CostSummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CostSummaryCard.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC7B /* RFToolActivityCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFToolActivityCard.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC7D /* RescanProjectsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RescanProjectsUseCase.swift; sourceTree = "<group>"; };
 		E6124D6E1DECAB58D50AE8B0 /* View+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+Extensions.swift"; sourceTree = "<group>"; };
 		E745D17E31094BA30A4732FD /* ProjectRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectRepositoryImpl.swift; sourceTree = "<group>"; };
 		EA8C45FE6EB4CB9BC35B709B /* VoiceOutputState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOutputState.swift; sourceTree = "<group>"; };
@@ -3139,6 +3141,7 @@
 				A1B2C3D4E5F647A89012BC6F /* GetAgentTasksUseCase.swift */,
 				A1B2C3D4E5F647A89012BC71 /* CancelAgentTaskUseCase.swift */,
 				A1B2C3D4E5F647A89012BC79 /* DispatchAgentTaskUseCase.swift */,
+				A1B2C3D4E5F647A89012BC7D /* RescanProjectsUseCase.swift */,
 			);
 			path = UseCases;
 			sourceTree = "<group>";
@@ -3411,6 +3414,7 @@
 				A1B2C3D4E5F647A89012BC6E /* GetAgentTasksUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC70 /* CancelAgentTaskUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC78 /* DispatchAgentTaskUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC7C /* RescanProjectsUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC30 /* UpdateProjectStatusUseCase.swift in Sources */,
 				A1B2C3D4E5F647A89012BC32 /* RafRafLiveActivity.swift in Sources */,
 				A1B2C3D4E5F647A89012BC35 /* RFQuickCommandPalette.swift in Sources */,

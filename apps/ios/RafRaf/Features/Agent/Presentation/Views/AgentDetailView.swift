@@ -12,8 +12,10 @@ struct AgentDetailView: View {
     @State private var agentTasks: [AgentTask] = []
     @State private var pendingTaskCount = 0
     @State private var isRefreshing = false
+    @State private var isRescanning = false
     @State private var errorMessage: String?
     @State private var showDispatchTask = false
+    @State private var processPollingTask: Task<Void, Never>?
 
     private let getUsageUseCase: GetSubscriptionUsageUseCase
     private let refreshUsageUseCase: RefreshSubscriptionUsageUseCase
@@ -23,6 +25,7 @@ struct AgentDetailView: View {
     private let getAgentTasksUseCase: GetAgentTasksUseCase
     private let cancelAgentTaskUseCase: CancelAgentTaskUseCase
     private let dispatchAgentTaskUseCase: DispatchAgentTaskUseCase
+    private let rescanProjectsUseCase: RescanProjectsUseCase
 
     init(
         agent: Agent,
@@ -33,7 +36,8 @@ struct AgentDetailView: View {
         getClaudeProcessesUseCase: GetClaudeProcessesUseCase,
         getAgentTasksUseCase: GetAgentTasksUseCase,
         cancelAgentTaskUseCase: CancelAgentTaskUseCase,
-        dispatchAgentTaskUseCase: DispatchAgentTaskUseCase
+        dispatchAgentTaskUseCase: DispatchAgentTaskUseCase,
+        rescanProjectsUseCase: RescanProjectsUseCase
     ) {
         self.agent = agent
         self.getUsageUseCase = getUsageUseCase
@@ -44,6 +48,7 @@ struct AgentDetailView: View {
         self.getAgentTasksUseCase = getAgentTasksUseCase
         self.cancelAgentTaskUseCase = cancelAgentTaskUseCase
         self.dispatchAgentTaskUseCase = dispatchAgentTaskUseCase
+        self.rescanProjectsUseCase = rescanProjectsUseCase
     }
 
     var body: some View {
@@ -81,6 +86,11 @@ struct AgentDetailView: View {
             async let processesTask: () = loadProcesses()
             async let tasksTask: () = loadTasks()
             _ = await (usageTask, projectsTask, processesTask, tasksTask)
+            startProcessPolling()
+        }
+        .onDisappear {
+            processPollingTask?.cancel()
+            processPollingTask = nil
         }
         .overlay {
             if let errorMessage {
@@ -432,6 +442,34 @@ struct AgentDetailView: View {
     private var activeProjects: [AgentProject] { agentProjects.filter(\.isActive) }
     private var discoveredProjects: [AgentProject] { agentProjects.filter { !$0.isActive } }
 
+    private var rescanButton: some View {
+        Button {
+            Task { await triggerRescan() }
+        } label: {
+            HStack(spacing: RFSpacing.xxs) {
+                if isRescanning {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption.weight(.semibold))
+                }
+                RFText(
+                    isRescanning
+                        ? String(localized: "agent.projects.rescanning")
+                        : String(localized: "agent.projects.rescan"),
+                    style: .captionBold,
+                    color: RFColors.fallbackPrimary
+                )
+            }
+            .padding(.horizontal, RFSpacing.sm)
+            .padding(.vertical, RFSpacing.xxs)
+            .background(RFColors.fallbackPrimary.opacity(0.08))
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(isRescanning || agent.status == .offline)
+    }
+
     private var projectsSection: some View {
         VStack(spacing: RFSpacing.sm) {
             if !activeProjects.isEmpty {
@@ -445,6 +483,8 @@ struct AgentDetailView: View {
                                 String(localized: "agent.projects.active"),
                                 style: .headline
                             )
+                            Spacer()
+                            rescanButton
                         }
 
                         ForEach(activeProjects) { project in
@@ -469,6 +509,10 @@ struct AgentDetailView: View {
                                 style: .headline,
                                 color: RFColors.fallbackTextSecondary
                             )
+                            Spacer()
+                            if activeProjects.isEmpty {
+                                rescanButton
+                            }
                         }
 
                         ForEach(discoveredProjects) { project in
@@ -709,6 +753,29 @@ struct AgentDetailView: View {
         }
     }
 
+    private func startProcessPolling() {
+        processPollingTask?.cancel()
+        processPollingTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                guard !Task.isCancelled else { break }
+                await loadProcesses()
+            }
+        }
+    }
+
+    private func triggerRescan() async {
+        isRescanning = true
+        do {
+            try await rescanProjectsUseCase.execute(agentId: agent.hostId)
+            try? await Task.sleep(for: .seconds(2))
+            await loadProjects()
+        } catch {
+            errorMessage = String(localized: "agent.projects.rescanError")
+        }
+        isRescanning = false
+    }
+
     private func loadTasks() async {
         do {
             let result = try await getAgentTasksUseCase.execute(agentId: agent.hostId)
@@ -946,6 +1013,9 @@ private struct DispatchTaskSheet: View {
                 repository: PreviewAgentRepository()
             ),
             dispatchAgentTaskUseCase: DispatchAgentTaskUseCase(
+                repository: PreviewAgentRepository()
+            ),
+            rescanProjectsUseCase: RescanProjectsUseCase(
                 repository: PreviewAgentRepository()
             )
         )
