@@ -4,14 +4,17 @@ from collections import deque
 from datetime import UTC, datetime
 
 import structlog
-from fastapi import APIRouter, Header, Request, Response
+from fastapi import APIRouter, Depends, Header, Request, Response
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
+from app.api.deps import get_db
 from app.api.routes.websocket import manager as ios_manager
 from app.core.config import get_settings
 from app.schemas.github import WebhookResponse
 from app.services.github_service import GitHubService
+from app.services.proactive_notification_service import ProactiveNotificationService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -221,6 +224,19 @@ async def _handle_issue_event(
         "summary": summary,
     })
 
+    # Create proactive notification
+    if action in ("opened", "closed", "reopened"):
+        await _create_proactive_notification_for_all_users(
+            event_type="issues",
+            action=action,
+            repo=repo,
+            title=f"Issue #{issue_number} {action}",
+            body=f"{issue_title} — {repo}",
+            source_event=f"github:issues:{repo}:{issue_number}:{action}",
+            deep_link=issue_url or None,
+            metadata={"repo": repo, "event": "issues", "action": action, "issue_number": str(issue_number)},
+        )
+
 
 async def _handle_pr_event(
     action: str,
@@ -277,6 +293,19 @@ async def _handle_pr_event(
         "summary": pr_summary,
     })
 
+    # Create proactive notification for PR events
+    if action in ("opened", "closed", "merged"):
+        await _create_proactive_notification_for_all_users(
+            event_type="pull_request",
+            action=pr_action,
+            repo=repo,
+            title=f"PR #{pr_number} {pr_action}",
+            body=f"{pr_title} — {repo}",
+            source_event=f"github:pull_request:{repo}:{pr_number}:{pr_action}",
+            deep_link=pr_url or None,
+            metadata={"repo": repo, "event": "pull_request", "action": pr_action, "pr_number": str(pr_number)},
+        )
+
 
 async def _handle_push_event(
     repo: str,
@@ -324,6 +353,72 @@ async def _handle_push_event(
         "repo": repo,
         "summary": push_summary,
     })
+
+
+async def _create_proactive_notification_for_all_users(
+    event_type: str,
+    action: str,
+    repo: str,
+    title: str,
+    body: str,
+    source_event: str,
+    deep_link: str | None = None,
+    metadata: dict[str, str] | None = None,
+) -> None:
+    """Create proactive notifications for all active users from a GitHub event.
+
+    Uses a fresh DB session to avoid coupling with the webhook handler.
+    """
+    try:
+        from app.core.database import get_session
+        from app.repositories.user_repository import UserRepository
+
+        async for session in get_session():
+            user_repo = UserRepository(session)
+            users = await user_repo.get_all_active()
+            service = ProactiveNotificationService(session)
+            for user in users:
+                try:
+                    notification_resp = await service.create_from_github_event(
+                        user_id=user.id,
+                        event_type=event_type,
+                        action=action,
+                        repo=repo,
+                        title=title,
+                        body=body,
+                        source_event=source_event,
+                        deep_link=deep_link,
+                        metadata=metadata,
+                    )
+                    # Push via WebSocket
+                    unread = await service.get_unread_count(user.id)
+                    await ios_manager.broadcast_json({
+                        "type": "proactive_notification",
+                        "notification": {
+                            "id": str(notification_resp.id),
+                            "type": notification_resp.type.value,
+                            "priority": notification_resp.priority.value,
+                            "title": notification_resp.title,
+                            "body": notification_resp.body,
+                            "source": notification_resp.source,
+                            "deep_link": notification_resp.deep_link,
+                            "created_at": notification_resp.created_at.isoformat(),
+                        },
+                        "unread_count": unread.count,
+                    })
+                except Exception:
+                    await logger.aexception(
+                        "proactive_notification_create_failed",
+                        user_id=str(user.id),
+                        event_type=event_type,
+                    )
+            await session.commit()
+    except Exception:
+        await logger.aexception(
+            "proactive_notification_webhook_handler_failed",
+            event_type=event_type,
+            action=action,
+        )
 
 
 def _store_event(

@@ -26,6 +26,12 @@ class UserRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_all_active(self) -> list[User]:
+        """Get all active users."""
+        stmt = select(User).where(User.is_active.is_(True))
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
     async def create(
         self,
         email: str,
