@@ -3,7 +3,7 @@
 import asyncio
 import gzip
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -89,7 +89,7 @@ class BackupService:
         Returns:
             Filename string like 'postgres_2026-03-13T120000Z.dump.gz'.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         timestamp = now.strftime("%Y-%m-%dT%H%M%SZ")
         extension = "dump.gz" if backup_type == "postgres" else "rdb.gz"
         return f"{backup_type}_{timestamp}.{extension}"
@@ -109,7 +109,7 @@ class BackupService:
         dump_path = self._tmp_dir / filename.replace(".gz", "")
         gz_path = self._tmp_dir / filename
 
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
 
         await logger.ainfo(
             "backup_postgres_started",
@@ -164,7 +164,7 @@ class BackupService:
                     },
                 )
 
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now(UTC)
             duration = (end_time - start_time).total_seconds()
             file_size = len(gz_content)
 
@@ -214,7 +214,7 @@ class BackupService:
             BackupError: On Redis snapshot or S3 upload failure.
         """
         self._ensure_tmp_dir()
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
         filename = self._generate_backup_filename("redis")
 
         await logger.ainfo("backup_redis_started")
@@ -299,7 +299,7 @@ class BackupService:
                     },
                 )
 
-            end_time = datetime.now(timezone.utc)
+            end_time = datetime.now(UTC)
             duration = (end_time - start_time).total_seconds()
 
             await logger.ainfo(
@@ -395,7 +395,7 @@ class BackupService:
         Returns:
             Dict with counts of deleted postgres and redis backups.
         """
-        cutoff = datetime.now(timezone.utc).timestamp() - (_BACKUP_RETENTION_DAYS * 86400)
+        cutoff = datetime.now(UTC).timestamp() - (_BACKUP_RETENTION_DAYS * 86400)
         deleted_counts: dict[str, int] = {"postgres": 0, "redis": 0}
 
         for btype in ("postgres", "redis"):

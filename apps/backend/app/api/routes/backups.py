@@ -4,8 +4,8 @@ import structlog
 from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas.backup import (
-    BackupListResponse,
     BackupListItem,
+    BackupListResponse,
     BackupResponse,
     BackupRotationResponse,
     BackupStatusResponse,
@@ -80,15 +80,23 @@ async def create_redis_snapshot() -> BackupResponse:
 
 @router.get("/list", response_model=BackupListResponse)
 async def list_backups(
-    backup_type: str = Query(default="all", description="Backup tipi filtresi (postgres/redis/all)"),
-    max_results: int = Query(default=50, ge=1, le=200, description="Maksimum sonuc sayisi"),
+    backup_type: str = Query(
+        default="all",
+        description="Backup tipi filtresi (postgres/redis/all)",
+    ),
+    max_results: int = Query(
+        default=50, ge=1, le=200, description="Maksimum sonuc sayisi",
+    ),
 ) -> BackupListResponse:
     """List available backups from S3.
 
     Supports filtering by backup type and pagination.
     """
     if backup_type not in ("postgres", "redis", "all"):
-        raise HTTPException(status_code=400, detail="Gecersiz backup_type. Gecerli degerler: postgres, redis, all")
+        raise HTTPException(
+            status_code=400,
+            detail="Gecersiz backup_type. Gecerli degerler: postgres, redis, all",
+        )
 
     try:
         backups = await backup_service.list_backups(
