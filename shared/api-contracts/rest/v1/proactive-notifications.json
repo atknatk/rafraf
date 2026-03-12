@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProactiveNotificationEndpoints",
+  "description": "Proaktif bildirim yonetim endpoint'leri",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/v1/proactive-notifications",
+      "description": "Proaktif bildirim listesi (sayfalanmis)",
+      "queryParams": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Sayfa numarasi"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20,
+            "description": "Sayfa basina bildirim sayisi"
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["urgent", "normal", "low"],
+            "description": "Oncelik filtresi"
+          },
+          "is_read": {
+            "type": "boolean",
+            "description": "Okunma durumu filtresi"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["task_complete", "issue_detected", "suggestion", "reminder", "ci_failure", "pr_merged", "security_alert"],
+            "description": "Bildirim tipi filtresi"
+          }
+        },
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "notifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ProactiveNotificationResponse"
+            },
+            "description": "Bildirim listesi"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Toplam bildirim sayisi"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Mevcut sayfa"
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Sayfa basina bildirim sayisi"
+          }
+        },
+        "required": ["notifications", "total", "page", "page_size"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/proactive-notifications/{notification_id}/read",
+      "description": "Bildirimi okundu olarak isaretle",
+      "responseBody": {
+        "$ref": "#/$defs/ProactiveNotificationResponse"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/proactive-notifications/read-all",
+      "description": "Tum bildirimleri okundu isaretle",
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "marked_count": {
+            "type": "integer",
+            "description": "Okundu olarak isaretlenen bildirim sayisi"
+          }
+        },
+        "required": ["marked_count"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/proactive-notifications/{notification_id}",
+      "description": "Proaktif bildirim silme",
+      "responseBody": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/proactive-notifications/unread-count",
+      "description": "Okunmamis bildirim sayisi",
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "Okunmamis bildirim sayisi"
+          }
+        },
+        "required": ["count"],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "$defs": {
+    "ProactiveNotificationResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Bildirim ID'si"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["task_complete", "issue_detected", "suggestion", "reminder", "ci_failure", "pr_merged", "security_alert"],
+          "description": "Bildirim tipi"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["urgent", "normal", "low"],
+          "description": "Oncelik derecesi"
+        },
+        "title": {
+          "type": "string",
+          "description": "Bildirim basligi"
+        },
+        "body": {
+          "type": "string",
+          "description": "Bildirim govde metni"
+        },
+        "source": {
+          "type": "string",
+          "description": "Bildirim kaynagi (github, system, ai)"
+        },
+        "source_event": {
+          "type": "string",
+          "description": "Kaynak event tanimlayicisi (dedup icin)"
+        },
+        "deep_link": {
+          "type": "string",
+          "description": "iOS deep link URL'si"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Ek bilgiler"
+        },
+        "is_read": {
+          "type": "boolean",
+          "description": "Okundu mu"
+        },
+        "read_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Okunma zamani (ISO 8601)"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Olusturulma zamani (ISO 8601)"
+        }
+      },
+      "required": ["id", "type", "priority", "title", "body", "source", "is_read", "created_at"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProactiveNotificationMessages",
+  "description": "WebSocket uzerinden proaktif bildirim mesajlari",
+  "messages": [
+    {
+      "direction": "server->client",
+      "type": "proactive_notification",
+      "description": "Yeni proaktif bildirim push mesaji",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "proactive_notification",
+            "description": "Mesaj tipi"
+          },
+          "notification": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Bildirim ID'si"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["task_complete", "issue_detected", "suggestion", "reminder", "ci_failure", "pr_merged", "security_alert"],
+                "description": "Bildirim tipi"
+              },
+              "priority": {
+                "type": "string",
+                "enum": ["urgent", "normal", "low"],
+                "description": "Oncelik derecesi"
+              },
+              "title": {
+                "type": "string",
+                "description": "Bildirim basligi"
+              },
+              "body": {
+                "type": "string",
+                "description": "Bildirim govde metni"
+              },
+              "source": {
+                "type": "string",
+                "description": "Bildirim kaynagi"
+              },
+              "deep_link": {
+                "type": "string",
+                "description": "iOS deep link URL'si"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Olusturulma zamani"
+              }
+            },
+            "required": ["id", "type", "priority", "title", "body", "source", "created_at"],
+            "additionalProperties": false
+          },
+          "unread_count": {
+            "type": "integer",
+            "description": "Toplam okunmamis bildirim sayisi"
+          }
+        },
+        "required": ["type", "notification", "unread_count"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
