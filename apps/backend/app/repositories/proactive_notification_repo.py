@@ -94,7 +94,11 @@ class ProactiveNotificationRepository:
 
         # Paginated results
         offset = (page - 1) * page_size
-        stmt = base.order_by(ProactiveNotification.created_at.desc()).offset(offset).limit(page_size)
+        stmt = (
+            base.order_by(ProactiveNotification.created_at.desc())
+            .offset(offset)
+            .limit(page_size)
+        )
         result = await self._session.execute(stmt)
         notifications = list(result.scalars().all())
 

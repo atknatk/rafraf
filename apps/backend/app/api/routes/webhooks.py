@@ -4,12 +4,10 @@ from collections import deque
 from datetime import UTC, datetime
 
 import structlog
-from fastapi import APIRouter, Depends, Header, Request, Response
+from fastapi import APIRouter, Header, Request, Response
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from app.api.deps import get_db
 from app.api.routes.websocket import manager as ios_manager
 from app.core.config import get_settings
 from app.schemas.github import WebhookResponse
@@ -234,7 +232,10 @@ async def _handle_issue_event(
             body=f"{issue_title} — {repo}",
             source_event=f"github:issues:{repo}:{issue_number}:{action}",
             deep_link=issue_url or None,
-            metadata={"repo": repo, "event": "issues", "action": action, "issue_number": str(issue_number)},
+            metadata={
+                "repo": repo, "event": "issues",
+                "action": action, "issue_number": str(issue_number),
+            },
         )
 
 
@@ -303,7 +304,10 @@ async def _handle_pr_event(
             body=f"{pr_title} — {repo}",
             source_event=f"github:pull_request:{repo}:{pr_number}:{pr_action}",
             deep_link=pr_url or None,
-            metadata={"repo": repo, "event": "pull_request", "action": pr_action, "pr_number": str(pr_number)},
+            metadata={
+                "repo": repo, "event": "pull_request",
+                "action": pr_action, "pr_number": str(pr_number),
+            },
         )
 
 

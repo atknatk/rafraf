@@ -36,7 +36,7 @@ async def list_proactive_notifications(
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     priority: Annotated[str | None, Query()] = None,
     is_read: Annotated[bool | None, Query()] = None,
-    type: Annotated[str | None, Query()] = None,
+    type: Annotated[str | None, Query(alias="type")] = None,  # noqa: A002
 ) -> ProactiveNotificationListResponse:
     """List proactive notifications for the authenticated user.
 
