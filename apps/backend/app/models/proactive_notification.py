@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,7 +19,7 @@ class ProactiveNotification(Base, UUIDMixin, TimestampMixin):
             "idx_proactive_notifications_user_unread",
             "user_id",
             "is_read",
-            postgresql_where=~Boolean().clause_element(),
+            postgresql_where=text("is_read = FALSE"),
         ),
         Index(
             "idx_proactive_notifications_created_at",
