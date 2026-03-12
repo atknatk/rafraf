@@ -31,8 +31,8 @@ class TestWebhookContractCompliance:
         """Contract file should exist."""
         assert CONTRACT_PATH.exists(), f"Contract file not found: {CONTRACT_PATH}"
 
-    def test_endpoint_path_matches(self) -> None:
-        """Endpoint path should match contract."""
+    def test_post_endpoint_path_matches(self) -> None:
+        """POST endpoint path should match contract."""
         contract = _load_contract()
         endpoints = contract.get("endpoints", [])
         assert isinstance(endpoints, list)
@@ -42,8 +42,8 @@ class TestWebhookContractCompliance:
         assert isinstance(webhook_ep, dict)
         assert webhook_ep["path"] == "/api/v1/webhooks/github"
 
-    def test_endpoint_method_matches(self) -> None:
-        """Endpoint HTTP method should match contract."""
+    def test_post_endpoint_method_matches(self) -> None:
+        """POST endpoint HTTP method should match contract."""
         contract = _load_contract()
         endpoints = contract.get("endpoints", [])
         assert isinstance(endpoints, list)
@@ -51,8 +51,34 @@ class TestWebhookContractCompliance:
         assert isinstance(webhook_ep, dict)
         assert webhook_ep["method"] == "POST"
 
-    def test_response_body_has_required_fields(self) -> None:
-        """Response should contain required fields from contract."""
+    def test_get_events_endpoint_exists_in_contract(self) -> None:
+        """GET events endpoint should be defined in contract."""
+        contract = _load_contract()
+        endpoints = contract.get("endpoints", [])
+        assert isinstance(endpoints, list)
+        assert len(endpoints) >= 2
+
+        events_ep = endpoints[1]
+        assert isinstance(events_ep, dict)
+        assert events_ep["path"] == "/api/v1/webhooks/github/events"
+        assert events_ep["method"] == "GET"
+
+    def test_get_events_query_params_match_contract(self) -> None:
+        """GET events query params should match contract."""
+        contract = _load_contract()
+        endpoints = contract.get("endpoints", [])
+        assert isinstance(endpoints, list)
+        events_ep = endpoints[1]
+        assert isinstance(events_ep, dict)
+        query_params = events_ep.get("queryParams", {})
+        assert isinstance(query_params, dict)
+        props = query_params.get("properties", {})
+        assert isinstance(props, dict)
+        assert "limit" in props
+        assert "event_type" in props
+
+    def test_post_response_body_has_required_fields(self) -> None:
+        """POST response should contain required fields from contract."""
         contract = _load_contract()
         endpoints = contract.get("endpoints", [])
         assert isinstance(endpoints, list)
@@ -72,14 +98,15 @@ class TestWebhookContractCompliance:
             headers={
                 "Content-Type": "application/json",
                 "X-GitHub-Event": "ping",
+                "X-GitHub-Delivery": "contract-test-001",
             },
         )
         data = response.json()
         assert "status" in data
         assert "message" in data
 
-    def test_response_status_values_match_contract(self) -> None:
-        """Response status values should be one of the enum values from contract."""
+    def test_post_response_status_values_match_contract(self) -> None:
+        """POST response status values should be one of the enum values from contract."""
         contract = _load_contract()
         endpoints = contract.get("endpoints", [])
         assert isinstance(endpoints, list)
@@ -101,7 +128,40 @@ class TestWebhookContractCompliance:
             headers={
                 "Content-Type": "application/json",
                 "X-GitHub-Event": "ping",
+                "X-GitHub-Delivery": "contract-test-002",
             },
         )
         data = response.json()
         assert data["status"] in allowed_values
+
+    def test_get_events_response_has_required_fields(self) -> None:
+        """GET events response should contain required fields from contract."""
+        contract = _load_contract()
+        endpoints = contract.get("endpoints", [])
+        assert isinstance(endpoints, list)
+        events_ep = endpoints[1]
+        assert isinstance(events_ep, dict)
+        response_schema = events_ep.get("responseBody", {})
+        assert isinstance(response_schema, dict)
+        required = response_schema.get("required", [])
+        assert "events" in required
+        assert "total" in required
+
+        # Verify actual endpoint returns these fields
+        response = client.get("/api/v1/webhooks/github/events")
+        data = response.json()
+        assert "events" in data
+        assert "total" in data
+
+    def test_check_run_event_supported_in_contract(self) -> None:
+        """Contract should document check_run in requestBody properties."""
+        contract = _load_contract()
+        endpoints = contract.get("endpoints", [])
+        assert isinstance(endpoints, list)
+        webhook_ep = endpoints[0]
+        assert isinstance(webhook_ep, dict)
+        request_body = webhook_ep.get("requestBody", {})
+        assert isinstance(request_body, dict)
+        properties = request_body.get("properties", {})
+        assert isinstance(properties, dict)
+        assert "check_run" in properties
