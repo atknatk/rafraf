@@ -6,14 +6,14 @@
     {
       "method": "POST",
       "path": "/api/v1/webhooks/github",
-      "description": "GitHub webhook event'lerini alir ve isler (PR merge, issue update, push vb.)",
+      "description": "GitHub webhook event'lerini alir ve isler (PR merge, issue update, push, check_run vb.)",
       "requestBody": {
         "type": "object",
         "description": "GitHub webhook payload - event tipine gore degisir",
         "properties": {
           "action": {
             "type": "string",
-            "description": "Webhook action (opened, closed, edited, labeled, vb.)"
+            "description": "Webhook action (opened, closed, edited, labeled, completed, vb.)"
           },
           "repository": {
             "type": "object",
@@ -34,6 +34,34 @@
               }
             },
             "description": "Event'i tetikleyen kullanici bilgisi"
+          },
+          "check_run": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "description": "Check run ID"
+              },
+              "name": {
+                "type": "string",
+                "description": "Check run ismi"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["queued", "in_progress", "completed"],
+                "description": "Check run durumu"
+              },
+              "conclusion": {
+                "type": "string",
+                "enum": ["success", "failure", "neutral", "cancelled", "skipped", "timed_out", "action_required", null],
+                "description": "Check run sonucu"
+              },
+              "html_url": {
+                "type": "string",
+                "description": "Check run web URL'i"
+              }
+            },
+            "description": "Check run bilgisi (check_run event'i icin)"
           }
         },
         "additionalProperties": true
@@ -52,6 +80,78 @@
           }
         },
         "required": ["status", "message"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/webhooks/github/events",
+      "description": "Son GitHub webhook olaylarini DB'den listeler",
+      "queryParams": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "description": "Maksimum sonuc sayisi (varsayilan: 20)"
+          },
+          "event_type": {
+            "type": "string",
+            "description": "Event tipine gore filtreleme (push, pull_request, issues, check_run)"
+          }
+        },
+        "additionalProperties": false
+      },
+      "responseBody": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Event UUID"
+                },
+                "delivery_id": {
+                  "type": "string",
+                  "description": "GitHub delivery ID"
+                },
+                "event": {
+                  "type": "string",
+                  "description": "Event tipi (push, pull_request, issues, check_run)"
+                },
+                "action": {
+                  "type": "string",
+                  "description": "Event action"
+                },
+                "repo": {
+                  "type": "string",
+                  "description": "Repository tam adi"
+                },
+                "summary": {
+                  "type": "object",
+                  "description": "Event ozet bilgisi"
+                },
+                "received_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Event alinma zamani"
+                }
+              },
+              "required": ["event", "action", "repo", "summary", "received_at"]
+            },
+            "description": "Event listesi"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Toplam event sayisi"
+          }
+        },
+        "required": ["events", "total"],
         "additionalProperties": false
       }
     }
