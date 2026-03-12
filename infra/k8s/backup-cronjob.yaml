@@ -1,0 +1,144 @@
+# Disaster Recovery CronJob - Daily PostgreSQL + Redis Backups
+# Runs daily at 02:00 UTC, triggers backup API endpoints
+# Backup rotation runs weekly on Sunday at 03:00 UTC
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: rafraf-backup-daily
+  namespace: rafraf
+  labels:
+    app: rafraf
+    component: backup
+    tier: infra
+spec:
+  schedule: "0 2 * * *"  # Daily at 02:00 UTC
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800  # 30 min timeout
+      template:
+        metadata:
+          labels:
+            app: rafraf
+            component: backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup-runner
+              image: curlimages/curl:8.5.0
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  echo "=== RafRaf Daily Backup ==="
+                  echo "$(date -u '+%Y-%m-%dT%H:%M:%SZ') Starting PostgreSQL backup..."
+
+                  # PostgreSQL backup
+                  PG_RESULT=$(curl -sf -X POST \
+                    -H "Authorization: Bearer ${BACKUP_API_KEY}" \
+                    -H "Content-Type: application/json" \
+                    "${BACKEND_URL}/api/v1/backups/postgres" \
+                    --max-time 600)
+
+                  echo "PostgreSQL backup result: ${PG_RESULT}"
+
+                  echo "$(date -u '+%Y-%m-%dT%H:%M:%SZ') Starting Redis snapshot..."
+
+                  # Redis snapshot
+                  REDIS_RESULT=$(curl -sf -X POST \
+                    -H "Authorization: Bearer ${BACKUP_API_KEY}" \
+                    -H "Content-Type: application/json" \
+                    "${BACKEND_URL}/api/v1/backups/redis" \
+                    --max-time 300)
+
+                  echo "Redis snapshot result: ${REDIS_RESULT}"
+
+                  echo "$(date -u '+%Y-%m-%dT%H:%M:%SZ') Verifying latest PostgreSQL backup..."
+
+                  # Verify latest postgres backup
+                  PG_KEY=$(echo "${PG_RESULT}" | grep -o '"s3_key":"[^"]*"' | head -1 | cut -d'"' -f4)
+                  if [ -n "${PG_KEY}" ]; then
+                    VERIFY_RESULT=$(curl -sf -X POST \
+                      -H "Authorization: Bearer ${BACKUP_API_KEY}" \
+                      -H "Content-Type: application/json" \
+                      -d "{\"s3_key\": \"${PG_KEY}\"}" \
+                      "${BACKEND_URL}/api/v1/backups/verify" \
+                      --max-time 300)
+                    echo "Verification result: ${VERIFY_RESULT}"
+                  fi
+
+                  echo "$(date -u '+%Y-%m-%dT%H:%M:%SZ') Backup completed successfully."
+              env:
+                - name: BACKEND_URL
+                  valueFrom:
+                    configMapKeyRef:
+                      name: rafraf-config
+                      key: backend-internal-url
+                - name: BACKUP_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: rafraf-secrets
+                      key: agent-api-key
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: rafraf-backup-rotation
+  namespace: rafraf
+  labels:
+    app: rafraf
+    component: backup
+    tier: infra
+spec:
+  schedule: "0 3 * * 0"  # Weekly on Sunday at 03:00 UTC
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 600  # 10 min timeout
+      template:
+        metadata:
+          labels:
+            app: rafraf
+            component: backup-rotation
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: rotation-runner
+              image: curlimages/curl:8.5.0
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  echo "=== RafRaf Backup Rotation ==="
+                  echo "$(date -u '+%Y-%m-%dT%H:%M:%SZ') Rotating old backups..."
+
+                  RESULT=$(curl -sf -X POST \
+                    -H "Authorization: Bearer ${BACKUP_API_KEY}" \
+                    -H "Content-Type: application/json" \
+                    "${BACKEND_URL}/api/v1/backups/rotate" \
+                    --max-time 300)
+
+                  echo "Rotation result: ${RESULT}"
+                  echo "$(date -u '+%Y-%m-%dT%H:%M:%SZ') Rotation completed."
+              env:
+                - name: BACKEND_URL
+                  valueFrom:
+                    configMapKeyRef:
+                      name: rafraf-config
+                      key: backend-internal-url
+                - name: BACKUP_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: rafraf-secrets
+                      key: agent-api-key
