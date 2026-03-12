@@ -14,6 +14,7 @@ from app.api.routes.agent_ws import router as agent_ws_router
 from app.api.routes.agents import router as agents_router
 from app.api.routes.analytics import router as analytics_router
 from app.api.routes.auth import router as auth_router
+from app.api.routes.backups import router as backups_router
 from app.api.routes.conversation_memory import router as conversation_memory_router
 from app.api.routes.conversations import router as conversations_router
 from app.api.routes.cost import router as cost_router
@@ -136,6 +137,7 @@ def create_app() -> FastAPI:
     application.include_router(pulse_router)
     application.include_router(analytics_router)
     application.include_router(cost_alerts_router)
+    application.include_router(backups_router)
 
     return application
 
