@@ -392,6 +392,25 @@ extension Container {
         }
     }
 
+    // MARK: - Proactive Notifications Feature
+
+    /// Proaktif bildirim repository.
+    var proactiveNotificationRepository: Factory<ProactiveNotificationRepositoryProtocol> {
+        self { ProactiveNotificationRepositoryImpl(networkClient: self.networkClient()) }
+    }
+
+    /// Bildirim merkezi ViewModel.
+    var notificationCenterViewModel: Factory<NotificationCenterViewModel> {
+        self { @MainActor in
+            let repository = self.proactiveNotificationRepository()
+            return NotificationCenterViewModel(
+                fetchNotificationsUseCase: FetchNotificationsUseCase(repository: repository),
+                markNotificationReadUseCase: MarkNotificationReadUseCase(repository: repository),
+                repository: repository
+            )
+        }
+    }
+
     // MARK: - Settings Feature
 
     /// Settings repository.
