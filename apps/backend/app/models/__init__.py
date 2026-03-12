@@ -13,6 +13,7 @@ from app.models.proactive_notification import ProactiveNotification
 from app.models.pulse_report import PulseReport
 from app.models.session import Session
 from app.models.user import User
+from app.models.webhook_event import WebhookEvent
 
 __all__ = [
     "AgentProject",
@@ -29,4 +30,5 @@ __all__ = [
     "PulseReport",
     "Session",
     "User",
+    "WebhookEvent",
 ]
