@@ -1,30 +1,32 @@
-"""GitHub webhook receiver endpoint."""
+"""GitHub webhook receiver endpoint with DB-backed storage and idempotency."""
 
-from collections import deque
-from datetime import UTC, datetime
+from uuid import uuid4
 
 import structlog
 from fastapi import APIRouter, Header, Request, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from starlette import status
 
 from app.api.routes.websocket import manager as ios_manager
 from app.core.config import get_settings
+from app.core.database import async_session_factory
 from app.schemas.github import WebhookResponse
 from app.services.github_service import GitHubService
 from app.services.proactive_notification_service import ProactiveNotificationService
+from app.services.webhook_event_service import WebhookEventService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
 
-# In-memory ring buffer of recent GitHub events (max 100)
-_recent_events: deque[dict[str, object]] = deque(maxlen=100)
-
 
 class GitHubEventSummary(BaseModel):
     """Summary of a recent GitHub webhook event."""
 
+    model_config = ConfigDict(frozen=True)
+
+    id: str | None = None
+    delivery_id: str | None = None
     event: str
     action: str
     repo: str
@@ -50,17 +52,19 @@ async def github_webhook(
     response: Response,
     x_hub_signature_256: str | None = Header(default=None),
     x_github_event: str | None = Header(default=None),
+    x_github_delivery: str | None = Header(default=None),
 ) -> WebhookResponse:
     """Receive and process GitHub webhook events.
 
-    Validates HMAC-SHA256 signature and processes supported event types
-    (pull_request, issues, push).
+    Validates HMAC-SHA256 signature, checks idempotency via delivery ID,
+    and processes supported event types (pull_request, issues, push, check_run).
 
     Args:
         request: FastAPI request object.
         response: FastAPI response object.
         x_hub_signature_256: GitHub webhook signature header.
         x_github_event: GitHub event type header.
+        x_github_delivery: GitHub delivery ID for idempotency.
 
     Returns:
         WebhookResponse with processing status.
@@ -92,6 +96,7 @@ async def github_webhook(
 
     # Parse event
     event_type = x_github_event or "unknown"
+    delivery_id = x_github_delivery or str(uuid4())
     payload = await request.json()
 
     action = ""
@@ -113,62 +118,77 @@ async def github_webhook(
         action=action,
         repo=repo,
         sender=sender,
+        delivery_id=delivery_id,
     )
 
-    # Process supported event types
-    if event_type == "issues":
-        await _handle_issue_event(action, repo, payload)
-        return WebhookResponse(
-            status="accepted",
-            message=f"Issue event processed: {action}",
-        )
+    # Idempotency check — skip already-processed events
+    async with async_session_factory() as session:
+        event_service = WebhookEventService(session)
 
-    if event_type == "pull_request":
-        await _handle_pr_event(action, repo, payload)
-        return WebhookResponse(
-            status="accepted",
-            message=f"PR event processed: {action}",
-        )
+        if await event_service.is_duplicate(delivery_id):
+            await logger.ainfo(
+                "webhook_duplicate_skipped",
+                delivery_id=delivery_id,
+                event_type=event_type,
+            )
+            return WebhookResponse(
+                status="accepted",
+                message="Event already processed",
+            )
 
-    if event_type == "push":
-        await _handle_push_event(repo, payload)
-        return WebhookResponse(
-            status="accepted",
-            message="Push event processed",
-        )
+        # Process supported event types
+        summary: dict[str, object] = {}
 
-    if event_type == "ping":
-        await logger.ainfo("webhook_ping_received", repo=repo)
-        return WebhookResponse(
-            status="accepted",
-            message="Pong!",
-        )
+        if event_type == "issues":
+            summary = await _handle_issue_event(action, repo, payload)
+        elif event_type == "pull_request":
+            summary = await _handle_pr_event(action, repo, payload)
+        elif event_type == "push":
+            summary = await _handle_push_event(repo, payload)
+        elif event_type == "check_run":
+            summary = await _handle_check_run_event(action, repo, payload)
+        elif event_type == "ping":
+            await logger.ainfo("webhook_ping_received", repo=repo)
+            summary = {"repo": repo}
+        elif event_type in ("create", "delete", "release", "workflow_run"):
+            summary = {"sender": sender}
+            event_data: dict[str, object] = {
+                "type": "github_event",
+                "event": event_type,
+                "action": action,
+                "repo": repo,
+                "summary": summary,
+            }
+            await ios_manager.broadcast_json(event_data)
+        else:
+            await logger.ainfo(
+                "webhook_ignored",
+                event_type=event_type,
+                reason="unsupported event type",
+            )
+            return WebhookResponse(
+                status="ignored",
+                message=f"Unsupported event type: {event_type}",
+            )
 
-    # Store and broadcast unknown supported events
-    if event_type in ("create", "delete", "release", "workflow_run"):
-        event_data: dict[str, object] = {
-            "type": "github_event",
-            "event": event_type,
-            "action": action,
-            "repo": repo,
-            "summary": {"sender": sender},
-        }
-        _store_event(event_type, action, repo, {"sender": sender})
-        await ios_manager.broadcast_json(event_data)
-        return WebhookResponse(
-            status="accepted",
-            message=f"Event processed: {event_type}/{action}",
+        # Persist event to DB
+        await event_service.record_event(
+            delivery_id=delivery_id,
+            event_type=event_type,
+            action=action,
+            repo=repo,
+            sender=sender,
+            summary=summary,
         )
+        await session.commit()
 
-    # Unsupported event types
-    await logger.ainfo(
-        "webhook_ignored",
-        event_type=event_type,
-        reason="unsupported event type",
-    )
+    message = f"{event_type} event processed"
+    if action:
+        message = f"{event_type} event processed: {action}"
+
     return WebhookResponse(
-        status="ignored",
-        message=f"Unsupported event type: {event_type}",
+        status="accepted",
+        message=message,
     )
 
 
@@ -176,13 +196,16 @@ async def _handle_issue_event(
     action: str,
     repo: str,
     payload: dict[str, object],
-) -> None:
+) -> dict[str, object]:
     """Handle issue webhook events.
 
     Args:
         action: Webhook action (opened, closed, edited, labeled, etc.).
         repo: Repository full name.
         payload: Full webhook payload.
+
+    Returns:
+        Event summary dict.
     """
     issue = payload.get("issue", {})
     issue_number = 0
@@ -211,7 +234,6 @@ async def _handle_issue_event(
         "url": issue_url,
         "sender": sender,
     }
-    _store_event("issues", action, repo, summary)
 
     # Broadcast to connected iOS clients
     await ios_manager.broadcast_json({
@@ -238,18 +260,23 @@ async def _handle_issue_event(
             },
         )
 
+    return summary
+
 
 async def _handle_pr_event(
     action: str,
     repo: str,
     payload: dict[str, object],
-) -> None:
+) -> dict[str, object]:
     """Handle pull request webhook events.
 
     Args:
         action: Webhook action (opened, closed, merged, etc.).
         repo: Repository full name.
         payload: Full webhook payload.
+
+    Returns:
+        Event summary dict.
     """
     pr = payload.get("pull_request", {})
     pr_number = 0
@@ -283,7 +310,6 @@ async def _handle_pr_event(
         "merged": merged,
         "sender": sender,
     }
-    _store_event("pull_request", pr_action, repo, pr_summary)
 
     # Broadcast to connected iOS clients
     await ios_manager.broadcast_json({
@@ -310,16 +336,21 @@ async def _handle_pr_event(
             },
         )
 
+    return pr_summary
+
 
 async def _handle_push_event(
     repo: str,
     payload: dict[str, object],
-) -> None:
+) -> dict[str, object]:
     """Handle push webhook events.
 
     Args:
         repo: Repository full name.
         payload: Full webhook payload.
+
+    Returns:
+        Event summary dict.
     """
     ref = str(payload.get("ref", ""))
     commits = payload.get("commits", [])
@@ -347,7 +378,6 @@ async def _handle_push_event(
         "head_message": head_message,
         "pusher": pusher,
     }
-    _store_event("push", "push", repo, push_summary)
 
     # Broadcast to connected iOS clients
     await ios_manager.broadcast_json({
@@ -357,6 +387,91 @@ async def _handle_push_event(
         "repo": repo,
         "summary": push_summary,
     })
+
+    return push_summary
+
+
+async def _handle_check_run_event(
+    action: str,
+    repo: str,
+    payload: dict[str, object],
+) -> dict[str, object]:
+    """Handle check_run webhook events (CI status).
+
+    Sends proactive notifications when CI checks fail, time out, or are cancelled.
+
+    Args:
+        action: Webhook action (created, completed, rerequested, etc.).
+        repo: Repository full name.
+        payload: Full webhook payload.
+
+    Returns:
+        Event summary dict.
+    """
+    check_run = payload.get("check_run", {})
+    check_name = ""
+    check_status = ""
+    conclusion = ""
+    check_url = ""
+    check_id = 0
+    sender = ""
+
+    if isinstance(check_run, dict):
+        check_name = str(check_run.get("name", ""))
+        check_status = str(check_run.get("status", ""))
+        conclusion = str(check_run.get("conclusion", "") or "")
+        check_url = str(check_run.get("html_url", ""))
+        check_id = int(check_run.get("id", 0))
+
+    sender_data = payload.get("sender", {})
+    if isinstance(sender_data, dict):
+        sender = str(sender_data.get("login", ""))
+
+    await logger.ainfo(
+        "webhook_check_run_event",
+        action=action,
+        repo=repo,
+        check_name=check_name,
+        status=check_status,
+        conclusion=conclusion,
+    )
+
+    check_summary: dict[str, object] = {
+        "check_id": check_id,
+        "name": check_name,
+        "status": check_status,
+        "conclusion": conclusion,
+        "url": check_url,
+        "sender": sender,
+    }
+
+    # Broadcast to connected iOS clients
+    await ios_manager.broadcast_json({
+        "type": "github_event",
+        "event": "check_run",
+        "action": action,
+        "repo": repo,
+        "summary": check_summary,
+    })
+
+    # Create proactive notification for CI failures
+    if action == "completed" and conclusion in ("failure", "timed_out", "cancelled"):
+        await _create_proactive_notification_for_all_users(
+            event_type="check_run",
+            action=conclusion,
+            repo=repo,
+            title=f"CI {conclusion}: {check_name}",
+            body=f"Check run '{check_name}' {conclusion} — {repo}",
+            source_event=f"github:check_run:{repo}:{check_id}:{conclusion}",
+            deep_link=check_url or None,
+            metadata={
+                "repo": repo, "event": "check_run",
+                "action": conclusion, "check_name": check_name,
+                "check_id": str(check_id),
+            },
+        )
+
+    return check_summary
 
 
 async def _create_proactive_notification_for_all_users(
@@ -425,36 +540,41 @@ async def _create_proactive_notification_for_all_users(
         )
 
 
-def _store_event(
-    event: str,
-    action: str,
-    repo: str,
-    summary: dict[str, object],
-) -> None:
-    """Store a webhook event in the in-memory ring buffer."""
-    _recent_events.appendleft({
-        "event": event,
-        "action": action,
-        "repo": repo,
-        "summary": summary,
-        "received_at": datetime.now(UTC).isoformat(),
-    })
-
-
 @router.get(
     "/github/events",
     response_model=GitHubEventsResponse,
     summary="Son GitHub webhook olaylarini listele",
 )
-async def list_github_events(limit: int = 20) -> GitHubEventsResponse:
-    """Return the most recent GitHub webhook events (in-memory, up to 100).
+async def list_github_events(
+    limit: int = 20,
+    event_type: str | None = None,
+) -> GitHubEventsResponse:
+    """Return the most recent GitHub webhook events from the database.
 
     Args:
-        limit: Maximum number of events to return (default 20).
+        limit: Maximum number of events to return (default 20, max 100).
+        event_type: Optional filter by event type (push, pull_request, issues, check_run).
 
     Returns:
-        List of recent GitHub events.
+        List of recent GitHub events with total count.
     """
-    capped = min(limit, 100)
-    events = [GitHubEventSummary(**e) for e in list(_recent_events)[:capped]]
-    return GitHubEventsResponse(events=events, total=len(_recent_events))
+    async with async_session_factory() as session:
+        event_service = WebhookEventService(session)
+        events, total = await event_service.list_events(
+            limit=limit,
+            event_type=event_type,
+        )
+
+        event_summaries = [
+            GitHubEventSummary(
+                id=str(e.id),
+                delivery_id=e.delivery_id,
+                event=e.event_type,
+                action=e.action,
+                repo=e.repo,
+                summary=e.summary,
+                received_at=e.created_at.isoformat(),
+            )
+            for e in events
+        ]
+        return GitHubEventsResponse(events=event_summaries, total=total)
