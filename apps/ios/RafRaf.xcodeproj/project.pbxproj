@@ -54,6 +54,18 @@
 		A1B2C3D4E5F647A89012BC7A /* RFToolActivityCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC7B /* RFToolActivityCard.swift */; };
 		A1B2C3D4E5F647A89012BC7C /* RescanProjectsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC7D /* RescanProjectsUseCase.swift */; };
 		A1B2C3D4E5F647A89012BC7E /* UpdateAgentSettingsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC7F /* UpdateAgentSettingsUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC80 /* ProactiveNotificationType.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC8C /* ProactiveNotificationType.swift */; };
+		A1B2C3D4E5F647A89012BC81 /* NotificationPriority.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC8D /* NotificationPriority.swift */; };
+		A1B2C3D4E5F647A89012BC82 /* ProactiveNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC8E /* ProactiveNotification.swift */; };
+		A1B2C3D4E5F647A89012BC83 /* ProactiveNotificationRepositoryProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC8F /* ProactiveNotificationRepositoryProtocol.swift */; };
+		A1B2C3D4E5F647A89012BC84 /* FetchNotificationsUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC90 /* FetchNotificationsUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC85 /* MarkNotificationReadUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC91 /* MarkNotificationReadUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC86 /* ProactiveNotificationDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC92 /* ProactiveNotificationDTO.swift */; };
+		A1B2C3D4E5F647A89012BC87 /* ProactiveNotificationMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC93 /* ProactiveNotificationMapper.swift */; };
+		A1B2C3D4E5F647A89012BC88 /* ProactiveNotificationRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC94 /* ProactiveNotificationRepositoryImpl.swift */; };
+		A1B2C3D4E5F647A89012BC89 /* NotificationCenterViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC95 /* NotificationCenterViewModel.swift */; };
+		A1B2C3D4E5F647A89012BC8A /* RFProactiveNotificationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC96 /* RFProactiveNotificationCard.swift */; };
+		A1B2C3D4E5F647A89012BC8B /* NotificationCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC97 /* NotificationCenterView.swift */; };
 		A1B2C3D4E5F647A89012BC50 /* WidgetDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC51 /* WidgetDataService.swift */; };
 		A1B2C3D4E5F647A89012BC52 /* RafRafWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC53 /* RafRafWidgetView.swift */; };
 		A1B2C3D4E5F647A89012BC41 /* ProjectAnalyticsDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BC42 /* ProjectAnalyticsDTO.swift */; };
@@ -709,6 +721,18 @@
 		A1B2C3D4E5F647A89012BC7B /* RFToolActivityCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFToolActivityCard.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC7D /* RescanProjectsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RescanProjectsUseCase.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC7F /* UpdateAgentSettingsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateAgentSettingsUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC8C /* ProactiveNotificationType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProactiveNotificationType.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC8D /* NotificationPriority.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPriority.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC8E /* ProactiveNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProactiveNotification.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC8F /* ProactiveNotificationRepositoryProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProactiveNotificationRepositoryProtocol.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC90 /* FetchNotificationsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FetchNotificationsUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC91 /* MarkNotificationReadUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkNotificationReadUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC92 /* ProactiveNotificationDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProactiveNotificationDTO.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC93 /* ProactiveNotificationMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProactiveNotificationMapper.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC94 /* ProactiveNotificationRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProactiveNotificationRepositoryImpl.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC95 /* NotificationCenterViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterViewModel.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC96 /* RFProactiveNotificationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFProactiveNotificationCard.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BC97 /* NotificationCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCenterView.swift; sourceTree = "<group>"; };
 		E6124D6E1DECAB58D50AE8B0 /* View+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+Extensions.swift"; sourceTree = "<group>"; };
 		E745D17E31094BA30A4732FD /* ProjectRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectRepositoryImpl.swift; sourceTree = "<group>"; };
 		EA8C45FE6EB4CB9BC35B709B /* VoiceOutputState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOutputState.swift; sourceTree = "<group>"; };
@@ -1189,6 +1213,8 @@
 			children = (
 				ECA00A07C3581E3EFC1510B0 /* HandleNotificationUseCase.swift */,
 				66E9B6A86D86A85928EC43D4 /* RegisterDeviceTokenUseCase.swift */,
+				A1B2C3D4E5F647A89012BC90 /* FetchNotificationsUseCase.swift */,
+				A1B2C3D4E5F647A89012BC91 /* MarkNotificationReadUseCase.swift */,
 			);
 			path = UseCases;
 			sourceTree = "<group>";
@@ -1744,6 +1770,7 @@
 			isa = PBXGroup;
 			children = (
 				0091DFD4063859F7357A52EF /* RFNotificationBanner.swift */,
+				A1B2C3D4E5F647A89012BC96 /* RFProactiveNotificationCard.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -2320,6 +2347,7 @@
 			isa = PBXGroup;
 			children = (
 				366FF9F51004CD680DDF3CB2 /* NotificationMapper.swift */,
+				A1B2C3D4E5F647A89012BC93 /* ProactiveNotificationMapper.swift */,
 			);
 			path = Mappers;
 			sourceTree = "<group>";
@@ -2395,6 +2423,7 @@
 			isa = PBXGroup;
 			children = (
 				5E2DD85745706E339B58077A /* NotificationRepositoryProtocol.swift */,
+				A1B2C3D4E5F647A89012BC8F /* ProactiveNotificationRepositoryProtocol.swift */,
 			);
 			path = Repositories;
 			sourceTree = "<group>";
@@ -2414,6 +2443,7 @@
 			isa = PBXGroup;
 			children = (
 				39B7392B3C3929C15B48D2CD /* NotificationSettingsViewModel.swift */,
+				A1B2C3D4E5F647A89012BC95 /* NotificationCenterViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -2469,6 +2499,9 @@
 			children = (
 				F91B37544AF71EF06D1F7BC4 /* NotificationCategory.swift */,
 				910E048030BCE704D1ACC9F8 /* PushNotification.swift */,
+				A1B2C3D4E5F647A89012BC8C /* ProactiveNotificationType.swift */,
+				A1B2C3D4E5F647A89012BC8D /* NotificationPriority.swift */,
+				A1B2C3D4E5F647A89012BC8E /* ProactiveNotification.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -2906,6 +2939,7 @@
 			children = (
 				CE91FB0E476FF189A678A9DC /* DeviceTokenDTO.swift */,
 				B5F5D229C933E99E99E9C199 /* NotificationPayloadDTO.swift */,
+				A1B2C3D4E5F647A89012BC92 /* ProactiveNotificationDTO.swift */,
 			);
 			path = DTOs;
 			sourceTree = "<group>";
@@ -3043,6 +3077,7 @@
 			isa = PBXGroup;
 			children = (
 				D338A67C42C34EA7A5F34CB9 /* NotificationSettingsView.swift */,
+				A1B2C3D4E5F647A89012BC97 /* NotificationCenterView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -3078,6 +3113,7 @@
 			isa = PBXGroup;
 			children = (
 				89A7251A9986AF590322D9B1 /* NotificationRepositoryImpl.swift */,
+				A1B2C3D4E5F647A89012BC94 /* ProactiveNotificationRepositoryImpl.swift */,
 			);
 			path = Repositories;
 			sourceTree = "<group>";
@@ -3505,6 +3541,18 @@
 				132C7631415CBB0529872367 /* NotificationRepositoryProtocol.swift in Sources */,
 				2C934D278CD3A23533150EBD /* NotificationRouter.swift in Sources */,
 				4FA7F667D0D7818078A279CD /* NotificationSettingsView.swift in Sources */,
+				A1B2C3D4E5F647A89012BC8B /* NotificationCenterView.swift in Sources */,
+				A1B2C3D4E5F647A89012BC8A /* RFProactiveNotificationCard.swift in Sources */,
+				A1B2C3D4E5F647A89012BC89 /* NotificationCenterViewModel.swift in Sources */,
+				A1B2C3D4E5F647A89012BC88 /* ProactiveNotificationRepositoryImpl.swift in Sources */,
+				A1B2C3D4E5F647A89012BC87 /* ProactiveNotificationMapper.swift in Sources */,
+				A1B2C3D4E5F647A89012BC86 /* ProactiveNotificationDTO.swift in Sources */,
+				A1B2C3D4E5F647A89012BC85 /* MarkNotificationReadUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC84 /* FetchNotificationsUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC83 /* ProactiveNotificationRepositoryProtocol.swift in Sources */,
+				A1B2C3D4E5F647A89012BC82 /* ProactiveNotification.swift in Sources */,
+				A1B2C3D4E5F647A89012BC81 /* NotificationPriority.swift in Sources */,
+				A1B2C3D4E5F647A89012BC80 /* ProactiveNotificationType.swift in Sources */,
 				84639ABFFAB351AF7B72C150 /* NotificationSettingsViewModel.swift in Sources */,
 				A1B2C3D4E5F647A89012BC58 /* OnboardingView.swift in Sources */,
 				A1B2C3D4E5F647A89012BC5A /* OnboardingService.swift in Sources */,
