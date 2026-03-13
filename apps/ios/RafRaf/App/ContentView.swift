@@ -12,6 +12,8 @@ struct ContentView: View {
     @State private var agentListViewModel = Container.shared.agentListViewModel()
     @State private var settingsViewModel = Container.shared.settingsViewModel()
     @State private var authViewModel = Container.shared.authViewModel()
+    @State private var notificationCenterViewModel = Container.shared.notificationCenterViewModel()
+    @State private var isShowingNotifications = false
     private let webSocketManager = Container.shared.webSocketConnectionManager()
 
     init() {
@@ -86,6 +88,22 @@ struct ContentView: View {
         }
         .tint(RFColors.fallbackPrimary)
         .sensoryFeedback(.selection, trigger: selectedTab)
+        .overlay(alignment: .topTrailing) {
+            Button {
+                isShowingNotifications = true
+            } label: {
+                Image(systemName: notificationCenterViewModel.unreadCount > 0
+                    ? "bell.badge.fill"
+                    : "bell.fill")
+                .font(.body)
+                .foregroundStyle(RFColors.fallbackPrimary)
+            }
+            .padding(.trailing, RFSpacing.md)
+            .padding(.top, RFSpacing.xs)
+        }
+        .sheet(isPresented: $isShowingNotifications) {
+            NotificationCenterView(viewModel: notificationCenterViewModel)
+        }
     }
 
     @ViewBuilder

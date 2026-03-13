@@ -1,15 +1,18 @@
 """GitHub webhook receiver endpoint with DB-backed storage and idempotency."""
 
+from typing import Annotated
 from uuid import uuid4
 
 import structlog
-from fastapi import APIRouter, Header, Request, Response
+from fastapi import APIRouter, Depends, Header, Request, Response
 from pydantic import BaseModel, ConfigDict
 from starlette import status
 
+from app.api.deps import get_current_user
 from app.api.routes.websocket import manager as ios_manager
 from app.core.config import get_settings
 from app.core.database import async_session_factory
+from app.models.user import User
 from app.schemas.github import WebhookResponse
 from app.services.github_service import GitHubService
 from app.services.proactive_notification_service import ProactiveNotificationService
@@ -546,6 +549,7 @@ async def _create_proactive_notification_for_all_users(
     summary="Son GitHub webhook olaylarini listele",
 )
 async def list_github_events(
+    _current_user: Annotated[User, Depends(get_current_user)],
     limit: int = 20,
     event_type: str | None = None,
 ) -> GitHubEventsResponse:

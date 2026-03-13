@@ -5,6 +5,9 @@ import uuid
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.proactive_notification import (
+    ProactiveNotification as ProactiveNotificationModel,
+)
 from app.repositories.proactive_notification_repo import (
     ProactiveNotificationRepository,
 )
@@ -31,22 +34,22 @@ _GITHUB_EVENT_PRIORITY: dict[str, NotificationPriority] = {
 
 
 def _model_to_response(
-    notification: object,
+    notification: ProactiveNotificationModel,
 ) -> ProactiveNotificationResponse:
     """Convert a SQLAlchemy ProactiveNotification to response schema."""
     return ProactiveNotificationResponse(
-        id=notification.id,  # type: ignore[attr-defined]
-        type=ProactiveNotificationType(notification.type),  # type: ignore[attr-defined]
-        priority=NotificationPriority(notification.priority),  # type: ignore[attr-defined]
-        title=notification.title,  # type: ignore[attr-defined]
-        body=notification.body,  # type: ignore[attr-defined]
-        source=notification.source,  # type: ignore[attr-defined]
-        source_event=notification.source_event,  # type: ignore[attr-defined]
-        deep_link=notification.deep_link,  # type: ignore[attr-defined]
-        metadata=notification.metadata_json,  # type: ignore[attr-defined]
-        is_read=notification.is_read,  # type: ignore[attr-defined]
-        read_at=notification.read_at,  # type: ignore[attr-defined]
-        created_at=notification.created_at,  # type: ignore[attr-defined]
+        id=notification.id,
+        type=ProactiveNotificationType(notification.type),
+        priority=NotificationPriority(notification.priority),
+        title=notification.title,
+        body=notification.body,
+        source=notification.source,
+        source_event=notification.source_event,
+        deep_link=notification.deep_link,
+        metadata=notification.metadata_json,
+        is_read=notification.is_read,
+        read_at=notification.read_at,
+        created_at=notification.created_at,
     )
 
 
@@ -260,7 +263,7 @@ class ProactiveNotificationService:
     async def _send_push(
         self,
         user_id: uuid.UUID,
-        notification: object,
+        notification: ProactiveNotificationModel,
     ) -> None:
         """Send APNs push notification for urgent proactive notifications."""
         try:
@@ -268,14 +271,14 @@ class ProactiveNotificationService:
 
             push_service = NotificationService(self._session)
             push_payload = NotificationPayload(
-                notification_id=notification.id,  # type: ignore[attr-defined]
+                notification_id=notification.id,
                 type=NotificationType.info,
-                title=notification.title,  # type: ignore[attr-defined]
-                body=notification.body,  # type: ignore[attr-defined]
-                deep_link=notification.deep_link,  # type: ignore[attr-defined]
+                title=notification.title,
+                body=notification.body,
+                deep_link=notification.deep_link,
                 metadata={
-                    "proactive_notification_id": str(notification.id),  # type: ignore[attr-defined]
-                    "proactive_type": notification.type,  # type: ignore[attr-defined]
+                    "proactive_notification_id": str(notification.id),
+                    "proactive_type": notification.type,
                 },
             )
             await push_service.send_notification(user_id, push_payload)

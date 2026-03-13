@@ -31,6 +31,13 @@ spec:
           containers:
             - name: backup-runner
               image: curlimages/curl:8.5.0
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "256Mi"
               command:
                 - /bin/sh
                 - -c
@@ -115,6 +122,13 @@ spec:
           containers:
             - name: rotation-runner
               image: curlimages/curl:8.5.0
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "250m"
+                  memory: "128Mi"
               command:
                 - /bin/sh
                 - -c

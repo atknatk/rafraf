@@ -1,8 +1,12 @@
 """Backup/disaster recovery API routes."""
 
-import structlog
-from fastapi import APIRouter, HTTPException, Query
+from typing import Annotated
 
+import structlog
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app.api.deps import get_current_user
+from app.models.user import User
 from app.schemas.backup import (
     BackupListItem,
     BackupListResponse,
@@ -23,7 +27,9 @@ router = APIRouter(
 
 
 @router.get("/status", response_model=BackupStatusResponse)
-async def get_backup_status() -> BackupStatusResponse:
+async def get_backup_status(
+    _current_user: Annotated[User, Depends(get_current_user)],
+) -> BackupStatusResponse:
     """Get overall backup health status.
 
     Returns latest backup info and health indicators.
@@ -44,7 +50,9 @@ async def get_backup_status() -> BackupStatusResponse:
 
 
 @router.post("/postgres", response_model=BackupResponse)
-async def create_postgres_backup() -> BackupResponse:
+async def create_postgres_backup(
+    _current_user: Annotated[User, Depends(get_current_user)],
+) -> BackupResponse:
     """Create a PostgreSQL backup (pg_dump) and upload to S3.
 
     This endpoint triggers a full database backup using pg_dump --format=custom,
@@ -62,7 +70,9 @@ async def create_postgres_backup() -> BackupResponse:
 
 
 @router.post("/redis", response_model=BackupResponse)
-async def create_redis_snapshot() -> BackupResponse:
+async def create_redis_snapshot(
+    _current_user: Annotated[User, Depends(get_current_user)],
+) -> BackupResponse:
     """Create a Redis RDB snapshot and upload to S3.
 
     Triggers BGSAVE, waits for completion, then uploads the RDB file.
@@ -80,6 +90,7 @@ async def create_redis_snapshot() -> BackupResponse:
 
 @router.get("/list", response_model=BackupListResponse)
 async def list_backups(
+    _current_user: Annotated[User, Depends(get_current_user)],
     backup_type: str = Query(
         default="all",
         description="Backup tipi filtresi (postgres/redis/all)",
@@ -111,7 +122,9 @@ async def list_backups(
 
 
 @router.post("/rotate", response_model=BackupRotationResponse)
-async def rotate_backups() -> BackupRotationResponse:
+async def rotate_backups(
+    _current_user: Annotated[User, Depends(get_current_user)],
+) -> BackupRotationResponse:
     """Remove backups older than retention period (30 days).
 
     Returns counts of deleted backups per type.
@@ -129,7 +142,10 @@ async def rotate_backups() -> BackupRotationResponse:
 
 
 @router.post("/verify", response_model=BackupVerifyResponse)
-async def verify_backup(request: BackupVerifyRequest) -> BackupVerifyResponse:
+async def verify_backup(
+    request: BackupVerifyRequest,
+    _current_user: Annotated[User, Depends(get_current_user)],
+) -> BackupVerifyResponse:
     """Verify a backup's integrity.
 
     Downloads the backup from S3, checks gzip integrity, and for PostgreSQL

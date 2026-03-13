@@ -4,7 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
@@ -66,7 +66,10 @@ async def mark_notification_read(
     service = ProactiveNotificationService(session)
     result = await service.mark_read(notification_id, current_user.id)
     if result is None:
-        return Response(status_code=status.HTTP_404_NOT_FOUND)  # type: ignore[return-value]
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Bildirim bulunamadi",
+        )
     return result
 
 
@@ -96,7 +99,10 @@ async def delete_proactive_notification(
     service = ProactiveNotificationService(session)
     deleted = await service.delete_notification(notification_id, current_user.id)
     if not deleted:
-        return Response(status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Bildirim bulunamadi",
+        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
