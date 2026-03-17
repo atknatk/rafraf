@@ -382,6 +382,13 @@
 		FE9DD255E14A8684F283232B /* Factory in Frameworks */ = {isa = PBXBuildFile; productRef = ECB3212567B4D6E2AE1748D8 /* Factory */; };
 		FF2F90675AC4434D50B7CC14 /* ProgressEventDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9999729875223B6921FC95AB /* ProgressEventDTO.swift */; };
 		FFF07533B53FC9F056179983 /* NotificationCategoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 384E4B954363B2EE0FDCDB7C /* NotificationCategoryTests.swift */; };
+		A1B2C3D4E5F647A89012BC98 /* MonitoringDashboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BCA5 /* MonitoringDashboard.swift */; };
+		A1B2C3D4E5F647A89012BC99 /* MonitoringDashboardDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BCA6 /* MonitoringDashboardDTO.swift */; };
+		A1B2C3D4E5F647A89012BC9A /* MonitoringMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BCA7 /* MonitoringMapper.swift */; };
+		A1B2C3D4E5F647A89012BC9B /* MonitoringRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BCA8 /* MonitoringRepository.swift */; };
+		A1B2C3D4E5F647A89012BC9C /* MonitoringRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BCA9 /* MonitoringRepositoryImpl.swift */; };
+		A1B2C3D4E5F647A89012BC9D /* GetMonitoringDashboardUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BCAA /* GetMonitoringDashboardUseCase.swift */; };
+		A1B2C3D4E5F647A89012BC9E /* SystemStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F647A89012BCAB /* SystemStatusView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -770,6 +777,13 @@
 		A1B2C3D4E5F647A89012BC26 /* LoadProfileUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadProfileUseCase.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC27 /* UpdateProfileUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateProfileUseCase.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F647A89012BC28 /* UserRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserRepositoryImpl.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BCA5 /* MonitoringDashboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringDashboard.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BCA6 /* MonitoringDashboardDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringDashboardDTO.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BCA7 /* MonitoringMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringMapper.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BCA8 /* MonitoringRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringRepository.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BCA9 /* MonitoringRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringRepositoryImpl.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BCAA /* GetMonitoringDashboardUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GetMonitoringDashboardUseCase.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F647A89012BCAB /* SystemStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemStatusView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1596,6 +1610,7 @@
 				FB2779B4FCE83EBBA2D09B1F /* FileSharing */,
 				D14F9A966DB22E931488DEE9 /* Home */,
 				3AB8D2BC83D07BF369195A17 /* Notifications */,
+				A1B2C3D4E5F647A89012BCAC /* Monitoring */,
 				A1B2C3D4E5F647A89012BC61 /* Onboarding */,
 				BBDE6C74FF67C05B890B003E /* Progress */,
 				C1C761F83B1C8F02C519D859 /* Project */,
@@ -3320,6 +3335,100 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		A1B2C3D4E5F647A89012BCAC /* Monitoring */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BCAD /* Data */,
+				A1B2C3D4E5F647A89012BCAE /* Domain */,
+				A1B2C3D4E5F647A89012BCAF /* Presentation */,
+			);
+			path = Monitoring;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BCAD /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BCB0 /* DTOs */,
+				A1B2C3D4E5F647A89012BCB1 /* Mappers */,
+				A1B2C3D4E5F647A89012BCB2 /* Repositories */,
+			);
+			path = Data;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BCB0 /* DTOs */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BCA6 /* MonitoringDashboardDTO.swift */,
+			);
+			path = DTOs;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BCB1 /* Mappers */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BCA7 /* MonitoringMapper.swift */,
+			);
+			path = Mappers;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BCB2 /* Repositories */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BCA9 /* MonitoringRepositoryImpl.swift */,
+			);
+			path = Repositories;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BCAE /* Domain */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BCB3 /* Models */,
+				A1B2C3D4E5F647A89012BCB4 /* Repositories */,
+				A1B2C3D4E5F647A89012BCB5 /* UseCases */,
+			);
+			path = Domain;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BCB3 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BCA5 /* MonitoringDashboard.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BCB4 /* Repositories */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BCA8 /* MonitoringRepository.swift */,
+			);
+			path = Repositories;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BCB5 /* UseCases */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BCAA /* GetMonitoringDashboardUseCase.swift */,
+			);
+			path = UseCases;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BCAF /* Presentation */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BCB6 /* Views */,
+			);
+			path = Presentation;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F647A89012BCB6 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F647A89012BCAB /* SystemStatusView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -3697,6 +3806,13 @@
 				4F786E4007A7463FF1224BC4 /* WebSocketConnectionManager.swift in Sources */,
 				5D6D478EB4B39272CAC3207C /* WebSocketMessage.swift in Sources */,
 				7F69C861FBECE104AB7AC76E /* WebSocketMessageRouter.swift in Sources */,
+				A1B2C3D4E5F647A89012BC98 /* MonitoringDashboard.swift in Sources */,
+				A1B2C3D4E5F647A89012BC99 /* MonitoringDashboardDTO.swift in Sources */,
+				A1B2C3D4E5F647A89012BC9A /* MonitoringMapper.swift in Sources */,
+				A1B2C3D4E5F647A89012BC9B /* MonitoringRepository.swift in Sources */,
+				A1B2C3D4E5F647A89012BC9C /* MonitoringRepositoryImpl.swift in Sources */,
+				A1B2C3D4E5F647A89012BC9D /* GetMonitoringDashboardUseCase.swift in Sources */,
+				A1B2C3D4E5F647A89012BC9E /* SystemStatusView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -406,6 +406,27 @@ class AgentRegistryService:
             resources=record.resources,
         )
 
+    def list_agents_sync(self) -> list[dict[str, object]]:
+        """Return a lightweight list of all agents as dicts (non-async, for aggregation)."""
+        result: list[dict[str, object]] = []
+        for record in self._agents.values():
+            resources_dict: dict[str, float] | None = None
+            if record.resources is not None:
+                resources_dict = {
+                    "cpu_usage_percent": record.resources.cpu_usage_percent,
+                    "memory_usage_percent": record.resources.memory_usage_percent,
+                    "disk_usage_percent": record.resources.disk_usage_percent,
+                    "disk_free_gb": record.resources.disk_free_gb,
+                }
+            result.append({
+                "host_id": record.host_id,
+                "status": record.status,
+                "resources": resources_dict,
+                "active_tasks": record.active_tasks or 0,
+                "uptime_seconds": record.uptime_seconds or 0,
+            })
+        return result
+
     def get_claude_processes(self, host_id: str) -> list[ClaudeProcessInfo]:
         """Return claude process list for a given agent."""
         record = self._agents.get(host_id)

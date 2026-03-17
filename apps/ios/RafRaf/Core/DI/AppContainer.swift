@@ -392,6 +392,18 @@ extension Container {
         }
     }
 
+    // MARK: - Monitoring Feature
+
+    /// Monitoring repository.
+    var monitoringRepository: Factory<MonitoringRepositoryProtocol> {
+        self { MonitoringRepositoryImpl(networkClient: self.networkClient()) }
+    }
+
+    /// Monitoring dashboard use case.
+    var getMonitoringDashboardUseCase: Factory<GetMonitoringDashboardUseCase> {
+        self { GetMonitoringDashboardUseCase(repository: self.monitoringRepository()) }
+    }
+
     // MARK: - Proactive Notifications Feature
 
     /// Proaktif bildirim repository.

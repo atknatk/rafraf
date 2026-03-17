@@ -39,7 +39,7 @@
 {"id": "F6-03", "issue": 39, "title": "Personal memory", "phase": "f6", "layer": "backend", "pipeline": "full", "depends_on": [22], "status": "merged"}
 {"id": "F6-04", "issue": 40, "title": "Playwright web test scenarios", "phase": "f6", "layer": "backend", "pipeline": "standard", "depends_on": [15], "status": "merged"}
 {"id": "F6-05", "issue": 41, "title": "Maestro mobile test integration", "phase": "f6", "layer": "backend", "pipeline": "standard", "depends_on": [17], "status": "merged"}
-{"id": "F7-01", "issue": 42, "title": "Monitoring dashboard", "phase": "f7", "layer": "infra", "pipeline": "standard", "depends_on": [23], "status": "ready"}
+{"id": "F7-01", "issue": 42, "title": "Monitoring dashboard", "phase": "f7", "layer": "fullstack", "pipeline": "standard", "depends_on": [23], "status": "merged"}
 {"id": "F7-02", "issue": 43, "title": "Subscription usage alerts", "phase": "f7", "layer": "fullstack", "pipeline": "standard", "depends_on": [23, 36], "status": "merged"}
 {"id": "F7-03", "issue": 44, "title": "Proactive notifications", "phase": "f7", "layer": "fullstack", "pipeline": "full", "depends_on": [36, 20], "status": "merged"}
 {"id": "F7-04", "issue": 45, "title": "GitHub webhook integration", "phase": "f7", "layer": "backend", "pipeline": "full", "depends_on": [20], "status": "merged"}

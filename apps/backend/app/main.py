@@ -23,6 +23,7 @@ from app.api.routes.files import router as files_router
 from app.api.routes.health import router as health_router
 from app.api.routes.maestro import router as maestro_router
 from app.api.routes.memory import router as memory_router
+from app.api.routes.monitoring import router as monitoring_router
 from app.api.routes.notifications import router as notifications_router
 from app.api.routes.personal_memory import router as personal_memory_router
 from app.api.routes.proactive_notifications import router as proactive_notifications_router
@@ -138,6 +139,7 @@ def create_app() -> FastAPI:
     application.include_router(analytics_router)
     application.include_router(cost_alerts_router)
     application.include_router(backups_router)
+    application.include_router(monitoring_router)
 
     return application
 
