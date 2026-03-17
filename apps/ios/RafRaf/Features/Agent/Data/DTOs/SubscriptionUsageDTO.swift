@@ -11,6 +11,10 @@ struct SubscriptionUsageDTO: Codable, Sendable {
     let totalMessagesToday: Int
     let isRateLimited: Bool
     let rateLimitResetAt: String?
+    let usagePercent: Double
+    let dailyMessageLimit: Int
+    let warningThresholdReached: Bool
+    let limitExceeded: Bool
     let lastFetchedAt: String
 }
 

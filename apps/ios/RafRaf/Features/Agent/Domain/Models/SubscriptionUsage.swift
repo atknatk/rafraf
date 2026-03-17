@@ -10,6 +10,10 @@ struct SubscriptionUsage: Sendable, Equatable {
     let totalMessagesToday: Int
     let isRateLimited: Bool
     let rateLimitResetAt: Date?
+    let usagePercent: Double
+    let dailyMessageLimit: Int
+    let warningThresholdReached: Bool
+    let limitExceeded: Bool
     let lastFetchedAt: Date
 }
 

@@ -87,6 +87,10 @@ class Settings(BaseSettings):
     claude_code_timeout_seconds: int = 300
     claude_code_fallback_to_api: bool = True
 
+    # Subscription Usage Alerts
+    subscription_daily_message_limit: int = 200  # Claude Max gunluk mesaj limiti (tahmini)
+    subscription_warning_threshold: float = 0.8  # %80 esik
+
     # APNs Push Notifications
     apns_key_path: str = ""
     apns_key_id: str = ""

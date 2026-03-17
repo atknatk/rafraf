@@ -280,16 +280,54 @@ struct AgentDetailView: View {
             // Rate limit status
             HStack(spacing: RFSpacing.xxs) {
                 Circle()
-                    .fill(usage.isRateLimited ? RFColors.error : RFColors.success)
+                    .fill(usageStatusColor(usage))
                     .frame(width: 8, height: 8)
                 RFText(
-                    usage.isRateLimited
-                        ? String(localized: "agent.subscription.rateLimited")
-                        : String(localized: "agent.subscription.normal"),
+                    usageStatusText(usage),
                     style: .caption,
-                    color: usage.isRateLimited ? RFColors.error : RFColors.success
+                    color: usageStatusColor(usage)
                 )
             }
+        }
+
+        // Usage progress bar
+        if usage.dailyMessageLimit > 0 {
+            usageProgressBar(usage)
+        }
+
+        // Warning / limit exceeded banner
+        if usage.limitExceeded || usage.isRateLimited {
+            HStack(spacing: RFSpacing.xs) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.white)
+                    .font(.caption)
+                RFText(
+                    String(localized: "agent.subscription.limitExceeded"),
+                    style: .captionBold,
+                    color: .white
+                )
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, RFSpacing.xs)
+            .padding(.horizontal, RFSpacing.sm)
+            .background(RFColors.error)
+            .clipShape(RoundedRectangle(cornerRadius: RFCornerRadius.small))
+        } else if usage.warningThresholdReached {
+            HStack(spacing: RFSpacing.xs) {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .foregroundStyle(RFColors.warning)
+                    .font(.caption)
+                RFText(
+                    String(localized: "agent.subscription.warningThreshold"),
+                    style: .captionBold,
+                    color: RFColors.warning
+                )
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, RFSpacing.xs)
+            .padding(.horizontal, RFSpacing.sm)
+            .background(RFColors.warning.opacity(0.15))
+            .clipShape(RoundedRectangle(cornerRadius: RFCornerRadius.small))
         }
 
         Divider()
@@ -898,6 +936,72 @@ struct AgentDetailView: View {
         case .python: return "Python"
         case .nodejs: return "Node.js"
         }
+    }
+
+    // MARK: - Usage Progress Bar
+
+    private func usageProgressBar(_ usage: SubscriptionUsage) -> some View {
+        VStack(spacing: RFSpacing.xxs) {
+            HStack {
+                RFText(
+                    String(localized: "agent.subscription.dailyUsage"),
+                    style: .caption,
+                    color: RFColors.fallbackTextSecondary
+                )
+                Spacer()
+                let totalMessages = usage.todayUsage.messageCount + usage.totalMessagesToday
+                RFText(
+                    "\(totalMessages)/\(usage.dailyMessageLimit)",
+                    style: .captionBold,
+                    color: usageBarColor(usage.usagePercent)
+                )
+            }
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: RFCornerRadius.small)
+                        .fill(RFColors.fallbackSurface)
+                    RoundedRectangle(cornerRadius: RFCornerRadius.small)
+                        .fill(usageBarColor(usage.usagePercent))
+                        .frame(width: geometry.size.width * min(usage.usagePercent / 100.0, 1.0))
+                        .animation(.easeInOut(duration: 0.3), value: usage.usagePercent)
+                }
+            }
+            .frame(height: 8)
+
+            HStack {
+                RFText(
+                    String(format: "%.0f%%", usage.usagePercent),
+                    style: .caption,
+                    color: usageBarColor(usage.usagePercent)
+                )
+                Spacer()
+            }
+        }
+    }
+
+    private func usageBarColor(_ percent: Double) -> Color {
+        if percent >= 100 { return RFColors.error }
+        if percent >= 80 { return RFColors.warning }
+        return RFColors.success
+    }
+
+    private func usageStatusColor(_ usage: SubscriptionUsage) -> Color {
+        if usage.isRateLimited || usage.limitExceeded { return RFColors.error }
+        if usage.warningThresholdReached { return RFColors.warning }
+        return RFColors.success
+    }
+
+    private func usageStatusText(_ usage: SubscriptionUsage) -> String {
+        if usage.isRateLimited {
+            return String(localized: "agent.subscription.rateLimited")
+        }
+        if usage.limitExceeded {
+            return String(localized: "agent.subscription.limitExceeded")
+        }
+        if usage.warningThresholdReached {
+            return String(localized: "agent.subscription.warningThreshold")
+        }
+        return String(localized: "agent.subscription.normal")
     }
 
     private func barColor(for value: Double) -> Color {

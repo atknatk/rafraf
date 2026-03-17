@@ -944,6 +944,57 @@
         }
       }
     },
+    "agent.subscription.dailyUsage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily Usage"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Günlük Kullanım"
+          }
+        }
+      }
+    },
+    "agent.subscription.limitExceeded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily limit exceeded!"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Günlük limit aşıldı!"
+          }
+        }
+      }
+    },
+    "agent.subscription.warningThreshold" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usage over 80% — consider slowing down"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kullanım %80'i aştı — yavaşlamayı düşün"
+          }
+        }
+      }
+    },
     "agent.task.action" : {
       "extractionState" : "manual",
       "localizations" : {

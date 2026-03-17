@@ -322,6 +322,10 @@ final class PreviewAgentRepository: AgentRepositoryProtocol, @unchecked Sendable
             totalMessagesToday: 12,
             isRateLimited: false,
             rateLimitResetAt: nil,
+            usagePercent: 77.0,
+            dailyMessageLimit: 200,
+            warningThresholdReached: false,
+            limitExceeded: false,
             lastFetchedAt: Date().addingTimeInterval(-180)
         )
     }

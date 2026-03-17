@@ -52,6 +52,10 @@ enum AgentMapper {
             totalMessagesToday: dto.totalMessagesToday,
             isRateLimited: dto.isRateLimited,
             rateLimitResetAt: parseDate(dto.rateLimitResetAt),
+            usagePercent: dto.usagePercent,
+            dailyMessageLimit: dto.dailyMessageLimit,
+            warningThresholdReached: dto.warningThresholdReached,
+            limitExceeded: dto.limitExceeded,
             lastFetchedAt: parseDate(dto.lastFetchedAt) ?? Date()
         )
     }
