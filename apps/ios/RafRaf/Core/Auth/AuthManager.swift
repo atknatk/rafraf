@@ -163,19 +163,51 @@ final class AuthManager {
 
     // MARK: - Private
 
+    /// Refresh token kullanarak yeni token cifti alir.
+    /// WebSocket reconnect veya 401 durumlarinda cagirilabilir.
+    /// - Returns: Basarili ise true, degilse false.
+    @discardableResult
+    func refreshTokenIfNeeded() async -> Bool {
+        guard let refreshTokenValue = keychain.readString(for: AuthKeychainKey.refreshToken),
+              let refresher = tokenRefresher else {
+            logger.warning("Refresh yapilamadi: token veya refresher yok")
+            return false
+        }
+
+        do {
+            let newToken = try await refresher(refreshTokenValue)
+            saveTokens(
+                accessToken: newToken.accessToken,
+                refreshToken: newToken.refreshToken,
+                expiresIn: newToken.expiresIn
+            )
+            logger.info("Token auto-refresh basarili")
+            return true
+        } catch {
+            logger.error("Token auto-refresh basarisiz: \(error.localizedDescription)")
+            authState = .unauthenticated
+            return false
+        }
+    }
+
     private func scheduleTokenRefresh(expiresAt: Date) {
         refreshTask?.cancel()
 
         // Token suresinin dolmasina 60 saniye kala refresh schedule et
         let refreshInterval = expiresAt.timeIntervalSinceNow - 60
-        guard refreshInterval > 0 else { return }
+        guard refreshInterval > 0 else {
+            // Zaten expire olmak uzere — hemen refresh yap
+            refreshTask = Task { [weak self] in
+                await self?.refreshTokenIfNeeded()
+            }
+            return
+        }
 
         refreshTask = Task { [weak self] in
             do {
                 try await Task.sleep(for: .seconds(refreshInterval))
                 guard !Task.isCancelled else { return }
-                self?.logger.info("Token auto-refresh zamani geldi")
-                // Auto-refresh ViewModel uzerinden tetiklenir
+                await self?.refreshTokenIfNeeded()
             } catch {
                 // Task cancelled
             }

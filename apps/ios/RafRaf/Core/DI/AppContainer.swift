@@ -9,8 +9,16 @@ extension Container {
 
     /// Ag istemcisi.
     var networkClient: Factory<NetworkClient> {
-        self { NetworkClient(authInterceptor: self.authInterceptor()) }
-            .singleton
+        self {
+            let authManager = self.authManager()
+            return NetworkClient(
+                authInterceptor: self.authInterceptor(),
+                tokenRefreshHandler: { @Sendable in
+                    await authManager.refreshTokenIfNeeded()
+                }
+            )
+        }
+        .singleton
     }
 
     /// WebSocket mesaj yonlendiricisi.
@@ -23,9 +31,13 @@ extension Container {
     var webSocketClient: Factory<WebSocketClient> {
         self {
             let keychain = self.keychainHelper()
+            let authManager = self.authManager()
             return WebSocketClient(
                 messageRouter: self.webSocketMessageRouter(),
-                tokenProvider: { keychain.readString(for: "auth_access_token") }
+                tokenProvider: { keychain.readString(for: "auth_access_token") },
+                tokenRefreshHandler: { @Sendable in
+                    await authManager.refreshTokenIfNeeded()
+                }
             )
         }
         .singleton

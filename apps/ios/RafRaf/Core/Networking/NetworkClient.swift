@@ -29,6 +29,7 @@ actor NetworkClient {
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
     private let authInterceptor: AuthInterceptor?
+    private let tokenRefreshHandler: (@Sendable () async -> Bool)?
     private let logger = Logger(
         subsystem: "com.rafraf",
         category: "NetworkClient"
@@ -37,11 +38,13 @@ actor NetworkClient {
     init(
         baseURL: URL = AppEnvironment.current.apiBaseURL,
         session: URLSession = .shared,
-        authInterceptor: AuthInterceptor? = nil
+        authInterceptor: AuthInterceptor? = nil,
+        tokenRefreshHandler: (@Sendable () async -> Bool)? = nil
     ) {
         self.baseURL = baseURL
         self.session = session
         self.authInterceptor = authInterceptor
+        self.tokenRefreshHandler = tokenRefreshHandler
 
         let jsonDecoder = JSONDecoder()
         jsonDecoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -136,7 +139,8 @@ actor NetworkClient {
     }
 
     private func execute<T: Decodable & Sendable>(
-        _ request: URLRequest
+        _ request: URLRequest,
+        retried: Bool = false
     ) async throws -> T {
         logger.debug("Request: \(request.httpMethod ?? "?") \(request.url?.absoluteString ?? "?")")
 
@@ -156,6 +160,19 @@ actor NetworkClient {
                 throw NetworkError.decodingError(error)
             }
         case 401:
+            // Token expired — refresh ve retry (tek sefer)
+            if !retried, let refreshHandler = tokenRefreshHandler {
+                logger.info("401 alindi, token yenileniyor...")
+                let refreshed = await refreshHandler()
+                if refreshed {
+                    // Yeni token ile request'i tekrarla
+                    var retryRequest = request
+                    if let authInterceptor {
+                        retryRequest = authInterceptor.intercept(retryRequest)
+                    }
+                    return try await execute(retryRequest, retried: true)
+                }
+            }
             throw NetworkError.unauthorized
         default:
             throw NetworkError.httpError(statusCode: httpResponse.statusCode)
@@ -163,7 +180,8 @@ actor NetworkClient {
     }
 
     private func executeRaw(
-        _ request: URLRequest
+        _ request: URLRequest,
+        retried: Bool = false
     ) async throws -> Data {
         logger.debug("Request (raw): \(request.httpMethod ?? "?") \(request.url?.absoluteString ?? "?")")
 
@@ -179,6 +197,17 @@ actor NetworkClient {
         case 200...299:
             return data
         case 401:
+            if !retried, let refreshHandler = tokenRefreshHandler {
+                logger.info("401 alindi (raw), token yenileniyor...")
+                let refreshed = await refreshHandler()
+                if refreshed {
+                    var retryRequest = request
+                    if let authInterceptor {
+                        retryRequest = authInterceptor.intercept(retryRequest)
+                    }
+                    return try await executeRaw(retryRequest, retried: true)
+                }
+            }
             throw NetworkError.unauthorized
         default:
             throw NetworkError.httpError(statusCode: httpResponse.statusCode)

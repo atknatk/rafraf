@@ -53,15 +53,20 @@ actor WebSocketClient {
     /// Ping gonderim callback'i — gecikme olcumu icin
     private var onPingSent: (@Sendable () -> Void)?
 
+    /// Token yenileme handler'i — reconnect oncesinde cagirilir
+    private let tokenRefreshHandler: (@Sendable () async -> Bool)?
+
     init(
         url: URL = AppEnvironment.current.webSocketURL,
         messageRouter: WebSocketMessageRouter = WebSocketMessageRouter(),
-        tokenProvider: @escaping @Sendable () -> String? = { nil }
+        tokenProvider: @escaping @Sendable () -> String? = { nil },
+        tokenRefreshHandler: (@Sendable () async -> Bool)? = nil
     ) {
         self.baseURL = url
         self.session = URLSession(configuration: .default)
         self.messageRouter = messageRouter
         self.tokenProvider = tokenProvider
+        self.tokenRefreshHandler = tokenRefreshHandler
     }
 
     /// Token ekli WebSocket URL olusturur.
@@ -208,6 +213,10 @@ actor WebSocketClient {
             do {
                 try await Task.sleep(for: .seconds(delay))
                 guard let self = self, !Task.isCancelled else { return }
+                // Token expired olabilir — reconnect oncesinde yenile
+                if let refreshHandler = self.tokenRefreshHandler {
+                    _ = await refreshHandler()
+                }
                 await self.connect()
             } catch {
                 // Task iptal edildi
