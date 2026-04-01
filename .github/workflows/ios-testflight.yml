@@ -60,6 +60,7 @@ jobs:
             -scheme "$SCHEME" \
             -archivePath "$ARCHIVE_PATH" \
             -configuration Release \
+            -allowProvisioningUpdates \
             -skipMacroValidation \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
 
@@ -68,7 +69,8 @@ jobs:
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportPath "$EXPORT_PATH" \
-            -exportOptionsPlist exportOptions.plist
+            -exportOptionsPlist exportOptions.plist \
+            -allowProvisioningUpdates
 
       - name: Setup App Store Connect API Key
         run: |
