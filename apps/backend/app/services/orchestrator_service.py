@@ -10,7 +10,6 @@ import structlog
 from app.orchestrator.agent import ClaudeAPIError, MaxIterationsReachedError, OrchestratorAgent
 from app.orchestrator.claude_code_runner import (
     ClaudeCodeError,
-    ClaudeCodeRunner,
     ToolProgressCallback,
 )
 from app.orchestrator.tool_registry import ToolRegistry
@@ -335,8 +334,6 @@ class OrchestratorService:
             project_id=project_id,
         )
 
-        runner = ClaudeCodeRunner()
-
         # Build project-scoped session key
         session_key = f"{session_id}:project:{project_id}" if project_id else session_id
 
@@ -397,23 +394,61 @@ class OrchestratorService:
         append_prompt = "\n".join(context_parts)
 
         try:
-            result = await runner.run(
-                prompt=message,
-                session_id=claude_session_id,
-                project_dir=project_local_path,
+            import asyncio
+
+            from app.api.routes.agent_ws import get_claude_stream_manager
+            from app.services.agent_registry_service import agent_registry
+            from app.services.claude_stream_manager import ClaudeStreamCallbacks
+
+            # Resolve agent: prefer project-linked agent, fallback to any online
+            host_id = await self._resolve_agent_for_project(project_id, db_session)
+            if host_id is None:
+                raise ClaudeCodeError(
+                    "Uygun agent bulunamadi. Agent'in online oldugundan emin olun.",
+                    returncode=-1,
+                )
+
+            csm = get_claude_stream_manager()
+            callbacks = ClaudeStreamCallbacks(
                 on_text_delta=on_text_delta,
                 on_tool_progress=on_tool_progress,
                 on_question=on_question,
                 on_stream_end=on_stream_end,
-                append_system_prompt=append_prompt,
             )
+
+            task_id = await csm.dispatch(
+                host_id=host_id,
+                prompt=message,
+                session_id=claude_session_id,
+                project_dir=project_local_path,
+                append_system_prompt=append_prompt,
+                model=settings.claude_code_model,
+                max_turns=settings.claude_code_max_turns,
+                callbacks=callbacks,
+            )
+
+            # Wait for stream completion
+            completion_future = csm.get_completion_future(task_id)
+            try:
+                result = await asyncio.wait_for(
+                    completion_future,
+                    timeout=settings.claude_code_timeout_seconds,
+                )
+            except TimeoutError:
+                # Clean up the stream record on timeout
+                await csm.handle_stream_error(task_id, "Timeout bekleme suresi asimi", -1)
+                raise ClaudeCodeError(
+                    f"claude -p timed out after {settings.claude_code_timeout_seconds}s",
+                    returncode=-1,
+                ) from None
 
             await logger.ainfo(
                 "claude_code_response_generated",
                 session_id=session_id,
                 claude_session_id=result.session_id,
                 model=result.model_used,
-                text_length=len(result.response_text),
+                text_length=len(result.full_text),
+                agent_host_id=host_id,
             )
 
             # Save session after successful execution (project-scoped key)
@@ -432,7 +467,7 @@ class OrchestratorService:
 
             return OrchestratorResponse(
                 session_id=session_id,
-                response_text=result.response_text,
+                response_text=result.full_text,
                 model_used=f"claude-code:{result.model_used}",
                 tokens_input=result.tokens_input,
                 tokens_output=result.tokens_output,
@@ -469,6 +504,46 @@ class OrchestratorService:
                 tokens_output=0,
                 tool_calls_count=0,
             )
+
+    async def _resolve_agent_for_project(
+        self,
+        project_id: str | None,
+        db_session: object | None,
+    ) -> str | None:
+        """Find a suitable online agent for the given project.
+
+        Priority:
+        1. Agent linked to the project (via AgentProjectService)
+        2. Any online agent with claude_code capability
+        """
+        from app.services.agent_registry_service import agent_registry
+
+        if project_id and db_session is not None:
+            try:
+                from sqlalchemy import select
+
+                from app.models.agent_project import AgentProject
+
+                result = await db_session.execute(
+                    select(AgentProject.agent_id).where(
+                        AgentProject.project_id == uuid.UUID(project_id),
+                        AgentProject.is_active.is_(True),
+                    )
+                )
+                agent_ids = [row[0] for row in result.all()]
+                # Check which are online
+                for agent_id in agent_ids:
+                    conn_id = agent_registry.get_connection_id(agent_id)
+                    if conn_id is not None:
+                        return agent_id
+            except Exception:
+                await logger.awarning(
+                    "agent_resolve_project_fallback",
+                    project_id=project_id,
+                )
+
+        # Fallback: any online agent with claude_code capability
+        return agent_registry.find_online_agent_with_capability("claude_code")
 
     async def _clear_claude_session(self, ws_session_id: str) -> None:
         """Remove saved claude -p session ID from Redis (forces fresh session on next call)."""

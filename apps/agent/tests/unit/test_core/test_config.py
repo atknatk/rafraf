@@ -32,7 +32,7 @@ class TestAgentConfig:
         assert config.heartbeat_interval == 30
         assert config.reconnect_initial_delay == 1.0
         assert config.reconnect_max_delay == 60.0
-        assert config.version == "0.1.0"
+        assert config.version == "0.4.0"
 
     def test_default_capabilities(self) -> None:
         """Varsayilan yetenekler dogru ayarlanir."""
@@ -51,6 +51,7 @@ class TestAgentConfig:
         assert config.capability_xcode_build is False
         assert config.capability_android_build is False
         assert config.capability_nodejs is False
+        assert config.capability_claude_code is True
 
     def test_heartbeat_interval_minimum(self) -> None:
         """Heartbeat interval minimum deger kontrolu."""
@@ -125,9 +126,10 @@ class TestAgentConfigCapabilities:
             capability_git=True,
             capability_python=True,
             capability_nodejs=True,
+            capability_claude_code=True,
         )
         caps = config.get_capabilities()
-        assert len(caps) == 10
+        assert len(caps) == 11
         assert "docker" in caps
         assert "playwright" in caps
         assert "maestro_ios" in caps
@@ -145,6 +147,7 @@ class TestAgentConfigCapabilities:
             capability_git=False,
             capability_python=False,
             capability_nodejs=False,
+            capability_claude_code=False,
         )
         caps = config.get_capabilities()
         assert caps == []

@@ -309,6 +309,18 @@ class AgentRegistryService:
                 result.append(self._to_summary(record))
         return result
 
+    def find_online_agent_with_capability(self, capability: str) -> str | None:
+        """Return host_id of an online agent with the specified capability string.
+
+        Convenience wrapper for external callers that pass capability as string.
+        Returns the least-busy matching agent, or None.
+        """
+        try:
+            cap = AgentCapability(capability)
+        except ValueError:
+            return None
+        return self.get_least_busy_online(cap)
+
     def get_least_busy_online(
         self,
         capability: AgentCapability | None = None,

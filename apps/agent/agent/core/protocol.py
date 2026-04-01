@@ -378,3 +378,146 @@ def build_resource_alarm_message(
         content=content,
     )
     return message.model_dump_json()
+
+
+# ------------------------------------------------------------------
+# Claude streaming protocol (server -> agent -> server)
+# ------------------------------------------------------------------
+
+
+class ClaudeTaskExecuteContent(BaseModel):
+    """claude_task_execute mesaj icerigi (server -> agent)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    task_id: str
+    prompt: str
+    project_dir: str | None = None
+    session_id: str | None = None
+    model: str = "sonnet"
+    max_turns: int = 30
+    append_system_prompt: str | None = None
+
+
+def parse_claude_task_execute(data: dict[str, Any]) -> ClaudeTaskExecuteContent:
+    """claude_task_execute mesajini parse eder.
+
+    Raises:
+        ValueError: content eksik veya gecersiz.
+    """
+    content = data.get("content")
+    if content is None or not isinstance(content, dict):
+        msg = "claude_task_execute mesajinda 'content' alani eksik"
+        raise ValueError(msg)
+
+    return ClaudeTaskExecuteContent(**content)
+
+
+def build_claude_stream_delta_message(
+    *,
+    task_id: str,
+    host_id: str,
+    delta: str,
+    index: int,
+) -> str:
+    """claude_stream_delta mesaji olusturur (agent -> server)."""
+    message = {
+        "type": "claude_stream_delta",
+        "content": {
+            "task_id": task_id,
+            "host_id": host_id,
+            "delta": delta,
+            "index": index,
+        },
+    }
+    return json.dumps(message)
+
+
+def build_claude_stream_progress_message(
+    *,
+    task_id: str,
+    host_id: str,
+    phase: str,
+    phase_label: str,
+    current_tool: str | None,
+    percentage: int,
+    steps: list[dict[str, Any]],
+) -> str:
+    """claude_stream_progress mesaji olusturur (agent -> server)."""
+    message = {
+        "type": "claude_stream_progress",
+        "content": {
+            "task_id": task_id,
+            "host_id": host_id,
+            "phase": phase,
+            "phase_label": phase_label,
+            "current_tool": current_tool,
+            "percentage": percentage,
+            "steps": steps,
+        },
+    }
+    return json.dumps(message)
+
+
+def build_claude_stream_question_message(
+    *,
+    task_id: str,
+    host_id: str,
+    question_payload: dict[str, Any],
+) -> str:
+    """claude_stream_question mesaji olusturur (agent -> server)."""
+    message = {
+        "type": "claude_stream_question",
+        "content": {
+            "task_id": task_id,
+            "host_id": host_id,
+            "question_payload": question_payload,
+        },
+    }
+    return json.dumps(message)
+
+
+def build_claude_stream_end_message(
+    *,
+    task_id: str,
+    host_id: str,
+    session_id: str,
+    full_text: str,
+    model_used: str,
+    tokens_input: int,
+    tokens_output: int,
+) -> str:
+    """claude_stream_end mesaji olusturur (agent -> server)."""
+    message = {
+        "type": "claude_stream_end",
+        "content": {
+            "task_id": task_id,
+            "host_id": host_id,
+            "session_id": session_id,
+            "full_text": full_text,
+            "model_used": model_used,
+            "tokens_input": tokens_input,
+            "tokens_output": tokens_output,
+        },
+    }
+    return json.dumps(message)
+
+
+def build_claude_stream_error_message(
+    *,
+    task_id: str,
+    host_id: str,
+    error: str,
+    returncode: int = -1,
+) -> str:
+    """claude_stream_error mesaji olusturur (agent -> server)."""
+    message = {
+        "type": "claude_stream_error",
+        "content": {
+            "task_id": task_id,
+            "host_id": host_id,
+            "error": error,
+            "returncode": returncode,
+        },
+    }
+    return json.dumps(message)

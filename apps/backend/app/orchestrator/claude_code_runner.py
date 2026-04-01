@@ -1,4 +1,12 @@
-"""Claude Code runner - subprocess wrapper for claude -p pipe mode."""
+"""Claude Code runner - subprocess wrapper for claude -p pipe mode.
+
+DEPRECATED: ClaudeCodeRunner sinifi artik backend'de kullanilmiyor.
+claude -p execution'i Host Agent'a tasindi (agent/runners/claude_runner.py).
+Bu dosya sadece paylasilan tipler (ToolProgressEvent, ToolStepInfo, ClaudeCodeError,
+ToolProgressCallback vb.) icin korunuyor. ClaudeCodeRunner sinifi kaldirilabilir
+ama tip tanimlari backend'deki websocket handler ve ClaudeStreamManager tarafindan
+kullanilmaya devam ediyor.
+"""
 
 from __future__ import annotations
 

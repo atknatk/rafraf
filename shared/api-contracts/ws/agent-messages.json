@@ -20,7 +20,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": ["docker", "playwright", "maestro_ios", "maestro_android", "shell", "xcode_build", "android_build", "git", "python", "nodejs"]
+              "enum": ["docker", "playwright", "maestro_ios", "maestro_android", "shell", "xcode_build", "android_build", "git", "python", "nodejs", "claude_code"]
             },
             "description": "Agent'in destekledigi yetenekler listesi"
           },
@@ -125,6 +125,124 @@
           }
         },
         "required": ["host_id", "status", "uptime_seconds", "active_tasks", "resources"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "server_to_agent",
+      "type": "claude_task_execute",
+      "description": "Claude -p gorevi baslat (streaming)",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "task_id": { "type": "string", "description": "Benzersiz gorev kimlik bilgisi" },
+          "prompt": { "type": "string", "description": "Kullanici mesaji" },
+          "project_dir": { "type": ["string", "null"], "description": "Proje dizini (CWD)" },
+          "session_id": { "type": ["string", "null"], "description": "Onceki claude session ID (resume icin)" },
+          "model": { "type": "string", "description": "Claude model (sonnet/opus/haiku)" },
+          "max_turns": { "type": "integer", "minimum": 1, "maximum": 100, "description": "Maksimum tur sayisi" },
+          "append_system_prompt": { "type": ["string", "null"], "description": "Ek sistem prompt (context bilgisi)" }
+        },
+        "required": ["task_id", "prompt", "model", "max_turns"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "agent_to_server",
+      "type": "claude_stream_delta",
+      "description": "Streaming text delta (token token metin)",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "task_id": { "type": "string" },
+          "host_id": { "type": "string" },
+          "delta": { "type": "string", "description": "Token metni" },
+          "index": { "type": "integer", "minimum": 0, "description": "Delta sirasi" }
+        },
+        "required": ["task_id", "host_id", "delta", "index"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "agent_to_server",
+      "type": "claude_stream_progress",
+      "description": "Tool progress bilgisi",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "task_id": { "type": "string" },
+          "host_id": { "type": "string" },
+          "phase": { "type": "string", "enum": ["starting", "thinking", "tool_calling", "generating", "completed"] },
+          "phase_label": { "type": "string" },
+          "current_tool": { "type": ["string", "null"] },
+          "percentage": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "steps": { "type": "array", "items": { "type": "object" } }
+        },
+        "required": ["task_id", "host_id", "phase", "phase_label", "percentage", "steps"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "agent_to_server",
+      "type": "claude_stream_question",
+      "description": "Claude kullaniciya soru soruyor (AskUserQuestion)",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "task_id": { "type": "string" },
+          "host_id": { "type": "string" },
+          "question_payload": { "type": "object", "description": "AskUserQuestion tool input" }
+        },
+        "required": ["task_id", "host_id", "question_payload"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "agent_to_server",
+      "type": "claude_stream_end",
+      "description": "Stream tamamlandi",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "task_id": { "type": "string" },
+          "host_id": { "type": "string" },
+          "session_id": { "type": "string", "description": "Claude session ID (resume icin)" },
+          "full_text": { "type": "string", "description": "Tam cevap metni" },
+          "model_used": { "type": "string" },
+          "tokens_input": { "type": "integer", "minimum": 0 },
+          "tokens_output": { "type": "integer", "minimum": 0 }
+        },
+        "required": ["task_id", "host_id", "session_id", "full_text", "model_used", "tokens_input", "tokens_output"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "agent_to_server",
+      "type": "claude_stream_error",
+      "description": "Claude -p hata olustu",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "task_id": { "type": "string" },
+          "host_id": { "type": "string" },
+          "error": { "type": "string" },
+          "returncode": { "type": "integer" }
+        },
+        "required": ["task_id", "host_id", "error", "returncode"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "server_to_agent",
+      "type": "claude_question_answer",
+      "description": "Kullanici cevabi (AskUserQuestion yaniti)",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "task_id": { "type": "string" },
+          "answer": { "type": "string", "description": "Kullanici cevabi" }
+        },
+        "required": ["task_id", "answer"],
         "additionalProperties": false
       }
     }

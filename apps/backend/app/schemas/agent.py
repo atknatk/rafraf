@@ -26,6 +26,7 @@ class AgentCapability(StrEnum):
     GIT = "git"
     PYTHON = "python"
     NODEJS = "nodejs"
+    CLAUDE_CODE = "claude_code"
 
 
 # ---------------------------------------------------------------------------

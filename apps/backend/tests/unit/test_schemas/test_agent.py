@@ -45,7 +45,7 @@ class TestAgentCapability:
         assert AgentCapability.SHELL == "shell"
 
     def test_all_capabilities_count(self) -> None:
-        assert len(AgentCapability) == 10
+        assert len(AgentCapability) == 11
 
 
 class TestResourceInfo:

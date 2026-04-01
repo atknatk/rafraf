@@ -19,6 +19,7 @@ from agent.core.task_dispatcher import TaskDispatcher
 from agent.discovery.sync_manager import ProjectSyncManager
 from agent.monitoring.resource_monitor import ResourceMonitor
 from agent.runners.base import BaseRunner
+from agent.runners.claude_runner import ClaudeRunner
 from agent.runners.docker_runner import DockerRunner
 from agent.runners.maestro_runner import MaestroRunner
 from agent.runners.playwright_runner import PlaywrightRunner
@@ -111,11 +112,22 @@ async def main() -> None:
         runners=list(runners.keys()),
     )
 
-    # Task dispatcher'i olustur ve connection'a bagla
+    # WebSocket send callback
     async def _send_via_ws(message: str) -> None:
         """WebSocket uzerinden mesaj gonderir."""
         await connection.send_message(message)
 
+    # Claude runner olustur (capability flag'ine gore)
+    if config.capability_claude_code:
+        claude_runner = ClaudeRunner(
+            send_callback=_send_via_ws,
+            host_id=config.host_id,
+            config=config,
+        )
+        connection.set_claude_runner(claude_runner)
+        await logger.ainfo("Claude runner olusturuldu")
+
+    # Task dispatcher'i olustur ve connection'a bagla
     dispatcher = TaskDispatcher(
         runners=runners,
         send_callback=_send_via_ws,

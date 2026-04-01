@@ -18,6 +18,7 @@ from agent.core.protocol import (
     build_heartbeat_message,
     build_project_sync_message,
     build_register_message,
+    parse_claude_task_execute,
     parse_register_ack,
     parse_server_message,
 )
@@ -26,6 +27,7 @@ from agent.scanner.project_scanner import scan_projects
 
 if TYPE_CHECKING:
     from agent.core.config import AgentConfig
+    from agent.runners.claude_runner import ClaudeRunner
 
 logger = structlog.get_logger()
 
@@ -54,10 +56,15 @@ class ConnectionManager:
         self._task_handler: TaskHandler | None = None
         self._sync_task: asyncio.Task[None] | None = None
         self._dangerously_skip_permissions: bool = False
+        self._claude_runner: ClaudeRunner | None = None
 
     def set_task_handler(self, handler: TaskHandler) -> None:
         """Task dispatch handler'ini ayarlar."""
         self._task_handler = handler
+
+    def set_claude_runner(self, runner: ClaudeRunner) -> None:
+        """Claude runner'i ayarlar."""
+        self._claude_runner = runner
 
     def increment_active_tasks(self) -> None:
         """Aktif task sayisini arttirir."""
@@ -279,6 +286,16 @@ class ConnectionManager:
                             data = self._inject_skip_permissions(data)
                         self._active_tasks += 1
                         asyncio.create_task(self._run_task(data))
+                    elif msg_type == "claude_task_execute" and self._claude_runner:
+                        self._active_tasks += 1
+                        asyncio.create_task(self._run_claude_task(data))
+                    elif msg_type == "claude_question_answer" and self._claude_runner:
+                        content = data.get("content", {})
+                        if isinstance(content, dict):
+                            self._claude_runner.submit_answer(
+                                str(content.get("task_id", "")),
+                                str(content.get("answer", "")),
+                            )
                     elif msg_type == "config_update":
                         await self._handle_config_update(data)
                 except ValueError as exc:
@@ -313,6 +330,17 @@ class ConnectionManager:
                 await self._task_handler(data)
         except Exception:
             await logger.aexception("Task calistirma hatasi")
+        finally:
+            self._active_tasks = max(0, self._active_tasks - 1)
+
+    async def _run_claude_task(self, data: dict[str, Any]) -> None:
+        """Claude task handler'i calistirir, bitince active_tasks'i azaltir."""
+        try:
+            if self._claude_runner:
+                content = parse_claude_task_execute(data)
+                await self._claude_runner.run(content)
+        except Exception:
+            await logger.aexception("Claude task calistirma hatasi")
         finally:
             self._active_tasks = max(0, self._active_tasks - 1)
 

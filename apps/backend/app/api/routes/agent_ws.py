@@ -22,6 +22,7 @@ from app.schemas.agent import (
 )
 from app.services.agent_project_service import AgentProjectService
 from app.services.agent_registry_service import agent_registry
+from app.services.claude_stream_manager import ClaudeStreamManager
 from app.services.project_service import ProjectService
 from app.services.task_manager_service import TaskManager
 
@@ -45,6 +46,21 @@ def get_task_manager() -> TaskManager:
             agent_manager=agent_manager,
         )
     return _task_manager
+
+
+# Claude stream manager singleton
+_claude_stream_manager: ClaudeStreamManager | None = None
+
+
+def get_claude_stream_manager() -> ClaudeStreamManager:
+    """Get or create the global claude stream manager."""
+    global _claude_stream_manager  # noqa: PLW0603
+    if _claude_stream_manager is None:
+        _claude_stream_manager = ClaudeStreamManager(
+            agent_registry=agent_registry,
+            agent_manager=agent_manager,
+        )
+    return _claude_stream_manager
 
 
 def _build_agent_message(
@@ -113,6 +129,16 @@ async def agent_websocket_endpoint(
                 await _handle_task_result(raw_data, connection_id)
             elif msg_type == "task_error":
                 await _handle_task_error(raw_data, connection_id)
+            elif msg_type == "claude_stream_delta":
+                await _handle_claude_stream_delta(raw_data, connection_id)
+            elif msg_type == "claude_stream_progress":
+                await _handle_claude_stream_progress(raw_data, connection_id)
+            elif msg_type == "claude_stream_question":
+                await _handle_claude_stream_question(raw_data, connection_id)
+            elif msg_type == "claude_stream_end":
+                await _handle_claude_stream_end(raw_data, connection_id)
+            elif msg_type == "claude_stream_error":
+                await _handle_claude_stream_error(raw_data, connection_id)
             elif msg_type == "pong":
                 await logger.adebug(
                     "agent_pong_received",
@@ -414,4 +440,106 @@ async def _handle_task_error(
         connection_id=connection_id,
         resolved=found,
         error=error_msg,
+    )
+
+
+# ------------------------------------------------------------------
+# Claude streaming handlers
+# ------------------------------------------------------------------
+
+
+async def _handle_claude_stream_delta(
+    raw_data: dict[str, object],
+    connection_id: str,
+) -> None:
+    """Forward claude_stream_delta to ClaudeStreamManager."""
+    content = raw_data.get("content", {})
+    if not isinstance(content, dict):
+        return
+
+    task_id = str(content.get("task_id", ""))
+    if not task_id:
+        return
+
+    csm = get_claude_stream_manager()
+    await csm.handle_stream_delta(
+        task_id=task_id,
+        delta=str(content.get("delta", "")),
+        index=int(content.get("index", 0)),
+    )
+
+
+async def _handle_claude_stream_progress(
+    raw_data: dict[str, object],
+    connection_id: str,
+) -> None:
+    """Forward claude_stream_progress to ClaudeStreamManager."""
+    content = raw_data.get("content", {})
+    if not isinstance(content, dict):
+        return
+
+    task_id = str(content.get("task_id", ""))
+    if not task_id:
+        return
+
+    csm = get_claude_stream_manager()
+    await csm.handle_stream_progress(task_id=task_id, progress_data=dict(content))
+
+
+async def _handle_claude_stream_question(
+    raw_data: dict[str, object],
+    connection_id: str,
+) -> None:
+    """Forward claude_stream_question to ClaudeStreamManager."""
+    content = raw_data.get("content", {})
+    if not isinstance(content, dict):
+        return
+
+    task_id = str(content.get("task_id", ""))
+    if not task_id:
+        return
+
+    question_payload = content.get("question_payload", {})
+    if not isinstance(question_payload, dict):
+        question_payload = {}
+
+    csm = get_claude_stream_manager()
+    await csm.handle_stream_question(task_id=task_id, question_data=question_payload)
+
+
+async def _handle_claude_stream_end(
+    raw_data: dict[str, object],
+    connection_id: str,
+) -> None:
+    """Forward claude_stream_end to ClaudeStreamManager."""
+    content = raw_data.get("content", {})
+    if not isinstance(content, dict):
+        return
+
+    task_id = str(content.get("task_id", ""))
+    if not task_id:
+        return
+
+    csm = get_claude_stream_manager()
+    await csm.handle_stream_end(task_id=task_id, result_data=dict(content))
+
+
+async def _handle_claude_stream_error(
+    raw_data: dict[str, object],
+    connection_id: str,
+) -> None:
+    """Forward claude_stream_error to ClaudeStreamManager."""
+    content = raw_data.get("content", {})
+    if not isinstance(content, dict):
+        return
+
+    task_id = str(content.get("task_id", ""))
+    if not task_id:
+        return
+
+    csm = get_claude_stream_manager()
+    await csm.handle_stream_error(
+        task_id=task_id,
+        error=str(content.get("error", "Bilinmeyen hata")),
+        returncode=int(content.get("returncode", -1)),
     )

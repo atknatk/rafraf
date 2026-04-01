@@ -120,6 +120,13 @@ class AgentConfig(BaseSettings):
     capability_git: bool = Field(default=True, description="Git destegi")
     capability_python: bool = Field(default=True, description="Python destegi")
     capability_nodejs: bool = Field(default=False, description="Node.js destegi")
+    capability_claude_code: bool = Field(default=True, description="Claude Code destegi")
+
+    # Claude Code settings
+    claude_binary: str = Field(default="claude", description="claude CLI binary path")
+    claude_timeout_seconds: int = Field(
+        default=600, ge=60, le=3600, description="Claude process timeout (saniye)"
+    )
 
     def get_capabilities(self) -> list[str]:
         """Aktif yeteneklerin listesini dondurur."""
@@ -134,5 +141,6 @@ class AgentConfig(BaseSettings):
             "git": self.capability_git,
             "python": self.capability_python,
             "nodejs": self.capability_nodejs,
+            "claude_code": self.capability_claude_code,
         }
         return [name for name, enabled in capability_map.items() if enabled]
