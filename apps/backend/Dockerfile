@@ -57,11 +57,13 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 
 EXPOSE 8000
 
-# Run with uvicorn - 2 workers for small deployment
+# Run with uvicorn - single worker required for in-memory agent registry
+# Agent WS connections and REST API must share the same process to see
+# the same agent_registry singleton. Multi-worker requires Redis-backed registry.
 CMD ["python", "-m", "uvicorn", "app.main:app", \
      "--host", "0.0.0.0", \
      "--port", "8000", \
-     "--workers", "2", \
+     "--workers", "1", \
      "--loop", "uvloop", \
      "--http", "httptools", \
      "--no-access-log"]

@@ -397,33 +397,12 @@ class OrchestratorService:
             import asyncio
 
             from app.api.routes.agent_ws import get_claude_stream_manager
-            from app.api.routes.agent_ws import agent_registry as _ws_agent_registry
             from app.services.agent_registry_service import agent_registry
             from app.services.claude_stream_manager import ClaudeStreamCallbacks
 
             # Resolve agent: prefer project-linked agent, fallback to any online
             host_id = await self._resolve_agent_for_project(project_id, db_session)
             if host_id is None:
-                # Debug: log registry state from both sources
-                agents_list = agent_registry.list_agents_sync()
-                ws_agents_list = _ws_agent_registry.list_agents_sync() if _ws_agent_registry is not agent_registry else []
-                await logger.aerror(
-                    "claude_code_no_agent_found",
-                    registry_agents=len(agents_list),
-                    registry_id=id(agent_registry),
-                    ws_registry_agents=len(ws_agents_list),
-                    ws_registry_id=id(_ws_agent_registry),
-                    same_instance=(agent_registry is _ws_agent_registry),
-                    agents_detail=[
-                        {"host_id": a["host_id"], "status": str(a["status"])}
-                        for a in agents_list
-                    ],
-                    ws_agents_detail=[
-                        {"host_id": a["host_id"], "status": str(a["status"])}
-                        for a in ws_agents_list
-                    ],
-                    project_id=project_id,
-                )
                 raise ClaudeCodeError(
                     "Uygun agent bulunamadi. Agent'in online oldugundan emin olun.",
                     returncode=-1,
