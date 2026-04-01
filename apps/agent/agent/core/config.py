@@ -57,7 +57,7 @@ class AgentConfig(BaseSettings):
         description="Maksimum reconnect bekleme suresi (saniye)",
     )
     version: str = Field(
-        default="0.1.0",
+        default="0.2.0",
         description="Agent yazilim surumu",
     )
 
