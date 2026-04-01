@@ -26,6 +26,8 @@
 	<string>RafRaf dosya paylasimi icin kamera erisimi gerektirir.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>RafRaf dosya paylasimi icin fotograf kitapligina erisim gerektirir.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
