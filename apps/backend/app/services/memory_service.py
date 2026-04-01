@@ -78,7 +78,7 @@ class MemoryService:
                 llm_config: dict[str, object] = {
                     "provider": "aws_bedrock",
                     "config": {
-                        "model": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+                        "model": "anthropic.claude-3-haiku-20240307-v1:0",
                         "temperature": 0.1,
                         "max_tokens": 1000,
                     },
