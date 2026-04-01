@@ -117,6 +117,22 @@ class MemoryService:
             }
             self._mem0_client = Memory.from_config(config)
             self._mem0_initialized = True
+
+            # Patch: mem0 >=1.0.9 passes response_format kwarg to
+            # generate_response, but AWSBedrockLLM does not support it.
+            # Strip unsupported kwargs so fact extraction works with Bedrock.
+            if settings.use_bedrock and hasattr(self._mem0_client, "llm"):
+                _orig_gen = self._mem0_client.llm.generate_response
+
+                def _patched_generate(
+                    messages: list[dict[str, str]],
+                    **kwargs: object,
+                ) -> str:
+                    kwargs.pop("response_format", None)
+                    return _orig_gen(messages, **kwargs)
+
+                self._mem0_client.llm.generate_response = _patched_generate  # type: ignore[assignment]
+
             return self._mem0_client
         except Exception as exc:
             raise MemoryServiceError(
