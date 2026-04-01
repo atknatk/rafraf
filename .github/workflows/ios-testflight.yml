@@ -49,6 +49,11 @@ jobs:
           echo "Build number: $BUILD_NUMBER"
           agvtool new-version -all "$BUILD_NUMBER"
 
+      - name: Unlock Keychain
+        run: |
+          security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" ~/Library/Keychains/login.keychain-db
+          security set-keychain-settings ~/Library/Keychains/login.keychain-db
+
       - name: Setup App Store Connect API Key
         run: |
           mkdir -p ~/.appstoreconnect/private_keys
