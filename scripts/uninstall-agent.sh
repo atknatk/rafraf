@@ -27,29 +27,47 @@ fi
 # ── Stop & remove service ────────────────────────────────────
 case "$(uname -s)" in
   Darwin)
+    uid="$(id -u)"
+    # Agent daemon
     plist="$HOME/Library/LaunchAgents/com.rafraf.agent.plist"
     if [ -f "$plist" ]; then
-      launchctl bootout "gui/$(id -u)/com.rafraf.agent" 2>/dev/null || true
+      launchctl bootout "gui/$uid/com.rafraf.agent" 2>/dev/null || true
       rm -f "$plist"
-      success "LaunchAgent durduruldu ve kaldirildi."
+      success "Agent LaunchAgent durduruldu ve kaldirildi."
     else
-      info "LaunchAgent bulunamadi, atlanıyor."
+      info "Agent LaunchAgent bulunamadi, atlaniyor."
+    fi
+    # Auto-updater daemon
+    updater_plist="$HOME/Library/LaunchAgents/com.rafraf.agent-updater.plist"
+    if [ -f "$updater_plist" ]; then
+      launchctl bootout "gui/$uid/com.rafraf.agent-updater" 2>/dev/null || true
+      rm -f "$updater_plist"
+      success "Updater LaunchAgent durduruldu ve kaldirildi."
+    else
+      info "Updater LaunchAgent bulunamadi, atlaniyor."
     fi
     ;;
   Linux)
+    # Agent service
     if systemctl is-active --quiet rafraf-agent 2>/dev/null; then
       sudo systemctl stop rafraf-agent
       sudo systemctl disable rafraf-agent
-      success "Systemd servisi durduruldu."
+      success "Agent servisi durduruldu."
     fi
     svc="/etc/systemd/system/rafraf-agent.service"
     if [ -f "$svc" ]; then
       sudo rm -f "$svc"
-      sudo systemctl daemon-reload
-      success "Systemd servisi kaldirildi."
-    else
-      info "Systemd servisi bulunamadi, atlaniyor."
     fi
+    # Updater timer + service
+    if systemctl is-active --quiet rafraf-agent-updater.timer 2>/dev/null; then
+      sudo systemctl stop rafraf-agent-updater.timer
+      sudo systemctl disable rafraf-agent-updater.timer
+      success "Updater timer durduruldu."
+    fi
+    sudo rm -f /etc/systemd/system/rafraf-agent-updater.service
+    sudo rm -f /etc/systemd/system/rafraf-agent-updater.timer
+    sudo systemctl daemon-reload
+    success "Systemd servisleri kaldirildi."
     ;;
 esac
 

@@ -2,8 +2,19 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# .env dosyasini birden fazla konumda ara:
+# 1. ~/.rafraf-agent/.env (installed daemon)
+# 2. CWD/.env (development)
+_ENV_FILES: list[str] = []
+_home_env = Path.home() / ".rafraf-agent" / ".env"
+if _home_env.exists():
+    _ENV_FILES.append(str(_home_env))
+_ENV_FILES.append(".env")
 
 
 class AgentConfig(BaseSettings):
@@ -14,7 +25,7 @@ class AgentConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="AGENT_",
-        env_file=".env",
+        env_file=_ENV_FILES,
         env_file_encoding="utf-8",
     )
 

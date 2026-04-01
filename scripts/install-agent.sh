@@ -83,11 +83,7 @@ detect_os() {
 
 # ── Set install paths ────────────────────────────────────────
 set_paths() {
-  if [ "$OS" = "macos" ]; then
-    INSTALL_DIR="$HOME/.rafraf-agent"
-  else
-    INSTALL_DIR="$HOME/.rafraf-agent"
-  fi
+  INSTALL_DIR="$HOME/.rafraf-agent"
   AGENT_SRC="$INSTALL_DIR/src/apps/agent"
   VENV_DIR="$INSTALL_DIR/venv"
   VENV_PYTHON="$VENV_DIR/bin/python"
@@ -320,6 +316,10 @@ install_optional_deps() {
 
 # ── Service setup ────────────────────────────────────────────
 setup_service_macos() {
+  local uid
+  uid="$(id -u)"
+
+  # ── Agent daemon ──
   local plist_src="$INSTALL_DIR/src/scripts/templates/com.rafraf.agent.plist"
   local plist_dst="$HOME/Library/LaunchAgents/com.rafraf.agent.plist"
 
@@ -327,10 +327,8 @@ setup_service_macos() {
     error "Plist template bulunamadi: $plist_src"
   fi
 
-  # Mevcut servisi durdur
-  launchctl bootout "gui/$(id -u)/com.rafraf.agent" 2>/dev/null || true
+  launchctl bootout "gui/$uid/com.rafraf.agent" 2>/dev/null || true
 
-  # Template'i doldur
   sed \
     -e "s|{{VENV_PYTHON}}|$VENV_PYTHON|g" \
     -e "s|{{VENV_BIN}}|$VENV_BIN|g" \
@@ -338,11 +336,31 @@ setup_service_macos() {
     -e "s|{{LOG_DIR}}|$LOG_DIR|g" \
     "$plist_src" > "$plist_dst"
 
-  launchctl bootstrap "gui/$(id -u)" "$plist_dst"
-  success "LaunchAgent kuruldu ve baslatildi."
+  launchctl bootstrap "gui/$uid" "$plist_dst"
+  success "Agent LaunchAgent kuruldu ve baslatildi."
+
+  # ── Auto-updater daemon ──
+  local updater_plist_src="$INSTALL_DIR/src/scripts/templates/com.rafraf.agent-updater.plist"
+  local updater_plist_dst="$HOME/Library/LaunchAgents/com.rafraf.agent-updater.plist"
+
+  if [ -f "$updater_plist_src" ]; then
+    launchctl bootout "gui/$uid/com.rafraf.agent-updater" 2>/dev/null || true
+
+    sed \
+      -e "s|{{INSTALL_DIR}}|$INSTALL_DIR|g" \
+      -e "s|{{VENV_BIN}}|$VENV_BIN|g" \
+      -e "s|{{HOME}}|$HOME|g" \
+      "$updater_plist_src" > "$updater_plist_dst"
+
+    launchctl bootstrap "gui/$uid" "$updater_plist_dst"
+    success "Auto-updater kuruldu (5 dk aralikla kontrol eder)."
+  else
+    warn "Updater plist template bulunamadi, auto-update devre disi."
+  fi
 }
 
 setup_service_ubuntu() {
+  # ── Agent service ──
   local svc_src="$INSTALL_DIR/src/scripts/templates/rafraf-agent.service"
   local svc_dst="/etc/systemd/system/rafraf-agent.service"
 
@@ -350,7 +368,6 @@ setup_service_ubuntu() {
     error "Systemd template bulunamadi: $svc_src"
   fi
 
-  # Template'i doldur
   local tmp_svc
   tmp_svc="$(mktemp)"
   sed \
@@ -367,7 +384,31 @@ setup_service_ubuntu() {
   sudo systemctl daemon-reload
   sudo systemctl enable rafraf-agent
   sudo systemctl restart rafraf-agent
-  success "Systemd servisi kuruldu ve baslatildi."
+  success "Agent systemd servisi kuruldu ve baslatildi."
+
+  # ── Auto-updater service + timer ──
+  local updater_svc_src="$INSTALL_DIR/src/scripts/templates/rafraf-agent-updater.service"
+  local updater_timer_src="$INSTALL_DIR/src/scripts/templates/rafraf-agent-updater.timer"
+
+  if [ -f "$updater_svc_src" ] && [ -f "$updater_timer_src" ]; then
+    local tmp_updater_svc
+    tmp_updater_svc="$(mktemp)"
+    sed \
+      -e "s|{{SERVICE_USER}}|$USER|g" \
+      -e "s|{{INSTALL_DIR}}|$INSTALL_DIR|g" \
+      "$updater_svc_src" > "$tmp_updater_svc"
+
+    sudo cp "$tmp_updater_svc" /etc/systemd/system/rafraf-agent-updater.service
+    sudo cp "$updater_timer_src" /etc/systemd/system/rafraf-agent-updater.timer
+    rm -f "$tmp_updater_svc"
+
+    sudo systemctl daemon-reload
+    sudo systemctl enable rafraf-agent-updater.timer
+    sudo systemctl start rafraf-agent-updater.timer
+    success "Auto-updater kuruldu (5 dk aralikla kontrol eder)."
+  else
+    warn "Updater template bulunamadi, auto-update devre disi."
+  fi
 }
 
 # ── Summary ──────────────────────────────────────────────────
@@ -384,19 +425,22 @@ print_summary() {
 
   if [ "$OS" = "macos" ]; then
     echo -e "  ${BOLD}Faydali komutlar:${NC}"
-    echo "    Durum:    launchctl print gui/$(id -u)/com.rafraf.agent"
-    echo "    Durdur:   launchctl bootout gui/$(id -u)/com.rafraf.agent"
-    echo "    Baslat:   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.rafraf.agent.plist"
-    echo "    Loglar:   tail -f $LOG_DIR/agent.stdout.log"
+    echo "    Durum:      launchctl print gui/$(id -u)/com.rafraf.agent"
+    echo "    Durdur:     launchctl bootout gui/$(id -u)/com.rafraf.agent"
+    echo "    Baslat:     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.rafraf.agent.plist"
+    echo "    Agent log:  tail -f $LOG_DIR/agent.stdout.log"
+    echo "    Update log: tail -f $LOG_DIR/updater.log"
   else
     echo -e "  ${BOLD}Faydali komutlar:${NC}"
-    echo "    Durum:    systemctl status rafraf-agent"
-    echo "    Durdur:   sudo systemctl stop rafraf-agent"
-    echo "    Baslat:   sudo systemctl start rafraf-agent"
-    echo "    Loglar:   journalctl -u rafraf-agent -f"
+    echo "    Durum:      systemctl status rafraf-agent"
+    echo "    Durdur:     sudo systemctl stop rafraf-agent"
+    echo "    Baslat:     sudo systemctl start rafraf-agent"
+    echo "    Agent log:  journalctl -u rafraf-agent -f"
+    echo "    Update log: tail -f $LOG_DIR/updater.log"
   fi
 
   echo ""
+  echo -e "  ${BOLD}Auto-update:${NC} Her 5 dakikada kontrol eder, degisiklik varsa otomatik gunceller."
   echo -e "  Kaldirmak icin: ${BOLD}bash $INSTALL_DIR/src/scripts/uninstall-agent.sh${NC}"
   echo ""
 }
