@@ -1,0 +1,93 @@
+name: iOS TestFlight Deploy
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - "apps/ios/**"
+      - ".github/workflows/ios-testflight.yml"
+  workflow_dispatch:
+    inputs:
+      build_number_override:
+        description: "Override build number (leave empty for auto)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: apps/ios
+
+env:
+  SCHEME: RafRaf
+  ARCHIVE_PATH: build/RafRaf.xcarchive
+  EXPORT_PATH: build/export
+
+jobs:
+  deploy:
+    name: Archive & Upload to TestFlight
+    runs-on: [self-hosted, rafraf-ios]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | grep -v Beta | sort -V | tail -1)
+          echo "Using Xcode: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          xcodebuild -version
+
+      - name: Set build number
+        run: |
+          if [ -n "${{ inputs.build_number_override }}" ]; then
+            BUILD_NUMBER="${{ inputs.build_number_override }}"
+          else
+            BUILD_NUMBER="${{ github.run_number }}"
+          fi
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+          echo "Build number: $BUILD_NUMBER"
+          agvtool new-version -all "$BUILD_NUMBER"
+
+      - name: Resolve SPM dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -scheme "$SCHEME"
+
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -scheme "$SCHEME" \
+            -archivePath "$ARCHIVE_PATH" \
+            -configuration Release \
+            -skipMacroValidation \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
+
+      - name: Export archive
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$EXPORT_PATH" \
+            -exportOptionsPlist exportOptions.plist
+
+      - name: Setup App Store Connect API Key
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}" | base64 --decode \
+            > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
+
+      - name: Upload to TestFlight
+        run: |
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$EXPORT_PATH/RafRaf.ipa" \
+            --apiKey "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
+            --apiIssuer "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf build/
+          rm -f ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8

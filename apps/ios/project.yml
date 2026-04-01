@@ -18,6 +18,10 @@ settings:
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGN_STYLE: Automatic
     SWIFT_STRICT_CONCURRENCY: complete
+  configs:
+    Release:
+      DEVELOPMENT_TEAM: VT3X56P4ZL
+      CODE_SIGN_IDENTITY: "Apple Distribution"
 
 packages:
   Factory:
