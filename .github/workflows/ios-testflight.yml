@@ -33,11 +33,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode
+      - name: Verify Xcode
         run: |
-          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | grep -v Beta | sort -V | tail -1)
-          echo "Using Xcode: $XCODE_PATH"
-          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          xcode-select -p
           xcodebuild -version
 
       - name: Set build number
