@@ -259,6 +259,15 @@ class ClaudeStreamManager:
             tokens_output=int(result_data.get("tokens_output", 0)),
         )
 
+        # Call on_stream_end callback (TTS flush, VOICE_AUDIO_END etc.)
+        if record.callbacks.on_stream_end is not None:
+            try:
+                await record.callbacks.on_stream_end(result.full_text)
+            except Exception:
+                await logger.aexception(
+                    "claude_stream_end_callback_failed", task_id=task_id
+                )
+
         if not record.completion.done():
             record.completion.set_result(result)
 
