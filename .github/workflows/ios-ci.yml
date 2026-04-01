@@ -30,17 +30,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: |
-          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
-          echo "Using Xcode: $XCODE_PATH"
-          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
-          xcodebuild -version
-
-      - name: Install iOS Simulator runtime
-        run: |
-          xcodebuild -downloadPlatform iOS || true
-          xcrun simctl list runtimes
+      - name: Xcode version
+        run: xcodebuild -version
 
       - name: Resolve SPM dependencies
         run: |
@@ -62,18 +53,6 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v4
-
-      - name: Select Xcode
-        run: |
-          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
-          echo "Using Xcode: $XCODE_PATH"
-          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
-          xcodebuild -version
-
-      - name: Install iOS Simulator runtime
-        run: |
-          xcodebuild -downloadPlatform iOS || true
-          xcrun simctl list runtimes
 
       - name: Determine test destination
         id: dest
