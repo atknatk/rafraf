@@ -149,6 +149,7 @@ final class ChatViewModel {
     }
 
     /// Mesaj gecmisini yukler (ilk sayfa).
+    /// Mevcut mesajlarla ID bazli dedup yaparak birlestirir (reconnect duplicate onleme).
     func loadHistory() async {
         guard !isLoading else { return }
 
@@ -161,7 +162,20 @@ final class ChatViewModel {
                 projectId: projectId,
                 cursor: nil
             )
-            messages = result.messages
+
+            if messages.isEmpty {
+                // Ilk yukleme — direkt ata
+                messages = result.messages
+            } else {
+                // Reconnect/refresh — ID bazli dedup ile merge
+                let existingIds = Set(messages.map(\.id))
+                let newMessages = result.messages.filter { !existingIds.contains($0.id) }
+                if !newMessages.isEmpty {
+                    messages.append(contentsOf: newMessages)
+                    messages.sort { $0.timestamp < $1.timestamp }
+                }
+            }
+
             hasMoreMessages = result.hasMore
             nextCursor = result.nextCursor
             updateLastMessageTimestamp()

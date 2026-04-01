@@ -1,4 +1,5 @@
 import ActivityKit
+import Foundation
 import os
 import SwiftUI
 
@@ -49,6 +50,11 @@ final class LiveActivityManager: ObservableObject, LiveActivityManaging {
 
     private var currentActivity: Activity<RafRafActivityAttributes>?
     private var currentTaskActivityId: String?
+    /// Backend task UUID — push token gonderimi icin gerekli.
+    private var currentTaskId: String?
+    /// Push token'i backend'e gondermek icin disaridan set edilen closure.
+    /// Parametre: (taskId, pushToken) -> Void
+    var pushTokenSender: (@Sendable (String, String) async -> Void)?
     private let logger = Logger(subsystem: "com.rafraf", category: "LiveActivity")
 
     nonisolated var hasActiveActivity: Bool {
@@ -148,6 +154,8 @@ final class LiveActivityManager: ObservableObject, LiveActivityManaging {
             await endTask()
         }
 
+        currentTaskId = taskId
+
         let attributes = TaskActivityAttributes(
             taskId: taskId,
             taskTitle: taskTitle,
@@ -225,6 +233,7 @@ final class LiveActivityManager: ObservableObject, LiveActivityManaging {
 
         await Self.endTaskActivity(activityId: activityId, finalState: finalState)
         currentTaskActivityId = nil
+        currentTaskId = nil
         logger.info("Task live activity ended")
     }
 
@@ -280,8 +289,17 @@ final class LiveActivityManager: ObservableObject, LiveActivityManaging {
 
     /// Push token'i backend'e gonderir.
     private func sendPushTokenToBackend(token: String, activityId: String) async {
-        // Backend'e push token gonderme islemi
-        // Bu, WebSocket veya REST endpoint uzerinden yapilacak
-        logger.debug("Sending push token to backend for activity \(activityId)")
+        guard let taskId = currentTaskId else {
+            logger.warning("Cannot send push token: no currentTaskId set")
+            return
+        }
+
+        logger.info("Sending push token to backend for task \(taskId)")
+
+        if let sender = pushTokenSender {
+            await sender(taskId, token)
+        } else {
+            logger.warning("pushTokenSender not configured — push token not sent")
+        }
     }
 }

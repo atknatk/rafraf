@@ -80,12 +80,12 @@ class LiveActivityPushService:
             error_msg = str(exc)
             if "410" in error_msg:
                 self._invalid_tokens.add(push_token)
-                await logger.awarning(
+                logger.warning(
                     "apns_token_invalidated",
                     token_prefix=push_token[:8],
                 )
             else:
-                await logger.aexception(
+                logger.exception(
                     "live_activity_push_error",
                     token_prefix=push_token[:8],
                 )
@@ -122,7 +122,7 @@ class LiveActivityPushService:
             error_msg = str(exc)
             if "410" in error_msg:
                 self._invalid_tokens.add(push_token)
-            await logger.aexception(
+            logger.exception(
                 "live_activity_end_push_error",
                 token_prefix=push_token[:8],
             )
@@ -207,7 +207,7 @@ class LiveActivityPushService:
 
         client = _get_apns()
         if client is None:
-            await logger.awarning("apns_live_activity_skipped_not_configured")
+            logger.warning("apns_live_activity_skipped_not_configured")
             return False
 
         from aioapns import NotificationRequest
@@ -222,7 +222,7 @@ class LiveActivityPushService:
         if not response.is_successful:
             if response.description and "410" in str(response.description):
                 raise Exception("410 Gone")  # noqa: TRY002
-            await logger.awarning(
+            logger.warning(
                 "live_activity_push_failed",
                 token_prefix=push_token[:8],
                 reason=response.description,

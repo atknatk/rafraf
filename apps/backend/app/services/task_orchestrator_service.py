@@ -4,6 +4,7 @@ import uuid
 from datetime import UTC, datetime, timedelta, timezone
 
 import structlog
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.task import TERMINAL_STATES, VALID_TRANSITIONS, Task, TaskStatus
@@ -418,15 +419,27 @@ class TaskOrchestratorService:
                 )
 
     async def get_task(self, task_id: uuid.UUID) -> Task | None:
-        """Retrieve a single task by ID, returns None if not found."""
-        return self._tasks.get(task_id)
+        """Retrieve a single task by ID from DB, returns None if not found."""
+        # Check in-memory cache first (for tasks created in this process)
+        cached = self._tasks.get(task_id)
+        if cached is not None:
+            return cached
+        # Fall back to DB query
+        result = await self._db.execute(
+            select(Task).where(Task.id == task_id)
+        )
+        return result.scalar_one_or_none()
 
     async def get_active_tasks(self, user_id: uuid.UUID) -> list[Task]:
-        """Return non-terminal tasks for a user."""
-        return [
-            t for t in self._tasks.values()
-            if t.user_id == user_id and TaskStatus(t.status) not in TERMINAL_STATES
-        ]
+        """Return non-terminal tasks for a user from DB."""
+        terminal_values = [s.value for s in TERMINAL_STATES]
+        result = await self._db.execute(
+            select(Task)
+            .where(Task.user_id == user_id)
+            .where(Task.status.notin_(terminal_values))
+            .order_by(Task.created_at.desc())
+        )
+        return list(result.scalars().all())
 
     async def get_task_history(
         self,
@@ -434,16 +447,32 @@ class TaskOrchestratorService:
         page: int = 1,
         page_size: int = 20,
     ) -> dict[str, list[Task] | int]:
-        """Return paginated terminal tasks for a user."""
-        terminal = [
-            t for t in self._tasks.values()
-            if t.user_id == user_id and TaskStatus(t.status) in TERMINAL_STATES
-        ]
-        total = len(terminal)
-        start = (page - 1) * page_size
-        end = start + page_size
+        """Return paginated terminal tasks for a user from DB."""
+        terminal_values = [s.value for s in TERMINAL_STATES]
+
+        # Count total
+        count_result = await self._db.execute(
+            select(func.count())
+            .select_from(Task)
+            .where(Task.user_id == user_id)
+            .where(Task.status.in_(terminal_values))
+        )
+        total: int = count_result.scalar_one()
+
+        # Fetch page
+        offset = (page - 1) * page_size
+        result = await self._db.execute(
+            select(Task)
+            .where(Task.user_id == user_id)
+            .where(Task.status.in_(terminal_values))
+            .order_by(Task.created_at.desc())
+            .offset(offset)
+            .limit(page_size)
+        )
+        tasks = list(result.scalars().all())
+
         return {
-            "tasks": terminal[start:end],
+            "tasks": tasks,
             "total": total,
             "page": page,
             "page_size": page_size,

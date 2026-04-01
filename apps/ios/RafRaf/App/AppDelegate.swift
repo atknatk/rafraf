@@ -1,4 +1,5 @@
 import Factory
+import os
 import UIKit
 import UserNotifications
 
@@ -19,6 +20,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, @unchecked Sendable {
         #if DEBUG
         DebugSetup.injectKeysIfNeeded()
         #endif
+
+        // Live Activity push token sender'i kur
+        configureLiveActivityPushTokenSender()
 
         // Bildirim delegesini ayarla
         let delegate = NotificationDelegate(manager: pushNotificationManager)
@@ -52,6 +56,30 @@ final class AppDelegate: NSObject, UIApplicationDelegate, @unchecked Sendable {
 
     /// Notification delegate referansini saklar (retain).
     private static var notificationDelegate: NotificationDelegate?
+
+    /// LiveActivityManager'a push token backend gonderim closure'ini ayarlar.
+    private func configureLiveActivityPushTokenSender() {
+        let networkClient = Container.shared.networkClient()
+        LiveActivityManager.shared.pushTokenSender = { @Sendable taskId, token in
+            struct TokenBody: Encodable, Sendable {
+                let pushToken: String
+                // swiftlint:disable:next nesting
+                enum CodingKeys: String, CodingKey {
+                    case pushToken = "push_token"
+                }
+            }
+            struct EmptyResponse: Decodable, Sendable {}
+            do {
+                let _: EmptyResponse = try await networkClient.patch(
+                    path: "/api/v1/tasks/\(taskId)/live-activity",
+                    body: TokenBody(pushToken: token)
+                )
+            } catch {
+                // Push token gonderim hatasi task'i etkilememeli
+                os_log(.error, "Failed to send live activity push token: %@", error.localizedDescription)
+            }
+        }
+    }
 }
 
 /// UNUserNotificationCenterDelegate implementasyonu.
