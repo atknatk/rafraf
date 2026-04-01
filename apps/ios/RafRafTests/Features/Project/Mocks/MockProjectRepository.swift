@@ -49,6 +49,25 @@ final class MockProjectRepository: ProjectStatusRepositoryProtocol, @unchecked S
     }
 
     func deduplicateProjects() async throws -> Int { 0 }
+
+    func createProject(
+        name: String,
+        description: String?,
+        repositoryURL: String?,
+        localPath: String?,
+        techStack: [String]
+    ) async throws -> String { "mock-project-id" }
+
+    func updateProject(
+        projectId: String,
+        name: String?,
+        description: String?,
+        repositoryURL: String?,
+        localPath: String?,
+        techStack: [String]?
+    ) async throws -> Project {
+        Project(name: name ?? "Mock Project")
+    }
 }
 
 /// Test icin stub agent repository (proje testleri icin).
@@ -57,7 +76,21 @@ final class StubAgentRepository: AgentRepositoryProtocol, @unchecked Sendable {
         AgentListResult(agents: [], total: 0, onlineCount: 0)
     }
     func getSubscriptionUsage() async throws -> SubscriptionUsage {
-        SubscriptionUsage(subscriptionType: "max", usedSessions: 0, maxSessions: nil, resetAt: nil, isUnlimited: true)
+        SubscriptionUsage(
+            subscriptionType: "max",
+            email: nil,
+            orgName: nil,
+            todayUsage: DailyUsageStats(date: "2026-04-01", messageCount: 0, sessionCount: 0, toolCallCount: 0),
+            recentDays: [],
+            totalMessagesToday: 0,
+            isRateLimited: false,
+            rateLimitResetAt: nil,
+            usagePercent: 0,
+            dailyMessageLimit: 100,
+            warningThresholdReached: false,
+            limitExceeded: false,
+            lastFetchedAt: Date()
+        )
     }
     func refreshSubscriptionUsage() async throws -> SubscriptionUsage {
         try await getSubscriptionUsage()
@@ -67,4 +100,13 @@ final class StubAgentRepository: AgentRepositoryProtocol, @unchecked Sendable {
         AgentProject(agentId: agentId, projectId: projectId, projectName: "", isActive: isActive, repositoryUrl: nil, localPath: nil, techStack: [])
     }
     func getClaudeProcesses(agentId: String) async throws -> [ClaudeProcess] { [] }
+    func getAllAgentProjects() async throws -> [AgentProject] { [] }
+    func getAgentTasks(agentId: String, limit: Int) async throws -> AgentTaskListResult {
+        AgentTaskListResult(tasks: [], total: 0, pendingCount: 0)
+    }
+    func cancelAgentTask(agentId: String, taskId: String) async throws {}
+    func dispatchTask(agentId: String, runner: String, action: String, params: [String: String]) async throws {}
+    func rescanProjects(agentId: String) async throws {}
+    func getAgentSkipPermissions(agentId: String) async throws -> Bool { false }
+    func updateAgentSettings(agentId: String, dangerouslySkipPermissions: Bool) async throws {}
 }

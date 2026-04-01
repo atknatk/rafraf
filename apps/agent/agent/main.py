@@ -148,7 +148,10 @@ async def main() -> None:
     # Shutdown sinyali bekle
     await shutdown_event.wait()
 
-    await logger.ainfo("Shutdown sinyali alindi")
+    await logger.ainfo(
+        "Shutdown sinyali alindi",
+        active_tasks=connection._active_tasks,
+    )
     await project_sync.stop()
     await resource_monitor.stop()
     await connection.shutdown()

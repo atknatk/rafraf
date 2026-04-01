@@ -33,6 +33,8 @@ enum WebSocketMessageType: String, Codable, Sendable {
     case cancelStream = "stream.cancel"
     // Stream cancelled ack (server → client)
     case streamCancelled = "stream.cancelled"
+    // Task status updates (server → client)
+    case taskStatus = "task_status"
 }
 
 /// Mesaj yonu.
@@ -122,6 +124,7 @@ enum WebSocketContent: Codable, Sendable {
     case suggestion(SuggestionContent)
     case githubEvent(GitHubEventPayload)
     case agentStatusChange(AgentStatusChangePayload)
+    case taskStatus(TaskStatusContent)
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -159,6 +162,11 @@ enum WebSocketContent: Codable, Sendable {
 
         if let suggestion = try? container.decode(SuggestionContent.self) {
             self = .suggestion(suggestion)
+            return
+        }
+
+        if let taskStatusContent = try? container.decode(TaskStatusContent.self) {
+            self = .taskStatus(taskStatusContent)
             return
         }
 
@@ -224,6 +232,8 @@ enum WebSocketContent: Codable, Sendable {
         case .githubEvent(let value):
             try container.encode(value)
         case .agentStatusChange(let value):
+            try container.encode(value)
+        case .taskStatus(let value):
             try container.encode(value)
         }
     }
@@ -426,6 +436,17 @@ struct GitHubEventPayload: Codable, Sendable {
     let action: String
     let repo: String
     let summary: GitHubEventSummaryPayload
+}
+
+/// Task durum guncelleme mesaj icerigi.
+struct TaskStatusContent: Codable, Sendable {
+    let taskId: String
+    let status: String
+    let currentStep: String?
+    let progressPct: Int
+    let completedSteps: Int
+    let totalSteps: Int
+    let detail: String?
 }
 
 /// Agent durum degisikligi broadcast mesaj icerigi.

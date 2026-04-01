@@ -88,19 +88,6 @@ struct ContentView: View {
         }
         .tint(RFColors.fallbackPrimary)
         .sensoryFeedback(.selection, trigger: selectedTab)
-        .overlay(alignment: .topTrailing) {
-            Button {
-                isShowingNotifications = true
-            } label: {
-                Image(systemName: notificationCenterViewModel.unreadCount > 0
-                    ? "bell.badge.fill"
-                    : "bell.fill")
-                .font(.body)
-                .foregroundStyle(RFColors.fallbackPrimary)
-            }
-            .padding(.trailing, RFSpacing.md)
-            .padding(.top, RFSpacing.xs)
-        }
         .sheet(isPresented: $isShowingNotifications) {
             NotificationCenterView(viewModel: notificationCenterViewModel)
         }

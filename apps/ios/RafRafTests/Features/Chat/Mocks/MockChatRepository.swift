@@ -24,7 +24,7 @@ final class MockChatRepository: ChatRepositoryProtocol, @unchecked Sendable {
     var lastCursor: String?
     var lastLimit: Int?
 
-    func sendMessage(text: String, sessionId: String) async throws -> ChatMessage {
+    func sendMessage(text: String, sessionId: String, projectId: String?, agentId: String?) async throws -> ChatMessage {
         sendMessageCallCount += 1
         lastSentText = text
         lastSessionId = sessionId
@@ -33,6 +33,7 @@ final class MockChatRepository: ChatRepositoryProtocol, @unchecked Sendable {
 
     func loadHistory(
         sessionId: String,
+        projectId: String?,
         cursor: String?,
         limit: Int
     ) async throws -> ChatHistoryResult {
@@ -42,4 +43,14 @@ final class MockChatRepository: ChatRepositoryProtocol, @unchecked Sendable {
         lastLimit = limit
         return try loadHistoryResult.get()
     }
+
+    func fetchMissedMessages(
+        since: String,
+        sessionId: String?,
+        projectId: String?
+    ) async throws -> [ChatMessage] {
+        []
+    }
+
+    func rateMessage(id: String, rating: MessageRating) async throws {}
 }

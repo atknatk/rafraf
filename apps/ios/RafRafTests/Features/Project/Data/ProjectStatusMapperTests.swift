@@ -9,6 +9,7 @@ struct ProjectStatusMapperTests {
             id: "test-id",
             name: "Test Project",
             status: "active",
+            localPath: nil,
             lastActivityAt: "2026-03-03T10:00:00Z",
             lastActivitySummary: "PR merged",
             techStack: ["Swift", "Python"]
@@ -32,6 +33,7 @@ struct ProjectStatusMapperTests {
             description: "A detailed project",
             status: "pending",
             repositoryUrl: "https://github.com/test/repo",
+            localPath: nil,
             techStack: ["FastAPI"],
             lastActivityAt: nil,
             lastActivitySummary: nil,
@@ -57,6 +59,7 @@ struct ProjectStatusMapperTests {
                     id: "1",
                     name: "Project 1",
                     status: "active",
+                    localPath: nil,
                     lastActivityAt: nil,
                     lastActivitySummary: nil,
                     techStack: []
@@ -65,6 +68,7 @@ struct ProjectStatusMapperTests {
                     id: "2",
                     name: "Project 2",
                     status: "completed",
+                    localPath: nil,
                     lastActivityAt: nil,
                     lastActivitySummary: nil,
                     techStack: ["Node.js"]
@@ -90,6 +94,7 @@ struct ProjectStatusMapperTests {
             id: "test",
             name: "Unknown",
             status: "unknown_status",
+            localPath: nil,
             lastActivityAt: nil,
             lastActivitySummary: nil,
             techStack: []

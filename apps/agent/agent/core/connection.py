@@ -57,6 +57,7 @@ class ConnectionManager:
         self._sync_task: asyncio.Task[None] | None = None
         self._dangerously_skip_permissions: bool = False
         self._claude_runner: ClaudeRunner | None = None
+        self._running_tasks: set[asyncio.Task[None]] = set()
 
     def set_task_handler(self, handler: TaskHandler) -> None:
         """Task dispatch handler'ini ayarlar."""
@@ -285,10 +286,14 @@ class ConnectionManager:
                         if self._dangerously_skip_permissions:
                             data = self._inject_skip_permissions(data)
                         self._active_tasks += 1
-                        asyncio.create_task(self._run_task(data))
+                        task = asyncio.create_task(self._run_task(data))
+                        self._running_tasks.add(task)
+                        task.add_done_callback(self._running_tasks.discard)
                     elif msg_type == "claude_task_execute" and self._claude_runner:
                         self._active_tasks += 1
-                        asyncio.create_task(self._run_claude_task(data))
+                        task = asyncio.create_task(self._run_claude_task(data))
+                        self._running_tasks.add(task)
+                        task.add_done_callback(self._running_tasks.discard)
                     elif msg_type == "claude_question_answer" and self._claude_runner:
                         content = data.get("content", {})
                         if isinstance(content, dict):
@@ -426,17 +431,46 @@ class ConnectionManager:
         self._should_run = False
         self._is_connected = False
 
-        # Heartbeat, sync, listen task'leri iptal et
+        # 1. Claude runner subprocess'lerini sonlandir
+        if self._claude_runner is not None:
+            await logger.ainfo(
+                "Claude runner subprocess'leri sonlandiriliyor...",
+            )
+            await self._claude_runner.cancel_all()
+
+        # 2. Aktif task'lari iptal et ve bekle
+        if self._running_tasks:
+            await logger.ainfo(
+                "Aktif task'lar iptal ediliyor",
+                count=len(self._running_tasks),
+            )
+            for task in list(self._running_tasks):
+                if not task.done():
+                    task.cancel()
+
+            # Task'larin tamamlanmasini bekle (max 10sn)
+            if self._running_tasks:
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(
+                        asyncio.gather(
+                            *self._running_tasks, return_exceptions=True
+                        ),
+                        timeout=10,
+                    )
+            self._running_tasks.clear()
+
+        # 3. Heartbeat, sync, listen task'leri iptal et
         for task in (self._heartbeat_task, self._sync_task, self._listen_task):
             if task and not task.done():
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
 
-        # WebSocket kapat
+        # 4. WebSocket kapat
         if self._ws is not None:
             with contextlib.suppress(Exception):
                 await self._ws.close()
             self._ws = None
 
+        self._active_tasks = 0
         await logger.ainfo("Graceful shutdown tamamlandi")

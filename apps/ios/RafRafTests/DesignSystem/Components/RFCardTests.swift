@@ -22,6 +22,8 @@ struct RFCardTests {
             #expect(true)
         case .interactive:
             #expect(Bool(false), "Standard yerine interactive geldi")
+        default:
+            #expect(Bool(false), "Beklenmeyen stil")
         }
     }
 
@@ -33,6 +35,8 @@ struct RFCardTests {
             #expect(true)
         case .standard:
             #expect(Bool(false), "Interactive yerine standard geldi")
+        default:
+            #expect(Bool(false), "Beklenmeyen stil")
         }
     }
 }

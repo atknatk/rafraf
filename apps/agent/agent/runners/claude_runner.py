@@ -305,6 +305,50 @@ class ClaudeRunner:
             proc.kill()
             await logger.ainfo("claude_runner_cancelled", task_id=task_id)
 
+    async def cancel_all(self) -> None:
+        """Kill all running claude -p processes (graceful shutdown).
+
+        Once terminate gonderir, 5sn bekler, hala calisiyorsa kill gonderir.
+        """
+        if not self._active_processes:
+            return
+
+        task_ids = list(self._active_processes.keys())
+        await logger.ainfo(
+            "claude_runner_cancel_all",
+            active_count=len(task_ids),
+            task_ids=task_ids,
+        )
+
+        for task_id, proc in list(self._active_processes.items()):
+            if proc.returncode is not None:
+                continue
+            try:
+                proc.terminate()
+            except ProcessLookupError:
+                continue
+
+        # Terminate sonrasi kisa bekleme
+        await asyncio.sleep(2)
+
+        # Hala calisanlari kill et
+        for task_id, proc in list(self._active_processes.items()):
+            if proc.returncode is not None:
+                continue
+            try:
+                proc.kill()
+                await logger.ainfo("claude_runner_force_killed", task_id=task_id)
+            except ProcessLookupError:
+                pass
+
+        # Pending answer future'larini iptal et
+        for task_id, future in list(self._pending_answers.items()):
+            if not future.done():
+                future.cancel()
+
+        self._active_processes.clear()
+        self._pending_answers.clear()
+
     def _build_command(self, content: ClaudeTaskExecuteContent) -> list[str]:
         """Build the claude CLI command."""
         cmd: list[str] = [

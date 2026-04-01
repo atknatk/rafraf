@@ -30,6 +30,7 @@ from app.api.routes.proactive_notifications import router as proactive_notificat
 from app.api.routes.projects import router as projects_router
 from app.api.routes.pulse import router as pulse_router
 from app.api.routes.subscription import router as subscription_router
+from app.api.routes.tasks import router as tasks_router
 from app.api.routes.webhooks import router as webhooks_router
 from app.api.routes.websocket import router as websocket_router
 from app.core.config import get_settings
@@ -140,6 +141,7 @@ def create_app() -> FastAPI:
     application.include_router(cost_alerts_router)
     application.include_router(backups_router)
     application.include_router(monitoring_router)
+    application.include_router(tasks_router)
 
     return application
 

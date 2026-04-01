@@ -55,7 +55,9 @@ enum ProgressTestFactory {
             step: step,
             totalSteps: totalSteps,
             percentage: percentage,
-            details: details
+            details: details,
+            phase: nil,
+            stepsDetail: nil
         )
     }
 

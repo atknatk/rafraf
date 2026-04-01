@@ -12,9 +12,18 @@ struct SettingsViewModelTests {
     private func makeSUT(
         repository: MockSettingsRepository = MockSettingsRepository()
     ) -> (SettingsViewModel, MockSettingsRepository) {
+        let stubUserRepo = StubUserRepository()
+        let keychain = KeychainHelper()
+        let authManager = AuthManager(keychain: keychain)
+        let biometricManager = BiometricAuthManager()
         let vm = SettingsViewModel(
             loadSettingsUseCase: LoadSettingsUseCase(repository: repository),
-            saveSettingsUseCase: SaveSettingsUseCase(repository: repository)
+            saveSettingsUseCase: SaveSettingsUseCase(repository: repository),
+            loadProfileUseCase: LoadProfileUseCase(repository: stubUserRepo),
+            updateProfileUseCase: UpdateProfileUseCase(repository: stubUserRepo),
+            logoutUseCase: LogoutUseCase(authManager: authManager),
+            authManager: authManager,
+            biometricManager: biometricManager
         )
         return (vm, repository)
     }
@@ -334,4 +343,15 @@ struct SettingsViewModelTests {
         #expect(lastSaved?.fontSize == .large)
         #expect(lastSaved?.pushNotificationsEnabled == false)
     }
+}
+
+/// Stub user repository for settings tests.
+private final class StubUserRepository: UserRepositoryProtocol, @unchecked Sendable {
+    func fetchCurrentUser() async throws -> UserProfile {
+        UserProfile(id: "stub", displayName: "Stub User", email: "stub@test.com", avatarURL: nil, createdAt: Date())
+    }
+    func updateDisplayName(_ displayName: String) async throws -> UserProfile {
+        UserProfile(id: "stub", displayName: displayName, email: "stub@test.com", avatarURL: nil, createdAt: Date())
+    }
+    func logout() async throws {}
 }

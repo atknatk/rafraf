@@ -45,6 +45,8 @@ class MessageType(StrEnum):
     CANCEL_STREAM = "stream.cancel"
     # Stream cancelled ack (server → client)
     STREAM_CANCELLED = "stream.cancelled"
+    # Task status updates (server → client)
+    TASK_STATUS = "task_status"
 
 
 class MessageAttachment(BaseModel):

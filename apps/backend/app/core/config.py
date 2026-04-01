@@ -98,7 +98,7 @@ class Settings(BaseSettings):
     apns_key_path: str = ""
     apns_key_id: str = ""
     apns_team_id: str = ""
-    apns_bundle_id: str = "com.rafraf.app"
+    apns_bundle_id: str = "com.atknatk.rafraf"
     apns_use_sandbox: bool = True
 
     # Conversation Memory

@@ -35,6 +35,7 @@ from app.services.agent_registry_service import agent_registry
 from app.services.approval_service import get_approval_service
 from app.services.conversation_service import ConversationService
 from app.services.orchestrator_service import OrchestratorService
+from app.services.task_orchestrator_service import TaskOrchestratorService
 
 if TYPE_CHECKING:
     from app.services.tts_service import TTSService
@@ -418,6 +419,72 @@ async def _build_host_status() -> str | None:
     return "\n".join(lines)
 
 
+class _TaskWSAdapter:
+    """Adapter wrapping ConnectionManager.send_to_user as broadcast_to_user for TaskOrchestratorService."""
+
+    def __init__(self, conn_manager: ConnectionManager) -> None:
+        self._manager = conn_manager
+
+    async def broadcast_to_user(self, user_id: str | _uuid_mod.UUID, message: dict[str, object]) -> int:
+        """Broadcast a message to all connections of a user."""
+        uid = str(user_id)
+        return await self._manager.send_to_user(uid, message)
+
+
+async def _task_orch_update_progress(
+    task_id: _uuid_mod.UUID,
+    step: str,
+    pct: int,
+    detail: str,
+) -> None:
+    """Update task progress using a fresh DB session."""
+    try:
+        async with async_session_factory() as db:
+            orch = TaskOrchestratorService(db=db, ws_manager=_TaskWSAdapter(manager))
+            # Load task from DB into in-memory store
+            from sqlalchemy import select
+            from app.models.task import Task
+            result = await db.execute(select(Task).where(Task.id == task_id))
+            task = result.scalar_one_or_none()
+            if task is not None:
+                orch._tasks[task.id] = task
+                await orch.update_progress(task_id=task_id, step=step, pct=pct, detail=detail)
+    except Exception:
+        await logger.awarning("task_orch_update_progress_failed", task_id=str(task_id))
+
+
+async def _task_orch_complete(task_id: _uuid_mod.UUID, summary: str) -> None:
+    """Complete a task using a fresh DB session."""
+    try:
+        async with async_session_factory() as db:
+            orch = TaskOrchestratorService(db=db, ws_manager=_TaskWSAdapter(manager))
+            from sqlalchemy import select
+            from app.models.task import Task
+            result = await db.execute(select(Task).where(Task.id == task_id))
+            task = result.scalar_one_or_none()
+            if task is not None:
+                orch._tasks[task.id] = task
+                await orch.complete_task(task_id=task_id, summary=summary)
+    except Exception:
+        await logger.awarning("task_orch_complete_failed", task_id=str(task_id))
+
+
+async def _task_orch_fail(task_id: _uuid_mod.UUID, error: str) -> None:
+    """Fail a task using a fresh DB session."""
+    try:
+        async with async_session_factory() as db:
+            orch = TaskOrchestratorService(db=db, ws_manager=_TaskWSAdapter(manager))
+            from sqlalchemy import select
+            from app.models.task import Task
+            result = await db.execute(select(Task).where(Task.id == task_id))
+            task = result.scalar_one_or_none()
+            if task is not None:
+                orch._tasks[task.id] = task
+                await orch.fail_task(task_id=task_id, error=error)
+    except Exception:
+        await logger.awarning("task_orch_fail_failed", task_id=str(task_id))
+
+
 async def _process_with_orchestrator(
     *,
     message: str,
@@ -440,6 +507,9 @@ async def _process_with_orchestrator(
     message_id = str(uuid4())
     tts_service = None
     sentence_acc = None
+
+    # Task orchestrator state — mutable container so callbacks can access task_id
+    _task_id_ref: list[_uuid_mod.UUID | None] = [None]
 
     if voice_mode:
         from app.services.tts_service import SentenceAccumulator, TTSService
@@ -584,6 +654,17 @@ async def _process_with_orchestrator(
         with contextlib.suppress(Exception):
             await manager.send_json(_current_conn(), progress_msg)
 
+        # Update task orchestrator progress (non-blocking)
+        _tid = _task_id_ref[0]
+        if _tid is not None:
+            step_name = event.current_tool or event.phase
+            await _task_orch_update_progress(
+                task_id=_tid,
+                step=step_name,
+                pct=event.percentage,
+                detail=event.phase_label,
+            )
+
     async def _on_question(question_payload: dict[str, object]) -> str | None:
         """Forward question to iOS and wait for answer."""
         bridge = get_question_bridge()
@@ -605,6 +686,44 @@ async def _process_with_orchestrator(
         model_used = "none"
         tokens_in = 0
         tokens_out = 0
+
+        # --- Create task in orchestrator (optional, non-breaking) ---
+        try:
+            async with async_session_factory() as _task_db:
+                _user_uuid = _uuid_mod.UUID(user_id) if isinstance(user_id, str) else user_id
+                _proj_uuid_for_task: _uuid_mod.UUID | None = None
+                if project_id:
+                    with contextlib.suppress(ValueError):
+                        _proj_uuid_for_task = _uuid_mod.UUID(project_id)
+
+                _ws_adapter = _TaskWSAdapter(manager)
+                task_orch = TaskOrchestratorService(
+                    db=_task_db,
+                    ws_manager=_ws_adapter,
+                )
+
+                task_obj = await task_orch.create_task(
+                    user_id=_user_uuid,
+                    project_id=_proj_uuid_for_task,
+                    prompt=message,
+                    task_type="chat",
+                )
+                task_obj.title = message[:100]
+                await _task_db.commit()
+                _task_id_ref[0] = task_obj.id
+
+                await task_orch.start_task(task_obj.id)
+                await logger.ainfo(
+                    "task_created_for_chat",
+                    task_id=str(task_obj.id),
+                    user_id=user_id,
+                )
+        except Exception:
+            await logger.awarning(
+                "task_creation_failed_continuing",
+                user_id=user_id,
+                session_id=session_id,
+            )
 
         try:
             # Persist user message
@@ -715,7 +834,7 @@ async def _process_with_orchestrator(
                     assistant_response=response_text,
                 ))
 
-        except Exception:
+        except Exception as _exc:
             await logger.aexception(
                 "run_processing_failed",
                 connection_id=connection_id,
@@ -723,6 +842,16 @@ async def _process_with_orchestrator(
             )
             if not response_text:
                 response_text = "Bir hata olustu. Lutfen tekrar deneyin."
+
+            # Mark task as failed (non-breaking)
+            _tid = _task_id_ref[0]
+            if _tid is not None:
+                await _task_orch_fail(_tid, error=str(_exc))
+        else:
+            # Mark task as completed (non-breaking)
+            _tid = _task_id_ref[0]
+            if _tid is not None and response_text:
+                await _task_orch_complete(_tid, summary=response_text[:500])
 
         # Typing indicator cleared — response ready
         with contextlib.suppress(Exception):

@@ -7,6 +7,7 @@ Sadece izin verilen compose dosyalari ile calisabilir (guvenlik).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from pathlib import Path
 
 import structlog
@@ -193,6 +194,14 @@ class DockerRunner(BaseRunner):
                 cmd=" ".join(cmd),
                 timeout=effective_timeout,
             )
+            # Timeout durumunda process'i sonlandir
+            try:
+                proc.terminate()
+                await asyncio.wait_for(proc.wait(), timeout=5)
+            except (TimeoutError, ProcessLookupError):
+                with contextlib.suppress(ProcessLookupError):
+                    proc.kill()
+
             return {
                 "success": False,
                 "output": "",

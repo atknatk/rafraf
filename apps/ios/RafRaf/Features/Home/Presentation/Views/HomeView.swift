@@ -107,9 +107,9 @@ struct HomeView: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(light: Color(red: 0.72, green: 0.37, blue: 0.22),
+                            Color.rfAdaptive(light: Color(red: 0.72, green: 0.37, blue: 0.22),
                                   dark: Color(red: 0.68, green: 0.34, blue: 0.19)),
-                            Color(light: Color(red: 0.62, green: 0.28, blue: 0.16),
+                            Color.rfAdaptive(light: Color(red: 0.62, green: 0.28, blue: 0.16),
                                   dark: Color(red: 0.55, green: 0.26, blue: 0.14))
                         ],
                         startPoint: .topLeading,

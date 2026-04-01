@@ -9,6 +9,7 @@ docs/08_Host_Agent_Specification.md Bolum 5.4 ile uyumludur.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 import time
 from pathlib import Path
@@ -253,6 +254,14 @@ class MaestroRunner(BaseRunner):
                 cmd=" ".join(cmd),
                 timeout=timeout,
             )
+            # Timeout durumunda process'i sonlandir
+            try:
+                proc.terminate()
+                await asyncio.wait_for(proc.wait(), timeout=5)
+            except (TimeoutError, ProcessLookupError):
+                with contextlib.suppress(ProcessLookupError):
+                    proc.kill()
+
             return {
                 "success": False,
                 "output": "",
@@ -652,6 +661,13 @@ class MaestroRunner(BaseRunner):
             }
 
         except TimeoutError:
+            try:
+                proc.terminate()
+                await asyncio.wait_for(proc.wait(), timeout=5)
+            except (TimeoutError, ProcessLookupError):
+                with contextlib.suppress(ProcessLookupError):
+                    proc.kill()
+
             return {
                 "success": False,
                 "error": "Screenshot alma zaman asimi (30sn).",

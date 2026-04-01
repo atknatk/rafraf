@@ -23,6 +23,7 @@ struct ChatView: View {
     @State private var githubEventService = GitHubEventService()
     @State private var showGitHubBanner = false
     @State private var latestAgentStatusChange: AgentStatusChangePayload?
+    @State private var latestTaskStatusContent: TaskStatusContent?
     @State private var isAtBottom = true
     @State private var unreadCount = 0
     private let webSocketManager = Container.shared.webSocketConnectionManager()
@@ -1145,6 +1146,17 @@ struct ChatView: View {
         await webSocketManager.registerHandler(
             type: WebSocketMessageType.agentStatusChange.rawValue,
             handler: agentStatusHandler
+        )
+
+        // Task status handler — task_status mesajlarini isler
+        let taskStatusHandler = TaskStatusHandler { content in
+            Task { @MainActor in
+                self.latestTaskStatusContent = content
+            }
+        }
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.taskStatus.rawValue,
+            handler: taskStatusHandler
         )
     }
 

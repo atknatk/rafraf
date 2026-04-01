@@ -27,8 +27,8 @@ def get_current_settings() -> Settings:
 
 
 async def get_current_user(
-    authorization: Annotated[str, Header(description="Bearer <access_token>")],
     session: Annotated[AsyncSession, Depends(get_db)],
+    authorization: Annotated[str | None, Header(description="Bearer <access_token>")] = None,
 ) -> User:
     """Extract and validate the current user from the Authorization header.
 
@@ -37,6 +37,9 @@ async def get_current_user(
     Raises:
         UnauthorizedError: If the token is missing, invalid, or user not found.
     """
+    if authorization is None:
+        raise UnauthorizedError(message="Authorization header is required")
+
     if not authorization.startswith("Bearer "):
         raise UnauthorizedError(message="Invalid authorization header format")
 

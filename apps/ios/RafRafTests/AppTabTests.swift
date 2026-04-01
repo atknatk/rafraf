@@ -8,13 +8,13 @@ struct AppTabTests {
 
     @Test("AppTab tum varyantlari mevcut olmali")
     func allTabsExist() {
-        let tabs: [AppTab] = [.home, .chat, .settings]
-        #expect(tabs.count == 3)
+        let tabs: [AppTab] = [.projects, .chat, .agents, .settings]
+        #expect(tabs.count == 4)
     }
 
-    @Test("AppTab home rawValue dogru olmali")
-    func homeRawValue() {
-        #expect(AppTab.home.rawValue == "home")
+    @Test("AppTab projects rawValue dogru olmali")
+    func projectsRawValue() {
+        #expect(AppTab.projects.rawValue == "projects")
     }
 
     @Test("AppTab chat rawValue dogru olmali")
@@ -30,15 +30,16 @@ struct AppTabTests {
     @Test("AppTab Hashable uyumlu olmali")
     func tabHashable() {
         var set = Set<AppTab>()
-        set.insert(.home)
+        set.insert(.projects)
         set.insert(.chat)
+        set.insert(.agents)
         set.insert(.settings)
-        #expect(set.count == 3)
+        #expect(set.count == 4)
     }
 
     @Test("AppTab Sendable uyumlu olmali")
     func tabSendable() {
-        let tab: any Sendable = AppTab.home
+        let tab: any Sendable = AppTab.projects
         #expect(tab is AppTab)
     }
 }
