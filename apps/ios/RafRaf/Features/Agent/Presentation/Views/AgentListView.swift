@@ -310,7 +310,9 @@ struct AgentListView: View {
             getAgentTasksUseCase: GetAgentTasksUseCase(repository: repo),
             cancelAgentTaskUseCase: CancelAgentTaskUseCase(repository: repo),
             dispatchAgentTaskUseCase: DispatchAgentTaskUseCase(repository: repo),
-            rescanProjectsUseCase: RescanProjectsUseCase(repository: repo)
+            rescanProjectsUseCase: RescanProjectsUseCase(repository: repo),
+            getSkipPermissionsUseCase: GetAgentSkipPermissionsUseCase(repository: repo),
+            updateSettingsUseCase: UpdateAgentSettingsUseCase(repository: repo)
         )
     )
 }

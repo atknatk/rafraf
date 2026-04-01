@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "mobile-mcp": {
+      "command": "npx",
+      "args": ["-y", "mobile-mcp@latest"],
+      "description": "Cross-platform mobile device interaction - screenshot, tap, swipe, element list, app management (Android ADB + iOS Simulator)"
+    }
+  }
+}

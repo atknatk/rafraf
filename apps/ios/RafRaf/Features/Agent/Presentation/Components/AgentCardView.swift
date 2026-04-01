@@ -171,7 +171,8 @@ struct AgentCardView: View {
                 memoryUsagePercent: 72,
                 diskUsagePercent: 38,
                 diskFreeGb: 120
-            )
+            ),
+            dangerouslySkipPermissions: false
         )
     )
     .padding()

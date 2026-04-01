@@ -10,6 +10,8 @@ struct RFMessageBubble: View {
     let onBookmark: (() -> Void)?
     let onRating: ((MessageRating) -> Void)?
 
+    @State private var cursorOpacity: CGFloat = 1.0
+
     init(
         message: ChatMessage,
         onCopy: ((String) -> Void)? = nil,
@@ -64,7 +66,12 @@ struct RFMessageBubble: View {
                 }
             }
 
-            if message.sender == .assistant || message.sender == .system {
+            if message.sender == .user {
+                // Kullanici mesajlari sag tarafa yaslanir
+            } else if message.sender == .assistant {
+                // AI mesajlari daha genis olsun — sadece minimal bosluk
+                Spacer(minLength: RFSpacing.sm)
+            } else {
                 Spacer(minLength: RFSpacing.xxl)
             }
         }
@@ -155,6 +162,16 @@ struct RFMessageBubble: View {
     @ViewBuilder
     private var bubbleContentView: some View {
         VStack(alignment: .leading, spacing: RFSpacing.xs) {
+            // AI sender etiketi
+            if message.sender == .assistant {
+                HStack(spacing: RFSpacing.xxs) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(RFColors.fallbackPrimary)
+                    RFText("Claude", style: .captionBold, color: RFColors.fallbackTextSecondary)
+                }
+            }
+
             switch message.type {
             case .code:
                 RFCodeBlock(code: message.content, onCopy: onCopy)
@@ -197,9 +214,13 @@ struct RFMessageBubble: View {
                 tokenCostBadge(tokens: tokens, model: message.modelUsed)
             }
         }
-        .padding(.horizontal, RFSpacing.sm)
-        .padding(.vertical, RFSpacing.xs + 2)
-        .background(bubbleBackgroundColor)
+        .padding(.horizontal, message.sender == .assistant ? RFSpacing.xs : RFSpacing.sm)
+        .padding(.vertical, message.sender == .assistant ? RFSpacing.xs : (RFSpacing.xs + 2))
+        .background(
+            message.sender == .user
+                ? bubbleBackgroundColor
+                : Color.clear
+        )
         .clipShape(
             RoundedRectangle(
                 cornerRadius: message.sender == .user
@@ -260,11 +281,27 @@ struct RFMessageBubble: View {
     }
 
     private var streamingIndicator: some View {
-        HStack(spacing: RFSpacing.xxs) {
-            ForEach(0..<3, id: \.self) { _ in
-                Circle()
-                    .fill(bubbleTextColor.opacity(0.3))
-                    .frame(width: 4, height: 4)
+        HStack(spacing: 0) {
+            if message.content.isEmpty {
+                // Henuz icerik yoksa bouncing dots
+                HStack(spacing: RFSpacing.xxs) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        Circle()
+                            .fill(bubbleTextColor.opacity(0.3))
+                            .frame(width: 4, height: 4)
+                    }
+                }
+            } else {
+                // Icerik gelirken yanip sonen cursor
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(RFColors.fallbackPrimary)
+                    .frame(width: 2, height: 16)
+                    .opacity(cursorOpacity)
+                    .onAppear {
+                        withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
+                            cursorOpacity = 0.2
+                        }
+                    }
             }
         }
     }

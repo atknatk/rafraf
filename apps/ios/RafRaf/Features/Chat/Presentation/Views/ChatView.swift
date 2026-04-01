@@ -163,6 +163,14 @@ struct ChatView: View {
                     connectionMonitor.connectionLost()
                 }
             }
+            .onChange(of: viewModel.messageText) {
+                // Kullanici yazmaya basladiginda onerileri temizle
+                if !viewModel.messageText.isEmpty && !viewModel.pendingSuggestions.isEmpty {
+                    withAnimation(RFAnimation.springResponsive) {
+                        viewModel.pendingSuggestions = []
+                    }
+                }
+            }
             .onChange(of: sessionManager.activeProjectId) {
                 // Proje degistiyse sadece mesaj gecmisi bossa yukle
                 // (geri geldigimizde mevcut mesajlar korunur)
@@ -244,28 +252,22 @@ struct ChatView: View {
         if viewModel.isLoading {
             ChatSkeletonView()
         } else if viewModel.messages.isEmpty {
-            Spacer()
-            RFEmptyStateView(
-                systemImage: "message",
-                title: String(localized: "chat.empty.title"),
-                message: String(localized: "chat.empty.message")
-            )
-            Spacer()
+            welcomeView
         } else {
             ZStack(alignment: .bottomTrailing) {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: RFSpacing.sm) {
+                            // Ust bosluk — icerik azken mesajlari asagiya iter
+                            Spacer(minLength: 0)
+                                .frame(maxHeight: .infinity)
                             if viewModel.hasMoreMessages {
                                 loadMoreButton
                             }
 
-                            ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
-                                // Date separator between different days
-                                if index == 0 || !Calendar.current.isDate(
-                                    viewModel.messages[index - 1].timestamp,
-                                    inSameDayAs: message.timestamp
-                                ) {
+                            ForEach(viewModel.messages) { message in
+                                // Tarih ayirici — onceki mesajla gun farki varsa goster
+                                if shouldShowDateSeparator(for: message) {
                                     chatDateSeparator(for: message.timestamp)
                                 }
 
@@ -322,6 +324,8 @@ struct ChatView: View {
                         .padding(.horizontal, RFSpacing.md)
                         .padding(.vertical, RFSpacing.sm)
                     }
+                    .defaultScrollAnchor(.bottom)
+                    .scrollDismissesKeyboard(.interactively)
                     .refreshable {
                         await viewModel.loadHistory()
                         isAtBottom = true
@@ -336,6 +340,12 @@ struct ChatView: View {
                     }
                     .onChange(of: viewModel.isTyping) {
                         if viewModel.isTyping && isAtBottom {
+                            scrollToBottom(proxy: proxy)
+                        }
+                    }
+                    .onChange(of: viewModel.messages.last?.content) {
+                        // Streaming icerik buyurken en alta kaydır
+                        if isAtBottom, let last = viewModel.messages.last, last.isStreaming {
                             scrollToBottom(proxy: proxy)
                         }
                     }
@@ -406,7 +416,7 @@ struct ChatView: View {
         if !viewModel.pendingSuggestions.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: RFSpacing.xs) {
-                    ForEach(viewModel.pendingSuggestions, id: \.self) { suggestion in
+                    ForEach(Array(viewModel.pendingSuggestions.enumerated()), id: \.element) { index, suggestion in
                         Button {
                             sendSuggestion(suggestion)
                             viewModel.pendingSuggestions = []
@@ -416,16 +426,27 @@ struct ChatView: View {
                                     .font(.system(size: 11))
                                 Text(suggestion)
                                     .font(.system(size: 13))
+                                    .lineLimit(1)
                             }
                             .padding(.horizontal, RFSpacing.sm)
                             .padding(.vertical, RFSpacing.xs)
                             .background(RFColors.fallbackPrimary.opacity(0.1))
                             .foregroundStyle(RFColors.fallbackPrimary)
                             .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .stroke(RFColors.fallbackPrimary.opacity(0.2), lineWidth: 0.5)
+                            )
                         }
+                        .transition(.scale.combined(with: .opacity))
+                        .animation(
+                            RFAnimation.springResponsive.delay(Double(index) * 0.05),
+                            value: viewModel.pendingSuggestions.count
+                        )
                     }
                 }
                 .padding(.horizontal, RFSpacing.sm)
+                .padding(.vertical, RFSpacing.xxs)
             }
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
@@ -491,6 +512,104 @@ struct ChatView: View {
                 showVoiceConversation = true
             }
         )
+    }
+
+    // MARK: - Welcome View
+
+    private var welcomeView: some View {
+        ScrollView {
+            VStack(spacing: RFSpacing.xl) {
+                Spacer(minLength: RFSpacing.xxxl)
+
+                // Logo & baslik
+                VStack(spacing: RFSpacing.sm) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 36, weight: .light))
+                        .foregroundStyle(RFColors.fallbackPrimary)
+
+                    RFText(
+                        String(localized: "chat.welcome.title"),
+                        style: .title,
+                        color: RFColors.fallbackTextPrimary
+                    )
+
+                    RFText(
+                        String(localized: "chat.welcome.subtitle"),
+                        style: .body,
+                        color: RFColors.fallbackTextSecondary
+                    )
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, RFSpacing.xl)
+                }
+
+                // Starter prompt kartlari
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: RFSpacing.sm),
+                    GridItem(.flexible(), spacing: RFSpacing.sm)
+                ], spacing: RFSpacing.sm) {
+                    ForEach(starterPrompts, id: \.text) { prompt in
+                        Button {
+                            viewModel.messageText = prompt.text
+                            Task {
+                                await viewModel.sendMessage(isConnected: webSocketManager.isConnected)
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: RFSpacing.xs) {
+                                Image(systemName: prompt.icon)
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(RFColors.fallbackPrimary)
+                                RFText(prompt.label, style: .captionBold, color: RFColors.fallbackTextPrimary)
+                                RFText(prompt.description, style: .caption, color: RFColors.fallbackTextSecondary)
+                                    .lineLimit(2)
+                            }
+                            .padding(RFSpacing.sm)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(RFColors.fallbackSurface)
+                            .clipShape(RoundedRectangle(cornerRadius: RFCornerRadius.medium))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: RFCornerRadius.medium)
+                                    .stroke(RFColors.divider.opacity(0.5), lineWidth: 0.5)
+                            )
+                        }
+                        .buttonStyle(RFPressButtonStyle())
+                    }
+                }
+                .padding(.horizontal, RFSpacing.md)
+
+                Spacer(minLength: RFSpacing.xl)
+            }
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    /// Starter prompt verileri.
+    private var starterPrompts: [(icon: String, label: String, description: String, text: String)] {
+        [
+            (
+                icon: "chart.bar.xaxis",
+                label: String(localized: "chat.starter.status.label"),
+                description: String(localized: "chat.starter.status.desc"),
+                text: String(localized: "chat.starter.status.prompt")
+            ),
+            (
+                icon: "hammer.fill",
+                label: String(localized: "chat.starter.build.label"),
+                description: String(localized: "chat.starter.build.desc"),
+                text: String(localized: "chat.starter.build.prompt")
+            ),
+            (
+                icon: "testtube.2",
+                label: String(localized: "chat.starter.test.label"),
+                description: String(localized: "chat.starter.test.desc"),
+                text: String(localized: "chat.starter.test.prompt")
+            ),
+            (
+                icon: "arrow.triangle.pull",
+                label: String(localized: "chat.starter.pr.label"),
+                description: String(localized: "chat.starter.pr.desc"),
+                text: String(localized: "chat.starter.pr.prompt")
+            )
+        ]
     }
 
     // MARK: - Progress Section
@@ -1030,6 +1149,18 @@ struct ChatView: View {
     }
 
     // MARK: - Helpers
+
+    /// Mesajin ustunde tarih ayirici gosterilip gosterilmeyecegini belirler.
+    private func shouldShowDateSeparator(for message: ChatMessage) -> Bool {
+        guard let index = viewModel.messages.firstIndex(where: { $0.id == message.id }) else {
+            return false
+        }
+        if index == 0 { return true }
+        return !Calendar.current.isDate(
+            viewModel.messages[index - 1].timestamp,
+            inSameDayAs: message.timestamp
+        )
+    }
 
     private func scrollToBottom(proxy: ScrollViewProxy) {
         withAnimation(RFAnimation.springGentle) {

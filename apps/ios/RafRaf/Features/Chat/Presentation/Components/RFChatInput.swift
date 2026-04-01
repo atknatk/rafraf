@@ -15,10 +15,6 @@ struct RFChatInput: View {
     let onMicLongPress: () -> Void
 
     @FocusState private var isFocused: Bool
-    @State private var textHeight: CGFloat = 36
-
-    private let minHeight: CGFloat = 36
-    private let maxHeight: CGFloat = 120  // ~5 satır
 
     init(
         text: Binding<String>,
@@ -90,46 +86,18 @@ struct RFChatInput: View {
     // MARK: - Multi-line TextField
 
     private var multiLineTextField: some View {
-        ZStack(alignment: .leading) {
-            // Placeholder
-            if text.isEmpty && !isFocused {
-                Text(String(localized: "chat.input.placeholder"))
-                    .font(RFTypography.body)
-                    .foregroundStyle(RFColors.fallbackTextTertiary)
-                    .padding(.horizontal, RFSpacing.sm)
-                    .padding(.vertical, RFSpacing.xs + 2)
-                    .allowsHitTesting(false)
-            }
-
-            // Hidden size reader
-            Text(text.isEmpty ? " " : text)
-                .font(RFTypography.body)
-                .padding(.horizontal, RFSpacing.sm)
-                .padding(.vertical, RFSpacing.xs + 2)
-                .lineLimit(5)
-                .opacity(0)
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.onAppear {
-                            textHeight = min(max(geo.size.height, minHeight), maxHeight)
-                        }
-                        .onChange(of: text) {
-                            textHeight = min(max(geo.size.height, minHeight), maxHeight)
-                        }
-                    }
-                )
-
-            TextEditor(text: $text)
-                .font(RFTypography.body)
-                .foregroundStyle(RFColors.fallbackTextPrimary)
-                .scrollContentBackground(.hidden)
-                .background(Color.clear)
-                .frame(height: textHeight)
-                .focused($isFocused)
-                .disabled(!isEnabled || isRecording || isProcessing)
-                .padding(.horizontal, RFSpacing.xs)
-        }
-        .background(Color.clear)
+        TextField(
+            String(localized: "chat.input.placeholder"),
+            text: $text,
+            axis: .vertical
+        )
+        .font(RFTypography.body)
+        .foregroundStyle(RFColors.fallbackTextPrimary)
+        .lineLimit(1...6)
+        .focused($isFocused)
+        .disabled(!isEnabled || isRecording || isProcessing)
+        .padding(.horizontal, RFSpacing.xs)
+        .padding(.vertical, RFSpacing.xs)
     }
 
     // MARK: - Action Button
