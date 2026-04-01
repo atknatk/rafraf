@@ -26,7 +26,7 @@ env:
 jobs:
   build:
     name: Build
-    runs-on: macos-15
+    runs-on: [self-hosted, rafraf-runner]
     steps:
       - uses: actions/checkout@v4
 
@@ -58,7 +58,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: macos-15
+    runs-on: [self-hosted, rafraf-runner]
     needs: build
     steps:
       - uses: actions/checkout@v4

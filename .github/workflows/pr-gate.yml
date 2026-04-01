@@ -68,7 +68,7 @@ jobs:
     name: iOS Gate
     needs: changes
     if: needs.changes.outputs.ios == 'true'
-    runs-on: macos-15
+    runs-on: [self-hosted, rafraf-runner]
     defaults:
       run:
         working-directory: apps/ios
