@@ -31,6 +31,9 @@ jobs:
           aws configure set aws_access_key_id "${{ secrets.AWS_ACCESS_KEY_ID }}"
           aws configure set aws_secret_access_key "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
           aws configure set region "${{ env.AWS_REGION }}"
+          # Disable macOS keychain credential store for headless Docker login
+          mkdir -p ~/.docker
+          echo '{"credsStore":""}' > ~/.docker/config.json
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
             docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
 
