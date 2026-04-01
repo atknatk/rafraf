@@ -403,6 +403,17 @@ class OrchestratorService:
             # Resolve agent: prefer project-linked agent, fallback to any online
             host_id = await self._resolve_agent_for_project(project_id, db_session)
             if host_id is None:
+                # Debug: log registry state
+                agents_list = agent_registry.list_agents_sync()
+                await logger.aerror(
+                    "claude_code_no_agent_found",
+                    registry_agents=len(agents_list),
+                    agents_detail=[
+                        {"host_id": a["host_id"], "status": str(a["status"])}
+                        for a in agents_list
+                    ],
+                    project_id=project_id,
+                )
                 raise ClaudeCodeError(
                     "Uygun agent bulunamadi. Agent'in online oldugundan emin olun.",
                     returncode=-1,
