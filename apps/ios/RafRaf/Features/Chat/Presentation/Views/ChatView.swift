@@ -188,6 +188,38 @@ struct ChatView: View {
                     }
                 }
             }
+            .onChange(of: latestTaskStatusContent?.taskId) {
+                // Yeni task geldiginde Live Activity baslat
+                guard let content = latestTaskStatusContent else { return }
+                let projectName = sessionManager.activeProjectName ?? "RafRaf"
+                Task {
+                    await LiveActivityManager.shared.startTask(
+                        taskId: content.taskId,
+                        taskTitle: content.detail ?? content.currentStep ?? "AI Task",
+                        projectName: projectName
+                    )
+                }
+            }
+            .onChange(of: latestTaskStatusContent?.progressPct) {
+                // Task progress guncellemesi
+                guard let content = latestTaskStatusContent else { return }
+                let isTerminal = ["completed", "failed", "cancelled"].contains(content.status)
+                if isTerminal {
+                    Task { await LiveActivityManager.shared.endTask() }
+                } else {
+                    Task {
+                        await LiveActivityManager.shared.updateTask(
+                            status: content.status,
+                            currentStep: content.currentStep ?? content.status,
+                            progress: Double(content.progressPct) / 100.0,
+                            completedSteps: content.completedSteps,
+                            totalSteps: content.totalSteps,
+                            phaseIcon: stepIcon(for: content.currentStep),
+                            estimatedSeconds: nil
+                        )
+                    }
+                }
+            }
             .overlay {
                 if let errorMessage = viewModel.errorMessage {
                     errorBanner(message: errorMessage)
@@ -858,6 +890,16 @@ struct ChatView: View {
     }
 
     // MARK: - Export
+
+    private func stepIcon(for step: String?) -> String {
+        switch step {
+        case "architect": return "doc.text.magnifyingglass"
+        case "developer": return "hammer.fill"
+        case "tester": return "checkmark.shield.fill"
+        case "reviewer": return "eye.fill"
+        default: return "circle"
+        }
+    }
 
     private func exportConversation() async {
         var lines: [String] = [String(localized: "chat.export.header"), ""]
