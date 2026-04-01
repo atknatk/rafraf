@@ -6,9 +6,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # .env dosyasini repo root'ta veya CWD'de ara
 _ENV_FILES: list[str] = []
-_repo_root_env = Path(__file__).resolve().parents[4] / ".env"
-if _repo_root_env.exists():
-    _ENV_FILES.append(str(_repo_root_env))
+try:
+    _repo_root_env = Path(__file__).resolve().parents[4] / ".env"
+    if _repo_root_env.exists():
+        _ENV_FILES.append(str(_repo_root_env))
+except IndexError:
+    pass  # Docker container — path hierarchy is shorter
 _ENV_FILES.append(".env")
 
 
