@@ -185,11 +185,11 @@ check_self_update() {
         rendered_hash="$(echo "$rendered" | md5 -q 2>/dev/null || echo "$rendered" | md5sum | cut -d' ' -f1)"
         current_hash="$(md5 -q "$plist_dst" 2>/dev/null || echo "none")"
         if [ "$rendered_hash" != "$current_hash" ]; then
-          log "  Updater plist changed, reinstalling..."
-          launchctl bootout "gui/$(id -u)/com.rafraf.agent-updater" 2>/dev/null || true
+          # Sadece plist dosyasini guncelle, daemon'u restart ETME
+          # (kendini bootout yaparsa bootstrap yapamadan olur)
+          # launchd bir sonraki StartInterval'de yeni plist'i okuyacak
           echo "$rendered" > "$plist_dst"
-          launchctl bootstrap "gui/$(id -u)" "$plist_dst"
-          log "  Updater plist reinstalled."
+          log "  Updater plist guncellendi (sonraki calistiginda aktif olacak)."
         fi
       fi
       ;;
