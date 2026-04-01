@@ -10,11 +10,36 @@ extension Container {
     /// Ag istemcisi.
     var networkClient: Factory<NetworkClient> {
         self {
-            let authManager = self.authManager()
+            // Note: tokenRefreshHandler cannot use authManager here
+            // because AuthManager -> AuthRepository -> NetworkClient (circular).
+            // Instead, we do a lightweight refresh using a dedicated NetworkClient.
+            let keychain = self.keychainHelper()
             return NetworkClient(
                 authInterceptor: self.authInterceptor(),
                 tokenRefreshHandler: { @Sendable in
-                    await authManager.refreshTokenIfNeeded()
+                    // Read refresh token from Keychain
+                    guard let refreshToken = keychain.readString(for: "auth_refresh_token") else {
+                        return false
+                    }
+                    // Use a separate NetworkClient (no auth interceptor) to call refresh
+                    let plainClient = NetworkClient()
+                    do {
+                        let response: TokenResponseDTO = try await plainClient.post(
+                            path: "/auth/refresh",
+                            body: RefreshRequestDTO(refreshToken: refreshToken)
+                        )
+                        // Save new tokens to keychain
+                        try keychain.saveString(response.accessToken, for: "auth_access_token")
+                        try keychain.saveString(response.refreshToken, for: "auth_refresh_token")
+                        let expiresAt = Date().addingTimeInterval(TimeInterval(response.expiresIn))
+                        try keychain.saveString(
+                            ISO8601DateFormatter().string(from: expiresAt),
+                            for: "auth_token_expires_at"
+                        )
+                        return true
+                    } catch {
+                        return false
+                    }
                 }
             )
         }
@@ -31,12 +56,30 @@ extension Container {
     var webSocketClient: Factory<WebSocketClient> {
         self {
             let keychain = self.keychainHelper()
-            let authManager = self.authManager()
             return WebSocketClient(
                 messageRouter: self.webSocketMessageRouter(),
                 tokenProvider: { keychain.readString(for: "auth_access_token") },
                 tokenRefreshHandler: { @Sendable in
-                    await authManager.refreshTokenIfNeeded()
+                    guard let refreshToken = keychain.readString(for: "auth_refresh_token") else {
+                        return false
+                    }
+                    let plainClient = NetworkClient()
+                    do {
+                        let response: TokenResponseDTO = try await plainClient.post(
+                            path: "/auth/refresh",
+                            body: RefreshRequestDTO(refreshToken: refreshToken)
+                        )
+                        try keychain.saveString(response.accessToken, for: "auth_access_token")
+                        try keychain.saveString(response.refreshToken, for: "auth_refresh_token")
+                        let expiresAt = Date().addingTimeInterval(TimeInterval(response.expiresIn))
+                        try keychain.saveString(
+                            ISO8601DateFormatter().string(from: expiresAt),
+                            for: "auth_token_expires_at"
+                        )
+                        return true
+                    } catch {
+                        return false
+                    }
                 }
             )
         }
