@@ -174,17 +174,20 @@ check_self_update() {
       local plist_src="$SRC_DIR/scripts/templates/com.rafraf.agent-updater.plist"
       local plist_dst="$HOME/Library/LaunchAgents/com.rafraf.agent-updater.plist"
       if [ -f "$plist_src" ]; then
-        local src_hash dst_hash
-        src_hash="$(md5 -q "$plist_src" 2>/dev/null || md5sum "$plist_src" | cut -d' ' -f1)"
-        dst_hash="$(md5 -q "$plist_dst" 2>/dev/null || echo "none")"
-        if [ "$src_hash" != "$dst_hash" ]; then
+        local venv_bin="$INSTALL_DIR/venv/bin"
+        local rendered
+        rendered="$(sed \
+          -e "s|{{INSTALL_DIR}}|$INSTALL_DIR|g" \
+          -e "s|{{VENV_BIN}}|$venv_bin|g" \
+          -e "s|{{HOME}}|$HOME|g" \
+          "$plist_src")"
+        local rendered_hash current_hash
+        rendered_hash="$(echo "$rendered" | md5 -q 2>/dev/null || echo "$rendered" | md5sum | cut -d' ' -f1)"
+        current_hash="$(md5 -q "$plist_dst" 2>/dev/null || echo "none")"
+        if [ "$rendered_hash" != "$current_hash" ]; then
           log "  Updater plist changed, reinstalling..."
           launchctl bootout "gui/$(id -u)/com.rafraf.agent-updater" 2>/dev/null || true
-          local venv_bin="$INSTALL_DIR/venv/bin"
-          sed \
-            -e "s|{{INSTALL_DIR}}|$INSTALL_DIR|g" \
-            -e "s|{{VENV_BIN}}|$venv_bin|g" \
-            "$plist_src" > "$plist_dst"
+          echo "$rendered" > "$plist_dst"
           launchctl bootstrap "gui/$(id -u)" "$plist_dst"
           log "  Updater plist reinstalled."
         fi
