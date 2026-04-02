@@ -31,6 +31,7 @@ struct RafRafLiveActivityControl: ControlWidget {
     }
 }
 
+@available(iOS 18.0, *)
 extension RafRafLiveActivityControl {
     struct Value {
         var isRunning: Bool
@@ -49,6 +50,7 @@ extension RafRafLiveActivityControl {
     }
 }
 
+@available(iOS 18.0, *)
 struct TimerConfiguration: ControlConfigurationIntent {
     static let title: LocalizedStringResource = "Timer Name Configuration"
 
@@ -56,6 +58,7 @@ struct TimerConfiguration: ControlConfigurationIntent {
     var timerName: String
 }
 
+@available(iOS 18.0, *)
 struct StartTimerIntent: SetValueIntent {
     static let title: LocalizedStringResource = "Start a timer"
 
