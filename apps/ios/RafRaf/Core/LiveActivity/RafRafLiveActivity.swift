@@ -30,6 +30,7 @@ protocol LiveActivityManaging: Sendable {
     var hasActiveActivity: Bool { get }
     func startTask(taskId: String, taskTitle: String, projectName: String) async
     func updateTask(
+        taskId: String,
         status: String,
         currentStep: String,
         progress: Double,
@@ -38,20 +39,22 @@ protocol LiveActivityManaging: Sendable {
         phaseIcon: String,
         estimatedSeconds: Int?
     ) async
-    func endTask() async
+    func endTask(taskId: String) async
+    /// Tum aktif task activity'lerini sonlandir.
+    func endAllTasks() async
 }
 
 // MARK: - Live Activity Manager
 
 /// Live Activity baslat/guncelle/durdur yoneticisi.
+/// Birden fazla task icin es zamanli Live Activity destekler (Apple max 5).
 @MainActor
 final class LiveActivityManager: ObservableObject, LiveActivityManaging {
     static let shared = LiveActivityManager()
 
     private var currentActivity: Activity<RafRafActivityAttributes>?
-    private var currentTaskActivityId: String?
-    /// Backend task UUID — push token gonderimi icin gerekli.
-    private var currentTaskId: String?
+    /// Aktif task activity'leri: taskId → activityId mapping
+    private var activeTaskActivities: [String: String] = [:]
     /// Push token'i backend'e gondermek icin disaridan set edilen closure.
     /// Parametre: (taskId, pushToken) -> Void
     var pushTokenSender: (@Sendable (String, String) async -> Void)?
@@ -88,7 +91,7 @@ final class LiveActivityManager: ObservableObject, LiveActivityManaging {
             let activity = try Activity<RafRafActivityAttributes>.request(
                 attributes: attributes,
                 content: .init(state: initialState, staleDate: nil),
-                pushType: nil
+                pushType: .token
             )
             currentActivity = activity
             logger.info("Live activity started: \(activity.id)")
@@ -142,19 +145,19 @@ final class LiveActivityManager: ObservableObject, LiveActivityManaging {
     // MARK: - Task-based API (Sprint 4)
 
     /// Yeni bir task Live Activity baslat (Dynamic Island + Lock Screen).
-    /// Mevcut task activity varsa once durdurur.
+    /// Ayni taskId icin zaten activity varsa yeniden baslatmaz.
+    /// Apple max 5 concurrent Live Activity destekler.
     func startTask(taskId: String, taskTitle: String, projectName: String) async {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
             logger.info("Live activities not enabled on this device")
             return
         }
 
-        // Mevcut task activity varsa durdur
-        if currentTaskActivityId != nil {
-            await endTask()
+        // Bu task icin zaten activity varsa tekrar baslatma
+        if activeTaskActivities[taskId] != nil {
+            logger.debug("Task activity already exists for \(taskId), skipping start")
+            return
         }
-
-        currentTaskId = taskId
 
         let attributes = TaskActivityAttributes(
             taskId: taskId,
@@ -173,24 +176,25 @@ final class LiveActivityManager: ObservableObject, LiveActivityManaging {
         )
 
         do {
-            // pushType: nil for local-only start (push updates added later)
+            // pushType: .token for local-only start (push updates added later)
             let activity = try Activity<TaskActivityAttributes>.request(
                 attributes: attributes,
                 content: .init(state: initialState, staleDate: nil),
-                pushType: nil
+                pushType: .token
             )
-            currentTaskActivityId = activity.id
+            activeTaskActivities[taskId] = activity.id
             logger.info("Task live activity started: \(activity.id) for task \(taskId)")
 
             // Push token guncellenmelerini gozlemle
-            observePushTokenUpdates(for: activity.id)
+            observePushTokenUpdates(for: activity.id, taskId: taskId)
         } catch {
             logger.error("Failed to start task live activity: \(error.localizedDescription)")
         }
     }
 
-    /// Task Live Activity'yi guncelle.
+    /// Task Live Activity'yi guncelle. taskId ile hangi activity oldugu belirlenir.
     func updateTask(
+        taskId: String,
         status: String,
         currentStep: String,
         progress: Double,
@@ -199,8 +203,8 @@ final class LiveActivityManager: ObservableObject, LiveActivityManaging {
         phaseIcon: String,
         estimatedSeconds: Int?
     ) async {
-        guard let activityId = currentTaskActivityId else {
-            logger.warning("No active task activity to update")
+        guard let activityId = activeTaskActivities[taskId] else {
+            logger.warning("No active task activity for taskId \(taskId)")
             return
         }
 
@@ -215,12 +219,12 @@ final class LiveActivityManager: ObservableObject, LiveActivityManaging {
         )
 
         await Self.updateTaskActivity(activityId: activityId, state: newState)
-        logger.debug("Task activity updated: status=\(status), progress=\(progress)")
+        logger.debug("Task activity updated: taskId=\(taskId), status=\(status), progress=\(progress)")
     }
 
-    /// Task Live Activity'yi sonlandir.
-    func endTask() async {
-        guard let activityId = currentTaskActivityId else { return }
+    /// Belirli bir task'in Live Activity'sini sonlandir.
+    func endTask(taskId: String) async {
+        guard let activityId = activeTaskActivities[taskId] else { return }
 
         let finalState = TaskActivityAttributes.ContentState(
             status: "completed",
@@ -233,9 +237,15 @@ final class LiveActivityManager: ObservableObject, LiveActivityManaging {
         )
 
         await Self.endTaskActivity(activityId: activityId, finalState: finalState)
-        currentTaskActivityId = nil
-        currentTaskId = nil
-        logger.info("Task live activity ended")
+        activeTaskActivities.removeValue(forKey: taskId)
+        logger.info("Task live activity ended for taskId \(taskId)")
+    }
+
+    /// Tum aktif task activity'lerini sonlandir.
+    func endAllTasks() async {
+        for taskId in activeTaskActivities.keys {
+            await endTask(taskId: taskId)
+        }
     }
 
     // MARK: - Nonisolated ActivityKit Helpers
@@ -268,33 +278,20 @@ final class LiveActivityManager: ObservableObject, LiveActivityManaging {
     // MARK: - Push Token Observation
 
     /// Push token guncellenmelerini async sequence ile gozlemle.
-    private func observePushTokenUpdates(for activityId: String) {
+    private func observePushTokenUpdates(for activityId: String, taskId: String) {
         Task.detached { [weak self] in
             guard let activity = Activity<TaskActivityAttributes>.activities.first(where: { $0.id == activityId }) else {
                 return
             }
             for await tokenData in activity.pushTokenUpdates {
                 let tokenString = tokenData.map { String(format: "%02x", $0) }.joined()
-                await self?.handlePushTokenUpdate(token: tokenString, activityId: activityId)
+                await self?.sendPushTokenToBackend(token: tokenString, taskId: taskId)
             }
         }
     }
 
-    /// Push token guncellenmesini isle.
-    private func handlePushTokenUpdate(token: String, activityId: String) {
-        logger.info("Task activity push token updated: \(token)")
-        Task {
-            await sendPushTokenToBackend(token: token, activityId: activityId)
-        }
-    }
-
     /// Push token'i backend'e gonderir.
-    private func sendPushTokenToBackend(token: String, activityId: String) async {
-        guard let taskId = currentTaskId else {
-            logger.warning("Cannot send push token: no currentTaskId set")
-            return
-        }
-
+    private func sendPushTokenToBackend(token: String, taskId: String) async {
         logger.info("Sending push token to backend for task \(taskId)")
 
         if let sender = pushTokenSender {

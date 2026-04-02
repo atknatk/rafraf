@@ -15,10 +15,17 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 # Step-to-phase-icon mapping for Live Activity content state
 _STEP_ICON: dict[str, str] = {
+    # Pipeline steps
     "architect": "doc.text.magnifyingglass",
     "developer": "hammer.fill",
     "tester": "checkmark.shield.fill",
     "reviewer": "eye.fill",
+    # Stream-based granular phases (chat tasks)
+    "thinking": "brain",
+    "analyzing": "magnifyingglass",
+    "writing": "pencil.line",
+    "tool_calling": "hammer.fill",
+    "finalizing": "checkmark.diamond",
 }
 
 # Ordered pipeline steps for completed_steps counting

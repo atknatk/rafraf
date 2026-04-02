@@ -5,31 +5,49 @@ import Testing
 // MARK: - Mock Implementation
 
 /// Mock LiveActivityManager — ActivityKit'e bagimsiz test icin.
+/// Birden fazla concurrent activity destekler (gercek manager gibi).
 @MainActor
 final class MockLiveActivityManager: LiveActivityManaging {
     nonisolated var hasActiveActivity: Bool {
-        // Mock'ta her zaman MainActor context'inden cagirilir,
-        // nonisolated satisfy etmek icin nonisolated(unsafe) kullaniyoruz
-        MainActor.assumeIsolated { _hasActiveActivity }
+        MainActor.assumeIsolated { !_activeActivities.isEmpty }
     }
 
-    private var _hasActiveActivity: Bool = false
-    private(set) var currentState: TaskActivityAttributes.ContentState?
-    private(set) var currentAttributes: TaskActivityAttributes?
+    /// Aktif activity state'leri: taskId → ContentState
+    private var _activeActivities: [String: TaskActivityAttributes.ContentState] = [:]
+    /// Aktif activity attributes: taskId → Attributes
+    private var _activeAttributes: [String: TaskActivityAttributes] = [:]
+
     private(set) var startCallCount: Int = 0
     private(set) var updateCallCount: Int = 0
     private(set) var endCallCount: Int = 0
     private(set) var pushTokenObserved: Bool = false
 
+    /// Son guncellenen task'in state'i (test kolayligi icin).
+    var currentState: TaskActivityAttributes.ContentState? {
+        _activeActivities.values.first
+    }
+
+    /// Son guncellenen task'in attributes'u.
+    var currentAttributes: TaskActivityAttributes? {
+        _activeAttributes.values.first
+    }
+
+    /// Belirli bir task'in state'ini getir.
+    func stateForTask(_ taskId: String) -> TaskActivityAttributes.ContentState? {
+        _activeActivities[taskId]
+    }
+
     func startTask(taskId: String, taskTitle: String, projectName: String) async {
+        // Ayni taskId icin zaten varsa tekrar baslatma (gercek manager davranisi)
+        if _activeActivities[taskId] != nil { return }
+
         startCallCount += 1
-        _hasActiveActivity = true
-        currentAttributes = TaskActivityAttributes(
+        _activeAttributes[taskId] = TaskActivityAttributes(
             taskId: taskId,
             taskTitle: taskTitle,
             projectName: projectName
         )
-        currentState = TaskActivityAttributes.ContentState(
+        _activeActivities[taskId] = TaskActivityAttributes.ContentState(
             status: "started",
             currentStep: "Initializing...",
             progress: 0.0,
@@ -41,6 +59,7 @@ final class MockLiveActivityManager: LiveActivityManaging {
     }
 
     func updateTask(
+        taskId: String,
         status: String,
         currentStep: String,
         progress: Double,
@@ -49,8 +68,9 @@ final class MockLiveActivityManager: LiveActivityManaging {
         phaseIcon: String,
         estimatedSeconds: Int?
     ) async {
+        guard _activeActivities[taskId] != nil else { return }
         updateCallCount += 1
-        currentState = TaskActivityAttributes.ContentState(
+        _activeActivities[taskId] = TaskActivityAttributes.ContentState(
             status: status,
             currentStep: currentStep,
             progress: progress,
@@ -61,11 +81,17 @@ final class MockLiveActivityManager: LiveActivityManaging {
         )
     }
 
-    func endTask() async {
+    func endTask(taskId: String) async {
+        guard _activeActivities[taskId] != nil else { return }
         endCallCount += 1
-        _hasActiveActivity = false
-        currentState = nil
-        currentAttributes = nil
+        _activeActivities.removeValue(forKey: taskId)
+        _activeAttributes.removeValue(forKey: taskId)
+    }
+
+    func endAllTasks() async {
+        for taskId in _activeActivities.keys {
+            await endTask(taskId: taskId)
+        }
     }
 
     /// Push token gozlemleme simulasyonu.
@@ -82,7 +108,7 @@ final class MockLiveActivityManager: LiveActivityManaging {
 @MainActor
 struct LiveActivityManagerTests {
 
-    @Test("start sonrasi currentActivity nil olmamali")
+    @Test("start sonrasi activity aktif olmali")
     func start_setsCurrentActivity() async {
         let manager = MockLiveActivityManager()
 
@@ -93,20 +119,10 @@ struct LiveActivityManagerTests {
         )
 
         #expect(manager.hasActiveActivity == true)
-        #expect(manager.currentAttributes != nil)
         #expect(manager.currentAttributes?.taskId == "task-1")
         #expect(manager.currentAttributes?.taskTitle == "Build feature X")
         #expect(manager.currentAttributes?.projectName == "RafRaf")
         #expect(manager.currentState != nil)
-
-        // Gercek LiveActivityManager'da da ayni davranis beklenir
-        let realManager = LiveActivityManager.shared
-        await realManager.startTask(
-            taskId: "task-real",
-            taskTitle: "Real task",
-            projectName: "TestProject"
-        )
-        // ActivityKit simulator'da calismayabilir, ama crash etmemeli
     }
 
     @Test("update sonrasi ContentState degismeli")
@@ -120,6 +136,7 @@ struct LiveActivityManagerTests {
         )
 
         await manager.updateTask(
+            taskId: "task-2",
             status: "implementing",
             currentStep: "Writing authentication service...",
             progress: 0.6,
@@ -129,17 +146,18 @@ struct LiveActivityManagerTests {
             estimatedSeconds: 120
         )
 
-        #expect(manager.currentState?.status == "implementing")
-        #expect(manager.currentState?.currentStep == "Writing authentication service...")
-        #expect(manager.currentState?.progress == 0.6)
-        #expect(manager.currentState?.completedSteps == 3)
-        #expect(manager.currentState?.totalSteps == 5)
-        #expect(manager.currentState?.phaseIcon == "hammer.fill")
-        #expect(manager.currentState?.estimatedSecondsRemaining == 120)
+        let state = manager.stateForTask("task-2")
+        #expect(state?.status == "implementing")
+        #expect(state?.currentStep == "Writing authentication service...")
+        #expect(state?.progress == 0.6)
+        #expect(state?.completedSteps == 3)
+        #expect(state?.totalSteps == 5)
+        #expect(state?.phaseIcon == "hammer.fill")
+        #expect(state?.estimatedSecondsRemaining == 120)
         #expect(manager.updateCallCount == 1)
     }
 
-    @Test("end sonrasi currentActivity nil olmali")
+    @Test("end sonrasi activity temizlenmeli")
     func end_clearsCurrentActivity() async {
         let manager = MockLiveActivityManager()
 
@@ -151,56 +169,62 @@ struct LiveActivityManagerTests {
 
         #expect(manager.hasActiveActivity == true)
 
-        await manager.endTask()
+        await manager.endTask(taskId: "task-3")
 
         #expect(manager.hasActiveActivity == false)
-        #expect(manager.currentAttributes == nil)
-        #expect(manager.currentState == nil)
+        #expect(manager.stateForTask("task-3") == nil)
         #expect(manager.endCallCount == 1)
     }
 
-    @Test("Yeni start oncesi mevcut activity durdurulmali")
-    func stopCurrent_beforeNewStart() async {
+    @Test("Birden fazla proje icin es zamanli Live Activity")
+    func multipleProjects_concurrentActivities() async {
         let manager = MockLiveActivityManager()
 
-        // Ilk activity baslat
-        await manager.startTask(
-            taskId: "task-old",
-            taskTitle: "Old task",
-            projectName: "ProjectA"
+        // 3 farkli projede 3 task baslat
+        await manager.startTask(taskId: "t-backend", taskTitle: "API endpoint", projectName: "Backend")
+        await manager.startTask(taskId: "t-ios", taskTitle: "UI fix", projectName: "iOS App")
+        await manager.startTask(taskId: "t-agent", taskTitle: "Runner update", projectName: "Agent")
+
+        #expect(manager.startCallCount == 3)
+        #expect(manager.hasActiveActivity == true)
+
+        // Her birini bagimsiz guncelle
+        await manager.updateTask(
+            taskId: "t-backend", status: "implementing", currentStep: "Yanıt yazılıyor...",
+            progress: 0.4, completedSteps: 0, totalSteps: 1, phaseIcon: "pencil.line", estimatedSeconds: nil
+        )
+        await manager.updateTask(
+            taskId: "t-ios", status: "planning", currentStep: "Düşünüyor...",
+            progress: 0.1, completedSteps: 0, totalSteps: 1, phaseIcon: "brain", estimatedSeconds: nil
         )
 
+        #expect(manager.stateForTask("t-backend")?.progress == 0.4)
+        #expect(manager.stateForTask("t-ios")?.progress == 0.1)
+        #expect(manager.stateForTask("t-agent")?.status == "started")
+
+        // Bir tanesini bitir, digerlerine dokunma
+        await manager.endTask(taskId: "t-backend")
+
+        #expect(manager.stateForTask("t-backend") == nil)
+        #expect(manager.stateForTask("t-ios") != nil)
+        #expect(manager.stateForTask("t-agent") != nil)
+        #expect(manager.hasActiveActivity == true)
+
+        // Hepsini bitir
+        await manager.endAllTasks()
+        #expect(manager.hasActiveActivity == false)
+    }
+
+    @Test("Ayni taskId ile tekrar start cagilmamali")
+    func duplicateStart_ignored() async {
+        let manager = MockLiveActivityManager()
+
+        await manager.startTask(taskId: "task-dup", taskTitle: "First", projectName: "P1")
+        await manager.startTask(taskId: "task-dup", taskTitle: "Second", projectName: "P2")
+
+        // Ikinci start ignore edilmeli
         #expect(manager.startCallCount == 1)
-        #expect(manager.currentAttributes?.taskId == "task-old")
-
-        // Yeni activity baslatmadan once mevcut durdurulmali
-        await manager.endTask()
-        await manager.startTask(
-            taskId: "task-new",
-            taskTitle: "New task",
-            projectName: "ProjectB"
-        )
-
-        #expect(manager.endCallCount == 1)
-        #expect(manager.startCallCount == 2)
-        #expect(manager.currentAttributes?.taskId == "task-new")
-        #expect(manager.currentAttributes?.projectName == "ProjectB")
-
-        // Gercek LiveActivityManager'da stopCurrent otomatik yapilmali
-        // Bu test mock ile logic'i dogruluyor, gercek manager'da
-        // startTask icinde otomatik end cagrisi beklenir
-        let realManager = LiveActivityManager.shared
-        await realManager.startTask(
-            taskId: "real-1",
-            taskTitle: "First",
-            projectName: "P1"
-        )
-        await realManager.startTask(
-            taskId: "real-2",
-            taskTitle: "Second",
-            projectName: "P2"
-        )
-        await realManager.endTask()
+        #expect(manager.currentAttributes?.taskTitle == "First")
     }
 
     @Test("pushType .token ile baslatma token update'lerini gozlemlemeli")
@@ -213,14 +237,9 @@ struct LiveActivityManagerTests {
             projectName: "RafRaf"
         )
 
-        // Push token gozlemleme simule et
         manager.simulatePushTokenObservation()
 
         #expect(manager.pushTokenObserved == true)
         #expect(manager.hasActiveActivity == true)
-
-        // Gercek manager'da Activity<TaskActivityAttributes>.pushToStartToken
-        // veya activity.pushTokenUpdates async sequence kullanilir
-        // Bu test sadece logic flow'u dogruluyor
     }
 }

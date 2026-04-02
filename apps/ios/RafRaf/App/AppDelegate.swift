@@ -71,7 +71,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, @unchecked Sendable {
             struct EmptyResponse: Decodable, Sendable {}
             do {
                 let _: EmptyResponse = try await networkClient.patch(
-                    path: "/api/v1/tasks/\(taskId)/live-activity",
+                    path: "/tasks/\(taskId)/live-activity",
                     body: TokenBody(pushToken: token)
                 )
             } catch {

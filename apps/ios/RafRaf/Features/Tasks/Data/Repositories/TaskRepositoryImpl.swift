@@ -14,7 +14,7 @@ final class TaskRepositoryImpl: TaskRepository, @unchecked Sendable {
     }
 
     func getActiveTasks() async throws -> [AITask] {
-        let data = try await networkClient.get(path: "/api/v1/tasks/active")
+        let data = try await networkClient.get(path: "/tasks/active")
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .iso8601
@@ -22,7 +22,7 @@ final class TaskRepositoryImpl: TaskRepository, @unchecked Sendable {
     }
 
     func getTaskDetail(taskId: UUID) async throws -> AITask {
-        let data = try await networkClient.get(path: "/api/v1/tasks/\(taskId.uuidString)")
+        let data = try await networkClient.get(path: "/tasks/\(taskId.uuidString)")
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .iso8601
@@ -45,7 +45,7 @@ final class TaskRepositoryImpl: TaskRepository, @unchecked Sendable {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let body = try encoder.encode(requestBody)
 
-        let data = try await networkClient.post(path: "/api/v1/tasks", body: body)
+        let data = try await networkClient.post(path: "/tasks", body: body)
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .iso8601
@@ -54,7 +54,7 @@ final class TaskRepositoryImpl: TaskRepository, @unchecked Sendable {
 
     func cancelTask(taskId: UUID) async throws {
         _ = try await networkClient.post(
-            path: "/api/v1/tasks/\(taskId.uuidString)/cancel",
+            path: "/tasks/\(taskId.uuidString)/cancel",
             body: nil
         )
     }
@@ -66,7 +66,7 @@ final class TaskRepositoryImpl: TaskRepository, @unchecked Sendable {
         let body = try encoder.encode(requestBody)
 
         _ = try await networkClient.patch(
-            path: "/api/v1/tasks/\(taskId.uuidString)/live-activity",
+            path: "/tasks/\(taskId.uuidString)/live-activity",
             body: body
         )
     }

@@ -9,6 +9,7 @@ struct TaskLiveActivity: Widget {
         ActivityConfiguration(for: TaskActivityAttributes.self) { context in
             // Lock Screen / Banner Live Activity view
             lockScreenView(context: context)
+                .activityBackgroundTint(.black.opacity(0.85))
         } dynamicIsland: { context in
             DynamicIsland {
                 // Expanded Dynamic Island
@@ -23,11 +24,12 @@ struct TaskLiveActivity: Widget {
                         Text("\(Int(context.state.progress * 100))%")
                             .font(.headline)
                             .monospacedDigit()
+                            .foregroundStyle(.white)
 
                         if let eta = context.state.estimatedSecondsRemaining, eta > 0 {
                             Text(formattedETA(seconds: eta))
                                 .font(.caption2)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.white.opacity(0.6))
                         }
                     }
                 }
@@ -36,6 +38,7 @@ struct TaskLiveActivity: Widget {
                     Text(context.attributes.taskTitle)
                         .font(.subheadline)
                         .fontWeight(.semibold)
+                        .foregroundStyle(.white)
                         .lineLimit(1)
                 }
 
@@ -47,7 +50,7 @@ struct TaskLiveActivity: Widget {
                         HStack {
                             Text(context.state.currentStep)
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.white.opacity(0.6))
                                 .lineLimit(1)
 
                             Spacer()
@@ -55,7 +58,7 @@ struct TaskLiveActivity: Widget {
                             Text("\(context.state.completedSteps)/\(context.state.totalSteps)")
                                 .font(.caption)
                                 .monospacedDigit()
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.white.opacity(0.6))
                         }
                     }
                     .padding(.horizontal, 4)
@@ -69,6 +72,7 @@ struct TaskLiveActivity: Widget {
                 Text("\(Int(context.state.progress * 100))%")
                     .font(.caption)
                     .monospacedDigit()
+                    .foregroundStyle(.white)
             } minimal: {
                 // Minimal: sadece faz ikonu
                 Image(systemName: context.state.phaseIcon)
@@ -90,11 +94,12 @@ struct TaskLiveActivity: Widget {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(context.attributes.projectName)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.6))
 
                     Text(context.attributes.taskTitle)
                         .font(.subheadline)
                         .fontWeight(.semibold)
+                        .foregroundStyle(.white)
                         .lineLimit(1)
                 }
 
@@ -104,6 +109,7 @@ struct TaskLiveActivity: Widget {
                     .font(.title3)
                     .fontWeight(.bold)
                     .monospacedDigit()
+                    .foregroundStyle(.white)
             }
 
             ProgressView(value: context.state.progress)
@@ -112,7 +118,7 @@ struct TaskLiveActivity: Widget {
             HStack {
                 Text(context.state.currentStep)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.white.opacity(0.6))
                     .lineLimit(1)
 
                 Spacer()
@@ -120,13 +126,13 @@ struct TaskLiveActivity: Widget {
                 if let eta = context.state.estimatedSecondsRemaining, eta > 0 {
                     Text(formattedETA(seconds: eta))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.6))
                 }
 
                 Text("\(context.state.completedSteps)/\(context.state.totalSteps)")
                     .font(.caption)
                     .monospacedDigit()
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.white.opacity(0.6))
             }
         }
         .padding()
@@ -137,8 +143,10 @@ struct TaskLiveActivity: Widget {
     /// Status'a gore renk secimi.
     private func statusColor(for status: String) -> Color {
         switch status {
-        case "implementing", "planning", "started":
+        case "planning", "started":
             return .blue
+        case "implementing":
+            return .cyan
         case "testing":
             return .orange
         case "reviewing":

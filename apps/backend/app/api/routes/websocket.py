@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import time
 import uuid as _uuid_mod
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -110,7 +111,7 @@ async def websocket_endpoint(
     try:
         user_id = verify_access_token(token)
     except SecurityError:
-        await logger.awarning("websocket_auth_failed", reason="invalid_token")
+        logger.warning("websocket_auth_failed", reason="invalid_token")
         await websocket.close(code=4008, reason="Invalid token")
         return
 
@@ -158,14 +159,14 @@ async def websocket_endpoint(
                 session_id=session_id,
             ),
         )
-        await logger.ainfo(
+        logger.info(
             "websocket_reattached_to_stream",
             connection_id=connection_id,
             user_id=user_id,
             user_project_key=key,
         )
 
-    await logger.ainfo(
+    logger.info(
         "websocket_session_started",
         connection_id=connection_id,
         user_id=user_id,
@@ -178,13 +179,13 @@ async def websocket_endpoint(
             raw_data: dict[str, object] = await websocket.receive_json()
             await _handle_message(raw_data, connection_id, session_id, user_id)
     except WebSocketDisconnect:
-        await logger.ainfo(
+        logger.info(
             "websocket_client_disconnected",
             connection_id=connection_id,
             user_id=user_id,
         )
     except Exception:
-        await logger.aexception(
+        logger.exception(
             "websocket_unexpected_error",
             connection_id=connection_id,
             user_id=user_id,
@@ -222,7 +223,7 @@ async def _handle_message(
         await manager.send_json(connection_id, error_msg)
         return
 
-    await logger.ainfo(
+    logger.info(
         "websocket_message_received",
         connection_id=connection_id,
         user_id=user_id,
@@ -257,7 +258,7 @@ async def _handle_cancel_stream(connection_id: str, session_id: str) -> None:
     task = _active_streams.get(connection_id)
     if task is not None and not task.done():
         task.cancel()
-        await logger.ainfo("stream_cancelled_by_user", connection_id=connection_id)
+        logger.info("stream_cancelled_by_user", connection_id=connection_id)
     # Send typing.end so iOS clears the indicator, then cancelled ack
     with contextlib.suppress(Exception):
         await manager.send_json(
@@ -277,7 +278,7 @@ async def _handle_cancel_stream(connection_id: str, session_id: str) -> None:
 
 async def _handle_pong(connection_id: str) -> None:
     """Process a pong message (heartbeat response)."""
-    await logger.adebug("heartbeat_pong_received", connection_id=connection_id)
+    logger.debug("heartbeat_pong_received", connection_id=connection_id)
 
 
 async def _handle_client_ping(
@@ -337,7 +338,7 @@ async def _handle_text(
     project_id = _extract_project_id(raw_data)
     agent_id = _extract_agent_id(raw_data)
 
-    await logger.ainfo(
+    logger.info(
         "text_message_received",
         connection_id=connection_id,
         user_id=user_id,
@@ -375,7 +376,7 @@ async def _handle_voice(
     project_id = _extract_project_id(raw_data)
     agent_id = _extract_agent_id(raw_data)
 
-    await logger.ainfo(
+    logger.info(
         "voice_message_received",
         connection_id=connection_id,
         user_id=user_id,
@@ -450,7 +451,7 @@ async def _task_orch_update_progress(
                 orch._tasks[task.id] = task
                 await orch.update_progress(task_id=task_id, step=step, pct=pct, detail=detail)
     except Exception:
-        await logger.awarning("task_orch_update_progress_failed", task_id=str(task_id))
+        logger.warning("task_orch_update_progress_failed", task_id=str(task_id))
 
 
 async def _task_orch_complete(task_id: _uuid_mod.UUID, summary: str) -> None:
@@ -466,7 +467,7 @@ async def _task_orch_complete(task_id: _uuid_mod.UUID, summary: str) -> None:
                 orch._tasks[task.id] = task
                 await orch.complete_task(task_id=task_id, summary=summary)
     except Exception:
-        await logger.awarning("task_orch_complete_failed", task_id=str(task_id))
+        logger.warning("task_orch_complete_failed", task_id=str(task_id))
 
 
 async def _task_orch_fail(task_id: _uuid_mod.UUID, error: str) -> None:
@@ -482,7 +483,7 @@ async def _task_orch_fail(task_id: _uuid_mod.UUID, error: str) -> None:
                 orch._tasks[task.id] = task
                 await orch.fail_task(task_id=task_id, error=error)
     except Exception:
-        await logger.awarning("task_orch_fail_failed", task_id=str(task_id))
+        logger.warning("task_orch_fail_failed", task_id=str(task_id))
 
 
 async def _process_with_orchestrator(
@@ -519,6 +520,16 @@ async def _process_with_orchestrator(
 
     tts_tasks: list[asyncio.Task[None]] = []
     chunk_index = 0
+
+    # Stream-based progress tracking for Live Activity
+    _stream_char_count: list[int] = [0]
+    _stream_first_token_sent: list[bool] = [False]
+    _stream_first_writing_sent: list[bool] = [False]
+    _stream_last_progress_chars: list[int] = [0]
+    _stream_last_progress_time: list[float] = [0.0]
+    _stream_has_tool_progress: list[bool] = [False]
+    _STREAM_PROGRESS_CHAR_INTERVAL = 150  # send progress every N chars
+    _STREAM_PROGRESS_MIN_INTERVAL_SEC = 1.0  # min seconds between updates
 
     # User-scoped key for reconnect recovery
     user_project_key = f"{user_id}:{project_id or 'global'}"
@@ -568,6 +579,55 @@ async def _process_with_orchestrator(
         with contextlib.suppress(Exception):
             await manager.send_json(_current_conn(), stream_msg)
 
+        # --- Stream-based Live Activity progress ---
+        _tid = _task_id_ref[0]
+        if _tid is not None and not _stream_has_tool_progress[0]:
+            _stream_char_count[0] += len(delta)
+
+            now = time.monotonic()
+            if not _stream_first_token_sent[0]:
+                # First token arrived → "Analyzing"
+                _stream_first_token_sent[0] = True
+                _stream_last_progress_time[0] = now
+                await _task_orch_update_progress(
+                    task_id=_tid,
+                    step="analyzing",
+                    pct=15,
+                    detail="İstek analiz ediliyor...",
+                )
+            elif (
+                not _stream_first_writing_sent[0]
+                and _stream_char_count[0] >= 80
+            ):
+                # First writing update — no time throttle, just 80 chars
+                _stream_first_writing_sent[0] = True
+                _stream_last_progress_chars[0] = _stream_char_count[0]
+                _stream_last_progress_time[0] = now
+                await _task_orch_update_progress(
+                    task_id=_tid,
+                    step="writing",
+                    pct=25,
+                    detail="Yanıt yazılıyor...",
+                )
+            elif (
+                _stream_first_writing_sent[0]
+                and _stream_char_count[0] - _stream_last_progress_chars[0]
+                >= _STREAM_PROGRESS_CHAR_INTERVAL
+                and now - _stream_last_progress_time[0]
+                >= _STREAM_PROGRESS_MIN_INTERVAL_SEC
+            ):
+                # Periodic progress: 30% → 80% based on char count (throttled)
+                _stream_last_progress_chars[0] = _stream_char_count[0]
+                _stream_last_progress_time[0] = now
+                # Smooth progress: asymptotic approach to 80%
+                pct = min(80, 30 + int(50 * (1 - 1 / (1 + _stream_char_count[0] / 600))))
+                await _task_orch_update_progress(
+                    task_id=_tid,
+                    step="writing",
+                    pct=pct,
+                    detail="Yanıt yazılıyor...",
+                )
+
         # TTS: accumulate sentences and send audio chunks
         if tts_service is not None and sentence_acc is not None:
             sentences = sentence_acc.add(delta)
@@ -589,6 +649,16 @@ async def _process_with_orchestrator(
     async def _on_stream_end(_full_text: str) -> None:
         """Finalize streaming: flush TTS buffer, send stream end."""
         nonlocal chunk_index
+
+        # --- Stream-based Live Activity: finalizing phase ---
+        _tid = _task_id_ref[0]
+        if _tid is not None:
+            await _task_orch_update_progress(
+                task_id=_tid,
+                step="finalizing",
+                pct=90,
+                detail="Tamamlanıyor...",
+            )
 
         if tts_service is not None and sentence_acc is not None:
             remaining = sentence_acc.flush()
@@ -657,6 +727,7 @@ async def _process_with_orchestrator(
         # Update task orchestrator progress (non-blocking)
         _tid = _task_id_ref[0]
         if _tid is not None:
+            _stream_has_tool_progress[0] = True  # disable stream-based progress
             step_name = event.current_tool or event.phase
             await _task_orch_update_progress(
                 task_id=_tid,
@@ -709,17 +780,26 @@ async def _process_with_orchestrator(
                     task_type="chat",
                 )
                 task_obj.title = message[:100]
+                task_obj.total_steps = 1  # chat = single step
                 await _task_db.commit()
                 _task_id_ref[0] = task_obj.id
 
                 await task_orch.start_task(task_obj.id)
-                await logger.ainfo(
+
+                # Immediately send "thinking" phase so user sees activity
+                await task_orch.update_progress(
+                    task_id=task_obj.id,
+                    step="thinking",
+                    pct=5,
+                    detail="Düşünüyor...",
+                )
+                logger.info(
                     "task_created_for_chat",
                     task_id=str(task_obj.id),
                     user_id=user_id,
                 )
         except Exception:
-            await logger.awarning(
+            logger.warning(
                 "task_creation_failed_continuing",
                 user_id=user_id,
                 session_id=session_id,
@@ -739,7 +819,7 @@ async def _process_with_orchestrator(
                     )
                     await _db.commit()
             except Exception:
-                await logger.awarning("user_message_save_failed", session_id=session_id)
+                logger.warning("user_message_save_failed", session_id=session_id)
 
             orchestrator = OrchestratorService()
 
@@ -799,7 +879,7 @@ async def _process_with_orchestrator(
                     )
                     await _db.commit()
             except Exception:
-                await logger.awarning("assistant_message_save_failed", session_id=session_id)
+                logger.warning("assistant_message_save_failed", session_id=session_id)
 
             # CODE_DIFF: proje degisikliklerini gonder
             if project_id and response_text:
@@ -823,7 +903,7 @@ async def _process_with_orchestrator(
                             with contextlib.suppress(Exception):
                                 await manager.send_json(_current_conn(), diff_msg)
                 except Exception:
-                    await logger.awarning("code_diff_send_failed", session_id=session_id)
+                    logger.warning("code_diff_send_failed", session_id=session_id)
 
             # Save conversation turn to mem0 (fire-and-forget, non-blocking)
             if response_text:
@@ -835,7 +915,7 @@ async def _process_with_orchestrator(
                 ))
 
         except Exception as _exc:
-            await logger.aexception(
+            logger.exception(
                 "run_processing_failed",
                 connection_id=connection_id,
                 session_id=session_id,
@@ -877,7 +957,7 @@ async def _process_with_orchestrator(
         try:
             await manager.send_json(_current_conn(), end_msg)
         except Exception:
-            await logger.awarning(
+            logger.warning(
                 "chat_stream_end_send_failed",
                 connection_id=connection_id,
             )
@@ -902,7 +982,7 @@ async def _process_with_orchestrator(
                         )
                         await manager.send_json(_current_conn(), sugg_msg)
                 except Exception:
-                    await logger.awarning("suggestions_send_failed", session_id=session_id)
+                    logger.warning("suggestions_send_failed", session_id=session_id)
 
             asyncio.create_task(_send_suggestions())
 
@@ -920,7 +1000,7 @@ async def _process_with_orchestrator(
     try:
         await task
     except asyncio.CancelledError:
-        await logger.ainfo(
+        logger.info(
             "streaming_interrupted",
             connection_id=connection_id,
             session_id=session_id,
@@ -929,7 +1009,7 @@ async def _process_with_orchestrator(
             if not tts_task.done():
                 tts_task.cancel()
     except Exception:
-        await logger.aexception(
+        logger.exception(
             "process_orchestrator_task_failed",
             connection_id=connection_id,
             session_id=session_id,
@@ -958,11 +1038,11 @@ async def _save_turn_to_memory(
                 {"role": "assistant", "content": assistant_response},
             ],
         )
-        await logger.adebug("turn_memory_saved", user_id=user_id, session_id=session_id)
+        logger.debug("turn_memory_saved", user_id=user_id, session_id=session_id)
     except MemoryServiceError:
-        await logger.awarning("turn_memory_save_failed", user_id=user_id)
+        logger.warning("turn_memory_save_failed", user_id=user_id)
     except Exception:
-        await logger.awarning("turn_memory_save_unexpected", user_id=user_id)
+        logger.warning("turn_memory_save_unexpected", user_id=user_id)
 
 
 async def _send_tts_chunk(
@@ -996,7 +1076,7 @@ async def _send_tts_chunk(
         )
         await manager.send_json(connection_id, chunk_msg)
     except Exception:
-        await logger.aexception(
+        logger.exception(
             "tts_chunk_failed",
             sentence=sentence[:50],
             chunk_index=chunk_index,
@@ -1008,7 +1088,7 @@ async def _handle_voice_interrupt(connection_id: str) -> None:
     task = _active_streams.get(connection_id)
     if task and not task.done():
         task.cancel()
-        await logger.ainfo("voice_stream_interrupted", connection_id=connection_id)
+        logger.info("voice_stream_interrupted", connection_id=connection_id)
 
 
 async def _handle_approval_response(
@@ -1069,7 +1149,7 @@ async def _handle_approval_response(
         note_answer = note_str or decision_str
         bridge_submitted = bridge.submit_answer(approval_id, note_answer)
         if bridge_submitted:
-            await logger.ainfo(
+            logger.info(
                 "question_bridge_answer_submitted",
                 approval_id=approval_id,
                 answer=note_answer[:100] if note_answer else "",
@@ -1082,7 +1162,7 @@ async def _handle_approval_response(
             )
             await manager.send_json(connection_id, error_msg)
 
-    await logger.ainfo(
+    logger.info(
         "approval_response_received",
         connection_id=connection_id,
         approval_id=approval_id,

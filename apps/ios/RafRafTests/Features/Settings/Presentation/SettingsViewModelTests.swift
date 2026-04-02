@@ -30,18 +30,18 @@ struct SettingsViewModelTests {
 
     // MARK: - Initial State
 
-    @Test("SettingsViewModel baslangic displayName dogru olmali")
+    @Test("SettingsViewModel baslangic displayName bos olmali (profil async yuklenir)")
     @MainActor
     func initialDisplayName() {
         let (vm, _) = makeSUT()
-        #expect(vm.displayName == "RafRaf User")
+        #expect(vm.displayName == "")
     }
 
-    @Test("SettingsViewModel baslangic email dogru olmali")
+    @Test("SettingsViewModel baslangic email bos olmali (profil async yuklenir)")
     @MainActor
     func initialEmail() {
         let (vm, _) = makeSUT()
-        #expect(vm.email == "user@rafraf.app")
+        #expect(vm.email == "")
     }
 
     @Test("SettingsViewModel appVersion bos olmamali")

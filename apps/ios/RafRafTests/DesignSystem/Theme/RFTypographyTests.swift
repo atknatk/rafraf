@@ -16,13 +16,13 @@ struct RFTypographyTests {
     @Test("RFTypography title mevcut olmali")
     func titleExists() {
         let font = RFTypography.title
-        #expect(font == Font.title2.weight(.semibold))
+        #expect(font == Font.title2.weight(.bold))
     }
 
     @Test("RFTypography subtitle mevcut olmali")
     func subtitleExists() {
         let font = RFTypography.subtitle
-        #expect(font == Font.title3.weight(.medium))
+        #expect(font == Font.title3.weight(.semibold))
     }
 
     @Test("RFTypography body mevcut olmali")

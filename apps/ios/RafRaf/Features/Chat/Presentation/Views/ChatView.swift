@@ -24,6 +24,12 @@ struct ChatView: View {
     @State private var showGitHubBanner = false
     @State private var latestAgentStatusChange: AgentStatusChangePayload?
     @State private var latestTaskStatusContent: TaskStatusContent?
+
+    /// Composite trigger that fires on any meaningful task status change (pct, step, detail).
+    private var taskStatusTrigger: String {
+        guard let c = latestTaskStatusContent else { return "" }
+        return "\(c.progressPct)-\(c.currentStep ?? "")-\(c.detail ?? "")-\(c.status)"
+    }
     @State private var isAtBottom = true
     @State private var unreadCount = 0
     private let webSocketManager = Container.shared.webSocketConnectionManager()
@@ -147,6 +153,8 @@ struct ChatView: View {
                 await loadProjects()
                 // History REST çağrısı, WebSocket bağlantısına bağlı değil
                 await viewModel.loadHistory()
+                // Aktif task'lar varsa Live Activity baslat
+                await loadActiveTasks()
             }
             .onChange(of: webSocketManager.isConnected) { _, isConnected in
                 if isConnected {
@@ -158,6 +166,8 @@ struct ChatView: View {
                         Task { await sessionManager.fetchMissedMessagesForAll() }
                     }
                     Task { await loadProjects() }
+                    // Aktif task'lari kontrol et (reconnect recovery)
+                    Task { await loadActiveTasks() }
                     // Kuyruklanmis mesajlari gonder
                     Task { await viewModel.flushQueue() }
                 } else {
@@ -188,29 +198,27 @@ struct ChatView: View {
                     }
                 }
             }
-            .onChange(of: latestTaskStatusContent?.taskId) {
-                // Yeni task geldiginde Live Activity baslat
-                guard let content = latestTaskStatusContent else { return }
-                let projectName = sessionManager.activeProjectName ?? "RafRaf"
-                Task {
-                    await LiveActivityManager.shared.startTask(
-                        taskId: content.taskId,
-                        taskTitle: content.detail ?? content.currentStep ?? "AI Task",
-                        projectName: projectName
-                    )
-                }
-            }
-            .onChange(of: latestTaskStatusContent?.progressPct) {
-                // Task progress guncellemesi
+            .onChange(of: taskStatusTrigger) {
                 guard let content = latestTaskStatusContent else { return }
                 let isTerminal = ["completed", "failed", "cancelled"].contains(content.status)
+
                 if isTerminal {
-                    Task { await LiveActivityManager.shared.endTask() }
+                    Task { await LiveActivityManager.shared.endTask(taskId: content.taskId) }
                 } else {
+                    let projectName = sessionManager.activeProjectName ?? "RafRaf"
+                    let displayStep = content.detail ?? content.currentStep ?? content.status
+
                     Task {
+                        // startTask icerde duplicate kontrolu yapar — her update'te guvenle cagrilabilir
+                        await LiveActivityManager.shared.startTask(
+                            taskId: content.taskId,
+                            taskTitle: content.detail ?? content.currentStep ?? "AI Task",
+                            projectName: projectName
+                        )
                         await LiveActivityManager.shared.updateTask(
+                            taskId: content.taskId,
                             status: content.status,
-                            currentStep: content.currentStep ?? content.status,
+                            currentStep: displayStep,
                             progress: Double(content.progressPct) / 100.0,
                             completedSteps: content.completedSteps,
                             totalSteps: content.totalSteps,
@@ -893,11 +901,53 @@ struct ChatView: View {
 
     private func stepIcon(for step: String?) -> String {
         switch step {
+        // Pipeline steps
         case "architect": return "doc.text.magnifyingglass"
         case "developer": return "hammer.fill"
         case "tester": return "checkmark.shield.fill"
         case "reviewer": return "eye.fill"
+        // Stream-based granular phases
+        case "thinking": return "brain"
+        case "analyzing": return "magnifyingglass"
+        case "writing": return "pencil.line"
+        case "tool_calling": return "hammer.fill"
+        case "finalizing": return "checkmark.diamond"
         default: return "circle"
+        }
+    }
+
+    /// App launch / reconnect'te aktif task'lari kontrol et ve Live Activity baslat/temizle.
+    private func loadActiveTasks() async {
+        do {
+            let tasks: [AITask] = try await Container.shared.networkClient()
+                .get(path: "/tasks/active")
+            let runningTasks = tasks.filter { $0.status.isRunning }
+            let projectName = sessionManager.activeProjectName ?? "RafRaf"
+
+            if runningTasks.isEmpty {
+                // Backend'de aktif task yok — asili kalan Live Activity'leri temizle
+                await LiveActivityManager.shared.endAllTasks()
+            } else {
+                for task in runningTasks {
+                    await LiveActivityManager.shared.startTask(
+                        taskId: task.id.uuidString,
+                        taskTitle: task.title.isEmpty ? task.prompt.prefix(80).description : task.title,
+                        projectName: task.projectName ?? projectName
+                    )
+                    await LiveActivityManager.shared.updateTask(
+                        taskId: task.id.uuidString,
+                        status: task.status.rawValue,
+                        currentStep: task.currentStep ?? task.status.displayName,
+                        progress: task.progressFraction,
+                        completedSteps: task.completedSteps,
+                        totalSteps: task.totalSteps,
+                        phaseIcon: stepIcon(for: task.currentStep),
+                        estimatedSeconds: nil
+                    )
+                }
+            }
+        } catch {
+            // Non-blocking — active tasks check fail etse de chat calisir
         }
     }
 
@@ -992,16 +1042,19 @@ struct ChatView: View {
         let progressVm = progressViewModel
 
         // Text response handler (non-streaming fallback)
-        let handler = ChatIncomingTextHandler { messageId, text in
+        let handler = ChatIncomingTextHandler { messageId, text, projectId, agentId in
             Task { @MainActor in
-                sessionManager.activeViewModel.handleIncomingMessage(ChatMessage(
+                let vm = sessionManager.viewModelForMessage(projectId: projectId, agentId: agentId)
+                vm.handleIncomingMessage(ChatMessage(
                     id: messageId,
                     content: text,
                     sender: .assistant,
                     type: .text
                 ))
-                // Otomatik sesli okuma (ayar aciksa)
-                await voiceVm.autoPlayIfEnabled(text: text)
+                // Otomatik sesli okuma — sadece aktif proje icin
+                if projectId == sessionManager.activeProjectId || projectId == nil {
+                    await voiceVm.autoPlayIfEnabled(text: text)
+                }
             }
         }
         await webSocketManager.registerHandler(
@@ -1010,9 +1063,10 @@ struct ChatView: View {
         )
 
         // Streaming text delta handler
-        let streamHandler = ChatStreamDeltaHandler { messageId, delta in
+        let streamHandler = ChatStreamDeltaHandler { messageId, delta, projectId, agentId in
             Task { @MainActor in
-                sessionManager.activeViewModel.handleStreamDelta(messageId: messageId, delta: delta)
+                let vm = sessionManager.viewModelForMessage(projectId: projectId, agentId: agentId)
+                vm.handleStreamDelta(messageId: messageId, delta: delta)
             }
         }
         await webSocketManager.registerHandler(
@@ -1021,16 +1075,19 @@ struct ChatView: View {
         )
 
         // Stream end handler
-        let streamEndHandler = ChatStreamEndHandler { messageId, fullText, tokensUsed, modelUsed in
+        let streamEndHandler = ChatStreamEndHandler { messageId, fullText, tokensUsed, modelUsed, projectId, agentId in
             Task { @MainActor in
-                sessionManager.activeViewModel.handleStreamEnd(
+                let vm = sessionManager.viewModelForMessage(projectId: projectId, agentId: agentId)
+                vm.handleStreamEnd(
                     messageId: messageId,
                     fullText: fullText,
                     type: .text,
                     tokensUsed: tokensUsed,
                     modelUsed: modelUsed
                 )
-                progressVm.markCompleted()
+                if projectId == sessionManager.activeProjectId || projectId == nil {
+                    progressVm.markCompleted()
+                }
             }
         }
         await webSocketManager.registerHandler(
@@ -1039,7 +1096,7 @@ struct ChatView: View {
         )
 
         // Code diff handler
-        let codeDiffHandler = ChatCodeDiffHandler { content in
+        let codeDiffHandler = ChatCodeDiffHandler { content, projectId, agentId in
             Task { @MainActor in
                 let dto = CodeDiffPayloadDTO(
                     projectPath: content.projectPath,
@@ -1064,7 +1121,8 @@ struct ChatView: View {
                         )
                     }
                 )
-                sessionManager.activeViewModel.handleCodeDiff(dto)
+                let vm = sessionManager.viewModelForMessage(projectId: projectId, agentId: agentId)
+                vm.handleCodeDiff(dto)
             }
         }
         await webSocketManager.registerHandler(
@@ -1164,7 +1222,7 @@ struct ChatView: View {
             Task { @MainActor in
                 sessionManager.activeViewModel.handleTypingIndicator(isTyping: false)
                 progressVm.markCompleted()
-                LiveActivityManager.shared.end()
+                await LiveActivityManager.shared.endAllTasks()
             }
         }
         await webSocketManager.registerHandler(
@@ -1241,9 +1299,9 @@ struct ChatView: View {
 
 /// Backend'den gelen text mesajlarini isler.
 private final class ChatIncomingTextHandler: WebSocketMessageHandler {
-    private let onTextReceived: @Sendable (String, String) -> Void
+    private let onTextReceived: @Sendable (String, String, String?, String?) -> Void
 
-    init(onTextReceived: @escaping @Sendable (String, String) -> Void) {
+    init(onTextReceived: @escaping @Sendable (String, String, String?, String?) -> Void) {
         self.onTextReceived = onTextReceived
     }
 
@@ -1257,29 +1315,29 @@ private final class ChatIncomingTextHandler: WebSocketMessageHandler {
         default:
             return
         }
-        onTextReceived(message.id, text)
+        onTextReceived(message.id, text, message.metadata?.projectId, message.metadata?.agentId)
     }
 }
 
 /// Streaming text delta mesajlarini isler.
 private final class ChatStreamDeltaHandler: WebSocketMessageHandler {
-    private let onDeltaReceived: @Sendable (String, String) -> Void
+    private let onDeltaReceived: @Sendable (String, String, String?, String?) -> Void
 
-    init(onDeltaReceived: @escaping @Sendable (String, String) -> Void) {
+    init(onDeltaReceived: @escaping @Sendable (String, String, String?, String?) -> Void) {
         self.onDeltaReceived = onDeltaReceived
     }
 
     func handle(_ message: WebSocketBaseMessage) async {
         guard case .chatStream(let stream) = message.content else { return }
-        onDeltaReceived(stream.messageId, stream.delta)
+        onDeltaReceived(stream.messageId, stream.delta, message.metadata?.projectId, message.metadata?.agentId)
     }
 }
 
 /// Stream tamamlanma mesajlarini isler.
 private final class ChatStreamEndHandler: WebSocketMessageHandler {
-    private let onStreamEnd: @Sendable (String, String, Int?, String?) -> Void
+    private let onStreamEnd: @Sendable (String, String, Int?, String?, String?, String?) -> Void
 
-    init(onStreamEnd: @escaping @Sendable (String, String, Int?, String?) -> Void) {
+    init(onStreamEnd: @escaping @Sendable (String, String, Int?, String?, String?, String?) -> Void) {
         self.onStreamEnd = onStreamEnd
     }
 
@@ -1293,21 +1351,21 @@ private final class ChatStreamEndHandler: WebSocketMessageHandler {
             totalTokens = nil
         }
         let model: String? = content.modelUsed.isEmpty ? nil : content.modelUsed
-        onStreamEnd(content.messageId, content.fullText, totalTokens, model)
+        onStreamEnd(content.messageId, content.fullText, totalTokens, model, message.metadata?.projectId, message.metadata?.agentId)
     }
 }
 
 /// Code diff mesajlarini isler.
 private final class ChatCodeDiffHandler: WebSocketMessageHandler {
-    private let onDiffReceived: @Sendable (CodeDiffContent) -> Void
+    private let onDiffReceived: @Sendable (CodeDiffContent, String?, String?) -> Void
 
-    init(onDiffReceived: @escaping @Sendable (CodeDiffContent) -> Void) {
+    init(onDiffReceived: @escaping @Sendable (CodeDiffContent, String?, String?) -> Void) {
         self.onDiffReceived = onDiffReceived
     }
 
     func handle(_ message: WebSocketBaseMessage) async {
         guard case .codeDiff(let content) = message.content else { return }
-        onDiffReceived(content)
+        onDiffReceived(content, message.metadata?.projectId, message.metadata?.agentId)
     }
 }
 

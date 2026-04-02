@@ -102,7 +102,7 @@ final class NotificationSettingsViewModel {
         isPulseLoading = true
         do {
             let report: PulseReportDTO = try await networkClient.get(
-                path: "/api/v1/pulse/latest"
+                path: "/pulse/latest"
             )
             pulseReport = report
             logger.info("Pulse raporu yuklendi: \(report.id)")

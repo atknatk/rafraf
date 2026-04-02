@@ -18,7 +18,7 @@ struct TaskRepositoryImplTests {
 
         #expect(tasks.isEmpty)
         #expect(mockNetwork.getCallCount == 1)
-        #expect(mockNetwork.lastGetPath == "/api/v1/tasks/active")
+        #expect(mockNetwork.lastGetPath == "/tasks/active")
     }
 
     @Test("getActiveTasks JSON response'u [AITask] olarak decode etmeli")
@@ -94,7 +94,7 @@ struct TaskRepositoryImplTests {
         #expect(task.title == "Fix bug")
         #expect(task.status == .testing)
         #expect(task.currentStep == "tester")
-        #expect(mockNetwork.lastGetPath == "/api/v1/tasks/\(taskId.uuidString)")
+        #expect(mockNetwork.lastGetPath == "/tasks/\(taskId.uuidString)")
     }
 
     // MARK: - POST /api/v1/tasks
@@ -137,7 +137,7 @@ struct TaskRepositoryImplTests {
         #expect(task.id == responseTaskId)
         #expect(task.status == .queued)
         #expect(mockNetwork.postCallCount == 1)
-        #expect(mockNetwork.lastPostPath == "/api/v1/tasks")
+        #expect(mockNetwork.lastPostPath == "/tasks")
 
         // Body dogrulama: title, prompt, task_type, project_id olmali
         if let body = mockNetwork.lastPostBody,
@@ -164,7 +164,7 @@ struct TaskRepositoryImplTests {
         try await repo.cancelTask(taskId: taskId)
 
         #expect(mockNetwork.postCallCount == 1)
-        #expect(mockNetwork.lastPostPath == "/api/v1/tasks/\(taskId.uuidString)/cancel")
+        #expect(mockNetwork.lastPostPath == "/tasks/\(taskId.uuidString)/cancel")
     }
 
     // MARK: - PATCH /api/v1/tasks/{id}/live-activity
@@ -181,7 +181,7 @@ struct TaskRepositoryImplTests {
         try await repo.registerLiveActivityToken(taskId: taskId, pushToken: token)
 
         #expect(mockNetwork.patchCallCount == 1)
-        #expect(mockNetwork.lastPatchPath == "/api/v1/tasks/\(taskId.uuidString)/live-activity")
+        #expect(mockNetwork.lastPatchPath == "/tasks/\(taskId.uuidString)/live-activity")
 
         if let body = mockNetwork.lastPatchBody,
            let dict = try? JSONSerialization.jsonObject(with: body) as? [String: Any] {

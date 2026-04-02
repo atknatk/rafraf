@@ -289,8 +289,9 @@ final class ChatViewModel {
         currentActivity = nil
     }
 
-    /// Gelen tam mesaji mesaj listesine ekler.
+    /// Gelen tam mesaji mesaj listesine ekler (ID bazli dedup).
     func handleIncomingMessage(_ message: ChatMessage) {
+        guard !messages.contains(where: { $0.id == message.id }) else { return }
         messages.append(message)
         updateLastMessageTimestamp()
         isTyping = false

@@ -79,12 +79,13 @@ struct ChatMessageModelTests {
     @Test("MessageType tum varyantlari mevcut olmali")
     func messageTypeVariants() {
         let types = MessageType.allCases
-        #expect(types.count == 5)
+        #expect(types.count == 6)
         #expect(types.contains(.text))
         #expect(types.contains(.code))
         #expect(types.contains(.image))
         #expect(types.contains(.file))
         #expect(types.contains(.system))
+        #expect(types.contains(.codeDiff))
     }
 
     @Test("ChatMessage Equatable uyumlu olmali")

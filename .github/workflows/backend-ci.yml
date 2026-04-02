@@ -26,6 +26,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-backend-${{ hashFiles('apps/backend/pyproject.toml') }}
+          restore-keys: pip-backend-
+
       - name: Setup venv and install dependencies
         run: |
           python3 -m venv .venv
@@ -49,6 +56,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-backend-${{ hashFiles('apps/backend/pyproject.toml') }}
+          restore-keys: pip-backend-
+
       - name: Setup venv and install dependencies
         run: |
           python3 -m venv .venv
@@ -67,6 +81,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-backend-${{ hashFiles('apps/backend/pyproject.toml') }}
+          restore-keys: pip-backend-
 
       - name: Setup venv and install dependencies
         run: |

@@ -71,6 +71,15 @@ final class ChatSessionManager {
         activeAgentId = agentId
     }
 
+    /// Mesajin ait oldugu ViewModel'i metadata'dan bulur.
+    /// projectId yoksa aktif ViewModel'e yonlendirir.
+    func viewModelForMessage(projectId: String?, agentId: String?) -> ChatViewModel {
+        if let projectId {
+            return viewModel(for: projectId, agentId: agentId)
+        }
+        return activeViewModel
+    }
+
     /// Tum aktif viewmodel'ler icin kacirilmis mesajlari getirir.
     /// WebSocket reconnect veya app foreground'a donunce cagirilir.
     func fetchMissedMessagesForAll() async {
