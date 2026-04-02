@@ -172,18 +172,9 @@ enum WebSocketContent: Codable, Sendable {
             return
         }
 
-        do {
-            let taskStatusContent = try container.decode(TaskStatusContent.self)
+        if let taskStatusContent = try? container.decode(TaskStatusContent.self) {
             self = .taskStatus(taskStatusContent)
             return
-        } catch {
-            // Log decode error only if this JSON might be a task_status
-            // (checking for task_id key as heuristic)
-            #if DEBUG
-            if String(describing: error).contains("taskId") || String(describing: error).contains("progressPct") {
-                print("[WebSocketContent] TaskStatusContent decode error: \(error)")
-            }
-            #endif
         }
 
         // Backend text response: {"text": "...", "model_used": "...", ...}

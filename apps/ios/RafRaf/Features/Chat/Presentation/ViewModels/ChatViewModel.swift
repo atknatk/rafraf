@@ -100,6 +100,9 @@ final class ChatViewModel {
         let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
+        // isSending'i messageText temizlemeden ONCE set et
+        // Aksi halde actionButton send→mic gecisi ayni tap'i yakalar
+        isSending = true
         messageText = ""
 
         // Baglanti yoksa kuyruğa al ve bilgi ver
@@ -108,10 +111,10 @@ final class ChatViewModel {
             errorMessage = String(localized: "chat.queue.queued")
             HapticManager.error()
             logger.info("Cevrimdisi: mesaj kuyruga alindi")
+            isSending = false
             return
         }
 
-        isSending = true
         errorMessage = nil
 
         do {

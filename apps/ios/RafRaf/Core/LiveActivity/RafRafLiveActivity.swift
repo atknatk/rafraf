@@ -144,10 +144,8 @@ final class LiveActivityManager: ObservableObject, LiveActivityManaging {
     /// Yeni bir task Live Activity baslat (Dynamic Island + Lock Screen).
     /// Mevcut task activity varsa once durdurur.
     func startTask(taskId: String, taskTitle: String, projectName: String) async {
-        let enabled = ActivityAuthorizationInfo().areActivitiesEnabled
-        logger.warning("startTask called: taskId=\(taskId), areActivitiesEnabled=\(enabled)")
-        guard enabled else {
-            logger.error("Live activities NOT enabled — check Settings > RafRaf > Live Activities")
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            logger.info("Live activities not enabled on this device")
             return
         }
 
@@ -175,10 +173,11 @@ final class LiveActivityManager: ObservableObject, LiveActivityManaging {
         )
 
         do {
+            // pushType: nil for local-only start (push updates added later)
             let activity = try Activity<TaskActivityAttributes>.request(
                 attributes: attributes,
                 content: .init(state: initialState, staleDate: nil),
-                pushType: .token
+                pushType: nil
             )
             currentTaskActivityId = activity.id
             logger.info("Task live activity started: \(activity.id) for task \(taskId)")

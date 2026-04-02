@@ -190,20 +190,14 @@ struct ChatView: View {
             }
             .onChange(of: latestTaskStatusContent?.taskId) {
                 // Yeni task geldiginde Live Activity baslat
-                guard let content = latestTaskStatusContent else {
-                    print("[LA-DEBUG] onChange taskId fired but content is nil")
-                    return
-                }
-                print("[LA-DEBUG] onChange taskId: \(content.taskId), status: \(content.status)")
+                guard let content = latestTaskStatusContent else { return }
                 let projectName = sessionManager.activeProjectName ?? "RafRaf"
                 Task {
-                    print("[LA-DEBUG] Calling startTask for \(content.taskId)")
                     await LiveActivityManager.shared.startTask(
                         taskId: content.taskId,
                         taskTitle: content.detail ?? content.currentStep ?? "AI Task",
                         projectName: projectName
                     )
-                    print("[LA-DEBUG] startTask returned")
                 }
             }
             .onChange(of: latestTaskStatusContent?.progressPct) {
