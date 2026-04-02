@@ -1,0 +1,33 @@
+name: websocket-protocol-integrity
+description: Verify WebSocket message protocol consistency between backend, iOS, and agent
+priority: critical
+
+preconditions:
+  - "WebSocket handler exists in apps/backend/app/api/routes/websocket.py"
+  - "Agent WebSocket handler exists in apps/backend/app/api/routes/agent_ws.py"
+  - "API contracts defined in shared/api-contracts/"
+
+behaviors:
+  - id: message-schema-match
+    type: deterministic
+    description: "All WebSocket message types match API contract schemas"
+    assertion: "Message types in websocket.py and agent_ws.py align with shared/api-contracts/ definitions"
+
+  - id: error-handling
+    type: unit-behavioral
+    description: "Malformed WebSocket messages return proper error responses, not crashes"
+    assertion: "Invalid JSON or unknown message types are handled gracefully with error response"
+
+  - id: agent-id-propagation
+    type: deterministic
+    description: "agentId is propagated in all WebSocket message metadata"
+    assertion: "Messages flowing through orchestrator include agentId field"
+
+anti_patterns:
+  - id: bare-except
+    description: "No bare except clauses in WebSocket handlers"
+    grep_pattern: "except:\\s*$"
+
+  - id: sync-in-async
+    description: "No synchronous blocking calls in async WebSocket handlers"
+    grep_pattern: "time\\.sleep|requests\\.(get|post)"

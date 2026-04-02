@@ -1,0 +1,32 @@
+name: auth-security-check
+description: Verify authentication and authorization are properly enforced
+priority: critical
+
+preconditions:
+  - "JWT authentication middleware exists"
+  - "Protected API routes are defined"
+
+behaviors:
+  - id: jwt-validation
+    type: deterministic
+    description: "All /api/v1/ endpoints require valid JWT token"
+    assertion: "Route handlers use auth dependency injection for protected endpoints"
+
+  - id: agent-api-key
+    type: deterministic
+    description: "Agent WebSocket connection requires AGENT_API_KEY validation"
+    assertion: "agent_ws.py validates API key before accepting connection"
+
+  - id: no-secret-exposure
+    type: llm-judge
+    description: "Error responses never expose internal secrets or stack traces to clients"
+    assertion: "API error handlers return sanitized messages without revealing JWT_SECRET, database URLs, or internal paths"
+
+anti_patterns:
+  - id: hardcoded-secret
+    description: "No hardcoded secrets in source code"
+    grep_pattern: "(JWT_SECRET|API_KEY|PASSWORD)\\s*=\\s*['\"][^'\"]{8,}"
+
+  - id: disabled-auth
+    description: "No TODO/FIXME suggesting auth bypass"
+    grep_pattern: "TODO.*auth|FIXME.*auth|skip.*auth|disable.*auth"

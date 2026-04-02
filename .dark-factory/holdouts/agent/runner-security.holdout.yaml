@@ -1,0 +1,32 @@
+name: agent-runner-security
+description: Verify Host Agent runner security constraints
+priority: critical
+
+preconditions:
+  - "Host Agent daemon exists in apps/agent/"
+  - "Runner implementations exist (Docker, Playwright, Shell)"
+
+behaviors:
+  - id: shell-whitelist
+    type: deterministic
+    description: "Shell runner only executes whitelisted commands"
+    assertion: "Shell command execution is filtered against whitelist/blacklist as defined in docs/08"
+
+  - id: docker-isolation
+    type: llm-judge
+    description: "Docker runner containers are properly isolated (no host network, limited mounts)"
+    assertion: "Docker containers run with security constraints, not --privileged"
+
+  - id: agent-auth
+    type: deterministic
+    description: "Agent authenticates with AGENT_API_KEY on WebSocket connection"
+    assertion: "WSS connection includes API key validation"
+
+anti_patterns:
+  - id: os-system
+    description: "No os.system() or subprocess.call() without shell=False"
+    grep_pattern: "os\\.system\\(|subprocess\\.call\\(.*shell=True"
+
+  - id: eval-exec
+    description: "No eval() or exec() in agent code"
+    grep_pattern: "\\beval\\(|\\bexec\\("

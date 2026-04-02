@@ -1,0 +1,89 @@
+# Dark Factory Configuration — RafRaf
+# AI-driven proje yonetim sistemi
+
+# Project identity
+project_name: "RafRaf"
+github_repo: "atknatk/rafraf"
+
+# Ship strategy: direct-commit | pr-creation | pr-label
+ship_model: "pr-creation"
+
+# Holdout directory (relative to project root)
+holdout_dir: ".dark-factory/holdouts"
+
+# Backlog file (relative to project root)
+backlog_file: ".dark-factory/backlog.md"
+
+# Backlog format: spec-only | issue+spec
+backlog_format: "issue+spec"
+
+# Governance ceiling for Ralph loop (only process tasks up to this tier)
+governance_ceiling: "T1"
+
+# Holdout validation — multi-run quorum voting
+holdout_runs: 3
+holdout_quorum: 2
+holdout_threshold: 90
+
+# Retry limits
+max_attempts_per_spec: 3
+
+# Guardrails file
+guardrails_file: ".dark-factory/failure-patterns.md"
+
+# Risk factors — RafRaf specific
+risk_factors:
+  # Security & Auth
+  - pattern: "auth|login|session|jwt|token|JWT_SECRET"
+    score: 30
+    label: "Auth/Security code"
+
+  # WebSocket — cross-layer real-time protocol
+  - pattern: "websocket|ws_handler|WebSocketClient|agent_ws"
+    score: 25
+    label: "WebSocket protocol change"
+
+  # API contracts — source of truth between backend & iOS
+  - pattern: "api-contract|shared/api-contracts|ApiContract"
+    score: 25
+    label: "API contract change"
+
+  # Database migrations
+  - pattern: "migration|alembic|ALTER TABLE|CREATE TABLE"
+    score: 20
+    label: "Database migration"
+
+  # Claude AI / Agent SDK integration
+  - pattern: "claude|anthropic|agent_sdk|TaskOrchestrator"
+    score: 20
+    label: "AI/Claude integration"
+
+  # Live Activity / Widget Extension
+  - pattern: "LiveActivity|ActivityKit|WidgetExtension|DynamicIsland"
+    score: 15
+    label: "Live Activity / Widget"
+
+  # iOS Clean Architecture boundaries
+  - pattern: "Domain/.*import.*Data|Domain/.*import.*Presentation"
+    score: 20
+    label: "iOS layer violation"
+
+  # Host Agent runners (security-sensitive)
+  - pattern: "runner|DockerRunner|PlaywrightRunner|ShellRunner"
+    score: 25
+    label: "Host Agent runner code"
+
+  # mem0 memory system
+  - pattern: "mem0|memory_service|MemoryLayer"
+    score: 15
+    label: "Memory system change"
+
+  # Infrastructure
+  - pattern: "docker-compose|Dockerfile|k8s|terraform|eks"
+    score: 15
+    label: "Infrastructure change"
+
+  # Dependencies
+  - pattern: "requirements.txt|Podfile|Package.swift|package.json"
+    score: 15
+    label: "New dependency"

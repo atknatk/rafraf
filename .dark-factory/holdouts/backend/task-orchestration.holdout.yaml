@@ -1,0 +1,28 @@
+name: task-orchestration-integrity
+description: Verify task orchestration service handles lifecycle correctly
+priority: high
+
+preconditions:
+  - "TaskOrchestratorService exists"
+  - "Task model and migration exist"
+
+behaviors:
+  - id: task-state-machine
+    type: deterministic
+    description: "Tasks follow valid state transitions (pending->running->completed/failed)"
+    assertion: "State transitions are validated; invalid transitions raise errors"
+
+  - id: live-activity-push
+    type: unit-behavioral
+    description: "Task status changes trigger Live Activity push notifications"
+    assertion: "LiveActivityPushService is called on task state changes"
+
+  - id: concurrent-task-safety
+    type: llm-judge
+    description: "Multiple concurrent tasks for the same agent don't corrupt state"
+    assertion: "Task operations use proper async locking or database-level constraints"
+
+anti_patterns:
+  - id: any-type
+    description: "No Any type usage in task orchestration"
+    grep_pattern: ":\\s*Any[^a-zA-Z]"

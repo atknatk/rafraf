@@ -1,0 +1,28 @@
+name: ios-websocket-client
+description: Verify iOS WebSocket client handles connection lifecycle correctly
+priority: high
+
+preconditions:
+  - "WebSocketClient exists in Core/Networking/"
+  - "Native URLSession WebSocket is used (no 3rd party)"
+
+behaviors:
+  - id: reconnection
+    type: unit-behavioral
+    description: "Client automatically reconnects on connection loss"
+    assertion: "Reconnection logic exists with exponential backoff"
+
+  - id: offline-queue
+    type: deterministic
+    description: "Messages sent while offline are queued and delivered on reconnect"
+    assertion: "OfflineMessageQueue stores messages when disconnected"
+
+  - id: connection-state
+    type: deterministic
+    description: "Connection state changes are observable by UI components"
+    assertion: "Connection state is published and RFConnectionIndicator reflects it"
+
+anti_patterns:
+  - id: third-party-ws
+    description: "No third-party WebSocket libraries"
+    grep_pattern: "import Starscream|import SocketIO|import SwiftWebSocket"

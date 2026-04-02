@@ -1,0 +1,32 @@
+name: infra-docker-compose
+description: Verify Docker Compose configuration is correct and secure
+priority: high
+
+preconditions:
+  - "docker-compose.dev.yml exists in infra/docker/"
+  - "PostgreSQL and Redis services are defined"
+
+behaviors:
+  - id: service-health
+    type: deterministic
+    description: "All services have health checks defined"
+    assertion: "PostgreSQL and Redis services include healthcheck configuration"
+
+  - id: env-vars
+    type: deterministic
+    description: "Sensitive values use environment variables, not hardcoded"
+    assertion: "Passwords, API keys use ${VAR} syntax or .env file references"
+
+  - id: volume-persistence
+    type: deterministic
+    description: "Database data is persisted via named volumes"
+    assertion: "PostgreSQL uses a named volume for /var/lib/postgresql/data"
+
+anti_patterns:
+  - id: hardcoded-password
+    description: "No hardcoded passwords in compose files"
+    grep_pattern: "password:\\s*['\"](?!\\$\\{)"
+
+  - id: privileged-mode
+    description: "No privileged containers"
+    grep_pattern: "privileged:\\s*true"

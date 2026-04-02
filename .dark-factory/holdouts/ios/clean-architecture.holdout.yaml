@@ -1,0 +1,37 @@
+name: ios-clean-architecture
+description: Verify iOS Clean Architecture layer boundaries are respected
+priority: critical
+
+preconditions:
+  - "Feature modules follow Data/Domain/Presentation structure"
+  - "RF* design system components exist"
+
+behaviors:
+  - id: domain-isolation
+    type: deterministic
+    description: "Domain layer has no imports from Data or Presentation layers"
+    assertion: "Files in Domain/ do not import from Data/ or Presentation/"
+
+  - id: rf-components-only
+    type: llm-judge
+    description: "Feature views use only RF* design system components, not raw SwiftUI"
+    assertion: "Feature Presentation views use RFButton, RFCard etc. instead of raw Button, Card"
+
+  - id: viewmodel-pattern
+    type: deterministic
+    description: "All ViewModels use @Observable and @MainActor"
+    assertion: "ViewModel classes are annotated with @Observable and @MainActor"
+
+  - id: localized-strings
+    type: deterministic
+    description: "All user-visible strings use String(localized:)"
+    assertion: "No hardcoded user-visible strings in feature views"
+
+anti_patterns:
+  - id: force-unwrap
+    description: "No force unwraps outside #Preview and tests"
+    grep_pattern: "![^=].*\\b(?<!#Preview)(?<!Test)"
+
+  - id: any-type
+    description: "No Any type in domain or presentation layers"
+    grep_pattern: ":\\s*Any[^a-zA-Z]"
