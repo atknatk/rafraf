@@ -69,7 +69,16 @@ actor WebSocketMessageRouter {
             throw WebSocketMessageRouterError.decodingFailed(error)
         }
 
-        logger.debug("Mesaj alindi - type: \(message.type), id: \(message.id)")
+        logger.debug("Mesaj alindi - type: \(message.type), id: \(message.id), hasContent: \(message.content != nil)")
+
+        if message.type == "task_status" {
+            if message.content == nil {
+                // task_status mesaji geldi ama content decode edilemedi — raw JSON'u logla
+                logger.error("task_status content decode FAILED. Raw: \(jsonString.prefix(500))")
+            } else {
+                logger.info("task_status content decode OK")
+            }
+        }
 
         if let handler = handlers[message.type] {
             await handler.handle(message)
