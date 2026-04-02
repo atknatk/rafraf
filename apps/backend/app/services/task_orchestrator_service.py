@@ -79,6 +79,7 @@ class TaskOrchestratorService:
     ) -> None:
         """Broadcast task status update via WebSocket to the owning user."""
         if self._ws_manager is None:
+            logger.warning("task_status_broadcast_skipped_no_ws_manager", task_id=str(task.id))
             return
 
         message: dict[str, object] = {
@@ -94,7 +95,14 @@ class TaskOrchestratorService:
             },
         }
 
-        await self._ws_manager.broadcast_to_user(task.user_id, message)
+        sent = await self._ws_manager.broadcast_to_user(task.user_id, message)
+        logger.info(
+            "task_status_broadcast",
+            task_id=str(task.id),
+            user_id=str(task.user_id),
+            status=task.status,
+            sent_to=sent,
+        )
 
     async def _send_live_activity_update_push(
         self,
