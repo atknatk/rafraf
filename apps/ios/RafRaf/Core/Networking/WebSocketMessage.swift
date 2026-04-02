@@ -85,6 +85,13 @@ struct WebSocketBaseMessage: Codable, Sendable {
             let reason = try? extra.decodeIfPresent(String.self, forKey: .reason)
             let isNew = try? extra.decodeIfPresent(Bool.self, forKey: .isNew)
             self.content = .agentStatusChange(AgentStatusChangePayload(hostId: hostId, status: status, reason: reason, isNew: isNew))
+        } else if self.type == WebSocketMessageType.taskStatus.rawValue {
+            // task_status mesajini dogrudan decode et (singleValueContainer ambiguity onleme)
+            if let taskContent = try? container.decodeIfPresent(TaskStatusContent.self, forKey: .content) {
+                self.content = .taskStatus(taskContent)
+            } else {
+                self.content = nil
+            }
         } else {
             self.content = try? container.decodeIfPresent(WebSocketContent.self, forKey: .content)
         }
