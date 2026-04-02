@@ -129,9 +129,9 @@ class MemoryService:
                     **kwargs: object,
                 ) -> str:
                     kwargs.pop("response_format", None)
-                    return _orig_gen(messages, **kwargs)
+                    return _orig_gen(messages, **kwargs)  # type: ignore[no-any-return]
 
-                self._mem0_client.llm.generate_response = _patched_generate  # type: ignore[assignment]
+                self._mem0_client.llm.generate_response = _patched_generate
 
             return self._mem0_client
         except Exception as exc:

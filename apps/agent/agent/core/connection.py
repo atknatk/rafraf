@@ -453,18 +453,19 @@ class ConnectionManager:
                 with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(
                         asyncio.gather(
-                            *self._running_tasks, return_exceptions=True
+                            *self._running_tasks,
+                            return_exceptions=True,
                         ),
                         timeout=10,
                     )
             self._running_tasks.clear()
 
         # 3. Heartbeat, sync, listen task'leri iptal et
-        for task in (self._heartbeat_task, self._sync_task, self._listen_task):
-            if task and not task.done():
-                task.cancel()
+        for t in (self._heartbeat_task, self._sync_task, self._listen_task):
+            if t and not t.done():
+                t.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
-                    await task
+                    await t
 
         # 4. WebSocket kapat
         if self._ws is not None:

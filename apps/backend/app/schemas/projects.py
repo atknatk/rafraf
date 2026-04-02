@@ -34,7 +34,9 @@ class ProjectEntity(BaseModel):
     tech_stack: list[str] = Field(default_factory=list, description="Kullanilan teknolojiler")
     last_activity_at: str | None = Field(None, description="Son aktivite zamani (ISO 8601)")
     last_activity_summary: str | None = Field(None, description="Son aktivite ozeti")
-    source: str = Field(default="manual", description="Proje kaynagi: manual, agent_scan, agent_config")
+    source: str = Field(
+        default="manual", description="Proje kaynagi: manual, agent_scan, agent_config"
+    )
     created_at: datetime = Field(..., description="Olusturulma zamani")
     updated_at: datetime = Field(..., description="Guncellenme zamani")
 
@@ -53,7 +55,9 @@ class ProjectCreateRequest(BaseModel):
     repository_url: str | None = Field(None, max_length=512, description="Git repository URL")
     local_path: str | None = Field(None, max_length=1024, description="Projenin lokal dizin yolu")
     tech_stack: list[str] = Field(default_factory=list, description="Kullanilan teknolojiler")
-    source: str = Field(default="manual", description="Proje kaynagi: manual, agent_scan, agent_config")
+    source: str = Field(
+        default="manual", description="Proje kaynagi: manual, agent_scan, agent_config"
+    )
 
 
 class ProjectUpdateRequest(BaseModel, frozen=True):

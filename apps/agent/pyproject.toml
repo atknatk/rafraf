@@ -34,7 +34,7 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "ANN", "B", "A", "COM", "C4", "PT", "RET", "SIM", "ARG"]
-ignore = ["ANN101", "ANN102", "ANN401"]
+ignore = ["ANN101", "ANN102", "ANN401", "COM812"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["agent"]
@@ -43,6 +43,10 @@ known-first-party = ["agent"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["types_aiobotocore_s3.*", "playwright.*", "docker.*", "yaml.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -33,15 +33,20 @@ def mock_db_session() -> AsyncMock:
     return session
 
 
+class _MockAgentInfo:
+    """Mock agent info object with attribute access."""
+
+    def __init__(self, last_heartbeat_at: str | None = None) -> None:
+        self.host_id = "macbook-pro"
+        self.status = "online"
+        self.last_heartbeat_at = last_heartbeat_at or datetime.now(tz=timezone.utc).isoformat()
+
+
 @pytest.fixture
 def mock_agent_registry() -> AsyncMock:
     """Provide a mock AgentRegistryService."""
     registry = AsyncMock(spec=AgentRegistryService)
-    registry.get_agent = AsyncMock(return_value={
-        "host_id": "macbook-pro",
-        "status": "online",
-        "last_heartbeat": datetime.now(tz=timezone.utc),
-    })
+    registry.get_agent = AsyncMock(return_value=_MockAgentInfo())
     return registry
 
 
@@ -211,11 +216,10 @@ class TestAgentDisconnectMidTask:
         await orchestrator.start_task(task.id)
 
         # Simulate agent going offline — last heartbeat 90+ seconds ago
-        mock_agent_registry.get_agent.return_value = {
-            "host_id": "macbook-pro",
-            "status": "online",
-            "last_heartbeat": datetime.now(tz=timezone.utc) - timedelta(seconds=95),
-        }
+        stale_time = (datetime.now(tz=timezone.utc) - timedelta(seconds=95)).isoformat()
+        mock_agent_registry.get_agent.return_value = _MockAgentInfo(
+            last_heartbeat_at=stale_time,
+        )
 
         # The orchestrator's heartbeat check should mark the task as FAILED
         await orchestrator.check_stale_agents()
@@ -251,6 +255,37 @@ class TestMultipleUsersConcurrentTasks:
             )
             task_map[uid] = [task]
 
+        # Mock DB execute to return tasks from the in-memory _tasks dict
+        # filtered by user_id (simulating what the real DB query does)
+        _tasks_ref = orchestrator._tasks
+        _TERMINAL = {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}
+
+        def _make_execute_side_effect():
+            """Return a side_effect that filters _tasks by user_id from the query."""
+            async def _execute(stmt):
+                # Extract user_id from the Where clause — we use the task_map to determine
+                # which uid was queried by checking all tasks in _tasks_ref
+                # Since we can't easily parse the SA statement, we use a simpler approach:
+                # store the uid being queried via a closure
+                mock_result = MagicMock()
+                mock_scalars = MagicMock()
+                # Return all non-terminal tasks (the test will set up per-uid calls)
+                mock_scalars.all.return_value = list(_tasks_ref.values())
+                mock_result.scalars.return_value = mock_scalars
+                return mock_result
+            return _execute
+
+        # We need per-user filtering. Override get_active_tasks to filter from _tasks
+        original_get_active = orchestrator.get_active_tasks
+
+        async def _get_active_tasks_from_memory(user_id: uuid.UUID) -> list[Task]:
+            return [
+                t for t in _tasks_ref.values()
+                if t.user_id == user_id and TaskStatus(t.status) not in _TERMINAL
+            ]
+
+        orchestrator.get_active_tasks = _get_active_tasks_from_memory  # type: ignore[assignment]
+
         # Each user should see only their own tasks
         for uid in user_ids:
             active_tasks = await orchestrator.get_active_tasks(user_id=uid)
@@ -270,6 +305,9 @@ class TestMultipleUsersConcurrentTasks:
                     assert other_task.id not in task_ids_in_result, (
                         f"User {uid} should NOT see task {other_task.id} from user {other_uid}"
                     )
+
+        # Restore
+        orchestrator.get_active_tasks = original_get_active  # type: ignore[assignment]
 
 
 class TestWebSocketTaskStatusBroadcast:

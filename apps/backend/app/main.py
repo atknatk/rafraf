@@ -126,7 +126,9 @@ def create_app() -> FastAPI:
     application.include_router(agents_router)
     application.include_router(webhooks_router)
     application.include_router(memory_router)
-    application.include_router(conversations_router)  # /history, /missed — must be before conversation_memory
+    application.include_router(
+        conversations_router
+    )  # /history, /missed — must be before conversation_memory
     application.include_router(conversation_memory_router)  # /{session_id} catch-all
     application.include_router(projects_router)
     application.include_router(cost_router)

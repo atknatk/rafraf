@@ -10,7 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, TimestampMixin, UUIDMixin
 
 
-class TaskStatus(str, enum.Enum):
+class TaskStatus(enum.StrEnum):
     """Task lifecycle status values."""
 
     QUEUED = "queued"
@@ -26,9 +26,24 @@ class TaskStatus(str, enum.Enum):
 # Valid state transitions (from -> set of allowed targets)
 VALID_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
     TaskStatus.QUEUED: {TaskStatus.PLANNING},
-    TaskStatus.PLANNING: {TaskStatus.IMPLEMENTING, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED},
-    TaskStatus.IMPLEMENTING: {TaskStatus.TESTING, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED},
-    TaskStatus.TESTING: {TaskStatus.REVIEWING, TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED},
+    TaskStatus.PLANNING: {
+        TaskStatus.IMPLEMENTING,
+        TaskStatus.COMPLETED,
+        TaskStatus.FAILED,
+        TaskStatus.CANCELLED,
+    },
+    TaskStatus.IMPLEMENTING: {
+        TaskStatus.TESTING,
+        TaskStatus.COMPLETED,
+        TaskStatus.FAILED,
+        TaskStatus.CANCELLED,
+    },
+    TaskStatus.TESTING: {
+        TaskStatus.REVIEWING,
+        TaskStatus.COMPLETED,
+        TaskStatus.FAILED,
+        TaskStatus.CANCELLED,
+    },
     TaskStatus.REVIEWING: {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED},
     TaskStatus.COMPLETED: set(),
     TaskStatus.FAILED: set(),

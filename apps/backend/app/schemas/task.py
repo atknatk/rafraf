@@ -50,7 +50,9 @@ class TaskResponse(BaseModel):
     error_message: str | None = Field(None, description="Error message if failed")
     claude_session_id: str | None = Field(None, description="Claude session ID")
     claude_task_id: str | None = Field(None, description="Claude task ID")
-    has_live_activity_token: bool = Field(default=False, description="Whether APNs token is registered")
+    has_live_activity_token: bool = Field(
+        default=False, description="Whether APNs token is registered"
+    )
     created_at: datetime | str | None = Field(None, description="Creation timestamp")
     started_at: datetime | str | None = Field(None, description="Start timestamp")
     completed_at: datetime | str | None = Field(None, description="Completion timestamp")

@@ -176,7 +176,7 @@ class ClaudeRunner:
                         host_id=self._host_id,
                         error=f"project_dir '{effective_dir}' izin verilen dizinlerin disinda.",
                         returncode=-1,
-                    )
+                    ),
                 )
                 return
 
@@ -229,7 +229,7 @@ class ClaudeRunner:
                         host_id=self._host_id,
                         error=f"claude -p timed out after {self._config.claude_timeout_seconds}s",
                         returncode=-1,
-                    )
+                    ),
                 )
                 return
 
@@ -243,7 +243,7 @@ class ClaudeRunner:
                         host_id=self._host_id,
                         error=f"claude -p exited with code {returncode}: {stderr_text}",
                         returncode=returncode,
-                    )
+                    ),
                 )
                 return
 
@@ -261,7 +261,7 @@ class ClaudeRunner:
                     model_used=state.model or content.model,
                     tokens_input=state.input_tokens,
                     tokens_output=state.output_tokens,
-                )
+                ),
             )
 
             await logger.ainfo(
@@ -280,7 +280,7 @@ class ClaudeRunner:
                     host_id=self._host_id,
                     error=f"Unexpected error: {exc}",
                     returncode=-1,
-                )
+                ),
             )
         finally:
             self._active_processes.pop(task_id, None)
@@ -320,7 +320,7 @@ class ClaudeRunner:
             task_ids=task_ids,
         )
 
-        for task_id, proc in list(self._active_processes.items()):
+        for _task_id, proc in list(self._active_processes.items()):
             if proc.returncode is not None:
                 continue
             try:
@@ -332,17 +332,17 @@ class ClaudeRunner:
         await asyncio.sleep(2)
 
         # Hala calisanlari kill et
-        for task_id, proc in list(self._active_processes.items()):
+        for tid, proc in list(self._active_processes.items()):
             if proc.returncode is not None:
                 continue
             try:
                 proc.kill()
-                await logger.ainfo("claude_runner_force_killed", task_id=task_id)
+                await logger.ainfo("claude_runner_force_killed", task_id=tid)
             except ProcessLookupError:
                 pass
 
         # Pending answer future'larini iptal et
-        for task_id, future in list(self._pending_answers.items()):
+        for _task_id, future in list(self._pending_answers.items()):
             if not future.done():
                 future.cancel()
 
@@ -416,7 +416,7 @@ class ClaudeRunner:
                             host_id=self._host_id,
                             delta=result_text,
                             index=state.delta_index,
-                        )
+                        ),
                     )
                     state.delta_index += 1
                 state.full_text = result_text
@@ -467,7 +467,7 @@ class ClaudeRunner:
                                 _ToolExecution(
                                     tool_name=tool_name,
                                     started_at=time.monotonic(),
-                                )
+                                ),
                             )
                             await self._send_progress(state, task_id)
 
@@ -492,7 +492,7 @@ class ClaudeRunner:
                             host_id=self._host_id,
                             delta=text,
                             index=state.delta_index,
-                        )
+                        ),
                     )
                     state.delta_index += 1
 
@@ -559,7 +559,7 @@ class ClaudeRunner:
                 task_id=task_id,
                 host_id=self._host_id,
                 question_payload=question_input,
-            )
+            ),
         )
 
         # Wait for answer from backend (via submit_answer)
@@ -585,12 +585,14 @@ class ClaudeRunner:
             "generating",
             "completed",
         )
-        steps.append({
-            "id": "phase-thinking",
-            "step_type": "thinking",
-            "label": "Düşünüyor...",
-            "status": "completed" if thinking_done else "active",
-        })
+        steps.append(
+            {
+                "id": "phase-thinking",
+                "step_type": "thinking",
+                "label": "Düşünüyor...",
+                "status": "completed" if thinking_done else "active",
+            }
+        )
 
         # Tool steps
         for i, tex in enumerate(state.tool_executions):
@@ -610,12 +612,14 @@ class ClaudeRunner:
 
         # Generating step
         if state.phase in ("generating", "completed"):
-            steps.append({
-                "id": "phase-generating",
-                "step_type": "generating",
-                "label": "Cevap hazırlanıyor...",
-                "status": "completed" if state.phase == "completed" else "active",
-            })
+            steps.append(
+                {
+                    "id": "phase-generating",
+                    "step_type": "generating",
+                    "label": "Cevap hazırlanıyor...",
+                    "status": "completed" if state.phase == "completed" else "active",
+                }
+            )
 
         # Percentage heuristic
         if state.phase == "starting":
@@ -650,5 +654,5 @@ class ClaudeRunner:
                 current_tool=state.current_tool_name or None,
                 percentage=pct,
                 steps=steps,
-            )
+            ),
         )

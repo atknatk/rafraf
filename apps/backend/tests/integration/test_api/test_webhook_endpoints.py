@@ -3,6 +3,8 @@
 import hashlib
 import hmac
 import json
+from contextlib import asynccontextmanager
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -14,6 +16,24 @@ def _sign_payload(payload: bytes, secret: str) -> str:
     digest = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
     return f"sha256={digest}"
 
+
+# Mock async_session_factory and WebhookEventService to avoid real DB
+_mock_session = AsyncMock()
+_mock_evt_svc = MagicMock()
+_mock_evt_svc.is_duplicate = AsyncMock(return_value=False)
+_mock_evt_svc.record_event = AsyncMock()
+_mock_evt_svc.list_events = AsyncMock(return_value=([], 0))
+
+
+@asynccontextmanager
+async def _mock_session_factory():
+    yield _mock_session
+
+
+_session_patch = patch("app.api.routes.webhooks.async_session_factory", _mock_session_factory)
+_evt_svc_patch = patch("app.api.routes.webhooks.WebhookEventService", return_value=_mock_evt_svc)
+_session_patch.start()
+_evt_svc_patch.start()
 
 client = TestClient(app)
 
@@ -36,7 +56,7 @@ class TestGitHubWebhook:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "accepted"
-        assert "Pong" in data["message"]
+        assert "ping" in data["message"].lower()
 
     def test_issue_event_processed(self) -> None:
         """Webhook should process issue events."""
@@ -58,7 +78,7 @@ class TestGitHubWebhook:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "accepted"
-        assert "Issue event" in data["message"]
+        assert "issues" in data["message"].lower()
 
     def test_pr_event_processed(self) -> None:
         """Webhook should process pull_request events."""
@@ -80,7 +100,7 @@ class TestGitHubWebhook:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "accepted"
-        assert "PR event" in data["message"]
+        assert "pull_request" in data["message"].lower()
 
     def test_push_event_processed(self) -> None:
         """Webhook should process push events."""

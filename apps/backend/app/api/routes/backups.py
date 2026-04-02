@@ -40,9 +40,9 @@ async def get_backup_status(
             health=str(status["health"]),
             retention_days=str(status["retention_days"]),
             issues=str(status["issues"]),
-            latest_postgres=status["latest_postgres"],  # type: ignore[arg-type]
-            latest_redis=status["latest_redis"],  # type: ignore[arg-type]
-            recent_backups=status["recent_backups"],  # type: ignore[arg-type]
+            latest_postgres=status["latest_postgres"],
+            latest_redis=status["latest_redis"],
+            recent_backups=status["recent_backups"],
         )
     except Exception as exc:
         await logger.aexception("backup_status_error")
@@ -96,7 +96,10 @@ async def list_backups(
         description="Backup tipi filtresi (postgres/redis/all)",
     ),
     max_results: int = Query(
-        default=50, ge=1, le=200, description="Maksimum sonuc sayisi",
+        default=50,
+        ge=1,
+        le=200,
+        description="Maksimum sonuc sayisi",
     ),
 ) -> BackupListResponse:
     """List available backups from S3.

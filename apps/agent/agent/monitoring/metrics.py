@@ -32,7 +32,9 @@ def _collect_metrics() -> ResourceMetrics:
 def _collect_claude_processes() -> list[ClaudeProcessInfo]:
     """Calisan 'claude' process'lerini toplar."""
     processes: list[ClaudeProcessInfo] = []
-    for proc in psutil.process_iter(["pid", "name", "cmdline", "create_time", "cpu_percent", "memory_info"]):
+    for proc in psutil.process_iter(
+        ["pid", "name", "cmdline", "create_time", "cpu_percent", "memory_info"]
+    ):
         try:
             name = proc.info.get("name") or ""
             cmdline = proc.info.get("cmdline") or []
@@ -53,7 +55,7 @@ def _collect_claude_processes() -> list[ClaudeProcessInfo]:
                     memory_mb=memory_mb,
                     started_at=started_at,
                     cmdline=cmdline_str[:200],
-                )
+                ),
             )
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue

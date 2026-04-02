@@ -277,11 +277,13 @@ class TestGetActiveTasks:
         user_id = uuid.uuid4()
         active_task = _make_task_model(status=TaskStatus.IMPLEMENTING, user_id=user_id)
         queued_task = _make_task_model(status=TaskStatus.QUEUED, user_id=user_id)
-        completed_task = _make_task_model(status=TaskStatus.COMPLETED, user_id=user_id)
 
-        service._tasks[active_task.id] = active_task
-        service._tasks[queued_task.id] = queued_task
-        service._tasks[completed_task.id] = completed_task
+        # Mock the DB execute → scalars → all chain
+        mock_result = MagicMock()
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = [active_task, queued_task]
+        mock_result.scalars.return_value = mock_scalars
+        mock_session.execute = AsyncMock(return_value=mock_result)
 
         result = await service.get_active_tasks(user_id)
 
@@ -299,6 +301,13 @@ class TestGetActiveTasks:
         service = TaskOrchestratorService(mock_session)
 
         user_id = uuid.uuid4()
+
+        # Mock the DB execute → scalars → all chain returning empty
+        mock_result = MagicMock()
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = []
+        mock_result.scalars.return_value = mock_scalars
+        mock_session.execute = AsyncMock(return_value=mock_result)
 
         result = await service.get_active_tasks(user_id)
 

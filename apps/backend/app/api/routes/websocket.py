@@ -140,7 +140,9 @@ async def websocket_endpoint(
     await manager.start_heartbeat(connection_id)
 
     # Re-attach to any in-flight tasks for this user (app closed during processing)
-    active_keys = [k for k, t in _user_streams.items() if k.startswith(f"{user_id}:") and not t.done()]
+    active_keys = [
+        k for k, t in _user_streams.items() if k.startswith(f"{user_id}:") and not t.done()
+    ]
     for key in active_keys:
         _user_connections[key] = connection_id
         await manager.send_json(
@@ -421,12 +423,14 @@ async def _build_host_status() -> str | None:
 
 
 class _TaskWSAdapter:
-    """Adapter wrapping ConnectionManager.send_to_user as broadcast_to_user for TaskOrchestratorService."""
+    """Adapter: ConnectionManager.send_to_user as broadcast_to_user for TaskOrchestrator."""
 
     def __init__(self, conn_manager: ConnectionManager) -> None:
         self._manager = conn_manager
 
-    async def broadcast_to_user(self, user_id: str | _uuid_mod.UUID, message: dict[str, object]) -> int:
+    async def broadcast_to_user(
+        self, user_id: str | _uuid_mod.UUID, message: dict[str, object]
+    ) -> int:
         """Broadcast a message to all connections of a user."""
         uid = str(user_id)
         return await self._manager.send_to_user(uid, message)
@@ -444,7 +448,9 @@ async def _task_orch_update_progress(
             orch = TaskOrchestratorService(db=db, ws_manager=_TaskWSAdapter(manager))
             # Load task from DB into in-memory store
             from sqlalchemy import select
+
             from app.models.task import Task
+
             result = await db.execute(select(Task).where(Task.id == task_id))
             task = result.scalar_one_or_none()
             if task is not None:
@@ -460,7 +466,9 @@ async def _task_orch_complete(task_id: _uuid_mod.UUID, summary: str) -> None:
         async with async_session_factory() as db:
             orch = TaskOrchestratorService(db=db, ws_manager=_TaskWSAdapter(manager))
             from sqlalchemy import select
+
             from app.models.task import Task
+
             result = await db.execute(select(Task).where(Task.id == task_id))
             task = result.scalar_one_or_none()
             if task is not None:
@@ -476,7 +484,9 @@ async def _task_orch_fail(task_id: _uuid_mod.UUID, error: str) -> None:
         async with async_session_factory() as db:
             orch = TaskOrchestratorService(db=db, ws_manager=_TaskWSAdapter(manager))
             from sqlalchemy import select
+
             from app.models.task import Task
+
             result = await db.execute(select(Task).where(Task.id == task_id))
             task = result.scalar_one_or_none()
             if task is not None:
@@ -528,8 +538,8 @@ async def _process_with_orchestrator(
     _stream_last_progress_chars: list[int] = [0]
     _stream_last_progress_time: list[float] = [0.0]
     _stream_has_tool_progress: list[bool] = [False]
-    _STREAM_PROGRESS_CHAR_INTERVAL = 150  # send progress every N chars
-    _STREAM_PROGRESS_MIN_INTERVAL_SEC = 1.0  # min seconds between updates
+    _stream_progress_char_interval = 150  # send progress every N chars
+    _stream_progress_min_interval_sec = 1.0  # min seconds between updates
 
     # User-scoped key for reconnect recovery
     user_project_key = f"{user_id}:{project_id or 'global'}"
@@ -595,10 +605,7 @@ async def _process_with_orchestrator(
                     pct=15,
                     detail="İstek analiz ediliyor...",
                 )
-            elif (
-                not _stream_first_writing_sent[0]
-                and _stream_char_count[0] >= 80
-            ):
+            elif not _stream_first_writing_sent[0] and _stream_char_count[0] >= 80:
                 # First writing update — no time throttle, just 80 chars
                 _stream_first_writing_sent[0] = True
                 _stream_last_progress_chars[0] = _stream_char_count[0]
@@ -612,9 +619,8 @@ async def _process_with_orchestrator(
             elif (
                 _stream_first_writing_sent[0]
                 and _stream_char_count[0] - _stream_last_progress_chars[0]
-                >= _STREAM_PROGRESS_CHAR_INTERVAL
-                and now - _stream_last_progress_time[0]
-                >= _STREAM_PROGRESS_MIN_INTERVAL_SEC
+                >= _stream_progress_char_interval
+                and now - _stream_last_progress_time[0] >= _stream_progress_min_interval_sec
             ):
                 # Periodic progress: 30% → 80% based on char count (throttled)
                 _stream_last_progress_chars[0] = _stream_char_count[0]
@@ -886,6 +892,7 @@ async def _process_with_orchestrator(
                 try:
                     from app.services.git_diff_service import get_project_diff
                     from app.services.project_service import ProjectService
+
                     async with async_session_factory() as _diff_db:
                         _diff_project_uuid = _uuid_mod.UUID(project_id)
                         _diff_detail = await ProjectService(_diff_db).get_project_by_id(
@@ -907,12 +914,14 @@ async def _process_with_orchestrator(
 
             # Save conversation turn to mem0 (fire-and-forget, non-blocking)
             if response_text:
-                asyncio.create_task(_save_turn_to_memory(
-                    user_id=user_id,
-                    session_id=session_id,
-                    user_message=message,
-                    assistant_response=response_text,
-                ))
+                asyncio.create_task(
+                    _save_turn_to_memory(
+                        user_id=user_id,
+                        session_id=session_id,
+                        user_message=message,
+                        assistant_response=response_text,
+                    )
+                )
 
         except Exception as _exc:
             logger.exception(
@@ -964,9 +973,11 @@ async def _process_with_orchestrator(
 
         # Suggestions: arka planda uret ve gonder (fire-and-forget, voice modda degil)
         if response_text and not voice_mode:
+
             async def _send_suggestions() -> None:
                 try:
                     from app.services.suggestion_service import generate_suggestions
+
                     suggestions = await generate_suggestions(
                         user_message=message,
                         ai_response=response_text,

@@ -3,12 +3,37 @@
 import hashlib
 import hmac
 import json
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+
+
+def _mock_session_factory():
+    """Create a mock async_session_factory that returns a mock session."""
+    mock_session = AsyncMock()
+    mock_event_service_instance = MagicMock()
+    mock_event_service_instance.is_duplicate = AsyncMock(return_value=False)
+    mock_event_service_instance.record_event = AsyncMock()
+    mock_event_service_instance.list_events = AsyncMock(return_value=([], 0))
+
+    @asynccontextmanager
+    async def _factory():
+        yield mock_session
+
+    return _factory, mock_session, mock_event_service_instance
+
+
+_factory_fn, _mock_sess, _mock_evt_svc = _mock_session_factory()
+
+# Patch async_session_factory and WebhookEventService globally for this module
+_session_patch = patch("app.api.routes.webhooks.async_session_factory", _factory_fn)
+_evt_svc_patch = patch("app.api.routes.webhooks.WebhookEventService", return_value=_mock_evt_svc)
+_session_patch.start()
+_evt_svc_patch.start()
 
 client = TestClient(app)
 
@@ -47,20 +72,10 @@ class TestGitHubWebhookIdempotency:
         payload = json.dumps({"zen": "test"}).encode()
         delivery_id = "dup-test-delivery-002"
 
-        # First request
-        response1 = client.post(
-            "/api/v1/webhooks/github",
-            content=payload,
-            headers={
-                "Content-Type": "application/json",
-                "X-GitHub-Event": "ping",
-                "X-GitHub-Delivery": delivery_id,
-            },
-        )
-        assert response1.status_code == 200
+        # Make is_duplicate return True to simulate already-processed
+        _mock_evt_svc.is_duplicate = AsyncMock(return_value=True)
 
-        # Second request with same delivery ID
-        response2 = client.post(
+        response = client.post(
             "/api/v1/webhooks/github",
             content=payload,
             headers={
@@ -69,10 +84,13 @@ class TestGitHubWebhookIdempotency:
                 "X-GitHub-Delivery": delivery_id,
             },
         )
-        assert response2.status_code == 200
-        data2 = response2.json()
-        assert data2["status"] == "accepted"
-        assert "already processed" in data2["message"].lower()
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "accepted"
+        assert "already processed" in data["message"].lower()
+
+        # Reset for other tests
+        _mock_evt_svc.is_duplicate = AsyncMock(return_value=False)
 
 
 class TestGitHubWebhookSignature:
@@ -247,31 +265,46 @@ class TestUnsupportedEventType:
 
 
 class TestListGitHubEvents:
-    """Tests for GET /api/v1/webhooks/github/events."""
+    """Tests for GET /api/v1/webhooks/github/events.
+
+    NOTE: This endpoint requires authentication. We override the
+    get_current_user dependency to bypass auth in tests.
+    """
+
+    def _authed_get(self, path: str, **kwargs: object) -> object:
+        """Make an authenticated GET request by overriding auth dependency."""
+        from app.api.deps import get_current_user
+        mock_user = MagicMock()
+        mock_user.id = "test-user-id"
+        app.dependency_overrides[get_current_user] = lambda: mock_user
+        try:
+            return client.get(path, **kwargs)  # type: ignore[arg-type]
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
 
     def test_list_events_returns_200(self) -> None:
         """GET events endpoint should return 200 with events array."""
-        response = client.get("/api/v1/webhooks/github/events")
-        assert response.status_code == 200
-        data = response.json()
+        response = self._authed_get("/api/v1/webhooks/github/events")
+        assert response.status_code == 200  # type: ignore[union-attr]
+        data = response.json()  # type: ignore[union-attr]
         assert "events" in data
         assert "total" in data
         assert isinstance(data["events"], list)
 
     def test_list_events_with_type_filter(self) -> None:
         """GET events endpoint with event_type filter should return 200."""
-        response = client.get(
+        response = self._authed_get(
             "/api/v1/webhooks/github/events",
             params={"event_type": "check_run"},
         )
-        assert response.status_code == 200
-        data = response.json()
+        assert response.status_code == 200  # type: ignore[union-attr]
+        data = response.json()  # type: ignore[union-attr]
         assert "events" in data
 
     def test_list_events_with_limit(self) -> None:
         """GET events endpoint with limit parameter should return 200."""
-        response = client.get(
+        response = self._authed_get(
             "/api/v1/webhooks/github/events",
             params={"limit": 5},
         )
-        assert response.status_code == 200
+        assert response.status_code == 200  # type: ignore[union-attr]

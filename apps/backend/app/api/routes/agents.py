@@ -85,9 +85,7 @@ async def update_agent_project(
     service = AgentProjectService(session)
     result = await service.set_project_active(host_id, project_id, body.is_active)
     if result is None:
-        raise NotFoundError(
-            message=f"Agent '{host_id}' icin proje '{project_id}' bulunamadi"
-        )
+        raise NotFoundError(message=f"Agent '{host_id}' icin proje '{project_id}' bulunamadi")
     await session.commit()
     return result
 
@@ -198,7 +196,7 @@ async def rescan_agent_projects(host_id: str) -> dict[str, str]:
     record = agent_registry.get_connection_id(host_id)
     if record is None:
         raise NotFoundError(message=f"Agent '{host_id}' not connected")
-    msg = {"type": "rescan_projects", "request_id": str(uuid.uuid4())}
+    msg: dict[str, object] = {"type": "rescan_projects", "request_id": str(uuid.uuid4())}
     await agent_manager.send_json(record, msg)
     await logger.ainfo("rescan_projects_requested", host_id=host_id)
     return {"status": "rescan_requested", "host_id": host_id}
@@ -210,6 +208,4 @@ async def cancel_agent_task(host_id: str, task_id: str) -> None:  # noqa: ARG001
     task_manager = get_task_manager()
     cancelled = task_manager.cancel(task_id)
     if not cancelled:
-        raise NotFoundError(
-            message=f"Task '{task_id}' not found or already completed"
-        )
+        raise NotFoundError(message=f"Task '{task_id}' not found or already completed")

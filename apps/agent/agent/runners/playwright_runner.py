@@ -294,7 +294,7 @@ class PlaywrightRunner(BaseRunner):
                     )
                     response = await page.goto(
                         url,
-                        wait_until=wait_until,  # type: ignore[arg-type]
+                        wait_until=wait_until,
                         timeout=timeout_ms,
                     )
 

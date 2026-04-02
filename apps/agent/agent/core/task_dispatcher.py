@@ -62,32 +62,34 @@ class TaskDispatcher:
             runner = self._runners.get(content.runner)
             if runner is None:
                 available = list(self._runners.keys())
-                error_msg = (
-                    f"Runner '{content.runner}' bulunamadi. "
-                    f"Mevcut runner'lar: {available}"
+                error_msg = f"Runner '{content.runner}' bulunamadi. Mevcut runner'lar: {available}"
+                await self._send(
+                    build_task_error_message(
+                        task_id=task_id,
+                        host_id=self._host_id,
+                        error=error_msg,
+                    )
                 )
-                await self._send(build_task_error_message(
-                    task_id=task_id,
-                    host_id=self._host_id,
-                    error=error_msg,
-                ))
                 return
 
             result = await runner.run(content.action, dict(content.params))
 
             success = bool(result.get("success", False))
-            execution_time_ms = int(result.get("execution_time_ms", 0))
+            raw_time = result.get("execution_time_ms", 0)
+            execution_time_ms = int(raw_time) if isinstance(raw_time, (int, float, str)) else 0
 
             # Serialize result to a compact string for output
             output = json.dumps(result, ensure_ascii=False, default=str)
 
-            await self._send(build_task_result_message(
-                task_id=task_id,
-                host_id=self._host_id,
-                success=success,
-                output=output,
-                execution_time_ms=execution_time_ms,
-            ))
+            await self._send(
+                build_task_result_message(
+                    task_id=task_id,
+                    host_id=self._host_id,
+                    success=success,
+                    output=output,
+                    execution_time_ms=execution_time_ms,
+                )
+            )
 
             await logger.ainfo(
                 "Task tamamlandi",
@@ -101,17 +103,21 @@ class TaskDispatcher:
         except ValueError as exc:
             await logger.awarning("Task parse hatasi", error=str(exc))
             if task_id:
-                await self._send(build_task_error_message(
-                    task_id=task_id,
-                    host_id=self._host_id,
-                    error=f"Parse hatasi: {exc}",
-                ))
+                await self._send(
+                    build_task_error_message(
+                        task_id=task_id,
+                        host_id=self._host_id,
+                        error=f"Parse hatasi: {exc}",
+                    )
+                )
 
         except Exception as exc:
             await logger.aexception("Task calistirma hatasi", task_id=task_id)
             if task_id:
-                await self._send(build_task_error_message(
-                    task_id=task_id,
-                    host_id=self._host_id,
-                    error=f"Calistirma hatasi: {exc}",
-                ))
+                await self._send(
+                    build_task_error_message(
+                        task_id=task_id,
+                        host_id=self._host_id,
+                        error=f"Calistirma hatasi: {exc}",
+                    )
+                )

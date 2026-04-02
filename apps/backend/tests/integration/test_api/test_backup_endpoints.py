@@ -1,13 +1,26 @@
 """Integration tests for backup/disaster recovery API endpoints."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
+from app.api.deps import get_current_user
 from app.main import app
 from app.services.backup_service import BackupError
 
+_mock_user = MagicMock()
+_mock_user.id = "test-user-id"
+
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _override_auth():
+    """Override auth dependency before each test, restore after."""
+    app.dependency_overrides[get_current_user] = lambda: _mock_user
+    yield
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 class TestGetBackupStatus:

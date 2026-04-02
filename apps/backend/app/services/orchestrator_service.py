@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable, Coroutine
+from typing import cast
 
 import structlog
 
@@ -397,7 +398,6 @@ class OrchestratorService:
             import asyncio
 
             from app.api.routes.agent_ws import get_claude_stream_manager
-            from app.services.agent_registry_service import agent_registry
             from app.services.claude_stream_manager import ClaudeStreamCallbacks
 
             # Resolve agent: prefer project-linked agent, fallback to any online
@@ -516,23 +516,25 @@ class OrchestratorService:
         1. Agent linked to the project (via AgentProjectService)
         2. Any online agent with claude_code capability
         """
-        # Import from agent_ws to ensure we use the same registry instance
+        # Import from agent_registry_service to use the same registry instance
         # that receives agent registrations via WebSocket
-        from app.api.routes.agent_ws import agent_registry
+        from app.services.agent_registry_service import agent_registry
 
         if project_id and db_session is not None:
             try:
                 from sqlalchemy import select
+                from sqlalchemy.ext.asyncio import AsyncSession
 
                 from app.models.agent_project import AgentProject
 
-                result = await db_session.execute(
+                session = cast("AsyncSession", db_session)
+                result = await session.execute(
                     select(AgentProject.agent_id).where(
                         AgentProject.project_id == uuid.UUID(project_id),
                         AgentProject.is_active.is_(True),
                     )
                 )
-                agent_ids = [row[0] for row in result.all()]
+                agent_ids: list[str] = [str(row[0]) for row in result.all()]
                 # Check which are online
                 for agent_id in agent_ids:
                     conn_id = agent_registry.get_connection_id(agent_id)
@@ -570,9 +572,9 @@ class OrchestratorService:
             if not isinstance(db_session, AsyncSession):
                 return 0
             result = await db_session.execute(
-                select(func.count()).select_from(Message).where(
-                    Message.project_id == uuid.UUID(project_id)
-                )
+                select(func.count())
+                .select_from(Message)
+                .where(Message.project_id == uuid.UUID(project_id))
             )
             return int(result.scalar() or 0)
         except Exception:

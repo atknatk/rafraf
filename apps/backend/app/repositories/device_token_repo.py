@@ -71,11 +71,7 @@ class DeviceTokenRepository:
 
     async def get_all_user_ids_with_tokens(self) -> list[uuid.UUID]:
         """Return distinct user IDs that have at least one active device token."""
-        stmt = (
-            select(DeviceToken.user_id)
-            .where(DeviceToken.is_active.is_(True))
-            .distinct()
-        )
+        stmt = select(DeviceToken.user_id).where(DeviceToken.is_active.is_(True)).distinct()
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 

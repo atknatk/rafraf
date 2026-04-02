@@ -97,7 +97,9 @@ class GitHubService:
         self._token = settings.github_token
         self._client: httpx.AsyncClient | None = None
         if not self._token:
-            logger.warning("github_token_empty", hint="GITHUB_TOKEN env var bos, GitHub API calismaycak")
+            logger.warning(
+                "github_token_empty", hint="GITHUB_TOKEN env var bos, GitHub API calismaycak"
+            )
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create the httpx async client.

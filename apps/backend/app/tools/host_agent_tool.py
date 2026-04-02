@@ -183,19 +183,23 @@ class HostAgentTool(BaseTool):
         response = await self._agent_registry.list_agents()
         agents = []
         for a in response.agents:
-            agents.append({
-                "host_id": a.host_id,
-                "status": a.status.value,
-                "capabilities": [c.value for c in a.capabilities],
-                "os_info": a.os_info,
-                "active_tasks": a.active_tasks,
-                "uptime_seconds": a.uptime_seconds,
-            })
-        return json.dumps({
-            "agents": agents,
-            "total": response.total,
-            "online_count": response.online_count,
-        })
+            agents.append(
+                {
+                    "host_id": a.host_id,
+                    "status": a.status.value,
+                    "capabilities": [c.value for c in a.capabilities],
+                    "os_info": a.os_info,
+                    "active_tasks": a.active_tasks,
+                    "uptime_seconds": a.uptime_seconds,
+                }
+            )
+        return json.dumps(
+            {
+                "agents": agents,
+                "total": response.total,
+                "online_count": response.online_count,
+            }
+        )
 
     async def _get_agent_status(self, params: dict[str, object]) -> str:
         host_id = str(params.get("host_id", ""))
@@ -206,16 +210,18 @@ class HostAgentTool(BaseTool):
         if detail is None:
             return json.dumps({"error": f"Agent '{host_id}' bulunamadi"})
 
-        return json.dumps({
-            "host_id": detail.host_id,
-            "status": detail.status.value,
-            "capabilities": [c.value for c in detail.capabilities],
-            "os_info": detail.os_info,
-            "uptime_seconds": detail.uptime_seconds,
-            "active_tasks": detail.active_tasks,
-            "resources": detail.resources,
-            "registered_at": detail.registered_at,
-        })
+        return json.dumps(
+            {
+                "host_id": detail.host_id,
+                "status": detail.status.value,
+                "capabilities": [c.value for c in detail.capabilities],
+                "os_info": detail.os_info,
+                "uptime_seconds": detail.uptime_seconds,
+                "active_tasks": detail.active_tasks,
+                "resources": detail.resources,
+                "registered_at": detail.registered_at,
+            }
+        )
 
     def _resolve_host_id(
         self,

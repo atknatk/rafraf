@@ -34,7 +34,7 @@ class _TeeFile(TextIOBase):
     def __init__(self, *files: IO[str]) -> None:
         self._files = files
 
-    def write(self, data: str) -> int:  # type: ignore[override]
+    def write(self, data: str) -> int:
         for f in self._files:
             f.write(data)
             f.flush()
@@ -63,7 +63,7 @@ def _configure_structlog() -> None:
         ],
         wrapper_class=structlog.make_filtering_bound_logger(0),
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(file=tee),
+        logger_factory=structlog.PrintLoggerFactory(file=tee),  # type: ignore[arg-type]
         cache_logger_on_first_use=True,
     )
 

@@ -17,9 +17,7 @@ class AgentProject(Base, UUIDMixin, TimestampMixin):
     """
 
     __tablename__ = "agent_projects"
-    __table_args__ = (
-        UniqueConstraint("agent_id", "project_id", name="uq_agent_project"),
-    )
+    __table_args__ = (UniqueConstraint("agent_id", "project_id", name="uq_agent_project"),)
 
     agent_id: Mapped[str] = mapped_column(
         String(255),

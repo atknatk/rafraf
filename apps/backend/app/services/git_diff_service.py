@@ -39,9 +39,7 @@ async def get_project_diff(project_path: str) -> CodeDiffPayload | None:
             stderr=asyncio.subprocess.PIPE,
         )
         try:
-            stdout_bytes, _ = await asyncio.wait_for(
-                proc.communicate(), timeout=_GIT_DIFF_TIMEOUT
-            )
+            stdout_bytes, _ = await asyncio.wait_for(proc.communicate(), timeout=_GIT_DIFF_TIMEOUT)
         except TimeoutError:
             proc.kill()
             await proc.communicate()

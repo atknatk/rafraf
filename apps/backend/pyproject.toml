@@ -33,6 +33,7 @@ dev = [
     "pytest-timeout>=2.3.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
+    "types-psutil>=6.0.0",
 ]
 
 [tool.ruff]
@@ -55,10 +56,8 @@ exclude = ["alembic/"]
 [[tool.mypy.overrides]]
 module = [
     "jose.*",
-    "passlib.*",
     "anthropic.*",
     "aioboto3.*",
-    "aiobotocore.*",
     "botocore.*",
     "boto3.*",
     "mem0.*",

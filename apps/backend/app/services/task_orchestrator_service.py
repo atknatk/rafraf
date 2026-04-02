@@ -1,7 +1,10 @@
 """Task orchestrator service — manages task lifecycle state machine."""
 
+from __future__ import annotations
+
 import uuid
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime
+from typing import Protocol, runtime_checkable
 
 import structlog
 from sqlalchemy import func, select
@@ -10,6 +13,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.task import TERMINAL_STATES, VALID_TRANSITIONS, Task, TaskStatus
 from app.services.agent_registry_service import AgentRegistryService
 from app.services.live_activity_push_service import APNsGoneError, LiveActivityPushService
+
+
+@runtime_checkable
+class TaskWSManager(Protocol):
+    """Protocol for WebSocket manager used by TaskOrchestratorService."""
+
+    async def broadcast_to_user(
+        self, user_id: str | uuid.UUID, message: dict[str, object]
+    ) -> int: ...
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -51,7 +63,7 @@ class TaskOrchestratorService:
         db: AsyncSession,
         agent_registry: AgentRegistryService | None = None,
         push_service: LiveActivityPushService | None = None,
-        ws_manager: object | None = None,
+        ws_manager: TaskWSManager | None = None,
     ) -> None:
         self._db = db
         self._agent_registry = agent_registry
@@ -116,7 +128,7 @@ class TaskOrchestratorService:
         task: Task,
         step: str,
         pct: int,
-        detail: str,
+        _detail: str,
     ) -> None:
         """Send a Live Activity update push for a task if it has a push token."""
         token: str | None = getattr(task, "live_activity_push_token", None)
@@ -406,16 +418,15 @@ class TaskOrchestratorService:
             if agent_info is None:
                 continue
 
-            last_heartbeat = agent_info.get("last_heartbeat")
-            if last_heartbeat is None:
+            last_heartbeat_raw = agent_info.last_heartbeat_at
+            if last_heartbeat_raw is None:
                 continue
 
             # Ensure timezone-aware comparison
-            now = datetime.now(tz=timezone.utc)
-            if isinstance(last_heartbeat, str):
-                last_heartbeat = datetime.fromisoformat(last_heartbeat)
+            now = datetime.now(tz=UTC)
+            last_heartbeat = datetime.fromisoformat(last_heartbeat_raw)
             if last_heartbeat.tzinfo is None:
-                last_heartbeat = last_heartbeat.replace(tzinfo=timezone.utc)
+                last_heartbeat = last_heartbeat.replace(tzinfo=UTC)
 
             elapsed = (now - last_heartbeat).total_seconds()
             if elapsed > _HEARTBEAT_TIMEOUT_SECONDS:
@@ -440,9 +451,7 @@ class TaskOrchestratorService:
         if cached is not None:
             return cached
         # Fall back to DB query
-        result = await self._db.execute(
-            select(Task).where(Task.id == task_id)
-        )
+        result = await self._db.execute(select(Task).where(Task.id == task_id))
         return result.scalar_one_or_none()
 
     async def get_active_tasks(self, user_id: uuid.UUID) -> list[Task]:

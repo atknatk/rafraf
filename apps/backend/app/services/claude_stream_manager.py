@@ -225,19 +225,18 @@ class ClaudeStreamManager:
         if record is None:
             return
 
-        if record.callbacks.on_question is None:
+        question_fn = record.callbacks.on_question
+        if question_fn is None:
             return
 
         # Run in background so it doesn't block other stream messages
         async def _ask_and_forward() -> None:
             try:
-                answer = await record.callbacks.on_question(question_data)
+                answer = await question_fn(question_data)
                 if answer:
                     await self.send_question_answer(task_id, answer)
             except Exception:
-                await logger.aexception(
-                    "claude_question_forward_failed", task_id=task_id
-                )
+                await logger.aexception("claude_question_forward_failed", task_id=task_id)
 
         asyncio.create_task(_ask_and_forward())
 
@@ -264,9 +263,7 @@ class ClaudeStreamManager:
             try:
                 await record.callbacks.on_stream_end(result.full_text)
             except Exception:
-                await logger.aexception(
-                    "claude_stream_end_callback_failed", task_id=task_id
-                )
+                await logger.aexception("claude_stream_end_callback_failed", task_id=task_id)
 
         if not record.completion.done():
             record.completion.set_result(result)
@@ -290,9 +287,7 @@ class ClaudeStreamManager:
             return
 
         if not record.completion.done():
-            record.completion.set_exception(
-                ClaudeCodeError(error, returncode=returncode)
-            )
+            record.completion.set_exception(ClaudeCodeError(error, returncode=returncode))
 
         await logger.awarning(
             "claude_stream_error",

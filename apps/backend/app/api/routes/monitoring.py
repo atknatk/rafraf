@@ -147,7 +147,10 @@ def _build_agent_overview() -> AgentOverview:
         else:
             offline += 1
 
-        resources = agent.get("resources") or {}
+        resources_raw = agent.get("resources")
+        resources: dict[str, object] = (
+            resources_raw if isinstance(resources_raw, dict) else {}
+        )
         briefs.append(
             AgentBrief(
                 host_id=agent.get("host_id", ""),

@@ -5,7 +5,9 @@ shared/api-contracts/rest/v1/webhooks.json.
 """
 
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -14,6 +16,24 @@ from app.main import app
 # Navigate from apps/backend/tests/contract/ to repo root (4 levels up)
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 CONTRACT_PATH = _REPO_ROOT / "shared" / "api-contracts" / "rest" / "v1" / "webhooks.json"
+
+# Mock async_session_factory and WebhookEventService to avoid real DB connections
+_mock_session = AsyncMock()
+_mock_evt_svc = MagicMock()
+_mock_evt_svc.is_duplicate = AsyncMock(return_value=False)
+_mock_evt_svc.record_event = AsyncMock()
+_mock_evt_svc.list_events = AsyncMock(return_value=([], 0))
+
+
+@asynccontextmanager
+async def _mock_session_factory():
+    yield _mock_session
+
+
+_session_patch = patch("app.api.routes.webhooks.async_session_factory", _mock_session_factory)
+_evt_svc_patch = patch("app.api.routes.webhooks.WebhookEventService", return_value=_mock_evt_svc)
+_session_patch.start()
+_evt_svc_patch.start()
 
 client = TestClient(app)
 
@@ -147,11 +167,18 @@ class TestWebhookContractCompliance:
         assert "events" in required
         assert "total" in required
 
-        # Verify actual endpoint returns these fields
-        response = client.get("/api/v1/webhooks/github/events")
-        data = response.json()
-        assert "events" in data
-        assert "total" in data
+        # Verify actual endpoint returns these fields (override auth)
+        from app.api.deps import get_current_user
+        mock_user = MagicMock()
+        mock_user.id = "test-user-id"
+        app.dependency_overrides[get_current_user] = lambda: mock_user
+        try:
+            response = client.get("/api/v1/webhooks/github/events")
+            data = response.json()
+            assert "events" in data
+            assert "total" in data
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
 
     def test_check_run_event_supported_in_contract(self) -> None:
         """Contract should document check_run in requestBody properties."""

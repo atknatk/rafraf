@@ -11,11 +11,10 @@ from starlette.responses import JSONResponse
 
 from app.api.deps import get_current_user, get_db
 from app.models.user import User
+from app.models.task import Task
 from app.schemas.task import (
     LiveActivityTokenRequest,
     TaskCreate,
-    TaskListResponse,
-    TaskResponse,
 )
 from app.services.task_orchestrator_service import TaskOrchestratorService
 
@@ -24,7 +23,7 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 
 
-def _task_to_response(task: object) -> dict[str, str | int | None]:
+def _task_to_response(task: Task) -> dict[str, str | int | None]:
     """Convert a task model/mock to a response dict."""
     return {
         "id": str(getattr(task, "id", "")),
@@ -107,12 +106,18 @@ async def get_task_history(
     service = TaskOrchestratorService(session)
     result = await service.get_task_history(current_user.id, page=page, page_size=size)
     tasks_raw = result.get("tasks", [])
-    tasks_list: list[object] = tasks_raw if isinstance(tasks_raw, list) else []
+    tasks_list: list[Task] = tasks_raw if isinstance(tasks_raw, list) else []
+    total_raw = result.get("total", 0)
+    total: int = total_raw if isinstance(total_raw, int) else 0
+    page_raw = result.get("page", page)
+    page_val: int = page_raw if isinstance(page_raw, int) else page
+    page_size_raw = result.get("page_size", size)
+    page_size_val: int = page_size_raw if isinstance(page_size_raw, int) else size
     return {
         "tasks": [_task_to_response(t) for t in tasks_list],
-        "total": result.get("total", 0),
-        "page": result.get("page", page),
-        "page_size": result.get("page_size", size),
+        "total": total,
+        "page": page_val,
+        "page_size": page_size_val,
     }
 
 
@@ -148,7 +153,9 @@ async def cancel_task(
     service = TaskOrchestratorService(session)
     existing = await service.get_task(task_id)
     if existing is None:
-        return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": "Task not found"})
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND, content={"detail": "Task not found"}
+        )
     if str(existing.user_id) != str(current_user.id):
         return JSONResponse(status_code=status.HTTP_403_FORBIDDEN, content={"detail": "Forbidden"})
     try:
@@ -172,7 +179,9 @@ async def register_live_activity_token(
     service = TaskOrchestratorService(session)
     existing = await service.get_task(task_id)
     if existing is None:
-        return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": "Task not found"})
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND, content={"detail": "Task not found"}
+        )
     if str(existing.user_id) != str(current_user.id):
         return JSONResponse(status_code=status.HTTP_403_FORBIDDEN, content={"detail": "Forbidden"})
     try:

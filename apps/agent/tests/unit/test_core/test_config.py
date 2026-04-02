@@ -41,7 +41,7 @@ class TestAgentConfig:
             api_key="key",
             backend_ws_url="wss://example.com",
         )
-        assert config.capability_docker is False
+        assert config.capability_docker is True
         assert config.capability_shell is True
         assert config.capability_git is True
         assert config.capability_python is True
@@ -108,7 +108,7 @@ class TestAgentConfigCapabilities:
         assert "shell" in caps
         assert "git" in caps
         assert "python" in caps
-        assert "docker" not in caps
+        assert "docker" in caps
 
     def test_get_capabilities_all_enabled(self) -> None:
         """Tum yetenekler aktif oldugunda hepsi listede bulunur."""

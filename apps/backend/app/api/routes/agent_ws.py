@@ -145,9 +145,12 @@ async def agent_websocket_endpoint(
                     connection_id=connection_id,
                 )
             elif msg_type == "ping":
-                pong_msg = _build_agent_message("pong", {
-                    "timestamp": datetime.now(tz=UTC).isoformat(),
-                })
+                pong_msg = _build_agent_message(
+                    "pong",
+                    {
+                        "timestamp": datetime.now(tz=UTC).isoformat(),
+                    },
+                )
                 await agent_manager.send_json(connection_id, pong_msg)
             else:
                 await logger.awarning(
@@ -312,11 +315,14 @@ async def _handle_project_sync(
 
         await session.commit()
 
-    ack = _build_agent_message("project_sync_ack", {
-        "synced_count": synced_count,
-        "archived_count": archived_count,
-        "status": "ok",
-    })
+    ack = _build_agent_message(
+        "project_sync_ack",
+        {
+            "synced_count": synced_count,
+            "archived_count": archived_count,
+            "status": "ok",
+        },
+    )
     await agent_manager.send_json(connection_id, ack)
 
     await logger.ainfo(
@@ -450,7 +456,7 @@ async def _handle_task_error(
 
 async def _handle_claude_stream_delta(
     raw_data: dict[str, object],
-    connection_id: str,
+    _connection_id: str,
 ) -> None:
     """Forward claude_stream_delta to ClaudeStreamManager."""
     content = raw_data.get("content", {})
@@ -471,7 +477,7 @@ async def _handle_claude_stream_delta(
 
 async def _handle_claude_stream_progress(
     raw_data: dict[str, object],
-    connection_id: str,
+    _connection_id: str,
 ) -> None:
     """Forward claude_stream_progress to ClaudeStreamManager."""
     content = raw_data.get("content", {})
@@ -488,7 +494,7 @@ async def _handle_claude_stream_progress(
 
 async def _handle_claude_stream_question(
     raw_data: dict[str, object],
-    connection_id: str,
+    _connection_id: str,
 ) -> None:
     """Forward claude_stream_question to ClaudeStreamManager."""
     content = raw_data.get("content", {})
@@ -509,7 +515,7 @@ async def _handle_claude_stream_question(
 
 async def _handle_claude_stream_end(
     raw_data: dict[str, object],
-    connection_id: str,
+    _connection_id: str,
 ) -> None:
     """Forward claude_stream_end to ClaudeStreamManager."""
     content = raw_data.get("content", {})
@@ -526,7 +532,7 @@ async def _handle_claude_stream_end(
 
 async def _handle_claude_stream_error(
     raw_data: dict[str, object],
-    connection_id: str,
+    _connection_id: str,
 ) -> None:
     """Forward claude_stream_error to ClaudeStreamManager."""
     content = raw_data.get("content", {})

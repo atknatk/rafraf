@@ -172,8 +172,7 @@ class ProjectRepository:
             {name: [winner_id, dup1_id, dup2_id, ...]}
         """
         result = await self._session.execute(
-            select(Project.name, Project.id, Project.local_path)
-            .order_by(
+            select(Project.name, Project.id, Project.local_path).order_by(
                 Project.name,
                 case((Project.local_path.is_(None), 1), else_=0),  # NULL path sonra
                 Project.updated_at.desc(),

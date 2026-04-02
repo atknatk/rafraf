@@ -78,8 +78,8 @@ class PulseService:
         models_used = sorted(models_raw)
 
         # 4. AI özeti üret
-        summary_text, completed, in_progress, risks, suggestions = (
-            await self._generate_ai_summary(messages, total_messages, total_cost_usd)
+        summary_text, completed, in_progress, risks, suggestions = await self._generate_ai_summary(
+            messages, total_messages, total_cost_usd
         )
 
         # 5. Kayıt oluştur
@@ -133,9 +133,7 @@ class PulseService:
         stmt = select(PulseReport).order_by(desc(PulseReport.created_at))
 
         if project_id is not None:
-            stmt = stmt.where(
-                PulseReport.project_id == uuid.UUID(project_id)
-            )
+            stmt = stmt.where(PulseReport.project_id == uuid.UUID(project_id))
         else:
             stmt = stmt.where(PulseReport.project_id.is_(None))
 
@@ -199,9 +197,7 @@ class PulseService:
 
         # Son 10 mesajı özetle
         sample_messages = messages[-10:]
-        sample_text = "\n".join(
-            f"[{m.role}]: {m.content[:200]}" for m in sample_messages
-        )
+        sample_text = "\n".join(f"[{m.role}]: {m.content[:200]}" for m in sample_messages)
 
         cost_info = f"{total_cost_usd:.4f} USD" if total_cost_usd is not None else "bilinmiyor"
         user_prompt = (
@@ -251,9 +247,7 @@ class PulseService:
                 [str(x) for x in in_progress_raw] if isinstance(in_progress_raw, list) else []
             )
             risks_raw = parsed.get("risks", [])
-            risks: list[str] = (
-                [str(x) for x in risks_raw] if isinstance(risks_raw, list) else []
-            )
+            risks: list[str] = [str(x) for x in risks_raw] if isinstance(risks_raw, list) else []
             suggestions_raw = parsed.get("suggestions", [])
             suggestions: list[str] = (
                 [str(x) for x in suggestions_raw] if isinstance(suggestions_raw, list) else []
@@ -285,9 +279,7 @@ class PulseService:
         """Bir sonraki sabah 08:00 UTC zamanını ISO string olarak döndürür."""
         now = datetime.now(tz=UTC)
         next_day = now.date() + timedelta(days=1)
-        next_gen = datetime(
-            next_day.year, next_day.month, next_day.day, 8, 0, 0, tzinfo=UTC
-        )
+        next_gen = datetime(next_day.year, next_day.month, next_day.day, 8, 0, 0, tzinfo=UTC)
         return next_gen.isoformat()
 
 

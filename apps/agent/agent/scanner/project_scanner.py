@@ -33,11 +33,24 @@ GLOB_MARKERS: dict[str, list[str]] = {
 }
 
 # Taramadan hariç tutulacak klasor isimleri
-SKIP_DIRS: frozenset[str] = frozenset({
-    "node_modules", ".git", ".svn", "__pycache__", ".cache",
-    "dist", "build", "target", ".build", "vendor",
-    "Library", "Applications", "System", "Volumes",
-})
+SKIP_DIRS: frozenset[str] = frozenset(
+    {
+        "node_modules",
+        ".git",
+        ".svn",
+        "__pycache__",
+        ".cache",
+        "dist",
+        "build",
+        "target",
+        ".build",
+        "vendor",
+        "Library",
+        "Applications",
+        "System",
+        "Volumes",
+    }
+)
 
 
 def _detect_tech_stack(project_path: Path) -> list[str]:
@@ -96,7 +109,7 @@ def _scan_recursive(
                 local_path=path_str,
                 tech_stack=_detect_tech_stack(path),
                 source="agent_scan",
-            )
+            ),
         )
         return  # Git repo bulununca alt dizinlere girme
 

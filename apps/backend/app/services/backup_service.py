@@ -229,8 +229,10 @@ class BackupService:
             # Trigger BGSAVE
             process = await asyncio.create_subprocess_exec(
                 "redis-cli",
-                "-h", redis_host,
-                "-p", redis_port,
+                "-h",
+                redis_host,
+                "-p",
+                redis_port,
                 "BGSAVE",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -250,9 +252,13 @@ class BackupService:
             # Get RDB file path from CONFIG
             process = await asyncio.create_subprocess_exec(
                 "redis-cli",
-                "-h", redis_host,
-                "-p", redis_port,
-                "CONFIG", "GET", "dir",
+                "-h",
+                redis_host,
+                "-p",
+                redis_port,
+                "CONFIG",
+                "GET",
+                "dir",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -262,9 +268,13 @@ class BackupService:
 
             process = await asyncio.create_subprocess_exec(
                 "redis-cli",
-                "-h", redis_host,
-                "-p", redis_port,
-                "CONFIG", "GET", "dbfilename",
+                "-h",
+                redis_host,
+                "-p",
+                redis_port,
+                "CONFIG",
+                "GET",
+                "dbfilename",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -372,12 +382,14 @@ class BackupService:
                         last_modified_str = str(last_modified)
 
                     btype = "postgres" if "/postgres/" in key else "redis"
-                    all_backups.append({
-                        "key": key,
-                        "backup_type": btype,
-                        "size_bytes": str(obj.get("Size", 0)),
-                        "last_modified": last_modified_str,
-                    })
+                    all_backups.append(
+                        {
+                            "key": key,
+                            "backup_type": btype,
+                            "size_bytes": str(obj.get("Size", 0)),
+                            "last_modified": last_modified_str,
+                        }
+                    )
             except Exception as exc:
                 await logger.awarning(
                     "backup_list_error",
@@ -525,7 +537,7 @@ class BackupService:
                 operation="verify_backup",
             ) from exc
 
-    async def get_backup_status(self) -> dict[str, str | list[dict[str, str]]]:
+    async def get_backup_status(self) -> dict[str, str | dict[str, str] | list[dict[str, str]]]:
         """Get overall backup status including latest backups and health.
 
         Returns:

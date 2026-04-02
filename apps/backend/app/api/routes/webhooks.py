@@ -239,13 +239,15 @@ async def _handle_issue_event(
     }
 
     # Broadcast to connected iOS clients
-    await ios_manager.broadcast_json({
-        "type": "github_event",
-        "event": "issues",
-        "action": action,
-        "repo": repo,
-        "summary": summary,
-    })
+    await ios_manager.broadcast_json(
+        {
+            "type": "github_event",
+            "event": "issues",
+            "action": action,
+            "repo": repo,
+            "summary": summary,
+        }
+    )
 
     # Create proactive notification
     if action in ("opened", "closed", "reopened"):
@@ -258,8 +260,10 @@ async def _handle_issue_event(
             source_event=f"github:issues:{repo}:{issue_number}:{action}",
             deep_link=issue_url or None,
             metadata={
-                "repo": repo, "event": "issues",
-                "action": action, "issue_number": str(issue_number),
+                "repo": repo,
+                "event": "issues",
+                "action": action,
+                "issue_number": str(issue_number),
             },
         )
 
@@ -315,13 +319,15 @@ async def _handle_pr_event(
     }
 
     # Broadcast to connected iOS clients
-    await ios_manager.broadcast_json({
-        "type": "github_event",
-        "event": "pull_request",
-        "action": pr_action,
-        "repo": repo,
-        "summary": pr_summary,
-    })
+    await ios_manager.broadcast_json(
+        {
+            "type": "github_event",
+            "event": "pull_request",
+            "action": pr_action,
+            "repo": repo,
+            "summary": pr_summary,
+        }
+    )
 
     # Create proactive notification for PR events
     if action in ("opened", "closed", "merged"):
@@ -334,8 +340,10 @@ async def _handle_pr_event(
             source_event=f"github:pull_request:{repo}:{pr_number}:{pr_action}",
             deep_link=pr_url or None,
             metadata={
-                "repo": repo, "event": "pull_request",
-                "action": pr_action, "pr_number": str(pr_number),
+                "repo": repo,
+                "event": "pull_request",
+                "action": pr_action,
+                "pr_number": str(pr_number),
             },
         )
 
@@ -383,13 +391,15 @@ async def _handle_push_event(
     }
 
     # Broadcast to connected iOS clients
-    await ios_manager.broadcast_json({
-        "type": "github_event",
-        "event": "push",
-        "action": "push",
-        "repo": repo,
-        "summary": push_summary,
-    })
+    await ios_manager.broadcast_json(
+        {
+            "type": "github_event",
+            "event": "push",
+            "action": "push",
+            "repo": repo,
+            "summary": push_summary,
+        }
+    )
 
     return push_summary
 
@@ -449,13 +459,15 @@ async def _handle_check_run_event(
     }
 
     # Broadcast to connected iOS clients
-    await ios_manager.broadcast_json({
-        "type": "github_event",
-        "event": "check_run",
-        "action": action,
-        "repo": repo,
-        "summary": check_summary,
-    })
+    await ios_manager.broadcast_json(
+        {
+            "type": "github_event",
+            "event": "check_run",
+            "action": action,
+            "repo": repo,
+            "summary": check_summary,
+        }
+    )
 
     # Create proactive notification for CI failures
     if action == "completed" and conclusion in ("failure", "timed_out", "cancelled"):
@@ -468,8 +480,10 @@ async def _handle_check_run_event(
             source_event=f"github:check_run:{repo}:{check_id}:{conclusion}",
             deep_link=check_url or None,
             metadata={
-                "repo": repo, "event": "check_run",
-                "action": conclusion, "check_name": check_name,
+                "repo": repo,
+                "event": "check_run",
+                "action": conclusion,
+                "check_name": check_name,
                 "check_id": str(check_id),
             },
         )
@@ -514,20 +528,22 @@ async def _create_proactive_notification_for_all_users(
                     )
                     # Push via WebSocket
                     unread = await service.get_unread_count(user.id)
-                    await ios_manager.broadcast_json({
-                        "type": "proactive_notification",
-                        "notification": {
-                            "id": str(notification_resp.id),
-                            "type": notification_resp.type.value,
-                            "priority": notification_resp.priority.value,
-                            "title": notification_resp.title,
-                            "body": notification_resp.body,
-                            "source": notification_resp.source,
-                            "deep_link": notification_resp.deep_link,
-                            "created_at": notification_resp.created_at.isoformat(),
-                        },
-                        "unread_count": unread.count,
-                    })
+                    await ios_manager.broadcast_json(
+                        {
+                            "type": "proactive_notification",
+                            "notification": {
+                                "id": str(notification_resp.id),
+                                "type": notification_resp.type.value,
+                                "priority": notification_resp.priority.value,
+                                "title": notification_resp.title,
+                                "body": notification_resp.body,
+                                "source": notification_resp.source,
+                                "deep_link": notification_resp.deep_link,
+                                "created_at": notification_resp.created_at.isoformat(),
+                            },
+                            "unread_count": unread.count,
+                        }
+                    )
                 except Exception:
                     await logger.aexception(
                         "proactive_notification_create_failed",

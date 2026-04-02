@@ -70,6 +70,9 @@ class TestMessageType:
             "suggestion",
             "typing.start",
             "typing.end",
+            "task_status",
+            "stream.cancel",
+            "stream.cancelled",
         }
         actual = {t.value for t in MessageType}
         assert actual == expected

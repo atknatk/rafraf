@@ -112,7 +112,9 @@ class SubscriptionUsageService:
         )
 
         # Send push notifications for threshold breaches
-        await self._check_and_notify(usage_pct, threshold, limit_exceeded, total_messages, daily_limit)
+        await self._check_and_notify(
+            usage_pct, threshold, limit_exceeded, total_messages, daily_limit
+        )
 
         logger.info(
             "subscription_usage_refreshed",
@@ -204,7 +206,8 @@ class SubscriptionUsageService:
                 if not already_sent:
                     await self._send_usage_alert(
                         title="Günlük limit aşıldı",
-                        body=f"Bugün {total_messages}/{daily_limit} mesaj kullanıldı. Rate limit riski!",
+                        body=f"Bugün {total_messages}/{daily_limit} mesaj kullanıldı."
+                        " Rate limit riski!",
                         alert_type="limit_exceeded",
                     )
                     await redis_client.set_cache(_limit_sent_today_key(), "1", ttl=86400)
@@ -217,7 +220,10 @@ class SubscriptionUsageService:
                     pct_display = int(threshold * 100)
                     await self._send_usage_alert(
                         title=f"Kullanım %{pct_display} eşiğini geçti",
-                        body=f"Bugün {total_messages}/{daily_limit} mesaj ({usage_pct:.0f}%). Yavaşlamayı düşün.",
+                        body=(
+                            f"Bugün {total_messages}/{daily_limit}"
+                            f" mesaj ({usage_pct:.0f}%). Yavaşlamayı düşün."
+                        ),
                         alert_type="warning_threshold",
                     )
                     await redis_client.set_cache(_warning_sent_today_key(), "1", ttl=86400)
@@ -287,8 +293,11 @@ class SubscriptionUsageService:
 
             # CLAUDECODE ve ANTHROPIC_API_KEY kaldirilir:
             # CLAUDECODE → nested session hatasini onler
-            # ANTHROPIC_API_KEY → API key modunu devre disi birakir, gercek subscriptionType'i gosterir
-            env = {k: v for k, v in os.environ.items() if k not in ("CLAUDECODE", "ANTHROPIC_API_KEY")}
+            # ANTHROPIC_API_KEY → API key modunu devre disi birakir,
+            # gercek subscriptionType'i gosterir
+            env = {
+                k: v for k, v in os.environ.items() if k not in ("CLAUDECODE", "ANTHROPIC_API_KEY")
+            }
 
             proc = await asyncio.create_subprocess_exec(
                 binary,

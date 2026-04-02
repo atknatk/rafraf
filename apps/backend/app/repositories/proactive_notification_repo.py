@@ -95,9 +95,7 @@ class ProactiveNotificationRepository:
         # Paginated results
         offset = (page - 1) * page_size
         stmt = (
-            base.order_by(ProactiveNotification.created_at.desc())
-            .offset(offset)
-            .limit(page_size)
+            base.order_by(ProactiveNotification.created_at.desc()).offset(offset).limit(page_size)
         )
         result = await self._session.execute(stmt)
         notifications = list(result.scalars().all())
@@ -134,7 +132,7 @@ class ProactiveNotificationRepository:
         )
         result = await self._session.execute(stmt)
         await self._session.flush()
-        return result.rowcount  # type: ignore[return-value]
+        return result.rowcount  # type: ignore[attr-defined, no-any-return]
 
     async def delete_notification(
         self,
@@ -148,7 +146,7 @@ class ProactiveNotificationRepository:
         )
         result = await self._session.execute(stmt)
         await self._session.flush()
-        return result.rowcount > 0  # type: ignore[return-value]
+        return result.rowcount > 0  # type: ignore[attr-defined, no-any-return]
 
     async def unread_count(self, user_id: uuid.UUID) -> int:
         """Return unread notification count for a user."""

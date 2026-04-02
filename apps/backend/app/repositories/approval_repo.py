@@ -63,11 +63,7 @@ class ApprovalRepository:
         values: dict[str, object] = {"status": status}
         if responded_at is not None:
             values["responded_at"] = responded_at
-        stmt = (
-            update(ApprovalRequest)
-            .where(ApprovalRequest.id == approval_id)
-            .values(**values)
-        )
+        stmt = update(ApprovalRequest).where(ApprovalRequest.id == approval_id).values(**values)
         await self._session.execute(stmt)
 
     async def get_pending(self, session_id: str) -> ApprovalRequest | None:

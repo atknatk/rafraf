@@ -86,15 +86,14 @@ class AnalyticsService:
         )
         if project_id:
             day_stmt = day_stmt.where(Message.project_id == project_id)
-        day_stmt = day_stmt.group_by(
+        day_stmt = day_stmt.group_by(func.date_trunc("day", Message.created_at)).order_by(
             func.date_trunc("day", Message.created_at)
-        ).order_by(func.date_trunc("day", Message.created_at))
+        )
 
         day_result = await self._session.execute(day_stmt)
         day_rows = day_result.all()
         daily_activity: list[dict[str, object]] = [
-            {"date": str(row.day.date()), "count": int(row.day_count)}
-            for row in day_rows
+            {"date": str(row.day.date()), "count": int(row.day_count)} for row in day_rows
         ]
 
         # Maliyet ozeti — CostLog'da project_id yok, user bazinda filtrele
@@ -139,9 +138,7 @@ class AnalyticsService:
                 "total_usd": round(total_cost, 6),
                 "events": cost_events,
                 "avg_per_message_usd": (
-                    round(total_cost / assistant_count, 6)
-                    if assistant_count > 0
-                    else 0.0
+                    round(total_cost / assistant_count, 6) if assistant_count > 0 else 0.0
                 ),
             },
             "models": model_distribution,

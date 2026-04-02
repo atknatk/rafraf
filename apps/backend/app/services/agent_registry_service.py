@@ -163,12 +163,14 @@ class AgentRegistryService:
 
         # Proactive broadcast to iOS clients
         if self._ios_manager:
-            await self._ios_manager.broadcast_json({
-                "type": "agent_status_change",
-                "host_id": payload.host_id,
-                "status": "online",
-                "is_new": is_new,
-            })
+            await self._ios_manager.broadcast_json(
+                {
+                    "type": "agent_status_change",
+                    "host_id": payload.host_id,
+                    "status": "online",
+                    "is_new": is_new,
+                }
+            )
 
         return is_new
 
@@ -202,9 +204,13 @@ class AgentRegistryService:
             from app.core.database import async_session_factory
             from app.repositories.host_agent_repo import HostAgentRepository
 
-            resources_dict = None
+            resources_dict: dict[str, object] | None = None
             if payload.resources is not None:
-                resources_dict = payload.resources.model_dump() if hasattr(payload.resources, "model_dump") else {"raw": str(payload.resources)}
+                resources_dict = (
+                    payload.resources.model_dump()
+                    if hasattr(payload.resources, "model_dump")
+                    else {"raw": str(payload.resources)}
+                )
             async with async_session_factory() as db:
                 repo = HostAgentRepository(db)
                 await repo.upsert_from_heartbeat(
@@ -394,12 +400,14 @@ class AgentRegistryService:
                         )
                         record.status = AgentStatus.OFFLINE
                         if self._ios_manager:
-                            await self._ios_manager.broadcast_json({
-                                "type": "agent_status_change",
-                                "host_id": record.host_id,
-                                "status": "offline",
-                                "reason": "heartbeat_timeout",
-                            })
+                            await self._ios_manager.broadcast_json(
+                                {
+                                    "type": "agent_status_change",
+                                    "host_id": record.host_id,
+                                    "status": "offline",
+                                    "reason": "heartbeat_timeout",
+                                }
+                            )
         except asyncio.CancelledError:
             pass
 
@@ -430,13 +438,15 @@ class AgentRegistryService:
                     "disk_usage_percent": record.resources.disk_usage_percent,
                     "disk_free_gb": record.resources.disk_free_gb,
                 }
-            result.append({
-                "host_id": record.host_id,
-                "status": record.status,
-                "resources": resources_dict,
-                "active_tasks": record.active_tasks or 0,
-                "uptime_seconds": record.uptime_seconds or 0,
-            })
+            result.append(
+                {
+                    "host_id": record.host_id,
+                    "status": record.status,
+                    "resources": resources_dict,
+                    "active_tasks": record.active_tasks or 0,
+                    "uptime_seconds": record.uptime_seconds or 0,
+                }
+            )
         return result
 
     def get_claude_processes(self, host_id: str) -> list[ClaudeProcessInfo]:
@@ -487,6 +497,7 @@ class AgentRegistryService:
 def _make_registry() -> AgentRegistryService:
     try:
         from app.api.routes.websocket import manager as _ios_manager  # noqa: PLC0415
+
         return AgentRegistryService(ios_manager=_ios_manager)
     except Exception:
         return AgentRegistryService()

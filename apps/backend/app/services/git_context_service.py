@@ -55,18 +55,10 @@ async def build_git_context(project_path: str) -> str:
         return ""
 
     # Run remaining commands in parallel for speed
-    branch_task = asyncio.create_task(
-        _run_git(["branch", "--show-current"], project_path)
-    )
-    status_task = asyncio.create_task(
-        _run_git(["status", "--short"], project_path)
-    )
-    log_task = asyncio.create_task(
-        _run_git(["log", "--oneline", "-5"], project_path)
-    )
-    diff_stat_task = asyncio.create_task(
-        _run_git(["diff", "--stat", "HEAD"], project_path)
-    )
+    branch_task = asyncio.create_task(_run_git(["branch", "--show-current"], project_path))
+    status_task = asyncio.create_task(_run_git(["status", "--short"], project_path))
+    log_task = asyncio.create_task(_run_git(["log", "--oneline", "-5"], project_path))
+    diff_stat_task = asyncio.create_task(_run_git(["diff", "--stat", "HEAD"], project_path))
 
     branch, status, log, diff_stat = await asyncio.gather(
         branch_task, status_task, log_task, diff_stat_task

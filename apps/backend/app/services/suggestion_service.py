@@ -65,9 +65,7 @@ async def generate_suggestions(
 
         first_block = response.content[0] if response.content else None
         raw_text = (
-            first_block.text
-            if first_block is not None and hasattr(first_block, "text")
-            else ""
+            first_block.text if first_block is not None and hasattr(first_block, "text") else ""
         )
         suggestions = _parse_suggestions(raw_text)
         await logger.adebug("suggestions_generated", count=len(suggestions))
@@ -91,7 +89,7 @@ def _parse_suggestions(raw: str) -> list[str]:
         # "1. ", "2. ", "3. " gibi on ekleri kaldir
         for prefix in ("1. ", "2. ", "3. ", "1) ", "2) ", "3) ", "- "):
             if line.startswith(prefix):
-                line = line[len(prefix):]
+                line = line[len(prefix) :]
                 break
         if line:
             results.append(line)

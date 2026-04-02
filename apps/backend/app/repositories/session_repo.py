@@ -30,11 +30,7 @@ class SessionRepository:
     async def end_session(self, session_id: uuid.UUID) -> None:
         """Mark a session as ended."""
         now = datetime.now(tz=UTC)
-        stmt = (
-            update(Session)
-            .where(Session.id == session_id)
-            .values(ended_at=now, updated_at=now)
-        )
+        stmt = update(Session).where(Session.id == session_id).values(ended_at=now, updated_at=now)
         await self._session.execute(stmt)
         await logger.ainfo("session_ended", session_id=str(session_id))
 
@@ -79,5 +75,6 @@ class SessionRepository:
         ) + tokens_output
         record.total_tokens_used = current_tokens
         from decimal import Decimal
+
         record.total_cost_usd += Decimal(str(cost_usd_increment))
         await self._session.flush()

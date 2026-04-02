@@ -50,4 +50,6 @@ class ProfileResponse(BaseModel):
 class ProfileUpdateRequest(BaseModel):
     """Profile update request."""
 
-    display_name: str | None = Field(None, min_length=1, max_length=255, description="Yeni goruntu adi")
+    display_name: str | None = Field(
+        None, min_length=1, max_length=255, description="Yeni goruntu adi"
+    )

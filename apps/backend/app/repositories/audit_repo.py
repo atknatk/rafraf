@@ -98,10 +98,6 @@ class AuditRepository:
 
     async def list_recent(self, *, limit: int = 50) -> Sequence[AuditLog]:
         """List most recent audit log entries."""
-        query = (
-            select(AuditLog)
-            .order_by(AuditLog.created_at.desc())
-            .limit(limit)
-        )
+        query = select(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit)
         result = await self._session.execute(query)
         return result.scalars().all()

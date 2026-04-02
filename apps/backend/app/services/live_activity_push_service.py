@@ -128,6 +128,22 @@ class LiveActivityPushService:
             )
             return False
 
+    async def send_visible_push(
+        self,
+        user_id: object,
+        title: str,
+        body: str,
+    ) -> None:
+        """Send a visible (alert) push notification.
+
+        Placeholder — not yet implemented.
+        """
+        logger.debug(
+            "send_visible_push_not_implemented",
+            user_id=str(user_id),
+            title=title,
+        )
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -215,8 +231,12 @@ class LiveActivityPushService:
         request = NotificationRequest(
             device_token=push_token,
             message=payload,
-            headers=headers,
         )
+        # aioapns NotificationRequest doesn't accept headers kwarg;
+        # headers are set as attributes instead.
+        if headers:
+            for key, value in headers.items():
+                setattr(request, key, value)
 
         response = await client.send_notification(request)
         if not response.is_successful:
