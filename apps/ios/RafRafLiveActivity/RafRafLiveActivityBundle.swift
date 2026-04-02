@@ -12,7 +12,9 @@ import SwiftUI
 struct RafRafLiveActivityBundle: WidgetBundle {
     var body: some Widget {
         RafRafLiveActivity()
-        RafRafLiveActivityControl()
         TaskLiveActivity()
+        if #available(iOS 18.0, *) {
+            RafRafLiveActivityControl()
+        }
     }
 }

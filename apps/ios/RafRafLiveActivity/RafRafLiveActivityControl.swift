@@ -9,6 +9,7 @@ import AppIntents
 import SwiftUI
 import WidgetKit
 
+@available(iOS 18.0, *)
 struct RafRafLiveActivityControl: ControlWidget {
     static let kind: String = "app.rafraf.RafRaf.RafRafLiveActivity"
 
