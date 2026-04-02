@@ -125,7 +125,10 @@ class AgentConfig(BaseSettings):
     # Claude Code settings
     claude_binary: str = Field(default="claude", description="claude CLI binary path")
     claude_timeout_seconds: int = Field(
-        default=600, ge=60, le=3600, description="Claude process timeout (saniye)"
+        default=600,
+        ge=60,
+        le=3600,
+        description="Claude process timeout (saniye)",
     )
 
     def get_capabilities(self) -> list[str]:

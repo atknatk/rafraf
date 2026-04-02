@@ -2,6 +2,14 @@
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
+  "extraKnownMarketplaces": {
+    "everva": {
+      "source": { "source": "github", "repo": "everva/claude-plugins" }
+    }
+  },
+  "enabledPlugins": {
+    "dark-factory@everva": true
+  },
   "permissions": {
     "allow": [
       "Bash(gh auth status:*)",
