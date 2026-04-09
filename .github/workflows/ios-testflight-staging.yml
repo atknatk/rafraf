@@ -1,0 +1,111 @@
+name: iOS TestFlight Deploy (staging)
+
+on:
+  push:
+    branches: [staging]
+    paths:
+      - "apps/ios/**"
+      - ".github/workflows/ios-testflight-staging.yml"
+  workflow_dispatch:
+    inputs:
+      build_number_override:
+        description: "Override build number (leave empty for auto: run_number + 20000)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-testflight-staging
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: apps/ios
+
+env:
+  SCHEME: RafRaf
+  ARCHIVE_PATH: build/RafRaf.xcarchive
+  EXPORT_PATH: build/export
+
+jobs:
+  deploy:
+    name: Archive & Upload to TestFlight (staging)
+    runs-on: [self-hosted, macos-runner]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Xcode
+        run: |
+          xcode-select -p
+          xcodebuild -version
+
+      - name: Set build number
+        run: |
+          if [ -n "${{ inputs.build_number_override }}" ]; then
+            BUILD_NUMBER="${{ inputs.build_number_override }}"
+          else
+            BUILD_NUMBER=$(( ${{ github.run_number }} + 20000 ))
+          fi
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+          echo "Build number: $BUILD_NUMBER"
+          agvtool new-version -all "$BUILD_NUMBER"
+
+      - name: Unlock Keychain
+        run: |
+          security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" ~/Library/Keychains/login.keychain-db
+          security set-keychain-settings ~/Library/Keychains/login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${{ secrets.KEYCHAIN_PASSWORD }}" ~/Library/Keychains/login.keychain-db
+
+      - name: Setup App Store Connect API Key
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}" | base64 --decode \
+            > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
+          echo "API_KEY_PATH=$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8" >> "$GITHUB_ENV"
+
+      - name: Resolve SPM dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -scheme "$SCHEME"
+
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -scheme "$SCHEME" \
+            -archivePath "$ARCHIVE_PATH" \
+            -configuration Release \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$API_KEY_PATH" \
+            -authenticationKeyID "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
+            -skipMacroValidation \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            DEVELOPMENT_TEAM="VT3X56P4ZL"
+
+      - name: Export archive
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$EXPORT_PATH" \
+            -exportOptionsPlist exportOptions.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$API_KEY_PATH" \
+            -authenticationKeyID "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
+
+      - name: Upload to TestFlight
+        run: |
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$EXPORT_PATH/RafRaf.ipa" \
+            --apiKey "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
+            --apiIssuer "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf build/
+          rm -f ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
