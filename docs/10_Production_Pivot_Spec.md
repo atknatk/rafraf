@@ -2,7 +2,7 @@
 
 > **Bu doküman bir context handoff + action plan dosyasıdır.** Yeni bir Claude session veya yeni bir geliştirici bu doc'u okuduğunda RafRaf'ın bugünkü durumunu, neyin değişeceğini ve production-grade'e nasıl taşınacağını **sıfırdan başka bir kaynağa bakmadan** anlayabilmelidir.
 
-**Sürüm:** 1.2 (usage tracking entegrasyonu — statusline pipeline, RFUsageGauge planı)
+**Sürüm:** 2.0 (mimari major revizyon — host agent → Go bridge port, EKS deploy ana plan)
 **Tarih:** 2026-05-01
 **Sahip:** The Abi (mr.the.abi@gmail.com)
 **Geliştirici:** Claude (Opus 4.7, 1M context)
@@ -11,8 +11,17 @@
 
 **Sürüm geçmişi:**
 - 1.0 — İlk yazım
-- 1.1 — Review düzeltmeleri: tool aliasing (Task↔Agent), 1000-sample tool dağılımı, system/init tools listesi, RafRaf gerçek path'leri (`WebSocketMessage.swift`, `subprocess_env` line 236), `agent_registry_service` SİL listesine taşındı (host agent registry, subagent değil), JWT algoritma `settings.jwt_algorithm` referansı, cost senaryosu Mac/VPS/EKS ayrı.
-- 1.2 — Usage tracking entegrasyonu: yeni §2.11 (statusline JSON pipeline, `~/.claude/usage.json`), `usage.report` WS message tipi, `UsageReportPayload`, `RFUsageGauge` iOS component planı, statusline.py deploy stratejisi (§9.9), ek metric'ler (`claude_5h_usage_pct`, `claude_7d_usage_pct`, `claude_usage_report_age_seconds`). Detay referans: [`claude-code-usage-tracking.md`](claude-code-usage-tracking.md).
+- 1.1 — Review düzeltmeleri: tool aliasing (Task↔Agent), 1000-sample tool dağılımı, system/init tools listesi, RafRaf gerçek path'leri (`WebSocketMessage.swift`, `subprocess_env` line 236), JWT algoritma referansı, cost senaryosu Mac/VPS/EKS ayrı.
+- 1.2 — Usage tracking entegrasyonu: yeni §2.11 (statusline JSON pipeline, `~/.claude/usage.json`), `usage.report` WS message tipi, `RFUsageGauge` iOS component planı.
+- **2.0 — Mimari major revizyon**:
+  - **Backend EKS'te kalır** (kullanıcının mevcut altyapısı). V1 = Mac local önerisi geri alındı.
+  - **Host agent SİLİNMEZ** — Python implementasyonu **archive**, yerine `apps/rafraf-bridge/` Go binary olarak **port edilir** (Faz 0.5).
+  - **`agent_registry_service.py` TUT** (bridge online/offline tracking için — önceki kararı geri al).
+  - **`claude_code_runner.py` rolü değişir**: backend'de subprocess yerine **bridge'e RPC**; subprocess Mac bridge'te.
+  - **storage_watcher + statusline pipeline**: backend'de değil, **bridge'te** (Go) — ~/.claude/ Mac'te.
+  - Yeni Faz 0.5 eklendi: **Bridge port (Python → Go)**, Faz 0 ile **paralel**. Toplam 4 → 5 hafta.
+  - Install kazancı: tek statik Go binary (~10-15 MB), brew tap veya signed `.pkg`. Eski Python venv kurulum karmaşası kalkar — "aktiflestirememistim" sorununun ana sebebi.
+  - Yeni docs eşliğinde okunur: [`11_Bridge_Spec.md`](11_Bridge_Spec.md), [`12_Action_Plan_Tasks.md`](12_Action_Plan_Tasks.md), [`adr/0002..0005`](adr/).
 
 ---
 
@@ -376,7 +385,7 @@ CLAUDE_CODE_PERMISSION_MODE=acceptEdits  # default
 
 ## 4. Hedef mimari (V1)
 
-### 4.1 Topoloji (V1, simplified)
+### 4.1 Topoloji (V1 v2.0)
 
 ```
                        ┌──────────────┐
@@ -385,55 +394,89 @@ CLAUDE_CODE_PERMISSION_MODE=acceptEdits  # default
                               │ push
                               │
    iPhone (SwiftUI) ──HTTPS──▶ ┌──────────────────────┐
-   ──WSS──▶                    │  RafRaf Backend       │
-                                │  (FastAPI, EKS or VPS)│
+   ──WSS──────────────────────▶│  RafRaf Backend       │
+                                │  (FastAPI, EKS pod)   │
                                 │  ─ Apple Sign In + JWT│
                                 │  ─ /sessions /agents  │
-                                │  ─ /websocket (WS)    │
-                                │  ─ /events (SSE proj.)│
+                                │  ─ /websocket (iOS WS)│
+                                │  ─ /api/v1/agent/ws   │ ← bridge için ayrı WS endpoint
                                 │  ─ APNs sender        │
                                 │  ─ Postgres + Redis   │
-                                └─┬─────────┬───────────┘
-                                  │         │
-                                  ▼         ▼
-                ┌───────────────────────┐  ┌──────────────────┐
-                │  claude_code_runner   │  │  storage_watcher │
-                │  (subprocess pool)    │  │  (~/.claude/.../ │
-                │  ── claude -p         │  │   projects tail) │
-                │  ── stream-json parse │  │  ── ai-title     │
-                │  ── Agent Teams env   │  │  ── pr-link      │
-                │  ── --resume support  │  │  ── hook events  │
-                └───────────────────────┘  └──────────────────┘
+                                │  ─ claude_stream_mgr  │ ← bridge ↔ iOS forwarder
+                                └──────────▲───────────┘
+                                           │ outbound WSS
+                                           │ (bridge initiates)
+                                           │
+                                ┌──────────┴───────────┐
+                                │  rafraf-bridge       │ ← apps/rafraf-bridge/
+                                │  (Go, Mac launchd)   │   yeni Go binary, ~10-15 MB
+                                │  ─ ws client         │
+                                │  ─ claude.runner     │
+                                │  ─ claude.parser     │
+                                │  ─ claude.state      │
+                                │  ─ storage.watcher   │ ← ~/.claude/projects/
+                                │  ─ statusline.watcher│ ← ~/.claude/usage.json
+                                │  ─ telemetry         │
+                                └──────────┬───────────┘
+                                           │ subprocess (claude -p)
+                                           │
+                                ┌──────────▼───────────┐
+                                │ claude (Mac)         │
+                                │ subscription bound   │
+                                │ + Agent Teams flag   │
+                                └──────────────────────┘
 ```
 
-**V1 simplification**: Backend Mac'te (kullanıcının makinesi) veya küçük bir VPS'de. EKS V2'de.
+**Anahtar mimari karar (v2.0)**: Backend EKS pod'da, claude CLI Mac'te (subscription bound). Bridge **outbound WSS** ile EKS'e bağlanır (NAT geçişi yok). EKS pod'dan Mac'e direkt bağlantı yok.
 
-**V2 (sonraki)**: Backend EKS pod'da, Mac'te ayrı bir Bridge Agent (spike'ta yazılan Go prototype'a evrilir) outbound WS köprüsü açar. iOS app aynı API'ye konuşur.
+**Bridge'in 4 sorumluluğu**:
+1. **Backend RPC köprüsü**: `/api/v1/agent/ws` endpoint'inden gelen "claude task çalıştır" komutlarını alır
+2. **claude subprocess yöneticisi**: `claude -p --output-format stream-json --verbose ...` çalıştırır
+3. **Stream parser + forwarder**: stream-json event'lerini protokol envelope'una çevirip backend'e geri gönderir
+4. **Storage + statusline watcher**: `~/.claude/projects/` ve `~/.claude/usage.json` dosyalarını izleyip extra event'leri (ai-title, pr-link, usage report) backend'e push eder
 
-### 4.2 Akış (V1)
+**Spike Bridge prototype** (`~/Code/claude-teams-spike/bridge/main.go`, 276 satır) Faz 0.5'in başlangıç noktası. Mevcut Python `apps/agent/` (claude_runner.py 658 satır + core/connection.py + protocol.py) port edilecek referans.
+
+### 4.2 Akış (V1 v2.0)
 
 ```
-1. iOS kullanıcı mesaj yazar → WS message: {type: "user.message", content: "..."}
-2. Backend WS handler:
+1. iOS → Backend WS: {type: "user.message", content: "..."}
+2. Backend WS handler (websocket.py):
    a. Mesajı conversations tablosuna kaydet
-   b. claude_code_runner.run(prompt, session_id=resume_id) çağır
-3. claude_code_runner:
-   a. claude -p --output-format stream-json --verbose --resume <id> --permission-mode acceptEdits "<prompt>"
-   b. Subprocess'in stdout'unu line-by-line parse et
-   c. Her event'i WS üzerinden iOS'a forward (mapping aşağıda)
-4. Aynı zamanda storage_watcher arkaplanda:
-   a. ~/.claude/projects/<proj>/<session>.jsonl tail (watchdog)
-   b. ai-title, pr-link event'leri yakalandığında WS push
-5. iOS:
+   b. claude_stream_manager.dispatch_to_bridge(user_id, prompt, session_id)
+3. claude_stream_manager → bridge WS connection:
+   a. Bridge'e RPC envelope: {type: "command.claude.run", payload: {prompt, session_id, permission_mode, agent_teams: true}}
+4. Bridge (Go) RPC alır:
+   a. claude.runner.Run(prompt, session_id) → exec.CommandContext("claude", "-p", "--output-format", "stream-json", "--verbose", ...)
+   b. Subprocess env: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1, ANTHROPIC_API_KEY excluded
+   c. claude.parser line-by-line stdout parse → claude.state günceller (subagents, rate_limit, cost)
+   d. Her event'i WS envelope'una çevirip backend'e geri gönderir
+5. Bridge (Go) paralel olarak:
+   a. storage.watcher → ~/.claude/projects/<proj>/<session>.jsonl tail
+   b. statusline.watcher → ~/.claude/usage.json poll
+   c. Yakalanan ai-title, pr-link, usage.report event'lerini backend'e push
+6. Backend claude_stream_manager:
+   a. Bridge'ten gelen event'i RafRaf WS message tipine çevirir (mapping §4.3)
+   b. iOS WS'e forward
+7. iOS:
    a. chat.stream events (text streaming)
-   b. task_progress / task_notification events (subagent UI)
-   c. ai-title event → session list başlığı güncelle
-   d. result event → cost + duration göster + Live Activity end
+   b. subagent.spawned/progress/completed events (Agent Teams)
+   c. session.title event → Home view başlığı güncelle
+   d. session.pr_opened event → notification push
+   e. usage.report event → RFUsageGauge update
+   f. chat.stream_end event → cost + duration göster + Live Activity end
 ```
 
-### 4.3 Stream-JSON → WS event mapping (RafRaf konvansiyonu)
+### 4.3 Stream-JSON → WS event mapping (iki seviyeli)
 
-RafRaf zaten kendi WS message type'ları kullanıyor (`chat.stream`, `chat.stream_end`, `task_status`, `code.diff`, vs.). claude_code_runner stream-json event'lerini bu type'lara çevirir:
+İki ayrı WS hattı var:
+
+- **Bridge ↔ Backend**: `/api/v1/agent/ws`, RPC + event envelope (yeni protocol, [`11_Bridge_Spec.md`](11_Bridge_Spec.md) §4)
+- **Backend ↔ iOS**: `/api/v1/websocket`, mevcut RafRaf konvansiyonu (`chat.stream`, `chat.stream_end`, `task_status`, `code.diff`)
+
+**Bridge → Backend → iOS akışı**:
+
+claude stream-json → bridge envelope → backend mapping → iOS WS message:
 
 | Stream-JSON `type/subtype` | RafRaf WS message `type` |
 |---|---|
@@ -661,31 +704,104 @@ Mevcut 9 migration:
 
 ---
 
-## 6. Mimari değişiklikler (kod düzeyinde)
+## 6. Mimari değişiklikler (kod düzeyinde, v2.0)
 
-### 6.1 `claude_code_runner.py` güncellemeleri
+### 6.1 Backend `claude_code_runner.py` rolü tamamen değişiyor
 
-`apps/backend/app/orchestrator/claude_code_runner.py` (mevcut implementasyon)'a eklemeler:
+**v1.x** plan: backend subprocess çalıştırıyor (`asyncio.create_subprocess_exec("claude", "-p", ...)`).
 
-#### 6.1.1 Subprocess env injection
+**v2.0**: backend EKS pod'da, claude CLI Mac'te. Backend artık **subprocess çalıştırmıyor** — bridge'e RPC ediyor.
 
-Mevcut `claude_code_runner.py:236` zaten ANTHROPIC_API_KEY çıkarıyor. Tek satırlık ekleme yeterli:
+#### 6.1.1 Yeni iskelet (backend tarafı)
 
-```python
-# apps/backend/app/orchestrator/claude_code_runner.py — line 236 etrafı
-subprocess_env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
-# YENİ:
-subprocess_env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
-# (Bu config'den okunabilir: settings.claude_code_experimental_agent_teams)
-```
-
-**Mimari not (V2 hazırlık)**: `claude_code_runner.py`'nin subprocess invocation'ını ayrı bir `ClaudeProcessExecutor` strategy'sine taşımak V2 için iyi olur. V1'de `LocalSubprocessExecutor` (mevcut), V2'de `BridgeWebSocketExecutor` (Mac'teki Bridge Agent'a WS üzerinden komut gönderir, Bridge Agent claude'u çalıştırır). Faz 0/1 sırasında bu refactor küçük tutulabilir — şimdilik bir TODO comment'i:
+`apps/backend/app/orchestrator/claude_code_runner.py` baştan yazılır, ama public interface (run/callback'ler) korunur — backend'in geri kalan kodu (`websocket.py`, `claude_stream_manager.py`, `orchestrator_service.py`) az değiştirir.
 
 ```python
-# TODO(scope: V2): _build_command + create_subprocess_exec'i
-# ClaudeProcessExecutor strategy'sine ayırın.
-# Local subprocess (V1) ↔ Bridge Agent WS (V2) için aynı interface.
+# apps/backend/app/orchestrator/claude_code_runner.py — v2.0
+class ClaudeCodeRunner:
+    """RPC adapter: bridge'e komut gönderir, event akışını callback'lere yansıtır.
+
+    Eski v1.x'teki subprocess execution kaldırıldı.
+    Subprocess Mac bridge'te (apps/rafraf-bridge/internal/claude/runner.go).
+    """
+
+    def __init__(self, agent_registry: AgentRegistryService) -> None:
+        self._agents = agent_registry
+
+    async def run(self, *, prompt: str, session_id: str | None = None,
+                  bridge_id: str | None = None,
+                  on_text_delta: TextDeltaCallback | None = None,
+                  on_tool_progress: ToolProgressCallback | None = None,
+                  on_question: QuestionCallback | None = None,
+                  on_subagent_spawned: SubagentSpawnedCallback | None = None,
+                  on_subagent_completed: SubagentCompletedCallback | None = None,
+                  on_rate_limit: RateLimitCallback | None = None,
+                  on_stream_end: StreamEndCallback | None = None,
+                  ) -> ClaudeCodeResult:
+        # 1. Hedef bridge'i seç (V1: tek bridge, V2: multi-host)
+        bridge = await self._agents.get_active_bridge(user_id, bridge_id)
+        # 2. RPC envelope yolla
+        rpc_id = uuid4().hex
+        await bridge.ws.send_json({
+            "type": "command.claude.run",
+            "id": rpc_id,
+            "ts": now_iso(),
+            "payload": {
+                "prompt": prompt,
+                "session_id": session_id,
+                "permission_mode": "acceptEdits",
+                "agent_teams": True,
+                # ANTHROPIC_API_KEY env exclusion bridge tarafında yapılacak
+            },
+        })
+        # 3. Bridge'ten gelen event'leri korelasyon id ile dinle, callback'lere yansıt
+        async for event in self._agents.stream_events(rpc_id):
+            await self._dispatch_event(event, callbacks)
+        return ClaudeCodeResult(...)
 ```
+
+#### 6.1.2 Mevcut Python `claude_code_runner.py` (subprocess versiyonu)
+
+Faz 0.5 boyunca **referans olarak korunur** (Bridge port sırasında stream-json parsing logic'i Go'ya kopyalanırken kaynak). Faz 1 sonu ARCHIVED'a taşınır.
+
+#### 6.1.3 Subprocess + stream-json Bridge'te (Go)
+
+Spike'taki Go pattern + RafRaf Python claude_runner.py'nin port edilmiş hali:
+
+```go
+// apps/rafraf-bridge/internal/claude/runner.go
+type Runner struct {
+    Binary       string  // "claude"
+    ProjectDir   string  // settings.claude_code_project_dir
+    Permissions  string  // "acceptEdits"
+}
+
+func (r *Runner) Run(ctx context.Context, req RunRequest, sink EventSink) error {
+    cmd := exec.CommandContext(ctx, r.Binary,
+        "-p", "--output-format", "stream-json", "--verbose",
+        "--include-partial-messages",
+        "--permission-mode", r.Permissions,
+    )
+    if req.SessionID != "" {
+        cmd.Args = append(cmd.Args, "--resume", req.SessionID)
+    }
+    cmd.Args = append(cmd.Args, req.Prompt)
+    cmd.Dir = r.ProjectDir
+
+    env := os.Environ()
+    env = filterOut(env, "ANTHROPIC_API_KEY")
+    env = append(env, "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1")
+    cmd.Env = env
+
+    stdout, _ := cmd.StdoutPipe()
+    if err := cmd.Start(); err != nil { return err }
+
+    parser := NewParser(sink)
+    return parser.Parse(stdout)
+}
+```
+
+Detay: [`11_Bridge_Spec.md`](11_Bridge_Spec.md) §5 (claude.runner) ve §6 (parser + state).
 
 #### 6.1.2 Yeni stream-json event handler'lar
 
@@ -777,7 +893,19 @@ async def _dispatch_event(self, event: dict, state: _StreamState) -> None:
 
 `--include-hook-events`, `--include-partial-messages` opsiyonel destek (config flag ile).
 
-### 6.2 Yeni service: `storage_watcher_service.py`
+### 6.2 Storage + statusline watcher'lar (v2.0: bridge tarafında)
+
+**v1.x** plan: Python `storage_watcher_service.py` backend'de.
+
+**v2.0**: Mac'te `~/.claude/projects/` ve `~/.claude/usage.json` izlemek backend'in (EKS) yapamayacağı bir iş — dosyalar kullanıcının Mac'inde. Bu yüzden **Bridge tarafına taşındı**:
+
+- `apps/rafraf-bridge/internal/storage/watcher.go` — `~/.claude/projects/` fsnotify
+- `apps/rafraf-bridge/internal/statusline/watcher.go` — `~/.claude/usage.json` watch
+
+Detay tasarım: [`11_Bridge_Spec.md`](11_Bridge_Spec.md) §7 (storage) ve §8 (statusline). Aşağıdaki Python referans implementation **archive değeri** taşır — Faz 0.5'te Go'ya port edilirken pattern olarak kullanılır.
+
+<details>
+<summary>Eski v1.x Python referans (kullanılmayacak, Go'ya port edilecek)</summary>
 
 `apps/backend/app/services/storage_watcher_service.py` (yeni dosya):
 
@@ -901,23 +1029,27 @@ class _Handler(FileSystemEventHandler):
         self._watcher._tail_file(path)
 ```
 
-`pyproject.toml`'a ekle: `watchdog>=4.0.0`
+`pyproject.toml`'a ekle: `watchdog>=4.0.0` (~~v2.0'da kullanılmayacak, Go fsnotify ile~~)
 
-`main.py` lifespan içinde başlat, conversation_service ile bağla → ai-title geldiğinde session.title update + WS push.
+`main.py` lifespan içinde başlat — ~~v2.0'da iptal, bridge tarafında~~.
 
-**Docker deployment notu**: Backend Docker container'da çalışıyorsa `~/.claude/projects/` host'un home'unda. Container içinden erişim için bind mount gerekir:
+</details>
 
-```yaml
-# infra/docker/docker-compose.dev.yml
-services:
-  backend:
-    volumes:
-      - ${HOME}/.claude:/root/.claude:ro   # readonly bind mount
-    environment:
-      CLAUDE_PROJECTS_ROOT: /root/.claude/projects
+**v2.0 yeni akış**:
+
 ```
-
-Service kodu `CLAUDE_PROJECTS_ROOT` env var'ı tercih etmeli (default `Path.home() / ".claude" / "projects"`).
+Bridge (Go, Mac)
+  ├─ internal/storage/watcher.go   → fsnotify on ~/.claude/projects/
+  │  └─ event.session.title (ai-title)
+  │  └─ event.session.pr_opened (pr-link)
+  │
+  └─ internal/statusline/watcher.go → poll ~/.claude/usage.json (5s interval)
+     └─ event.usage.report (5h/7d %)
+     ↓
+   ws.client → backend /api/v1/agent/ws
+     ↓
+   backend claude_stream_manager → iOS WS forward
+```
 
 ### 6.3 iOS değişiklikleri
 
@@ -1154,7 +1286,19 @@ Spike Test 6'da 5 paralel session'da $0.71 tüketildi — Max plan rate-limit'e 
 
 ## 8. Migration / pivot fazları
 
-Toplam **4 hafta** RafRaf'ı production-grade hâle getirmek için.
+Toplam **5 hafta** RafRaf'ı production-grade hâle getirmek için (v2.0 ile +1 hafta — Faz 0.5 Bridge port).
+
+| Faz | Track | Süre | Bağımlılık |
+|---|---|---|---|
+| **Faz 0 — Cleanup** | cleanup-track | 1 hafta | — |
+| **Faz 0.5 — Bridge port (Python → Go)** | **bridge-track (paralel)** | 1 hafta | — (Faz 0 ile paralel) |
+| **Faz 1 — Agent Teams entegrasyonu** | sequential | 1 hafta | Faz 0 + Faz 0.5 done |
+| **Faz 2 — Production hardening** | sequential | 1 hafta | Faz 1 done |
+| **Faz 3 — TestFlight + launch** | sequential | 1 hafta | Faz 2 done |
+
+**Detay task listesi**: [`12_Action_Plan_Tasks.md`](12_Action_Plan_Tasks.md) — her task için done criteria, etkilenen dosyalar, test komutları, dependency.
+
+**Bridge tasarım detayı**: [`11_Bridge_Spec.md`](11_Bridge_Spec.md) — `apps/rafraf-bridge/` Go module package'ları, interface'ler, packaging.
 
 ### Faz 0 — Cleanup (1 hafta)
 
@@ -1166,15 +1310,17 @@ Toplam **4 hafta** RafRaf'ı production-grade hâle getirmek için.
   - [ ] Tasks/Progress yararlı View'larını `Agent/Presentation/Components/`'a merge et, sonra klasörleri sil
   - [ ] `apps/ios/RafRaf.xcodeproj` referanslarını temizle, `xcodegen generate`
   - [ ] iOS build temiz: `xcodebuild build -scheme RafRaf` exit 0
-- [ ] **Backend service/route/tool pruning**:
-  - [ ] Sil: 10 service (mem0×4, voice, cost×2, maestro, pulse, **agent_registry_service**), 11 route (analytics, cost×2, memory×3, maestro, pulse, monitoring, subscription), 3 tool (memory_tool, cost_tool, **host_agent_tool**), 1 orchestrator (model_router)
-  - [ ] `app/main.py` import'ları + lifespan'daki `agent_registry.start_stale_checker()` / `stop_stale_checker()` çağrıları kaldır
+- [ ] **Backend service/route/tool pruning** (v2.0 düzeltme: agent_registry TUT):
+  - [ ] Sil: 9 service (mem0×4, voice, cost×2, maestro, pulse), 10 route (analytics, cost×2, memory×3, maestro, pulse, monitoring, subscription), 3 tool (memory_tool, cost_tool, **host_agent_tool**), 1 orchestrator (model_router)
+  - [ ] **TUT**: `agent_registry_service.py` (bridge online/offline tracking için yeniden role değişiyor; iç logic Faz 1'de güncellenecek — host agent kaydı yerine bridge kaydı)
+  - [ ] `app/main.py` import'ları + lifespan'daki `agent_registry` çağrıları **KALSIN** (Faz 1'de bridge tarafına refactor)
   - [ ] `_register_host_agent_tool()` fonksiyonu sil (main.py'de)
-  - [ ] Backend test: `pytest` pass (eski test'leri de temizle, özellikle host_agent_tool/agent_registry test'leri)
-- [ ] **Host agent archive**:
-  - [ ] `apps/agent/` arşiv branch'e taşı
+  - [ ] Backend test: `pytest` pass (host_agent_tool test'leri silinir, agent_registry test'leri Faz 1'de güncellenir)
+- [ ] **Host agent archive (v2.0 — Bridge port için)**:
+  - [ ] `apps/agent/` → `apps/_archive/agent-python-v0.1/` taşınır (referans için, Bridge port sırasında Python claude_runner.py'ye bakılacak)
   - [ ] `infra/docker/docker-compose.dev.yml`'den agent service'ini kaldır
   - [ ] `Makefile` agent target'larını sil
+  - [ ] **Yeni**: `apps/rafraf-bridge/` skeleton oluştur (Faz 0.5 ile paralel)
 - [ ] **mem0 cleanup**:
   - [ ] `mem0ai` dependency `pyproject.toml`'dan kaldır
   - [ ] `infra/docker/mem0/` arşivle
@@ -1184,29 +1330,67 @@ Toplam **4 hafta** RafRaf'ı production-grade hâle getirmek için.
 
 **Sonuç:** Repo boyutu 823 MB → ~600 MB tahmini. Build temiz.
 
-### Faz 1 — Agent Teams entegrasyonu (1 hafta)
+### Faz 0.5 — Bridge port (Python → Go, 1 hafta, **Faz 0 ile paralel**)
+
+Mevcut Python `apps/agent/` (silmeyiz, archive ettik) referans alınarak `apps/rafraf-bridge/` Go module yazılır. Spike `~/Code/claude-teams-spike/bridge/main.go` (276 satır) çekirdek başlangıç. Detay tasarım: [`11_Bridge_Spec.md`](11_Bridge_Spec.md). Detay task'lar: [`12_Action_Plan_Tasks.md`](12_Action_Plan_Tasks.md) §Faz 0.5.
 
 **Done criteria:**
 
-- [ ] **`claude_code_runner.py` güncelleme** (§6.1):
-  - [ ] `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` env injection
-  - [ ] `_StreamState`'e yeni alanlar (rate_limit, subagents, cost)
-  - [ ] Yeni callback'ler (subagent_spawned, subagent_completed, rate_limit, session_init)
-  - [ ] Event dispatch güncelleme
-  - [ ] Test fixture'ları: spike'tan gerçek stream-json örneklerini `tests/fixtures/stream_json/` altına koy
-  - [ ] pytest coverage %90+ runner için
-- [ ] **`storage_watcher_service.py` yeni service** (§6.2 + §2.11):
-  - [ ] `watchdog>=4.0.0` dependency
-  - [ ] `~/.claude/projects/` watch + tail (CLAUDE_PROJECTS_ROOT env var'ı tercih et)
-  - [ ] ai-title, pr-link event'lerini queue'ya push
-  - [ ] `~/.claude/usage.json` watch (statusline pipeline) → `usage.report` event
-  - [ ] `main.py` lifespan'da başlat
-  - [ ] Docker volume mount (compose.yml'de host `~/.claude` → container `/root/.claude:ro`)
-  - [ ] Test: temp dir'de fake jsonl + fake usage.json yazıp event yakalama
+- [ ] **Skeleton + tooling**:
+  - [ ] `apps/rafraf-bridge/cmd/bridge/main.go`, `internal/{config,ws,protocol,claude,storage,statusline,security,telemetry}/`, `packaging/{launchd,homebrew,pkg}/`, `go.mod`
+  - [ ] `golangci-lint`, `go test`, `go build` çalışıyor
+- [ ] **Çekirdek paketler** (spike'tan + Python port):
+  - [ ] `internal/ws/` — `coder/websocket` v1.8.13, outbound persistent + reconnect (jitter+backoff) + 15s heartbeat (spike base genişletilmiş)
+  - [ ] `internal/protocol/` — RafRaf WS message envelope (Pydantic snake_case ile uyumlu JSON tag'ler), `build_claude_stream_*_message` builder'larının Go karşılığı
+  - [ ] `internal/config/` — `AgentConfig` Python'dan port, `~/.config/rafraf-bridge/config.toml`
+  - [ ] `internal/claude/runner.go` — `claude -p --output-format stream-json --verbose --resume <id>` subprocess wrapper. Env injection (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, `ANTHROPIC_API_KEY` exclude).
+  - [ ] `internal/claude/parser.go` — stream-json line-by-line parser (Python `_parse_stream` port). 15 tool display name (Türkçe).
+  - [ ] `internal/claude/state.go` — `_StreamState` Go karşılığı: subagent_active map, rate_limit_info, total_cost_usd, permission_denials.
+- [ ] **Storage + statusline watcher'lar** (Python'da yok, yeni implementation):
+  - [ ] `internal/storage/watcher.go` — `~/.claude/projects/` fsnotify, ai-title + pr-link + hook attachment event'leri
+  - [ ] `internal/statusline/watcher.go` — `~/.claude/usage.json` watch, 5h/7d usage % event
+- [ ] **Telemetry** (asgari V1):
+  - [ ] `internal/telemetry/metrics.go` — `expvar` veya OTel SDK, `claude_subprocess_count`, `ws_connected`, `ws_reconnects_total`, `claude_total_cost_usd_total`
+- [ ] **Packaging**:
+  - [ ] `packaging/launchd/com.rafraf.bridge.plist` (kullanıcı oturum agent)
+  - [ ] `packaging/homebrew/rafraf-bridge.rb` (formula, prebuilt binary release)
+  - [ ] `packaging/pkg/scripts/{preinstall,postinstall}.sh` (signed `.pkg` için)
+  - [ ] `scripts/install-bridge.sh` (geliştirme amaçlı, brew/pkg yokken)
+- [ ] **CI workflow** (`.github/workflows/bridge-ci.yml`):
+  - [ ] `golangci-lint`, `go test ./...`, `go build` (arm64 + amd64)
+  - [ ] Release tag'lerde GitHub Release'e prebuilt binary attach
+- [ ] **End-to-end smoke** (Faz 0.5 done göstergesi):
+  - [ ] `apps/rafraf-bridge/bridge` build edildi (~10-15 MB statik binary)
+  - [ ] Mac'te launchd plist ile başlatıldı, log: "connected to ws://localhost:8000/api/v1/agent/ws"
+  - [ ] RafRaf backend dev'inde mock task forward edildi → claude -p subprocess çalıştı → stream-json event'leri WS üzerinden backend'e döndü
+  - [ ] iOS Chat ekranı eski Python agent yokken yeni Go bridge ile aynı mesaj akışını gösteriyor (smoke test, manuel)
+
+### Faz 1 — Agent Teams entegrasyonu (1 hafta)
+
+**ÖN KOŞUL**: Faz 0 + Faz 0.5 done. Bridge Go binary çalışıyor, backend Python claude_code_runner subprocess yerine **bridge'e RPC** ediyor.
+
+**Done criteria:**
+
+- [ ] **Backend `claude_code_runner.py` rolü değişimi** (v2.0 major):
+  - [ ] Subprocess execute kaldırıldı, yerine WS RPC `bridge.claude.run` mesajı
+  - [ ] WS endpoint `/api/v1/agent/ws` (mevcut, route adı agent_ws.py) bridge bağlantısını yönetir; her bridge için register/heartbeat
+  - [ ] Bridge'ten gelen stream event'leri `claude_stream_manager` üzerinden iOS WS'e forward
+  - [ ] Test fixture: bridge mock'u (spike'tan gerçek stream-json örnekleri) ile pytest coverage %90+
+- [ ] **Bridge tarafında Agent Teams** (Go, `apps/rafraf-bridge/internal/claude/`):
+  - [ ] `runner.go` env injection: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`
+  - [ ] `state.go` Agent Teams state: `active_subagents map[string]SubagentState`, `completed_subagents []SubagentState`
+  - [ ] `parser.go` yeni event tipleri dispatch: `system/task_started`, `task_progress`, `task_notification`, `hook_started`, `hook_response`, `rate_limit_event`
+  - [ ] Tool name aliasing: `Task` ↔ `Agent` (canonical isim Agent)
+  - [ ] Go test fixture: spike `~/Code/claude-teams-spike/results/02-agent-teams/run-1.jsonl`'i `internal/claude/testdata/`'a kopyala
+- [ ] **Storage + statusline watcher'lar** (v2.0 düzeltme: backend'de DEĞİL, bridge'te):
+  - [ ] **Bridge tarafı** `internal/storage/watcher.go` — `~/.claude/projects/` fsnotify, ai-title + pr-link → WS event olarak backend'e gönder
+  - [ ] **Bridge tarafı** `internal/statusline/watcher.go` — `~/.claude/usage.json` watch → `usage.report` WS event
+  - [ ] **Backend tarafı** sadece bridge'ten gelen event'leri iOS'a forward eder; kendi watcher'ı yok
 - [ ] **Statusline pipeline kurulum** (§2.11, [`claude-code-usage-tracking.md`](claude-code-usage-tracking.md)):
-  - [ ] `~/.claude/statusline.py` deploy (RafRaf install script veya manuel)
-  - [ ] `~/.claude/settings.json`'a `statusLine.command` eklenmesi
+  - [ ] `~/.claude/statusline.py` deploy (`scripts/install-statusline.sh` — Bridge install pkg ile birlikte)
+  - [ ] `~/.claude/settings.json`'a `statusLine.command` eklenmesi (merge-safe, mevcut config korunur)
   - [ ] Empirical doğrulama: kullanıcı interactive `claude` aç → `cat ~/.claude/usage.json` → `five_hour_pct` görünüyor
+  - [ ] Bridge `statusline/watcher.go` event push ediyor → backend `claude_stream_manager` → iOS RFUsageGauge update
 - [ ] **iOS RFUsageGauge component** (§2.11 + [`claude-code-usage-tracking.md`](claude-code-usage-tracking.md) §iOS Tarafi):
   - [ ] `ClaudeUsageDTO` + `ClaudeUsage` entity + `ObserveClaudeUsageUseCase`
   - [ ] `RFUsageGauge` (iki concentric ring, threshold renkleri 0–60% green, 60–85% yellow, 85–100% red)
@@ -1299,15 +1483,19 @@ Toplam **4 hafta** RafRaf'ı production-grade hâle getirmek için.
 
 ## 9. Açık sorular / kararlar
 
-### 9.1 Backend deploy yeri (V1)
+### 9.1 Backend deploy yeri (V1, v2.0 güncellemesi)
 
-Üç opsiyon:
+**v2.0 KARARI: EKS** (kullanıcının mevcut altyapısı). Mac local önerisi geri alındı.
 
-- **A — Mac'te local** (en basit): kullanıcının Mac'inde docker-compose'la backend + Postgres + Redis. iOS Tailscale ile bağlanır. Cost: $0 (zaten Mac var). Sınır: Mac kapalıyken backend yok.
-- **B — Küçük VPS** (Hetzner/DigitalOcean, $20-40/ay): Mac dışında uptime, ama claude CLI Mac'te (subscription bound). Backend VPS'te → claude CLI'a erişim için Mac'e SSH? Sorunlu.
-- **C — EKS** (master plan v0.3 önerimi, ~$180/ay): production-grade ama claude CLI EKS'te subscription kullanamaz (Mac keychain'e bağlı).
+Sebep: useCoda'nın orijinal master plan'ı zaten EKS demişti; RafRaf'ın production-grade hedefi de EKS uyumlu. Mac local geçici çözümdü; Bridge Agent kavramı (Faz 0.5) Mac'te claude subprocess + EKS'te backend mimarisini doğal hâle getirdi.
 
-**Önerim**: **A'yla başla** (V1 launch hızlı), V2'de Bridge Agent kavramı eklenince C'ye geç. RafRaf zaten log.txt'de `192.168.0.100:8000` (lokal IP) kullanmış — yani Mac'te backend mimari fikri.
+| Deploy yeri | claude CLI'a nasıl erişiyor | V1 önerisi |
+|---|---|---|
+| **EKS pod** | Mac'teki bridge'e outbound WS → bridge claude -p subprocess çalıştırır | ✅ V1 ana plan |
+| Mac local | Direkt subprocess (bridge gerek yok) | V1 dev dönemi geçici, prod değil |
+| VPS | Bridge ile EKS gibi çalışır, ama EKS zaten kullanılıyor | Anlamsız ara katman |
+
+**V1 production**: EKS pod (Mac bridge ile köprü). Mac dev: docker-compose'la lokal backend + lokal bridge ile aynı pattern test (production'da sadece backend yer değiştirir).
 
 ### 9.2 Subscription auth login flow
 
