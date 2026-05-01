@@ -1,4 +1,3 @@
-import Factory
 import SwiftUI
 
 /// Agent listesi ekrani.
@@ -20,18 +19,6 @@ struct AgentListView: View {
             }
             .navigationTitle(String(localized: "agent.list.title"))
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    NavigationLink {
-                        SystemStatusView(
-                            getMonitoringUseCase: Container.shared.getMonitoringDashboardUseCase()
-                        )
-                    } label: {
-                        Image(systemName: "heart.text.clipboard")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(RFColors.fallbackPrimary)
-                    }
-                    .accessibilityLabel(String(localized: "monitoring.title"))
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     liveIndicator
                 }

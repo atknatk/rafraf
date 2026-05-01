@@ -223,43 +223,6 @@ extension Container {
         }
     }
 
-    // MARK: - Screenshot Viewer Feature
-
-    /// Screenshot repository.
-    var screenshotRepository: Factory<ScreenshotRepositoryProtocol> {
-        self { ScreenshotRepositoryImpl(networkClient: self.networkClient()) }
-    }
-
-    /// Screenshot viewer ViewModel.
-    var screenshotViewerViewModel: Factory<ScreenshotViewerViewModel> {
-        self { @MainActor in
-            let repository = self.screenshotRepository()
-            return ScreenshotViewerViewModel(
-                loadScreenshotUseCase: LoadScreenshotUseCase(
-                    repository: repository
-                )
-            )
-        }
-    }
-
-    // MARK: - File Sharing Feature
-
-    /// File sharing repository.
-    var fileRepository: Factory<FileRepositoryProtocol> {
-        self { FileRepositoryImpl(networkClient: self.networkClient()) }
-    }
-
-    /// File picker ViewModel.
-    var filePickerViewModel: Factory<FilePickerViewModel> {
-        self { @MainActor in
-            let repository = self.fileRepository()
-            return FilePickerViewModel(
-                uploadFileUseCase: UploadFileUseCase(repository: repository),
-                downloadFileUseCase: DownloadFileUseCase(repository: repository)
-            )
-        }
-    }
-
     // MARK: - Notifications Feature
 
     /// Push bildirim yoneticisi.
@@ -353,18 +316,6 @@ extension Container {
                 updateSettingsUseCase: UpdateAgentSettingsUseCase(repository: repository)
             )
         }
-    }
-
-    // MARK: - Monitoring Feature
-
-    /// Monitoring repository.
-    var monitoringRepository: Factory<MonitoringRepositoryProtocol> {
-        self { MonitoringRepositoryImpl(networkClient: self.networkClient()) }
-    }
-
-    /// Monitoring dashboard use case.
-    var getMonitoringDashboardUseCase: Factory<GetMonitoringDashboardUseCase> {
-        self { GetMonitoringDashboardUseCase(repository: self.monitoringRepository()) }
     }
 
     // MARK: - Proactive Notifications Feature
