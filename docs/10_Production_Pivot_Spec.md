@@ -2,7 +2,7 @@
 
 > **Bu doküman bir context handoff + action plan dosyasıdır.** Yeni bir Claude session veya yeni bir geliştirici bu doc'u okuduğunda RafRaf'ın bugünkü durumunu, neyin değişeceğini ve production-grade'e nasıl taşınacağını **sıfırdan başka bir kaynağa bakmadan** anlayabilmelidir.
 
-**Sürüm:** 1.1 (review düzeltmeleri — tool aliasing, 1000-sample dağılımı, RafRaf path doğrulamaları)
+**Sürüm:** 1.2 (usage tracking entegrasyonu — statusline pipeline, RFUsageGauge planı)
 **Tarih:** 2026-05-01
 **Sahip:** The Abi (mr.the.abi@gmail.com)
 **Geliştirici:** Claude (Opus 4.7, 1M context)
@@ -12,6 +12,7 @@
 **Sürüm geçmişi:**
 - 1.0 — İlk yazım
 - 1.1 — Review düzeltmeleri: tool aliasing (Task↔Agent), 1000-sample tool dağılımı, system/init tools listesi, RafRaf gerçek path'leri (`WebSocketMessage.swift`, `subprocess_env` line 236), `agent_registry_service` SİL listesine taşındı (host agent registry, subagent değil), JWT algoritma `settings.jwt_algorithm` referansı, cost senaryosu Mac/VPS/EKS ayrı.
+- 1.2 — Usage tracking entegrasyonu: yeni §2.11 (statusline JSON pipeline, `~/.claude/usage.json`), `usage.report` WS message tipi, `UsageReportPayload`, `RFUsageGauge` iOS component planı, statusline.py deploy stratejisi (§9.9), ek metric'ler (`claude_5h_usage_pct`, `claude_7d_usage_pct`, `claude_usage_report_age_seconds`). Detay referans: [`claude-code-usage-tracking.md`](claude-code-usage-tracking.md).
 
 ---
 
@@ -88,7 +89,7 @@ Bu pattern aktif → **Backend'in Anthropic API key'i `.env`'de bulundurmasına 
 
 | Type / Subtype | Açıklama | RafRaf'ta var mı? |
 |---|---|---|
-| `rate_limit_event` | Her run başında, 5-saatlik bucket info | ❌ — eklenecek |
+| `rate_limit_event` | Her run başında. **Sadece** `status` (allowed/warning/exceeded) + `resetsAt` — **yüzde içermez**. Yüzdeler için statusline JSON'u, bkz. 2.11 | ❌ — eklenecek |
 | `system/init` | Session metadata: tools, model, permissionMode, apiKeySource | ⚠️ kısmen |
 | `system/task_started` | Subagent (Agent Teams) spawn | ❌ — eklenecek |
 | `system/task_progress` | Subagent ilerleme | ❌ — eklenecek |
@@ -247,6 +248,72 @@ def canonical_tool_name(name: str) -> str:
 
 ---
 
+### 2.11 Usage tracking — statusline JSON pipeline (kritik tamamlayıcı)
+
+Stream-JSON'daki `rate_limit_event` **yüzde değeri vermez** — yalnızca `status: allowed | warning | exceeded` ve `resetsAt`. iOS'ta "5h: %85 dolu" gibi metric göstermek için statusline JSON'u gerekiyor.
+
+**Detay referans**: [`docs/claude-code-usage-tracking.md`](claude-code-usage-tracking.md) — 150 satır, ampirik olarak doğrulanmış (v2.1.126, Opus 4.7, Max plan).
+
+#### Anahtar bulgular
+
+- Claude Code **v2.1.80+** statusline JSON'una `rate_limits` alanı ekledi:
+  ```json
+  "rate_limits": {
+    "five_hour": { "used_percentage": 90, "resets_at": 1777657800 },
+    "seven_day": { "used_percentage": 22, "resets_at": 1778166000 }
+  }
+  ```
+- **Sadece interactive mode**'da statusline tetiklenir. `claude -p` (RafRaf'ın subprocess kullanımı), `--init-only`, `--bare` statusline'ı çağırmaz.
+- TTY gerekli — headless ortamda `script -q /dev/null` veya `expect` ile pty sağlanmalı.
+- API key kullanıcılarında yüzde gelmez — sadece subscription (Pro/Max/Team/Enterprise).
+
+#### Pipeline (V1 Mac local için)
+
+```
+~/.claude/statusline.py        ← Mac'te, claude'un her render'ında spawn olur
+       │
+       │ stdin: statusline JSON (rate_limits dahil)
+       ▼
+~/.claude/usage.json           ← script tarafından üretilen küçük dosya (5h/7d %)
+       │
+       │ fsnotify (watchdog)
+       ▼
+storage_watcher_service        ← veya ayrı usage_watcher_service.py (V1: storage_watcher genişletilebilir)
+       │
+       │ event.usage.report (yeni WS message)
+       ▼
+WebSocket → iOS RFUsageGauge (5h ring + 7d ring)
+```
+
+#### Tazeleme stratejisi
+
+`usage.json` sadece kullanıcı Claude Code'la **interactive** çalışırken güncellenir (statusline render). RafRaf'ın `claude -p` subprocess çağrıları statusline tetiklemez → o subprocess'lerden geçen kullanım `usage.json`'a yansımaz.
+
+İki yol:
+
+- **Pasif** (V1 önerim): Kullanıcı interactive Claude Code'u zaten her gün açıyor → `usage.json` yeterince taze. Stale kontrolü: 30+ dk eski → "Claude Code'u aç, usage tazelensin" hint.
+- **Aktif probe** (V2 nice-to-have): 5–10 dakikada bir headless minimal session açıp kapatmak (`expect` script ile, `~%0.1` 5h tüketimi). V1'de gerek yok.
+
+#### V1 implementation aksiyonları
+
+- Mac'te `~/.claude/statusline.py` deploy edilecek (RafRaf install script veya manuel — §9.x'te karar verilecek).
+- `~/.claude/settings.json`'a `statusLine.command` eklenmeli.
+- Backend tarafında `storage_watcher_service.py` `INTERESTED_TYPES`'a `usage.json` watch eklenmeli (veya ayrı `usage_watcher_service.py`).
+- Yeni WS message: `usage.report` (payload: 5h_pct, 7d_pct, 5h_resets_at, 7d_resets_at).
+- iOS DTO + entity + use case + RFUsageGauge component (planlama notları zaten `claude-code-usage-tracking.md` §iOS Tarafi'nda).
+- 5h %85+ olunca `RFAlertBanner` ile uyarı.
+
+#### Tuzak: Subscription auth + statusline pipeline kombinasyonu
+
+V1 Mac local deploy senaryosunda backend hem `claude -p` çalıştırıyor hem `~/.claude/usage.json` okuyor — ikisi aynı Mac'te aynı user account'ta. **VPS / EKS** deploy'unda:
+
+- `claude -p` Mac'te subscription gerektirir → backend Mac'te değilse subprocess Mac'e SSH veya Bridge Agent gerekir
+- `usage.json` aynı şekilde Mac'te → sync/forward gerekir
+
+Yani **V1 = Mac local** seçimi (§9.1) usage tracking için de mantıklı: tek makinede her şey.
+
+---
+
 ## 3. Mevcut RafRaf durumu
 
 ### 3.1 Stack (apps/)
@@ -379,10 +446,11 @@ RafRaf zaten kendi WS message type'ları kullanıyor (`chat.stream`, `chat.strea
 | `system/task_progress` | `subagent.progress` (yeni) |
 | `system/task_notification` | `subagent.completed` (yeni) |
 | `system/hook_started` | `hook.started` (yeni, V2 yeterli) |
-| `rate_limit_event` | `rate_limit.info` (yeni) |
+| `rate_limit_event` | `rate_limit.info` (yeni — yalnızca status+resetsAt; yüzdeler için statusline) |
 | `result` | `chat.stream_end` (mevcut, ama cost+usage payload eklenmeli) |
 | Storage `ai-title` | `session.title` (yeni) |
 | Storage `pr-link` | `session.pr_opened` (yeni) |
+| Statusline `~/.claude/usage.json` | `usage.report` (yeni — 5h_pct, 7d_pct, resetsAt'lar; bkz. §2.11) |
 
 **Yeni schema'lar `apps/backend/app/schemas/messages.py`'a eklenecek.** iOS tarafı `apps/ios/RafRaf/Core/Networking/`'de WebSocketContent decoder'a bu yeni type'ları ekler.
 
@@ -452,8 +520,14 @@ claude_stream_manager.py              ← claude_code_runner ile coupled
 
 ```
 subagent_registry_service.py          ← Agent Teams subagent metadata (in-memory + DB projection)
-storage_watcher_service.py            ← ~/.claude/projects/ tail (§6.2)
+storage_watcher_service.py            ← ~/.claude/projects/ tail + ~/.claude/usage.json watch (§6.2 + §2.11)
 ```
+
+`storage_watcher_service` iki kaynak izler:
+- `~/.claude/projects/<proj>/<session>.jsonl` → ai-title, pr-link, hook events
+- `~/.claude/usage.json` → 5h/7d usage yüzdeleri (statusline.py tarafından yazılan)
+
+İkisi de `event.*` mesajlarına çevrilip WS üzerinden iOS'a forward edilir. Birden fazla servise bölmek yerine tek service iki kaynağı izlemesi daha sade — V1'de.
 
 **SİL / ARCHIVE** (V1 dışı):
 
@@ -892,6 +966,7 @@ enum WebSocketMessageType: String, Codable, Sendable {
     case rateLimitInfo     = "rate_limit.info"       // ← yeni
     case sessionTitle      = "session.title"         // ← yeni (storage)
     case sessionPrOpened   = "session.pr_opened"     // ← yeni (storage)
+    case usageReport       = "usage.report"          // ← yeni (statusline, §2.11)
 }
 ```
 
@@ -958,6 +1033,18 @@ class SessionPrOpenedPayload(BaseModel):
     pr_number: int
     pr_url: str
     pr_repository: str
+
+class UsageReportPayload(BaseModel):
+    """5-saatlik ve 7-günlük subscription kotalarının yüzdesi.
+
+    Kaynak: ~/.claude/usage.json (Mac'teki statusline.py tarafından yazılır).
+    Detay: docs/claude-code-usage-tracking.md, doc 10 §2.11.
+    """
+    five_hour_pct: int           # 0–100+ (overage durumunda 100'ü aşabilir)
+    seven_day_pct: int
+    five_hour_resets_at: int     # unix timestamp (saniye)
+    seven_day_resets_at: int
+    reported_at: int             # usage.json yazılma zamanı (stale detection için)
 ```
 
 ---
@@ -1008,6 +1095,10 @@ Backend:
 Storage watcher:
 - `storage_events_processed_total{type}` (counter)
 - `storage_watcher_lag_seconds` (gauge)
+- `claude_5h_usage_pct` (gauge) — son rapor edilen 5-saatlik kullanım %
+- `claude_7d_usage_pct` (gauge) — son rapor edilen 7-günlük kullanım %
+- `claude_usage_report_age_seconds` (gauge) — usage.json son güncellenmesinden bu yana geçen süre (stale detection için)
+- `claude_usage_report_total` (counter) — backend'in iOS'a forward ettiği usage.report sayısı
 
 ### 7.4 Security
 
@@ -1104,13 +1195,23 @@ Toplam **4 hafta** RafRaf'ı production-grade hâle getirmek için.
   - [ ] Event dispatch güncelleme
   - [ ] Test fixture'ları: spike'tan gerçek stream-json örneklerini `tests/fixtures/stream_json/` altına koy
   - [ ] pytest coverage %90+ runner için
-- [ ] **`storage_watcher_service.py` yeni service** (§6.2):
+- [ ] **`storage_watcher_service.py` yeni service** (§6.2 + §2.11):
   - [ ] `watchdog>=4.0.0` dependency
   - [ ] `~/.claude/projects/` watch + tail (CLAUDE_PROJECTS_ROOT env var'ı tercih et)
   - [ ] ai-title, pr-link event'lerini queue'ya push
+  - [ ] `~/.claude/usage.json` watch (statusline pipeline) → `usage.report` event
   - [ ] `main.py` lifespan'da başlat
   - [ ] Docker volume mount (compose.yml'de host `~/.claude` → container `/root/.claude:ro`)
-  - [ ] Test: temp dir'de fake jsonl yazıp event yakalama
+  - [ ] Test: temp dir'de fake jsonl + fake usage.json yazıp event yakalama
+- [ ] **Statusline pipeline kurulum** (§2.11, [`claude-code-usage-tracking.md`](claude-code-usage-tracking.md)):
+  - [ ] `~/.claude/statusline.py` deploy (RafRaf install script veya manuel)
+  - [ ] `~/.claude/settings.json`'a `statusLine.command` eklenmesi
+  - [ ] Empirical doğrulama: kullanıcı interactive `claude` aç → `cat ~/.claude/usage.json` → `five_hour_pct` görünüyor
+- [ ] **iOS RFUsageGauge component** (§2.11 + [`claude-code-usage-tracking.md`](claude-code-usage-tracking.md) §iOS Tarafi):
+  - [ ] `ClaudeUsageDTO` + `ClaudeUsage` entity + `ObserveClaudeUsageUseCase`
+  - [ ] `RFUsageGauge` (iki concentric ring, threshold renkleri 0–60% green, 60–85% yellow, 85–100% red)
+  - [ ] 5h %85+ → `RFAlertBanner` ile uyarı
+  - [ ] Lokalizasyon: `usage.fiveHour.title`, `usage.fiveHour.resetsIn`, `usage.weekly.title`, `usage.weekly.resetsIn`
 - [ ] **`subagent_registry_service.py` yeni service** (§5.2):
   - [ ] In-memory subagent state (task_id → metadata)
   - [ ] DB projection (Postgres `subagents` tablosu, migration `010_subagent_registry.py`)
@@ -1256,6 +1357,24 @@ Faz 1'de bu test edilmeli (`_dispatch_event` içinde `subagent permission_denial
 
 `~/.claude/projects/` 3.3 GB, 4474 jsonl. Watchdog tüm dizini izlerse CPU artabilir. **Optimizasyon**: sadece son N gün modify edilmiş dosyaları izle, eski'leri ignore et.
 
+### 9.9 Statusline.py deploy yöntemi
+
+[`claude-code-usage-tracking.md`](claude-code-usage-tracking.md) §2.11 ve §statusline implementation: `~/.claude/statusline.py` script Mac'e yazılmalı + `~/.claude/settings.json`'a `statusLine.command` eklenmeli. Üç opsiyon:
+
+- **A — Manuel** (V1 başlangıç): The Abi tek-tıkla bir setup script çalıştırır (`scripts/install-statusline.sh`), o script statusline.py'yi `~/.claude/`'a kopyalar + settings.json'u patch'ler.
+- **B — RafRaf init flow**: iOS app'in onboarding'inde "Mac setup" adımı çıkarır, kullanıcıya komut yapıştırır.
+- **C — Otomatik** (V2): Bridge Agent kavramı geri geldiğinde, Bridge Agent kendi launchd plist'iyle birlikte statusline'ı da kurar.
+
+V1 önerim: **A**. `scripts/install-statusline.sh` Faz 1'de yazılır, README'de "Subscription usage tracking için bunu çalıştırın" notu.
+
+**Tuzak**: Kullanıcının `~/.claude/settings.json`'unda zaten kendi `statusLine` config'i varsa (doc'taki gibi farklı bir script) overwrite etme — merge / wrap önerisi göster.
+
+### 9.10 Statusline pipeline ile probe stratejisi
+
+[`claude-code-usage-tracking.md`](claude-code-usage-tracking.md) "Tazeleme Stratejisi" — V2'de aktif probe (5–10 dakikada bir headless minimal session) eklenebilir. V1'de pasif yeterli (kullanıcı zaten Claude Code interactive açıyor → usage.json güncel).
+
+V1'de iOS UX'i: usage.json **30+ dakika** eski ise iOS'ta "(usage stale, Claude Code'u açın)" hint. `claude_usage_report_age_seconds` metric bu UX'in sinyali.
+
 ---
 
 ## 10. Kaynaklar
@@ -1296,6 +1415,7 @@ Faz 1'de bu test edilmeli (`_dispatch_event` içinde `subagent permission_denial
 - `docs/07_Security_Permissions_Cost_Analysis.md` — Güvenlik (geçerli)
 - `docs/08_Host_Agent_Specification.md` — **ARCHIVED V2** (host agent)
 - `docs/09_Hybrid_Claude_Code_Architecture.md` — claude -p hibrit mimari (claude_code_runner.py kaynağı)
+- [`docs/claude-code-usage-tracking.md`](claude-code-usage-tracking.md) — **Statusline JSON pipeline** (§2.11'in detay referansı, ampirik v2.1.126 doğrulanmış)
 
 ### 10.4 Yeni eklenmesi planlanan docs
 
