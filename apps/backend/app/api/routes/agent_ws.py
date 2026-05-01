@@ -57,12 +57,22 @@ _claude_stream_manager: ClaudeStreamManager | None = None
 
 
 def get_claude_stream_manager() -> ClaudeStreamManager:
-    """Get or create the global claude stream manager."""
+    """Get or create the global claude stream manager.
+
+    Imports the iOS-side ConnectionManager singleton lazily so the
+    ``forward_*`` methods (T1.2 Agent Teams) can push to iOS sessions
+    without requiring the import at module load time (which would create
+    a cycle through ``websocket.py``).
+    """
     global _claude_stream_manager  # noqa: PLW0603
     if _claude_stream_manager is None:
+        # Lazy import to avoid a cycle through websocket.py at startup.
+        from app.api.routes.websocket import manager as ios_manager  # noqa: PLC0415
+
         _claude_stream_manager = ClaudeStreamManager(
             agent_registry=bridge_registry,
             agent_manager=agent_manager,
+            ios_manager=ios_manager,
         )
     return _claude_stream_manager
 
@@ -154,6 +164,13 @@ async def agent_websocket_endpoint(
                 await _handle_claude_stream_end(raw_data, connection_id)
             elif msg_type == "claude_stream_error":
                 await _handle_claude_stream_error(raw_data, connection_id)
+            elif msg_type == "event.usage.report":
+                # Statusline-driven, broadcast event (no RPC correlation).
+                # Forwarded to every connected iOS session as a typed
+                # ``usage.report`` message (T1.2). MUST be matched before
+                # the generic ``event.*`` branch because dispatch_event
+                # drops correlation-less envelopes.
+                await _handle_usage_report(raw_data)
             elif isinstance(msg_type, str) and msg_type.startswith("event."):
                 # Bridge → backend RPC events (T1.1). Routed to the
                 # ClaudeCodeRunner subscriber that owns the matching
@@ -568,4 +585,75 @@ async def _handle_claude_stream_error(
         task_id=task_id,
         error=str(content.get("error", "Bilinmeyen hata")),
         returncode=int(content.get("returncode", -1)),
+    )
+
+
+# ------------------------------------------------------------------
+# Bridge broadcast events (no RPC correlation) — T1.2.
+# ------------------------------------------------------------------
+
+
+async def _handle_usage_report(raw_data: dict[str, object]) -> None:
+    """Forward an ``event.usage.report`` envelope to all iOS users.
+
+    The bridge's statusline watcher emits this whenever the local
+    ``~/.claude/usage.json`` mod-time advances (see docs/10 §2.11). The
+    payload reflects the *current Mac's* claude subscription window and is
+    not tied to any particular RPC, so we fan it out to every iOS session
+    of every active user.
+
+    Payload field discovery is defensive — the bridge wraps the typed
+    ``EventUsageReport`` struct under ``payload`` (preferred) but legacy
+    callers may have placed the fields under ``content``.
+    """
+    body = raw_data.get("payload")
+    if not isinstance(body, dict):
+        body = raw_data.get("content")
+    if not isinstance(body, dict):
+        await logger.awarning(
+            "usage_report_missing_payload",
+            keys=list(raw_data.keys()),
+        )
+        return
+
+    try:
+        five_hour_pct = int(body.get("five_hour_pct", 0))
+        seven_day_pct = int(body.get("seven_day_pct", 0))
+        five_hour_resets_at = int(body.get("five_hour_resets_at", 0))
+        seven_day_resets_at = int(body.get("seven_day_resets_at", 0))
+        reported_at = int(body.get("reported_at", 0))
+    except (TypeError, ValueError):
+        await logger.awarning(
+            "usage_report_invalid_payload",
+            payload_keys=list(body.keys()),
+        )
+        return
+
+    # Lazy import — same cycle-avoidance as get_claude_stream_manager.
+    from app.api.routes.websocket import manager as ios_manager  # noqa: PLC0415
+
+    csm = get_claude_stream_manager()
+    user_ids = ios_manager.get_active_user_ids()
+    if not user_ids:
+        await logger.adebug("usage_report_no_active_ios_users")
+        return
+
+    delivered = 0
+    for user_id in user_ids:
+        sent = await csm.forward_usage_report(
+            user_id=user_id,
+            five_hour_pct=five_hour_pct,
+            seven_day_pct=seven_day_pct,
+            five_hour_resets_at=five_hour_resets_at,
+            seven_day_resets_at=seven_day_resets_at,
+            reported_at=reported_at,
+        )
+        delivered += sent
+
+    await logger.ainfo(
+        "usage_report_broadcast",
+        users=len(user_ids),
+        sessions_reached=delivered,
+        five_hour_pct=five_hour_pct,
+        seven_day_pct=seven_day_pct,
     )

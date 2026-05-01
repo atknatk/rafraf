@@ -21,7 +21,7 @@ T1.1 additions:
 
 import asyncio
 import contextlib
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -372,34 +372,96 @@ class BridgeRegistryService:
         sent: bool = await self._agent_manager.send_json(connection_id, envelope)
         return sent
 
-    async def stream_events(
+    def register_subscriber(
         self,
         *,
         bridge_id: str,
         rpc_id: str,
-    ) -> AsyncIterator[dict[str, object]]:
-        """Yield bridge events whose ``correlation_id`` matches ``rpc_id``.
+    ) -> "asyncio.Queue[dict[str, object]]":
+        """Synchronously create + register an event queue for an RPC.
 
-        Iteration stops once a terminal event (``event.session.result`` or
-        ``event.bridge.auth_expired``) is observed. The runner can also
-        break out early — the queue is unregistered in either case.
+        Folds in T1.1 reviewer H1: ``stream_events`` is an async generator
+        whose body doesn't execute until the consumer pulls the first item,
+        so the registration step has to happen *before* the bridge gets the
+        envelope — otherwise an early-arriving event is dropped at
+        :meth:`dispatch_event` and the runner deadlocks waiting for it.
 
-        The implementation uses a single per-(bridge, rpc) queue; this
-        is sufficient because exactly one runner subscribes per RPC.
+        Callers MUST pair this with :meth:`stream_events` (which consumes
+        the queue) and either let the iterator finish naturally or invoke
+        :meth:`unregister_subscriber` if the RPC fails before the loop
+        starts (e.g. send-to-bridge returns False).
         """
         key = (bridge_id, rpc_id)
         queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
-        # Replace any stale subscriber under the same key (this shouldn't
-        # happen in practice — RPC ids are random uuids — but the guard is
-        # cheap and prevents leaks in pathological tests).
         prev = self._event_subscribers.get(key)
         if prev is not None:
-            await logger.awarning(
+            # RPC ids are uuid4 hex; collisions are vanishingly unlikely
+            # but keep the guard so a pathological test can't leak queues.
+            logger.warning(
                 "bridge_stream_subscriber_overwritten",
                 host_id=bridge_id,
                 rpc_id=rpc_id,
             )
         self._event_subscribers[key] = queue
+        return queue
+
+    def unregister_subscriber(
+        self,
+        *,
+        bridge_id: str,
+        rpc_id: str,
+    ) -> None:
+        """Drop a previously registered subscriber, if still present.
+
+        Used by :class:`ClaudeCodeRunner` when a registration succeeds but
+        the subsequent send-to-bridge fails — without this clean-up the
+        queue would leak until process exit.
+        """
+        self._event_subscribers.pop((bridge_id, rpc_id), None)
+
+    async def stream_events(
+        self,
+        *,
+        rpc_id: str,
+        bridge_id: str | None = None,
+        queue: "asyncio.Queue[dict[str, object]] | None" = None,
+    ) -> AsyncGenerator[dict[str, object], None]:
+        """Yield bridge events whose ``correlation_id`` matches ``rpc_id``.
+
+        Two call patterns:
+
+        * **Pre-registered (preferred)** — caller obtains a queue via
+          :meth:`register_subscriber` BEFORE sending the RPC envelope, then
+          passes it here. Eliminates the race window where bridge events
+          arrive faster than the consumer enters the ``async for`` loop.
+        * **Lazy (legacy)** — caller skips ``queue`` and lets this method
+          register on entry. Retained for tests that don't care about the
+          race window. Requires ``bridge_id`` to be supplied.
+
+        Iteration stops once a terminal event (``event.session.result`` or
+        ``event.bridge.auth_expired``) is observed. The runner can also
+        break out early — the queue is unregistered in either case.
+
+        The implementation uses a single per-(bridge, rpc) queue; this is
+        sufficient because exactly one runner subscribes per RPC.
+        """
+        if queue is None:
+            if bridge_id is None:
+                raise ValueError(
+                    "stream_events requires either a pre-registered queue "
+                    "or a bridge_id to register lazily"
+                )
+            queue = self.register_subscriber(bridge_id=bridge_id, rpc_id=rpc_id)
+            key: tuple[str, str] | None = (bridge_id, rpc_id)
+        else:
+            # Find the key the caller registered under so we can pop the
+            # right entry on cleanup. We trust the caller to pass the
+            # same queue they got from register_subscriber; if the queue
+            # isn't in the map (e.g. test mock), cleanup is a no-op.
+            key = next(
+                (k for k, q in self._event_subscribers.items() if q is queue),
+                None,
+            )
         terminal_types = {
             "event.session.result",
             "event.bridge.auth_expired",
@@ -413,7 +475,7 @@ class BridgeRegistryService:
         finally:
             # Pop only if the queue we yield via is still the registered
             # subscriber — defensive against the rare overwrite path.
-            if self._event_subscribers.get(key) is queue:
+            if key is not None and self._event_subscribers.get(key) is queue:
                 self._event_subscribers.pop(key, None)
 
     async def dispatch_event(self, event: dict[str, object]) -> None:

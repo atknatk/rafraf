@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable, Coroutine
+from datetime import datetime
 from typing import cast
 
 import structlog
@@ -19,6 +20,49 @@ from app.tools.github_tool import GitHubTool
 from app.tools.s3_tool import S3Tool
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+
+def _parse_iso_or_none(value: object) -> datetime | None:
+    """Parse an ISO-8601 timestamp from a runner payload.
+
+    Returns ``None`` for missing/invalid values so the forwarder can fall
+    back to its server-side default (``datetime.now(tz=UTC)``).
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _optional_str(value: object) -> str | None:
+    """Coerce an arbitrary payload field to ``str`` while preserving ``None``."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value or None
+    return str(value)
+
+
+def _coerce_int(value: object, default: int = 0) -> int:
+    """Best-effort int coercion for payload values of arbitrary type.
+
+    Mirrors ``ClaudeCodeRunner._optional_int`` but always returns an
+    ``int`` (never ``None``) so it can be inlined into kwargs that demand
+    a non-optional integer (e.g. ``forward_subagent_completed``'s
+    ``total_tokens``).
+    """
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return default
+    return default
 
 # Module-level tool registry singleton
 _tool_registry: ToolRegistry | None = None
@@ -338,7 +382,8 @@ class OrchestratorService:
             import asyncio
 
             from app.api.routes.agent_ws import get_claude_stream_manager
-            from app.services.claude_stream_manager import ClaudeStreamCallbacks
+            from app.orchestrator.claude_code_runner import ClaudeCodeRunner
+            from app.services.bridge_registry_service import bridge_registry
 
             # Resolve agent: prefer project-linked agent, fallback to any online
             host_id = await self._resolve_agent_for_project(project_id, db_session)
@@ -348,35 +393,119 @@ class OrchestratorService:
                     returncode=-1,
                 )
 
+            # T1.2 — wire ClaudeCodeRunner v2 callbacks to claude_stream_manager
+            # forwarders so each new bridge envelope (session.init,
+            # subagent.*, rate_limit) reaches iOS as a typed message.
             csm = get_claude_stream_manager()
-            callbacks = ClaudeStreamCallbacks(
-                on_text_delta=on_text_delta,
-                on_tool_progress=on_tool_progress,
-                on_question=on_question,
-                on_stream_end=on_stream_end,
-            )
 
-            task_id = await csm.dispatch(
-                host_id=host_id,
-                prompt=message,
-                session_id=claude_session_id,
-                project_dir=project_local_path,
-                append_system_prompt=append_prompt,
-                model=settings.claude_code_model,
-                max_turns=settings.claude_code_max_turns,
-                callbacks=callbacks,
-            )
+            async def _on_session_init(p: dict[str, object]) -> None:
+                try:
+                    await csm.forward_session_init(
+                        user_id=user_id,
+                        session_id=str(p.get("session_id", "")),
+                        model=str(p.get("model", "")),
+                        permission_mode=str(p.get("permission_mode", "")),
+                        api_key_source=str(p.get("api_key_source", "")),
+                        cwd=str(p.get("cwd", "")),
+                        agent_teams_enabled=bool(p.get("agent_teams_enabled", False)),
+                        initialized_at=_parse_iso_or_none(p.get("initialized_at")),
+                    )
+                except Exception:
+                    await logger.aexception("forward_session_init_failed")
 
-            # Wait for stream completion
-            completion_future = csm.get_completion_future(task_id)
+            async def _on_subagent_spawned(p: dict[str, object]) -> None:
+                try:
+                    sid_raw = p.get("session_id")
+                    sid = str(sid_raw) if sid_raw is not None else None
+                    name = (
+                        str(p.get("name") or p.get("description") or "subagent")
+                    )  # T1.5 M4: bridge "description" → schema "name"
+                    await csm.forward_subagent_spawned(
+                        user_id=user_id,
+                        session_id=sid,
+                        task_id=str(p.get("task_id", "")),
+                        name=name,
+                        description=_optional_str(p.get("description")),
+                        prompt_preview=str(p.get("prompt_preview", "")),
+                        subagent_type=_optional_str(p.get("subagent_type")),
+                        isolation=_optional_str(p.get("isolation")),
+                        started_at=_parse_iso_or_none(p.get("started_at")),
+                    )
+                except Exception:
+                    await logger.aexception("forward_subagent_spawned_failed")
+
+            async def _on_subagent_progress(p: dict[str, object]) -> None:
+                try:
+                    sid_raw = p.get("session_id")
+                    sid = str(sid_raw) if sid_raw is not None else None
+                    await csm.forward_subagent_progress(
+                        user_id=user_id,
+                        session_id=sid,
+                        task_id=str(p.get("task_id", "")),
+                        status=str(p.get("status", "in_progress")),
+                        activity=str(p.get("activity", "")),
+                        updated_at=_parse_iso_or_none(p.get("updated_at")),
+                    )
+                except Exception:
+                    await logger.aexception("forward_subagent_progress_failed")
+
+            async def _on_subagent_completed(p: dict[str, object]) -> None:
+                try:
+                    sid_raw = p.get("session_id")
+                    sid = str(sid_raw) if sid_raw is not None else None
+                    await csm.forward_subagent_completed(
+                        user_id=user_id,
+                        session_id=sid,
+                        task_id=str(p.get("task_id", "")),
+                        status=str(p.get("status", "completed")),
+                        summary=_optional_str(p.get("summary")),
+                        total_tokens=_coerce_int(p.get("total_tokens")),
+                        tool_uses=_coerce_int(p.get("tool_uses")),
+                        duration_ms=_coerce_int(p.get("duration_ms")),
+                        completed_at=_parse_iso_or_none(p.get("completed_at")),
+                    )
+                except Exception:
+                    await logger.aexception("forward_subagent_completed_failed")
+
+            async def _on_rate_limit(p: dict[str, object]) -> None:
+                try:
+                    await csm.forward_rate_limit_info(
+                        user_id=user_id,
+                        session_id=session_id,
+                        status=str(p.get("status", "allowed")),
+                        rate_limit_type=str(p.get("rate_limit_type", "five_hour")),
+                        resets_at=_coerce_int(p.get("resets_at")),
+                        overage_status=str(p.get("overage_status", "")),
+                        is_using_overage=bool(p.get("is_using_overage", False)),
+                    )
+                except Exception:
+                    await logger.aexception("forward_rate_limit_info_failed")
+
+            runner = ClaudeCodeRunner(bridge_registry=bridge_registry)
             try:
-                result = await asyncio.wait_for(
-                    completion_future,
+                ccr_result = await asyncio.wait_for(
+                    runner.run(
+                        prompt=message,
+                        session_id=claude_session_id,
+                        project_dir=project_local_path,
+                        bridge_id=host_id,
+                        user_id=user_id,
+                        append_system_prompt=append_prompt,
+                        # Existing callbacks (unchanged behaviour).
+                        on_text_delta=on_text_delta,
+                        on_tool_progress=on_tool_progress,
+                        on_question=on_question,
+                        on_stream_end=on_stream_end,
+                        # New T1.2 callbacks → iOS forwarders.
+                        on_session_init=_on_session_init,
+                        on_subagent_spawned=_on_subagent_spawned,
+                        on_subagent_progress=_on_subagent_progress,
+                        on_subagent_completed=_on_subagent_completed,
+                        on_rate_limit=_on_rate_limit,
+                    ),
                     timeout=settings.claude_code_timeout_seconds,
                 )
             except TimeoutError:
-                # Clean up the stream record on timeout
-                await csm.handle_stream_error(task_id, "Timeout bekleme suresi asimi", -1)
                 raise ClaudeCodeError(
                     f"claude -p timed out after {settings.claude_code_timeout_seconds}s",
                     returncode=-1,
@@ -385,15 +514,15 @@ class OrchestratorService:
             await logger.ainfo(
                 "claude_code_response_generated",
                 session_id=session_id,
-                claude_session_id=result.session_id,
-                model=result.model_used,
-                text_length=len(result.full_text),
+                claude_session_id=ccr_result.session_id,
+                model=ccr_result.model_used,
+                text_length=len(ccr_result.response_text),
                 agent_host_id=host_id,
             )
 
             # Save session after successful execution (project-scoped key)
-            if result.session_id:
-                await self._save_claude_session(session_key, result.session_id)
+            if ccr_result.session_id:
+                await self._save_claude_session(session_key, ccr_result.session_id)
 
             # Track subscription usage
             try:
@@ -407,10 +536,10 @@ class OrchestratorService:
 
             return OrchestratorResponse(
                 session_id=session_id,
-                response_text=result.full_text,
-                model_used=f"claude-code:{result.model_used}",
-                tokens_input=result.tokens_input,
-                tokens_output=result.tokens_output,
+                response_text=ccr_result.response_text,
+                model_used=f"claude-code:{ccr_result.model_used}",
+                tokens_input=ccr_result.tokens_input,
+                tokens_output=ccr_result.tokens_output,
                 tool_calls_count=0,
             )
 

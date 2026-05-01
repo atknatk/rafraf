@@ -147,6 +147,15 @@ class ConnectionManager:
         """Return all connection IDs for a given user."""
         return [cid for cid, info in self._connections.items() if info.user_id == user_id]
 
+    def get_active_user_ids(self) -> set[str]:
+        """Return the set of unique ``user_id``s with at least one active connection.
+
+        Used by global broadcast paths (e.g. T1.2 ``usage.report`` fan-out
+        from a bridge) that need to deliver one message per user — not one
+        per connection. Multi-device users are correctly counted once.
+        """
+        return {info.user_id for info in self._connections.values()}
+
     @property
     def active_count(self) -> int:
         """Return the number of active connections."""

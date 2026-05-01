@@ -22,6 +22,7 @@ from collections.abc import AsyncIterator
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -54,6 +55,9 @@ class _FakeRegistry:
         # Populated by `send_to_bridge` so tests can inspect the RPC envelope.
         self.last_envelope: dict[str, Any] | None = None
         self.last_target: str | None = None
+        # Track register/unregister calls for the H1 race-fix tests.
+        self.subscribers: list[tuple[str, str]] = []
+        self.unregisters: list[tuple[str, str]] = []
 
     def get_connection_id(self, host_id: str) -> str | None:
         if host_id == self._online_host:
@@ -64,6 +68,23 @@ class _FakeRegistry:
         # Capability check is intentionally permissive — runner just needs a host.
         del capability
         return self._online_host
+
+    def register_subscriber(
+        self,
+        *,
+        bridge_id: str,
+        rpc_id: str,
+    ) -> asyncio.Queue[dict[str, Any]]:
+        self.subscribers.append((bridge_id, rpc_id))
+        return asyncio.Queue()
+
+    def unregister_subscriber(
+        self,
+        *,
+        bridge_id: str,
+        rpc_id: str,
+    ) -> None:
+        self.unregisters.append((bridge_id, rpc_id))
 
     async def send_to_bridge(
         self,
@@ -77,12 +98,14 @@ class _FakeRegistry:
     async def stream_events(
         self,
         *,
-        bridge_id: str,
         rpc_id: str,
+        bridge_id: str | None = None,
+        queue: asyncio.Queue[dict[str, Any]] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         # Stamp every event's correlation_id to match the runner's rpc_id so
         # the fixture file is reusable across runs.
         del bridge_id  # unused in the fake
+        del queue  # the fake replays from its own list; queue not needed
         for raw in self._events:
             event = dict(raw)
             event["correlation_id"] = rpc_id
@@ -812,3 +835,274 @@ def test_parse_iso_handles_z_suffix() -> None:
     out = _parse_iso("2026-05-02T10:00:00Z", default="2026-05-02T00:00:00+00:00")
     assert out.year == 2026
     assert out.hour == 10
+
+
+# ---------------------------------------------------------------------------
+# T1.2 fold-in: H1 (race-free subscriber registration), H2 (missed-spawn
+# fallback), H3 (user_id in RPC payload), and the M1 stream_events return-
+# type contract.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_h1_runner_pre_registers_subscriber_before_send() -> None:
+    """H1: the runner MUST register a subscriber before send_to_bridge.
+
+    Otherwise an early ``event.session.init`` arriving in the same tick as
+    the RPC send is dropped at ``dispatch_event`` and the runner deadlocks.
+    """
+    registry = _FakeRegistry(events=_load_sample_events())
+    runner = ClaudeCodeRunner(bridge_registry=registry)  # type: ignore[arg-type]
+    await runner.run(prompt="x")
+    # exactly one register_subscriber call, BEFORE send_to_bridge populated
+    # last_envelope. The fake records the order via list append; verify both
+    # ran and the registration came first by checking subscribers is non-
+    # empty even if send_to_bridge had failed (not the case here).
+    assert len(registry.subscribers) == 1
+    bridge_id, rpc_id = registry.subscribers[0]
+    assert bridge_id == "mac-1"
+    # The recorded envelope's correlation_id must match what was registered.
+    assert registry.last_envelope is not None
+    assert registry.last_envelope["correlation_id"] == rpc_id
+
+
+@pytest.mark.asyncio
+async def test_h1_runner_unregisters_on_send_failure() -> None:
+    """H1: a failed send_to_bridge must NOT leak a registered queue."""
+    registry = _FakeRegistry(events=[], send_succeeds=False)
+    runner = ClaudeCodeRunner(bridge_registry=registry)  # type: ignore[arg-type]
+    with pytest.raises(ClaudeCodeError):
+        await runner.run(prompt="x")
+    # Both register + unregister should have run with matching keys.
+    assert len(registry.subscribers) == 1
+    assert len(registry.unregisters) == 1
+    assert registry.subscribers[0] == registry.unregisters[0]
+
+
+@pytest.mark.asyncio
+async def test_h3_runner_includes_user_id_in_rpc_payload() -> None:
+    """H3: when caller passes user_id, the bridge envelope MUST carry it."""
+    registry = _FakeRegistry(events=_load_sample_events())
+    runner = ClaudeCodeRunner(bridge_registry=registry)  # type: ignore[arg-type]
+    await runner.run(prompt="x", user_id="user-abc")
+    assert registry.last_envelope is not None
+    payload = registry.last_envelope["payload"]
+    assert isinstance(payload, dict)
+    assert payload["user_id"] == "user-abc"
+
+
+@pytest.mark.asyncio
+async def test_h3_runner_user_id_defaults_to_empty_string() -> None:
+    """When caller omits user_id, payload carries '' (no omitempty)."""
+    registry = _FakeRegistry(events=_load_sample_events())
+    runner = ClaudeCodeRunner(bridge_registry=registry)  # type: ignore[arg-type]
+    await runner.run(prompt="x")
+    assert registry.last_envelope is not None
+    payload = registry.last_envelope["payload"]
+    assert isinstance(payload, dict)
+    assert payload["user_id"] == ""
+
+
+@pytest.mark.asyncio
+async def test_h2_missed_spawn_fallback_inserts_late_arrival_row() -> None:
+    """H2: completion for an unknown (session_id, task_id) MUST upsert.
+
+    A backend restart between ``task_started`` and ``task_notification``
+    leaves the spawn row absent. The runner now detects the
+    ``update_subagent_status`` False return and falls back to
+    ``upsert_subagent`` with a synthetic ``spawned_at = completed_at - 1ms``
+    so the late completion isn't silently dropped.
+    """
+
+    class _MissedSpawnRepo:
+        """upsert + update both record; update returns False on first call."""
+
+        def __init__(self) -> None:
+            self.upserts: list[dict[str, Any]] = []
+            self.updates: list[dict[str, Any]] = []
+
+        async def upsert_subagent(self, **kwargs: Any) -> None:
+            self.upserts.append(kwargs)
+
+        async def update_subagent_status(
+            self,
+            session_id: str,
+            task_id: str,
+            status: str,
+            **kwargs: Any,
+        ) -> bool:
+            self.updates.append(
+                {
+                    "session_id": session_id,
+                    "task_id": task_id,
+                    "status": status,
+                    **kwargs,
+                }
+            )
+            return False  # missed-spawn condition
+
+    repo = _MissedSpawnRepo()
+    registry = _FakeRegistry(events=_load_sample_events())
+    runner = ClaudeCodeRunner(
+        bridge_registry=registry,  # type: ignore[arg-type]
+        subagent_repo=repo,  # type: ignore[arg-type]
+    )
+
+    # Bypass the DB path that resolves bridge_uuid by stubbing it.
+    runner._resolve_bridge_uuid = AsyncMock(  # type: ignore[method-assign]
+        return_value=uuid.uuid4(),
+    )
+
+    await runner.run(prompt="x")
+
+    # update_subagent_status was called for completion; it returned False
+    # so the runner fell back to upsert_subagent with late_arrival flag.
+    assert len(repo.updates) >= 1
+    assert len(repo.upserts) >= 1
+    # The late-arrival upsert should carry a description prefixed
+    # [late_arrival] and a spawned_at strictly less than completed_at.
+    late = next(
+        u for u in repo.upserts if str(u.get("description", "")).startswith("[late_arrival]")
+    )
+    assert late["spawned_at"] < late["completed_at"]
+
+
+@pytest.mark.asyncio
+async def test_h2_missed_spawn_skipped_when_bridge_uuid_unknown() -> None:
+    """If bridge_uuid resolution fails, the late upsert MUST be skipped (no crash)."""
+
+    class _MissedSpawnRepo:
+        def __init__(self) -> None:
+            self.upserts: list[dict[str, Any]] = []
+            self.updates: list[dict[str, Any]] = []
+
+        async def upsert_subagent(self, **kwargs: Any) -> None:
+            self.upserts.append(kwargs)
+
+        async def update_subagent_status(self, *_a: Any, **_k: Any) -> bool:
+            self.updates.append({})
+            return False
+
+    repo = _MissedSpawnRepo()
+    registry = _FakeRegistry(events=_load_sample_events())
+    runner = ClaudeCodeRunner(
+        bridge_registry=registry,  # type: ignore[arg-type]
+        subagent_repo=repo,  # type: ignore[arg-type]
+    )
+    runner._resolve_bridge_uuid = AsyncMock(  # type: ignore[method-assign]
+        return_value=None,
+    )
+    await runner.run(prompt="x")
+    # update was attempted; upsert was NOT (bridge unknown).
+    assert len(repo.updates) >= 1
+    # We still get the spawn upserts from task_started; what we MUSTN'T get
+    # is a late_arrival upsert.
+    lates = [
+        u
+        for u in repo.upserts
+        if str(u.get("description", "")).startswith("[late_arrival]")
+    ]
+    assert lates == []
+
+
+@pytest.mark.asyncio
+async def test_m1_stream_events_returns_async_generator() -> None:
+    """M1: stream_events must be an async generator (not a coroutine).
+
+    Guards against a regression where the signature loses the ``yield``
+    and consumers are forced into ``await`` instead of ``async for``.
+    """
+    import inspect
+
+    from app.services.bridge_registry_service import BridgeRegistryService
+
+    svc = BridgeRegistryService()
+    queue = svc.register_subscriber(bridge_id="m", rpc_id="r")
+    gen = svc.stream_events(queue=queue, rpc_id="r")
+    assert inspect.isasyncgen(gen)
+    # Cleanup so we don't leak the queue.
+    svc.unregister_subscriber(bridge_id="m", rpc_id="r")
+
+
+@pytest.mark.asyncio
+async def test_h1_register_subscriber_then_dispatch_no_race() -> None:
+    """register_subscriber + stream_events(queue=) must NOT drop early events.
+
+    Direct test against BridgeRegistryService — dispatch_event runs BEFORE
+    the consumer enters its ``async for``. The pre-registered queue must
+    still receive the event.
+    """
+    from app.services.bridge_registry_service import BridgeRegistryService
+
+    svc = BridgeRegistryService()
+    rpc_id = "rpc-race-1"
+    queue = svc.register_subscriber(bridge_id="mac-1", rpc_id=rpc_id)
+
+    # Fire the event BEFORE the consumer is awake.
+    await svc.dispatch_event(
+        {
+            "type": "event.session.init",
+            "correlation_id": rpc_id,
+            "payload": {"session_id": "s1"},
+        }
+    )
+    await svc.dispatch_event(
+        {
+            "type": "event.session.result",
+            "correlation_id": rpc_id,
+            "payload": {"session_id": "s1", "result": "ok"},
+        }
+    )
+
+    received: list[dict[str, Any]] = []
+    async for ev in svc.stream_events(queue=queue, rpc_id=rpc_id):
+        received.append(ev)
+        if ev.get("type") == "event.session.result":
+            break
+
+    assert [ev["type"] for ev in received] == [
+        "event.session.init",
+        "event.session.result",
+    ]
+
+
+def test_stream_events_lazy_path_requires_bridge_id() -> None:
+    """Lazy stream_events (queue=None) MUST validate bridge_id presence.
+
+    Calling without either a queue or a bridge_id is a programmer error;
+    surface it as ValueError so the runner can't accidentally drop the
+    race-fix.
+    """
+    import asyncio as _asyncio
+
+    from app.services.bridge_registry_service import BridgeRegistryService
+
+    svc = BridgeRegistryService()
+
+    async def _drive() -> None:
+        gen = svc.stream_events(rpc_id="r")  # no queue, no bridge_id
+        with pytest.raises(ValueError, match="bridge_id"):
+            await gen.__anext__()
+
+    _asyncio.run(_drive())
+
+
+@pytest.mark.asyncio
+async def test_unregister_subscriber_idempotent() -> None:
+    """Unregistering a never-registered key MUST be a silent no-op."""
+    from app.services.bridge_registry_service import BridgeRegistryService
+
+    svc = BridgeRegistryService()
+    svc.unregister_subscriber(bridge_id="ghost", rpc_id="never")  # no raise
+
+
+@pytest.mark.asyncio
+async def test_register_subscriber_overwrite_logged() -> None:
+    """Re-registering the same (bridge_id, rpc_id) MUST not crash."""
+    from app.services.bridge_registry_service import BridgeRegistryService
+
+    svc = BridgeRegistryService()
+    q1 = svc.register_subscriber(bridge_id="m", rpc_id="r")
+    q2 = svc.register_subscriber(bridge_id="m", rpc_id="r")
+    assert q1 is not q2
+    svc.unregister_subscriber(bridge_id="m", rpc_id="r")

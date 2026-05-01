@@ -32,7 +32,7 @@ import json
 import uuid
 from collections.abc import AsyncIterator, Callable, Coroutine
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import structlog
@@ -203,6 +203,7 @@ class ClaudeCodeRunner:
         session_id: str | None = None,
         project_dir: str | None = None,
         bridge_id: str | None = None,
+        user_id: str | None = None,
         on_text_delta: TextDeltaCallback | None = None,
         on_tool_progress: ToolProgressCallback | None = None,
         on_question: QuestionCallback | None = None,
@@ -267,8 +268,16 @@ class ClaudeCodeRunner:
                 f"Bridge '{target_host_id}' offline veya bağlantı yok",
             )
 
-        # 2. Build + send RPC envelope.
+        # 2. Pre-register the event subscriber BEFORE sending the RPC so any
+        #    early bridge envelopes (e.g. event.session.init that some bridges
+        #    emit synchronously upon receiving command.claude.run) cannot race
+        #    past the consumer. Folds in T1.1 reviewer H1 — see
+        #    BridgeRegistryService.register_subscriber for details.
         rpc_id = uuid.uuid4().hex
+        queue = self._bridges.register_subscriber(
+            bridge_id=target_host_id, rpc_id=rpc_id
+        )
+
         envelope: dict[str, object] = {
             "type": "command.claude.run",
             "id": rpc_id,
@@ -281,11 +290,18 @@ class ClaudeCodeRunner:
                 "permission_mode": "acceptEdits",
                 "agent_teams": True,
                 "project_dir": project_dir,
+                # H3: include user_id for log correlation. Bridge expects
+                # a non-omitempty string; default to "" when caller didn't
+                # pass it (matches the legacy zero-value behaviour).
+                "user_id": user_id or "",
             },
         }
 
         sent = await self._bridges.send_to_bridge(target_host_id, envelope)
         if not sent:
+            self._bridges.unregister_subscriber(
+                bridge_id=target_host_id, rpc_id=rpc_id
+            )
             raise ClaudeCodeError(
                 f"Bridge '{target_host_id}' RPC gönderimi başarısız",
                 returncode=-1,
@@ -296,9 +312,10 @@ class ClaudeCodeRunner:
             bridge_host_id=target_host_id,
             rpc_id=rpc_id,
             resume_session=session_id,
+            user_id=user_id,
         )
 
-        # 3. Consume typed events via correlated stream.
+        # 3. Consume typed events via the pre-registered subscriber queue.
         state = _RunState()
         callbacks = _Callbacks(
             on_text_delta=on_text_delta,
@@ -314,8 +331,9 @@ class ClaudeCodeRunner:
 
         try:
             async for event in self._bridges.stream_events(
-                bridge_id=target_host_id,
+                queue=queue,
                 rpc_id=rpc_id,
+                bridge_id=target_host_id,
             ):
                 terminal = await self._dispatch_event(
                     event=event,
@@ -444,6 +462,7 @@ class ClaudeCodeRunner:
                 await callbacks.on_subagent_completed(payload)
             await self._persist_subagent_completed(
                 payload=payload,
+                bridge_host_id=bridge_host_id,
                 completed_at=_parse_iso(payload.get("completed_at"), default=now_iso),
             )
             return False
@@ -592,9 +611,19 @@ class ClaudeCodeRunner:
         self,
         *,
         payload: dict[str, object],
+        bridge_host_id: str,
         completed_at: datetime,
     ) -> None:
-        """Best-effort UPDATE on ``subagents`` for terminal task_notification."""
+        """Best-effort UPDATE on ``subagents`` for terminal task_notification.
+
+        Folds in T1.1 reviewer H2 (missed-spawn fallback): if the matching
+        ``(session_id, task_id)`` row is missing — typically because the
+        backend restarted between ``task_started`` and ``task_notification``
+        and the spawn event was never persisted — we synthesise a row via
+        :meth:`SubagentRepository.upsert_subagent` with
+        ``spawned_at = completed_at - 1ms`` so the table stays consistent
+        and the late arrival isn't silently dropped.
+        """
         if self._subagents is None:
             return
 
@@ -604,20 +633,79 @@ class ClaudeCodeRunner:
             return
 
         status = str(payload.get("status", "completed"))
+        summary = _stringify_optional(payload.get("summary"))
+        total_tokens = _optional_int(payload.get("total_tokens"))
+        tool_uses = _optional_int(payload.get("tool_uses"))
+        duration_ms = _optional_int(payload.get("duration_ms"))
+
         try:
-            await self._subagents.update_subagent_status(
+            updated = await self._subagents.update_subagent_status(
                 session_id=session_id,
                 task_id=task_id,
                 status=status,
-                summary=_stringify_optional(payload.get("summary")),
-                total_tokens=_optional_int(payload.get("total_tokens")),
-                tool_uses=_optional_int(payload.get("tool_uses")),
-                duration_ms=_optional_int(payload.get("duration_ms")),
+                summary=summary,
+                total_tokens=total_tokens,
+                tool_uses=tool_uses,
+                duration_ms=duration_ms,
                 completed_at=completed_at,
             )
         except Exception:
             await logger.aexception(
                 "subagent_complete_persist_failed",
+                session_id=session_id,
+                task_id=task_id,
+            )
+            return
+
+        if updated:
+            return
+
+        # H2: row didn't exist — backend missed the task_started envelope.
+        # Synthesise a spawn row so the completion stays auditable. Tag the
+        # entry as ``late_arrival`` via the description prefix so operators
+        # can grep for it (the schema has no metadata column today).
+        await logger.awarning(
+            "subagent_complete_missed_spawn",
+            session_id=session_id,
+            task_id=task_id,
+        )
+        bridge_uuid = await self._resolve_bridge_uuid(bridge_host_id)
+        if bridge_uuid is None:
+            await logger.adebug(
+                "subagent_complete_late_skip_unknown_bridge",
+                bridge_host_id=bridge_host_id,
+                session_id=session_id,
+                task_id=task_id,
+            )
+            return
+
+        spawned_at = completed_at - timedelta(milliseconds=1)
+        late_description = (
+            "[late_arrival] "
+            + (_stringify_optional(payload.get("description")) or "subagent")
+        )
+        try:
+            await self._subagents.upsert_subagent(
+                bridge_id=bridge_uuid,
+                session_id=session_id,
+                task_id=task_id,
+                spawned_at=spawned_at,
+                name=_stringify_optional(payload.get("name"))
+                or _stringify_optional(payload.get("description")),
+                description=late_description,
+                prompt_preview=_stringify_optional(payload.get("prompt_preview")),
+                subagent_type=_stringify_optional(payload.get("subagent_type")),
+                isolation=_stringify_optional(payload.get("isolation")),
+                status=status,
+                summary=summary,
+                total_tokens=total_tokens,
+                tool_uses=tool_uses,
+                duration_ms=duration_ms,
+                completed_at=completed_at,
+            )
+        except Exception:
+            await logger.aexception(
+                "subagent_complete_late_upsert_failed",
                 session_id=session_id,
                 task_id=task_id,
             )
