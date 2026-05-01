@@ -40,6 +40,18 @@ var (
 	ClaudeLinesRead atomic.Int64
 	// ClaudeRateLimitHits counts rate_limit_event lines observed.
 	ClaudeRateLimitHits atomic.Int64
+
+	// StatuslineLastReportAge is the number of seconds since
+	// ~/.claude/usage.json was last updated (gauge). Updated by the
+	// statusline.Watcher on every poll regardless of whether the file
+	// changed; staleness alarms can fire off this value (T0.5.11).
+	StatuslineLastReportAge atomic.Int64
+	// StatuslineFiveHourPct is the most recently observed 5-hour usage
+	// percentage from ~/.claude/usage.json (gauge, 0–100).
+	StatuslineFiveHourPct atomic.Int64
+	// StatuslineSevenDayPct is the most recently observed 7-day usage
+	// percentage from ~/.claude/usage.json (gauge, 0–100).
+	StatuslineSevenDayPct atomic.Int64
 )
 
 // expvar surfaces. Per docs/11_Bridge_Spec.md §9, these are exported for the
