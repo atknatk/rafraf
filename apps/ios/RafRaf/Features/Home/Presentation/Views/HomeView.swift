@@ -7,8 +7,6 @@ import SwiftUI
 struct HomeView: View {
     @State private var viewModel = HomeViewModel()
     @State private var isAppeared = false
-    @State private var showProjectList = false
-    @State private var projectListViewModel = Container.shared.projectListViewModel()
 
     var body: some View {
         NavigationStack {
@@ -24,11 +22,6 @@ struct HomeView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(isPresented: $showProjectList) {
-                ProjectListView(
-                    viewModel: projectListViewModel
-                )
-            }
         }
     }
 
@@ -63,10 +56,9 @@ struct HomeView: View {
                     systemImage: "folder",
                     title: String(localized: "home.empty.title"),
                     message: String(localized: "home.empty.message"),
-                    actionTitle: String(localized: "home.empty.action")
-                ) {
-                    showProjectList = true
-                }
+                    actionTitle: nil,
+                    action: nil
+                )
                 .rfEntrance(isAppeared: isAppeared, delay: 0.25)
             }
             .padding(.horizontal, RFSpacing.md)
@@ -129,12 +121,6 @@ struct HomeView: View {
                 icon: "message.fill",
                 title: String(localized: "home.action.chat"),
                 gradient: RFColors.brandGradient
-            )
-            quickActionCard(
-                icon: "folder.fill",
-                title: String(localized: "home.action.projects"),
-                gradient: RFColors.accentGradient,
-                action: { showProjectList = true }
             )
         }
     }

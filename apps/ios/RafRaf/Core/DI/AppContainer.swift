@@ -270,26 +270,6 @@ extension Container {
         .singleton
     }
 
-    // MARK: - Project Feature
-
-    /// Project repository.
-    var projectRepository: Factory<ProjectStatusRepositoryProtocol> {
-        self { ProjectRepositoryImpl(networkClient: self.networkClient()) }
-    }
-
-    /// Project list ViewModel.
-    var projectListViewModel: Factory<ProjectListViewModel> {
-        self { @MainActor in
-            let repository = self.projectRepository()
-            let agentRepository = self.agentRepository()
-            return ProjectListViewModel(
-                getProjectsUseCase: GetProjectsUseCase(repository: repository),
-                updateProjectStatusUseCase: UpdateProjectStatusUseCase(repository: repository),
-                getAgentsUseCase: GetAgentsUseCase(repository: agentRepository)
-            )
-        }
-    }
-
     // MARK: - Agent Feature
 
     /// Agent repository.

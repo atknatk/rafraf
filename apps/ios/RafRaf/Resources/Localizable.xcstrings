@@ -7562,19 +7562,19 @@
         }
       }
     },
-    "tab.projects" : {
+    "tab.home" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Projects"
+            "value" : "Home"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Projeler"
+            "value" : "Ana Sayfa"
           }
         }
       }
