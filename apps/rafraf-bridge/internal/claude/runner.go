@@ -1,138 +1,345 @@
+// Package claude wraps the `claude -p --output-format stream-json` subprocess
+// and exposes a typed event stream to the rest of the bridge.
+//
+// T0.5.5 introduces:
+//
+//   - Runner with config-aware argument and environment construction
+//     (ANTHROPIC_API_KEY excluded; CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+//     injected when the request or config opts in).
+//   - EventSink interface (docs/11_Bridge_Spec.md §3.4) for typed callbacks.
+//   - Abort(sessionID) — cooperative cancel via context, with a brief
+//     grace window for the subprocess to terminate.
+//   - AuthCheck(ctx) — startup health probe that runs `claude auth status`.
+//   - ExecCommandFn — injectable command factory so tests can substitute
+//     `cat testdata/*.jsonl` for the real claude binary.
+//
+// T0.5.6 will replace the placeholder Parser with full stream-json
+// dispatch + state tracking; the Runner contract here is stable.
 package claude
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
+	"sync"
+	"time"
 
+	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/config"
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/protocol"
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/telemetry"
 )
 
-// EnvelopeSender is the cross-package callback used by Runner to forward
-// stream-JSON events upward. ws.Client.Send satisfies this signature.
-type EnvelopeSender func(protocol.Envelope)
+// abortGracePeriod is how long Abort() lingers after cancelling the run
+// context, giving the subprocess a chance to flush stdout before any
+// follow-up Run() reuses the binary slot. SIGKILL escalation is handled
+// implicitly by exec.CommandContext when the context is cancelled.
+const abortGracePeriod = 100 * time.Millisecond
 
-// Runner spawns `claude -p --output-format stream-json --verbose` and
-// forwards each parsed event as a control-plane envelope.
-//
-// T0.5.5 will replace this with a richer EventSink-driven implementation
-// (env injection, abort, structured errors). The current behavior is a
-// verbatim port of the spike.
+// stderrDrainBufSize bounds a single read from the subprocess's stderr
+// pipe. Lines longer than this are split across multiple log entries —
+// acceptable since stderr is debug-only diagnostic noise.
+const stderrDrainBufSize = 4096
+
+// stdoutMaxLineSize caps a single stream-json line at 16 MiB. The Python
+// reference (apps/agent/agent/runners/claude_runner.py) does not bound
+// line length explicitly; this matches the spike's safety ceiling.
+const stdoutMaxLineSize = 16 << 20 // 16 MiB
+
+// stdoutInitialBufSize seeds the bufio.Scanner buffer at 1 MiB so typical
+// lines never trigger an allocation while leaving headroom up to the cap.
+const stdoutInitialBufSize = 1 << 20 // 1 MiB
+
+// Runner spawns and supervises `claude -p --output-format stream-json`
+// subprocesses. A single Runner can host multiple concurrent sessions
+// keyed by RunRequest.SessionID; each may be cancelled independently
+// via Abort.
 type Runner struct {
-	Prompt         string
-	Send           EnvelopeSender
-	CWD            string
-	PermissionMode string
+	cfg    *config.Config
+	logger *slog.Logger
+
+	mu         sync.Mutex
+	activeRuns map[string]context.CancelFunc // sessionID → cancel
 }
 
-// NewRunner constructs a Runner. send must be non-nil.
-func NewRunner(prompt, cwd, permissionMode string, send EnvelopeSender) *Runner {
+// RunRequest is the per-invocation control surface. Empty fields fall
+// back to the corresponding config.Config values where applicable.
+type RunRequest struct {
+	// Prompt is the orchestrator instruction passed as claude's positional
+	// argument. Required.
+	Prompt string
+	// SessionID is non-empty to resume an existing session via
+	// `claude --resume <id>`; empty starts a fresh session. When non-empty
+	// the SessionID is also the key under which Abort() can cancel the run.
+	SessionID string
+	// PermissionMode overrides config.PermissionMode for this run. Empty
+	// uses the config default.
+	PermissionMode string
+	// ProjectDir overrides config.ProjectDir (the subprocess cwd) for this
+	// run. Empty uses the config default.
+	ProjectDir string
+	// AgentTeams, when true, injects CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+	// into the subprocess env. Logical OR with config.AgentTeams.
+	AgentTeams bool
+	// UserID is recorded on log lines for correlation with backend
+	// audit trails; opaque to the runner.
+	UserID string
+}
+
+// EventSink receives one callback per parsed stream-json event. Method
+// names mirror the protocol.EventSession* type catalogue. Implementations
+// are expected to be cheap (typically a single envelope build + queue
+// push); blocking work belongs downstream of the sink.
+//
+// T0.5.5 ships the contract; the placeholder Parser does not yet invoke
+// any of these — T0.5.6 wires up dispatch.
+type EventSink interface {
+	OnInit(ev protocol.EventSessionInit) error
+	OnAssistant(ev protocol.EventSessionAssistant) error
+	OnUser(ev protocol.EventSessionUser) error
+	OnStream(ev protocol.EventSessionStream) error
+	OnTaskStarted(ev protocol.EventSessionTaskStarted) error
+	OnTaskProgress(ev protocol.EventSessionTaskProgress) error
+	OnTaskNotification(ev protocol.EventSessionTaskNotification) error
+	OnRateLimit(ev protocol.EventSessionRateLimit) error
+	OnHookStarted(ev protocol.EventSessionHookStarted) error
+	OnHookResponse(ev protocol.EventSessionHookResponse) error
+	OnResult(ev protocol.EventSessionResult) error
+}
+
+// ExecCommandFn matches exec.CommandContext's signature so tests can
+// substitute a stub that emits canned stream-json from a fixture file.
+type ExecCommandFn func(ctx context.Context, name string, args ...string) *exec.Cmd
+
+// NewRunner constructs a Runner. logger may be nil; a no-op default is
+// substituted in that case so call sites need not check.
+func NewRunner(cfg *config.Config, logger *slog.Logger) *Runner {
+	if logger == nil {
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
 	return &Runner{
-		Prompt:         prompt,
-		CWD:            cwd,
-		PermissionMode: permissionMode,
-		Send:           send,
+		cfg:        cfg,
+		logger:     logger,
+		activeRuns: make(map[string]context.CancelFunc),
 	}
 }
 
-// Run executes the claude subprocess and pumps stream-JSON lines into the
-// envelope sink until the process exits or ctx is cancelled.
-func (r *Runner) Run(ctx context.Context) error {
-	telemetry.ClaudeSubprocesses.Add(1)
-	defer telemetry.ClaudeSubprocesses.Add(-1)
+// Run executes a `claude -p` subprocess and pipes its stdout through the
+// parser, which dispatches typed events to sink. Run blocks until the
+// subprocess exits or ctx is cancelled. Stderr is drained to the runner
+// logger at debug level.
+func (r *Runner) Run(ctx context.Context, req RunRequest, sink EventSink) error {
+	return r.runWithExec(ctx, req, sink, exec.CommandContext)
+}
 
+// runWithExec is the testable variant — it accepts an injectable command
+// factory so tests can swap claude for a deterministic fixture player.
+func (r *Runner) runWithExec(
+	ctx context.Context,
+	req RunRequest,
+	sink EventSink,
+	execCmd ExecCommandFn,
+) error {
+	telemetry.ClaudeSubprocessActive.Add(1)
+	telemetry.ClaudeSubprocessTotal.Add(1)
+	defer telemetry.ClaudeSubprocessActive.Add(-1)
+
+	// Per-run context — derived so Abort() can target this single run
+	// without taking down the parent context.
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	if req.SessionID != "" {
+		r.registerActive(req.SessionID, cancel)
+		defer r.unregisterActive(req.SessionID)
+	}
+
+	args := r.buildArgs(req)
+	cmd := execCmd(runCtx, r.cfg.ClaudeBinary, args...)
+	cmd.Dir = r.resolveProjectDir(req)
+	cmd.Env = r.buildEnv(req)
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("claude: stdout pipe: %w", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("claude: stderr pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("claude: subprocess start: %w", err)
+	}
+
+	r.logger.Info("claude subprocess started",
+		"session_id", req.SessionID,
+		"user_id", req.UserID,
+		"binary", r.cfg.ClaudeBinary,
+		"cwd", cmd.Dir,
+	)
+
+	// Drain stderr concurrently so a chatty subprocess never blocks on a
+	// full pipe buffer. The goroutine returns when stderr is closed at
+	// process exit.
+	stderrDone := make(chan struct{})
+	go func() {
+		defer close(stderrDone)
+		r.drainStderr(stderr)
+	}()
+
+	parser := NewParser(sink, r.logger)
+	parseErr := parser.Parse(stdout)
+
+	waitErr := cmd.Wait()
+	<-stderrDone
+
+	if parseErr != nil {
+		return fmt.Errorf("claude: parse: %w", parseErr)
+	}
+	if waitErr != nil {
+		// Surface context cancellation as-is so callers can distinguish
+		// abort from a real subprocess failure.
+		if ctxErr := runCtx.Err(); ctxErr != nil && errors.Is(ctxErr, context.Canceled) {
+			return ctxErr
+		}
+		return fmt.Errorf("claude: subprocess wait: %w", waitErr)
+	}
+	return nil
+}
+
+// buildArgs assembles the claude CLI argument vector per Doc 11 §5. The
+// prompt is always the trailing positional argument so flags never collide.
+func (r *Runner) buildArgs(req RunRequest) []string {
 	args := []string{
 		"-p",
 		"--output-format", "stream-json",
 		"--verbose",
 		"--include-partial-messages",
 	}
-	if r.PermissionMode != "" {
-		args = append(args, "--permission-mode", r.PermissionMode)
+	permMode := req.PermissionMode
+	if permMode == "" {
+		permMode = r.cfg.PermissionMode
 	}
-	args = append(args, r.Prompt)
+	if permMode != "" {
+		args = append(args, "--permission-mode", permMode)
+	}
+	if req.SessionID != "" {
+		args = append(args, "--resume", req.SessionID)
+	}
+	args = append(args, req.Prompt)
+	return args
+}
 
-	cmd := exec.CommandContext(ctx, "claude", args...)
-	if r.CWD != "" {
-		cmd.Dir = r.CWD
+// resolveProjectDir picks the per-request override when set, otherwise
+// the configured default. An empty string means "inherit current cwd",
+// which is acceptable for tests but unusual in production.
+func (r *Runner) resolveProjectDir(req RunRequest) string {
+	if req.ProjectDir != "" {
+		return req.ProjectDir
 	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("stdout pipe: %w", err)
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("stderr pipe: %w", err)
-	}
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start: %w", err)
-	}
+	return r.cfg.ProjectDir
+}
 
-	// Stderr → log (drain to avoid blocking).
-	go func() { _, _ = io.Copy(os.Stderr, stderr) }()
+// buildEnv constructs the subprocess environment by stripping
+// ANTHROPIC_API_KEY (forces the claude CLI to use Max-subscription auth)
+// and conditionally injecting CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+// when either the request or config opts in.
+func (r *Runner) buildEnv(req RunRequest) []string {
+	env := filterEnv(os.Environ(), "ANTHROPIC_API_KEY")
+	if req.AgentTeams || r.cfg.AgentTeams {
+		env = append(env, "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1")
+	}
+	return env
+}
 
-	// Stdout → parse + forward.
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 1<<20), 16<<20) // up to 16 MiB per line
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		telemetry.ClaudeLinesRead.Add(1)
-		var ev StreamEvent
-		if err := json.Unmarshal(line, &ev); err != nil {
-			continue
+// filterEnv returns env minus any entry whose key matches removeKey. The
+// match is on the literal "KEY=" prefix so values containing "=" are
+// preserved as-is.
+func filterEnv(env []string, removeKey string) []string {
+	prefix := removeKey + "="
+	out := make([]string, 0, len(env))
+	for _, e := range env {
+		if !strings.HasPrefix(e, prefix) {
+			out = append(out, e)
 		}
-		ev.Raw = make(json.RawMessage, len(line))
-		copy(ev.Raw, line)
+	}
+	return out
+}
 
-		envType := mapType(ev.Type, ev.Subtype)
-		if ev.Type == "rate_limit_event" {
-			telemetry.ClaudeRateLimitHits.Add(1)
+// drainStderr reads stderr in chunks and routes each chunk to the runner
+// logger at debug level. Returns when the pipe is closed by the
+// subprocess exiting.
+func (r *Runner) drainStderr(stderr io.Reader) {
+	buf := make([]byte, stderrDrainBufSize)
+	for {
+		n, err := stderr.Read(buf)
+		if n > 0 {
+			r.logger.Debug("claude stderr", "data", string(buf[:n]))
 		}
-		env := protocol.Envelope{
-			Type:    envType,
-			ID:      protocol.NewID(),
-			TS:      protocol.NowISO(),
-			Target:  "session:" + ev.SessionID,
-			Payload: ev.Raw,
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				r.logger.Debug("claude stderr drain finished", "err", err)
+			}
+			return
 		}
-		r.Send(env)
 	}
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("scan: %w", err)
+}
+
+// Abort cancels the run identified by sessionID. The subprocess is
+// terminated cooperatively via context cancellation; exec.CommandContext
+// sends SIGKILL after the underlying os.Process finishes. A short grace
+// window lets the subprocess flush before Abort returns.
+func (r *Runner) Abort(sessionID string) error {
+	r.mu.Lock()
+	cancel, ok := r.activeRuns[sessionID]
+	r.mu.Unlock()
+	if !ok {
+		return fmt.Errorf("claude: no active run for session %q", sessionID)
 	}
-	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("wait: %w", err)
-	}
+	cancel()
+	r.logger.Info("claude subprocess abort signalled", "session_id", sessionID)
+	time.Sleep(abortGracePeriod)
 	return nil
 }
 
-func mapType(streamType, subtype string) string {
-	switch streamType {
-	case "system":
-		return "event.session." + safeSub(subtype, "system")
-	case "assistant":
-		return "event.session.assistant"
-	case "user":
-		return "event.session.user"
-	case "stream_event":
-		return "event.session.stream"
-	case "rate_limit_event":
-		return "event.session.rate_limit"
-	case "result":
-		return "event.session.result"
-	default:
-		return "event.session.unknown"
+func (r *Runner) registerActive(sessionID string, cancel context.CancelFunc) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	// If a previous run with the same SessionID is somehow still mapped,
+	// cancel it before overwriting so we never leak a goroutine.
+	if prev, exists := r.activeRuns[sessionID]; exists {
+		prev()
 	}
+	r.activeRuns[sessionID] = cancel
 }
 
-func safeSub(s, fallback string) string {
-	if s == "" {
-		return fallback
+func (r *Runner) unregisterActive(sessionID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.activeRuns, sessionID)
+}
+
+// AuthCheck verifies the local claude CLI is logged in by parsing
+// `claude auth status` JSON output. Used at bridge startup per
+// Doc 11 §5; a failure indicates either missing authentication or a
+// missing claude binary, both of which the caller should surface as
+// event.bridge.auth_expired.
+func (r *Runner) AuthCheck(ctx context.Context) error {
+	cmd := exec.CommandContext(ctx, r.cfg.ClaudeBinary, "auth", "status")
+	out, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("claude: auth status invocation failed: %w", err)
 	}
-	return s
+	// Tolerate either compact or pretty-printed JSON without taking on a
+	// full json.Unmarshal — the loggedIn boolean is the only field we need.
+	s := string(out)
+	if !strings.Contains(s, `"loggedIn": true`) && !strings.Contains(s, `"loggedIn":true`) {
+		return errors.New("claude: not logged in (loggedIn:false)")
+	}
+	return nil
 }

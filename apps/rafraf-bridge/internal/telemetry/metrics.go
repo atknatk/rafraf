@@ -27,8 +27,14 @@ var (
 	// WSEventsDropped counts envelopes dropped because the outbox was full.
 	WSEventsDropped atomic.Int64
 
-	// ClaudeSubprocesses tracks active claude subprocesses (gauge).
-	ClaudeSubprocesses atomic.Int64
+	// ClaudeSubprocessActive tracks the number of currently running claude
+	// subprocesses (gauge). Incremented when Runner.Run starts, decremented
+	// on exit (regardless of success/failure/abort).
+	ClaudeSubprocessActive atomic.Int64
+	// ClaudeSubprocessTotal counts every claude subprocess ever launched
+	// by this bridge process (counter). Useful for sanity-checking
+	// abort/restart loops in production.
+	ClaudeSubprocessTotal atomic.Int64
 	// ClaudeLinesRead counts stream-JSON lines read from claude stdout.
 	ClaudeLinesRead atomic.Int64
 	// ClaudeRateLimitHits counts rate_limit_event lines observed.
@@ -41,13 +47,14 @@ var (
 // without touching main.
 func FormatMetricsLine() string {
 	return fmt.Sprintf(
-		"[metrics] connected=%d reconnects=%d disconnects=%d events=%d dropped=%d claude_subs=%d claude_lines=%d rate_limit_hits=%d",
+		"[metrics] connected=%d reconnects=%d disconnects=%d events=%d dropped=%d claude_active=%d claude_total=%d claude_lines=%d rate_limit_hits=%d",
 		WSConnected.Load(),
 		WSReconnects.Load(),
 		WSDisconnects.Load(),
 		WSEventsForwarded.Load(),
 		WSEventsDropped.Load(),
-		ClaudeSubprocesses.Load(),
+		ClaudeSubprocessActive.Load(),
+		ClaudeSubprocessTotal.Load(),
 		ClaudeLinesRead.Load(),
 		ClaudeRateLimitHits.Load(),
 	)

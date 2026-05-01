@@ -1,21 +1,24 @@
 // Command bridge is the entrypoint for the rafraf-bridge daemon.
 //
-// T0.5.2 splits the spike's single-file main.go (412 lines, see
-// ~/Code/claude-teams-spike/bridge/main.go) into focused packages while
-// preserving runtime behavior. CLI flags, signal handling and mode
-// selection live here; everything else is delegated.
+// T0.5.5 expanded internal/claude.Runner to the EventSink-driven contract
+// described in docs/11_Bridge_Spec.md §3.4. This file owns the small
+// wsEventSink adapter that wraps every typed callback into a protocol
+// envelope and pushes it through the WebSocket client. Everything else
+// (CLI flags, signal handling, soak/idle modes) is unchanged from T0.5.2.
 package main
 
 import (
 	"context"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/claude"
+	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/config"
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/protocol"
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/telemetry"
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/ws"
@@ -55,6 +58,8 @@ func main() {
 		cancel()
 	}()
 
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
 	wsClient := ws.NewClient(*url)
 	go wsClient.Run(ctx)
 
@@ -68,7 +73,7 @@ func main() {
 
 	switch {
 	case *task != "":
-		runTask(ctx, wsClient, *task, *cwd, *permMode)
+		runTask(ctx, wsClient, logger, *task, *cwd, *permMode)
 	case *soakSecs > 0:
 		runSoak(ctx, wsClient, *soakSecs, *emitAlive)
 	default:
@@ -90,8 +95,14 @@ func runMetricsPrinter(ctx context.Context) {
 	}
 }
 
-func runTask(ctx context.Context, wsClient *ws.Client, task, cwd, permMode string) {
-	runner := claude.NewRunner(task, cwd, permMode, wsClient.Send)
+func runTask(ctx context.Context, wsClient *ws.Client, logger *slog.Logger, task, cwd, permMode string) {
+	cfg := &config.Config{
+		ClaudeBinary:   "claude",
+		ProjectDir:     cwd,
+		PermissionMode: permMode,
+	}
+	runner := claude.NewRunner(cfg, logger)
+	sink := &wsEventSink{ws: wsClient}
 
 	wsClient.Send(protocol.Envelope{
 		Type:    "event.bridge.task_started",
@@ -100,22 +111,23 @@ func runTask(ctx context.Context, wsClient *ws.Client, task, cwd, permMode strin
 		Payload: protocol.MustJSON(map[string]any{"prompt_len": len(task), "cwd": cwd}),
 	})
 
-	if err := runner.Run(ctx); err != nil {
+	err := runner.Run(ctx, claude.RunRequest{
+		Prompt:         task,
+		ProjectDir:     cwd,
+		PermissionMode: permMode,
+	}, sink)
+
+	ok := err == nil
+	if !ok {
 		fmt.Fprintf(os.Stderr, "[runner] error: %v\n", err)
-		wsClient.Send(protocol.Envelope{
-			Type:    "event.bridge.task_completed",
-			ID:      protocol.NewID(),
-			TS:      protocol.NowISO(),
-			Payload: protocol.MustJSON(map[string]any{"ok": false, "lines_read": telemetry.ClaudeLinesRead.Load()}),
-		})
-	} else {
-		wsClient.Send(protocol.Envelope{
-			Type:    "event.bridge.task_completed",
-			ID:      protocol.NewID(),
-			TS:      protocol.NowISO(),
-			Payload: protocol.MustJSON(map[string]any{"ok": true, "lines_read": telemetry.ClaudeLinesRead.Load()}),
-		})
 	}
+
+	wsClient.Send(protocol.Envelope{
+		Type:    "event.bridge.task_completed",
+		ID:      protocol.NewID(),
+		TS:      protocol.NowISO(),
+		Payload: protocol.MustJSON(map[string]any{"ok": ok, "lines_read": telemetry.ClaudeLinesRead.Load()}),
+	})
 
 	// Drain a bit before exit so the WS pump can flush the final envelopes.
 	time.Sleep(subprocessDrainPause)
@@ -143,4 +155,78 @@ func runSoak(ctx context.Context, wsClient *ws.Client, soakSecs int, emitAlive b
 			}
 		}
 	}
+}
+
+// wsEventSink adapts the typed claude.EventSink contract to the bridge's
+// WebSocket egress. Each callback marshals its payload into a protocol
+// envelope (using the package builders so type tags can never drift) and
+// hands it to ws.Client.Send. Marshalling errors are surfaced upward
+// rather than swallowed so the runner can attribute them to the offending
+// frame.
+//
+// Until T0.5.6 wires up the real parser these methods are unreachable in
+// production paths; the adapter is here so the wiring is in place when
+// the parser starts emitting events.
+type wsEventSink struct {
+	ws            *ws.Client
+	correlationID string
+}
+
+func (s *wsEventSink) target(sessionID string) string {
+	if sessionID == "" {
+		return ""
+	}
+	return "session:" + sessionID
+}
+
+func (s *wsEventSink) emit(env protocol.Envelope, err error) error {
+	if err != nil {
+		return err
+	}
+	s.ws.Send(env)
+	return nil
+}
+
+func (s *wsEventSink) OnInit(ev protocol.EventSessionInit) error {
+	return s.emit(protocol.NewEventSessionInit(s.target(ev.SessionID), s.correlationID, ev))
+}
+
+func (s *wsEventSink) OnAssistant(ev protocol.EventSessionAssistant) error {
+	return s.emit(protocol.NewEventSessionAssistant(s.target(ev.SessionID), s.correlationID, ev))
+}
+
+func (s *wsEventSink) OnUser(ev protocol.EventSessionUser) error {
+	return s.emit(protocol.NewEventSessionUser(s.target(ev.SessionID), s.correlationID, ev))
+}
+
+func (s *wsEventSink) OnStream(ev protocol.EventSessionStream) error {
+	return s.emit(protocol.NewEventSessionStream(s.target(ev.SessionID), s.correlationID, ev))
+}
+
+func (s *wsEventSink) OnTaskStarted(ev protocol.EventSessionTaskStarted) error {
+	return s.emit(protocol.NewEventSessionTaskStarted(s.target(ev.SessionID), s.correlationID, ev))
+}
+
+func (s *wsEventSink) OnTaskProgress(ev protocol.EventSessionTaskProgress) error {
+	return s.emit(protocol.NewEventSessionTaskProgress(s.target(ev.SessionID), s.correlationID, ev))
+}
+
+func (s *wsEventSink) OnTaskNotification(ev protocol.EventSessionTaskNotification) error {
+	return s.emit(protocol.NewEventSessionTaskNotification(s.target(ev.SessionID), s.correlationID, ev))
+}
+
+func (s *wsEventSink) OnRateLimit(ev protocol.EventSessionRateLimit) error {
+	return s.emit(protocol.NewEventSessionRateLimit(s.target(ev.SessionID), s.correlationID, ev))
+}
+
+func (s *wsEventSink) OnHookStarted(ev protocol.EventSessionHookStarted) error {
+	return s.emit(protocol.NewEventSessionHookStarted(s.target(ev.SessionID), s.correlationID, ev))
+}
+
+func (s *wsEventSink) OnHookResponse(ev protocol.EventSessionHookResponse) error {
+	return s.emit(protocol.NewEventSessionHookResponse(s.target(ev.SessionID), s.correlationID, ev))
+}
+
+func (s *wsEventSink) OnResult(ev protocol.EventSessionResult) error {
+	return s.emit(protocol.NewEventSessionResult(s.target(ev.SessionID), s.correlationID, ev))
 }
