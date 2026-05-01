@@ -32,25 +32,6 @@ from app.services.agent_registry_service import agent_registry
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
-def _register_host_agent_tool() -> None:
-    """Register the HostAgentTool with the global tool registry.
-
-    Called at startup after agent_manager and agent_registry are available.
-    """
-    from app.api.routes.agent_ws import get_task_manager
-    from app.services.orchestrator_service import get_tool_registry
-    from app.tools.host_agent_tool import HostAgentTool
-
-    registry = get_tool_registry()
-    task_manager = get_task_manager()
-    tool = HostAgentTool(
-        task_manager=task_manager,
-        agent_registry=agent_registry,
-    )
-    tool.register(registry)
-    logger.info("host_agent_tool_registered", tool_count=registry.tool_count)
-
-
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan: startup and shutdown events."""
@@ -58,7 +39,6 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     setup_logging(debug=settings.debug)
     logger.info("app_starting", version=settings.app_version)
     await agent_registry.start_stale_checker()
-    _register_host_agent_tool()
     usage_task = asyncio.create_task(_subscription_usage_loop())
     yield
     usage_task.cancel()

@@ -135,7 +135,7 @@ class TestWebSocketMessaging:
     def test_send_voice_message_rejected(
         self, client: TestClient, valid_token: str, mock_orchestrator: AsyncMock
     ) -> None:
-        """Sending a voice message should be rejected (voice removed in T0.8)."""
+        """Sending a voice message should be rejected (voice fully removed in T0.9)."""
         with client.websocket_connect(f"/ws?token={valid_token}") as ws:
             ws.receive_json()  # connection_ack
 
@@ -148,7 +148,7 @@ class TestWebSocketMessaging:
             )
             response = ws.receive_json()
             assert response["type"] == "error"
-            assert response["content"]["error_code"] == "UNSUPPORTED_CLIENT_MESSAGE"
+            assert response["content"]["error_code"] == "UNKNOWN_MESSAGE_TYPE"
 
     def test_send_unknown_type_receives_error(self, client: TestClient, valid_token: str) -> None:
         """Sending an unknown message type should receive an error response."""

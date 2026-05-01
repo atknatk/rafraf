@@ -23,10 +23,6 @@ class TestMessageType:
         """MessageType.TEXT should have value 'text'."""
         assert MessageType.TEXT.value == "text"
 
-    def test_voice_type_value(self) -> None:
-        """MessageType.VOICE should have value 'voice'."""
-        assert MessageType.VOICE.value == "voice"
-
     def test_connection_ack_type_value(self) -> None:
         """MessageType.CONNECTION_ACK should have value 'connection_ack'."""
         assert MessageType.CONNECTION_ACK.value == "connection_ack"
@@ -51,7 +47,6 @@ class TestMessageType:
         """All expected message types should exist."""
         expected = {
             "text",
-            "voice",
             "connection_ack",
             "error",
             "progress",
@@ -63,9 +58,6 @@ class TestMessageType:
             "approval_response",
             "chat.stream",
             "chat.stream_end",
-            "voice.audio_chunk",
-            "voice.audio_end",
-            "voice.interrupt",
             "code.diff",
             "suggestion",
             "typing.start",

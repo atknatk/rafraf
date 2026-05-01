@@ -9,7 +9,6 @@ import anthropic.types
 import structlog
 
 from app.core.config import get_settings
-from app.orchestrator.model_router import record_cost, select_model
 from app.orchestrator.prompt_builder import build_system_prompt
 from app.orchestrator.tool_registry import ToolRegistry
 from app.schemas.orchestrator import (
@@ -101,19 +100,13 @@ class OrchestratorAgent:
             MaxIterationsReachedError: If loop exceeds MAX_ITERATIONS.
             ClaudeAPIError: If Claude API returns an unrecoverable error.
         """
-        # Select model based on message complexity
-        router_result = select_model(request.message)
-        model = router_result.model
+        # V1: Single Claude model (subscription tier). No provider routing.
+        model = get_settings().claude_default_model
 
         await logger.ainfo(
             "orchestrator_model_selected",
             session_id=request.session_id,
             model=model,
-            tier=router_result.tier.value,
-            reason=router_result.reason,
-            complexity_score=router_result.complexity_score,
-            is_override=router_result.is_override,
-            is_fallback=router_result.is_fallback,
         )
 
         # Build system prompt with dynamic context
@@ -252,23 +245,13 @@ class OrchestratorAgent:
             }
             conversation.append(final_assistant_msg)
 
-        # Record cost for this request
-        cost = record_cost(
-            tier=router_result.tier,
-            model=model,
-            input_tokens=total_input_tokens,
-            output_tokens=total_output_tokens,
-        )
-
         await logger.ainfo(
             "orchestrator_completed",
             session_id=request.session_id,
             model=model,
-            tier=router_result.tier.value,
             tokens_input=total_input_tokens,
             tokens_output=total_output_tokens,
             tool_calls_count=tool_calls_count,
-            estimated_cost_usd=cost.estimated_cost_usd,
         )
 
         return OrchestratorResponse(
@@ -294,14 +277,13 @@ class OrchestratorAgent:
         Tool-calling iterations use non-streaming API calls.
         The final text response is streamed via on_text_delta callback.
         """
-        router_result = select_model(request.message)
-        model = router_result.model
+        # V1: Single Claude model (subscription tier). No provider routing.
+        model = get_settings().claude_default_model
 
         await logger.ainfo(
             "orchestrator_streaming_started",
             session_id=request.session_id,
             model=model,
-            tier=router_result.tier.value,
         )
 
         system_prompt = build_system_prompt(
@@ -450,13 +432,6 @@ class OrchestratorAgent:
             }
             conversation.append(final_assistant_msg2)
 
-        cost = record_cost(
-            tier=router_result.tier,
-            model=model,
-            input_tokens=total_input_tokens,
-            output_tokens=total_output_tokens,
-        )
-
         await logger.ainfo(
             "orchestrator_streaming_completed",
             session_id=request.session_id,
@@ -464,7 +439,6 @@ class OrchestratorAgent:
             tokens_input=total_input_tokens,
             tokens_output=total_output_tokens,
             tool_calls_count=tool_calls_count,
-            estimated_cost_usd=cost.estimated_cost_usd,
         )
 
         return OrchestratorResponse(

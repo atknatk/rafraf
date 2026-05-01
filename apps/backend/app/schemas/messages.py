@@ -17,7 +17,6 @@ class MessageType(StrEnum):
     """Supported WebSocket message types."""
 
     TEXT = "text"
-    VOICE = "voice"
     CONNECTION_ACK = "connection_ack"
     ERROR = "error"
     PROGRESS = "progress"
@@ -30,10 +29,6 @@ class MessageType(StrEnum):
     # Streaming response types
     CHAT_STREAM = "chat.stream"
     CHAT_STREAM_END = "chat.stream_end"
-    # Voice conversation types
-    VOICE_AUDIO_CHUNK = "voice.audio_chunk"
-    VOICE_AUDIO_END = "voice.audio_end"
-    VOICE_INTERRUPT = "voice.interrupt"
     # Code diff type
     CODE_DIFF = "code.diff"
     # Proactive suggestion type
@@ -218,18 +213,6 @@ class ChatStreamEndPayload(BaseModel):
     full_text: str
     model_used: str
     tokens_used: dict[str, int]
-
-
-class VoiceAudioChunkPayload(BaseModel):
-    """Payload for TTS audio chunk messages."""
-
-    model_config = ConfigDict(frozen=True)
-
-    message_id: str
-    chunk_index: int
-    audio_data: str  # base64-encoded MP3
-    sentence_text: str
-    is_last_chunk: bool = False
 
 
 class CodeDiffLinePayload(BaseModel):
