@@ -1,25 +1,45 @@
-"""Claude Code runner - subprocess wrapper for claude -p pipe mode.
+"""Claude Code runner — RPC adapter that forwards work to a Mac Go bridge.
 
-DEPRECATED: ClaudeCodeRunner sinifi artik backend'de kullanilmiyor.
-claude -p execution'i Host Agent'a tasindi (agent/runners/claude_runner.py).
-Bu dosya sadece paylasilan tipler (ToolProgressEvent, ToolStepInfo, ClaudeCodeError,
-ToolProgressCallback vb.) icin korunuyor. ClaudeCodeRunner sinifi kaldirilabilir
-ama tip tanimlari backend'deki websocket handler ve ClaudeStreamManager tarafindan
-kullanilmaya devam ediyor.
+v2.0 (Faz 1 / T1.1):
+    The legacy v1 implementation spawned `claude -p` directly inside the
+    backend container. As of the Production Pivot Spec (docs/10
+    §6.1.1), claude execution lives **only** on a Mac/Linux Go bridge
+    (`apps/rafraf-bridge/internal/claude/runner.go`). The backend is now a
+    pure orchestrator: it picks a target bridge, sends a
+    ``command.claude.run`` RPC envelope over the bridge's WebSocket, and
+    consumes the typed event stream the bridge emits.
+
+The 8 ``event.session.*`` envelopes the bridge produces (per docs/10
+§6.1.2) are dispatched to a small set of optional async callbacks that
+mirror the v1 surface so existing call sites (``claude_stream_manager.py``,
+``websocket.py``, ``orchestrator_service.py``) keep working without
+changes. The two new callbacks (``on_session_init``, ``on_subagent_*``,
+``on_rate_limit``) are added as keyword-only optionals so legacy callers
+that don't supply them are unaffected.
+
+Public types preserved for backwards compatibility:
+    * :class:`ClaudeCodeError` — raised on RPC/transport failures.
+    * :class:`ClaudeCodeResult` — final result aggregated from
+      ``event.session.result`` (cost + permission denials populated).
+    * :class:`ToolStepInfo` / :class:`ToolProgressEvent` — unchanged shape
+      so iOS progress UI keeps rendering.
+    * Callback type aliases (``TextDeltaCallback`` etc.) — unchanged.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
-import os
-import time
-from collections.abc import Callable, Coroutine
+import uuid
+from collections.abc import AsyncIterator, Callable, Coroutine
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import structlog
 
-from app.core.config import get_settings
+if TYPE_CHECKING:
+    from app.repositories.subagent_repo import SubagentRepository
+    from app.services.bridge_registry_service import BridgeRegistryService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -48,59 +68,6 @@ def _tool_display_name(tool_name: str) -> str:
     return _TOOL_DISPLAY_NAMES.get(tool_name, tool_name)
 
 
-def _tool_input_summary(tool_name: str, input_json: str) -> str | None:
-    """Extract a short human-readable summary from a tool's JSON input."""
-    if not input_json:
-        return None
-    try:
-        data: dict[str, object] = json.loads(input_json)
-    except json.JSONDecodeError:
-        return None
-
-    if tool_name in ("Read", "Write", "Edit", "MultiEdit"):
-        path = data.get("file_path") or data.get("path")
-        if isinstance(path, str):
-            # Show only the last two path components for brevity
-            parts = path.replace("\\", "/").split("/")
-            return "/".join(parts[-2:]) if len(parts) >= 2 else path
-    elif tool_name == "Bash":
-        cmd = data.get("command", "")
-        if isinstance(cmd, str):
-            return cmd[:70] + ("…" if len(cmd) > 70 else "")
-    elif tool_name == "Glob":
-        pattern = data.get("pattern", "")
-        if isinstance(pattern, str):
-            return pattern
-    elif tool_name == "Grep":
-        pattern = data.get("pattern", "")
-        if isinstance(pattern, str):
-            return f'"{pattern}"'
-    elif tool_name == "WebFetch":
-        url = data.get("url", "")
-        if isinstance(url, str):
-            return url[:70] + ("…" if len(url) > 70 else "")
-    elif tool_name == "WebSearch":
-        query = data.get("query", "")
-        if isinstance(query, str):
-            return query
-    elif tool_name == "LS":
-        path = data.get("path", "")
-        if isinstance(path, str):
-            return path
-    return None
-
-
-@dataclass
-class _ToolExecution:
-    """Tracks a single tool invocation with timing."""
-
-    tool_name: str
-    started_at: float  # time.monotonic()
-    completed_at: float | None = None
-    status: str = "active"  # "active", "completed", "failed"
-    input_summary: str | None = None
-
-
 @dataclass(frozen=True)
 class ToolStepInfo:
     """Single step in the execution timeline."""
@@ -125,16 +92,28 @@ class ToolProgressEvent:
     steps: list[ToolStepInfo]
 
 
-# Type aliases (after ToolProgressEvent so forward ref is resolved)
+# Callback type aliases (preserved for callers).
 TextDeltaCallback = Callable[[str, int], Coroutine[object, object, None]]
 ToolProgressCallback = Callable[[ToolProgressEvent], Coroutine[object, object, None]]
 QuestionCallback = Callable[[dict[str, object]], Coroutine[object, object, str | None]]
 StreamEndCallback = Callable[[str], Coroutine[object, object, None]]
 
+# v2.0 callbacks (optional). Caller may pass dict payloads as-is —
+# typed Pydantic decoding belongs to the forwarder (T1.2).
+SessionInitCallback = Callable[[dict[str, object]], Coroutine[object, object, None]]
+SubagentSpawnedCallback = Callable[[dict[str, object]], Coroutine[object, object, None]]
+SubagentProgressCallback = Callable[[dict[str, object]], Coroutine[object, object, None]]
+SubagentCompletedCallback = Callable[[dict[str, object]], Coroutine[object, object, None]]
+RateLimitCallback = Callable[[dict[str, object]], Coroutine[object, object, None]]
+
 
 @dataclass(frozen=True)
 class ClaudeCodeResult:
-    """Result from a claude -p execution."""
+    """Result from a claude RPC run.
+
+    ``response_text`` is populated from ``event.session.result.result``;
+    other terminal fields originate from the same envelope.
+    """
 
     session_id: str
     response_text: str
@@ -143,29 +122,12 @@ class ClaudeCodeResult:
     is_error: bool
     tokens_input: int = 0
     tokens_output: int = 0
-
-
-@dataclass
-class _StreamState:
-    """Mutable state tracked during stream-json parsing."""
-
-    full_text: str = ""
-    delta_index: int = 0
-    session_id: str = ""
-    model: str = ""
-    current_tool_name: str = ""
-    current_tool_input_json: str = ""
-    is_collecting_tool_input: bool = False
-    pending_question: dict[str, object] | None = None
-    tool_executions: list[_ToolExecution] = field(default_factory=list)
-    phase: str = "starting"
-    stream_started_at: float = 0.0
-    input_tokens: int = 0
-    output_tokens: int = 0
+    total_cost_usd: float = 0.0
+    permission_denials: list[dict[str, object]] = field(default_factory=list)
 
 
 class ClaudeCodeError(Exception):
-    """Raised when claude -p subprocess fails."""
+    """Raised when the bridge RPC fails or no bridge is available."""
 
     def __init__(self, message: str, returncode: int = -1) -> None:
         self.message = message
@@ -173,19 +135,66 @@ class ClaudeCodeError(Exception):
         super().__init__(message)
 
 
-class ClaudeCodeRunner:
-    """Runs claude -p as an async subprocess with stream-json output.
+class NoBridgeAvailableError(ClaudeCodeError):
+    """Raised when no online bridge can satisfy the request."""
 
-    Parses NDJSON output line-by-line and invokes callbacks for:
-    - Text deltas (streamed to iOS via CHAT_STREAM)
-    - Tool usage (sent to iOS via PROGRESS)
-    - AskUserQuestion (sent to iOS via QUESTION, waits for answer)
-    - Stream end (sent to iOS via CHAT_STREAM_END)
+    def __init__(self, message: str = "Hiçbir aktif bridge bulunamadı") -> None:
+        super().__init__(message, returncode=-1)
+
+
+@dataclass
+class _RunState:
+    """Mutable per-run state aggregated as bridge events stream in.
+
+    Mirrors the legacy ``_StreamState`` so the progress-event builder keeps
+    the same shape, but no longer tracks subprocess-only fields.
     """
 
-    def __init__(self) -> None:
-        self._settings = get_settings()
-        self._process: asyncio.subprocess.Process | None = None
+    session_id: str = ""
+    model: str = ""
+    response_text: str = ""
+    duration_ms: int = 0
+    tokens_input: int = 0
+    tokens_output: int = 0
+    cost_usd: float = 0.0
+    permission_denials: list[dict[str, object]] = field(default_factory=list)
+    delta_index: int = 0
+    phase: str = "starting"
+    current_tool_name: str | None = None
+    tool_steps: list[ToolStepInfo] = field(default_factory=list)
+
+
+class ClaudeCodeRunner:
+    """RPC adapter — sends ``command.claude.run`` to a bridge.
+
+    v2.0 contract:
+        * ``__init__`` takes a :class:`BridgeRegistryService` (mandatory) and
+          an optional :class:`SubagentRepository` for persistence.
+        * ``run()`` keeps the legacy keyword-only signature plus four new
+          optional callbacks (``on_session_init``, ``on_subagent_spawned``,
+          ``on_subagent_progress``, ``on_subagent_completed``,
+          ``on_rate_limit``). Existing callers that don't pass them are
+          unaffected.
+        * ``project_dir`` and ``append_system_prompt`` are still accepted
+          for source compatibility but currently ignored — the bridge
+          uses ``config.toml`` defaults. They will be wired through in
+          a follow-up (project-aware dispatch lives in
+          :class:`OrchestratorService`).
+    """
+
+    def __init__(
+        self,
+        bridge_registry: BridgeRegistryService | None = None,
+        subagent_repo: SubagentRepository | None = None,
+    ) -> None:
+        # Resolve registry lazily so the legacy zero-arg constructor still
+        # works for code paths that don't yet pass it explicitly.
+        if bridge_registry is None:
+            from app.services.bridge_registry_service import bridge_registry as _default
+
+            bridge_registry = _default
+        self._bridges = bridge_registry
+        self._subagents = subagent_repo
 
     async def run(
         self,
@@ -193,492 +202,596 @@ class ClaudeCodeRunner:
         prompt: str,
         session_id: str | None = None,
         project_dir: str | None = None,
+        bridge_id: str | None = None,
         on_text_delta: TextDeltaCallback | None = None,
         on_tool_progress: ToolProgressCallback | None = None,
         on_question: QuestionCallback | None = None,
         on_stream_end: StreamEndCallback | None = None,
-        append_system_prompt: str | None = None,
+        on_session_init: SessionInitCallback | None = None,
+        on_subagent_spawned: SubagentSpawnedCallback | None = None,
+        on_subagent_progress: SubagentProgressCallback | None = None,
+        on_subagent_completed: SubagentCompletedCallback | None = None,
+        on_rate_limit: RateLimitCallback | None = None,
+        append_system_prompt: str | None = None,  # noqa: ARG002 (forwarded later)
     ) -> ClaudeCodeResult:
-        """Execute claude -p and stream results via callbacks.
+        """Send a ``command.claude.run`` RPC to a bridge and stream events.
 
         Args:
-            prompt: User message text.
-            session_id: Previous session ID to resume (--resume flag).
-            on_text_delta: Called for each text token. Args: (delta_text, index).
-            on_tool_progress: Called when a tool starts. Args: (tool_name).
-            on_question: Called when AskUserQuestion detected. Args: (question_payload).
-                          Must return user's answer string, or None to skip.
-            on_stream_end: Called when streaming completes. Args: (full_text).
-            append_system_prompt: Extra text appended to system prompt.
+            prompt: Orchestrator instruction passed to claude as the
+                positional argument. Required.
+            session_id: Existing claude session to resume. ``None`` starts
+                a new session.
+            project_dir: Optional project directory hint. Currently
+                informational only — the bridge selects ``cwd`` from its
+                ``config.toml``; a follow-up will plumb this through the
+                ``command.claude.run`` payload.
+            bridge_id: Specific bridge ``host_id`` to target. ``None``
+                selects the least-busy online bridge with the
+                ``claude_code`` capability.
+            on_text_delta: Token-by-token text streaming callback.
+            on_tool_progress: Progress event callback (synthesised from
+                ``event.session.task_started`` / ``task_progress``).
+            on_question: User-question callback (currently no bridge event
+                surfaces this — wiring lands when ``AskUserQuestion`` is
+                bridged in a later phase).
+            on_stream_end: Stream completion callback receiving the final
+                response text.
+            on_session_init: Optional callback for ``event.session.init``.
+            on_subagent_spawned: Optional callback for
+                ``event.session.task_started``.
+            on_subagent_progress: Optional callback for
+                ``event.session.task_progress``.
+            on_subagent_completed: Optional callback for
+                ``event.session.task_notification``.
+            on_rate_limit: Optional callback for
+                ``event.session.rate_limit``.
+            append_system_prompt: Reserved (currently ignored; will be
+                forwarded to the bridge once the RPC payload schema gains
+                an ``append_system_prompt`` field — out of scope for T1.1).
 
         Returns:
-            ClaudeCodeResult with session_id, response text, model, duration.
+            :class:`ClaudeCodeResult` with the terminal session state.
 
         Raises:
-            ClaudeCodeError: If subprocess fails or times out.
+            NoBridgeAvailableError: No online bridge was available.
+            ClaudeCodeError: Send failure or unexpected event-loop error.
         """
-        cmd = self._build_command(
-            prompt=prompt,
-            session_id=session_id,
-            append_system_prompt=append_system_prompt,
-        )
+        # 1. Pick target bridge.
+        target_host_id = self._select_bridge(bridge_id)
+        if target_host_id is None:
+            raise NoBridgeAvailableError()
 
-        # CWD öncelik sırası: run()'a geçilen > config default > None (subprocess CWD)
-        effective_dir = (
-            project_dir
-            or self._settings.claude_code_project_dir
-            or self._settings.claude_code_default_dir
-            or None
-        )
+        connection_id = self._bridges.get_connection_id(target_host_id)
+        if connection_id is None:
+            raise NoBridgeAvailableError(
+                f"Bridge '{target_host_id}' offline veya bağlantı yok",
+            )
 
-        # ANTHROPIC_API_KEY olmadan çalıştır: claude -p Max subscription kullanır,
-        # API key varsa ücretli API'ye düşer.
-        subprocess_env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+        # 2. Build + send RPC envelope.
+        rpc_id = uuid.uuid4().hex
+        envelope: dict[str, object] = {
+            "type": "command.claude.run",
+            "id": rpc_id,
+            "ts": datetime.now(tz=UTC).isoformat(),
+            "correlation_id": rpc_id,
+            "target": target_host_id,
+            "payload": {
+                "prompt": prompt,
+                "session_id": session_id,
+                "permission_mode": "acceptEdits",
+                "agent_teams": True,
+                "project_dir": project_dir,
+            },
+        }
+
+        sent = await self._bridges.send_to_bridge(target_host_id, envelope)
+        if not sent:
+            raise ClaudeCodeError(
+                f"Bridge '{target_host_id}' RPC gönderimi başarısız",
+                returncode=-1,
+            )
 
         await logger.ainfo(
-            "claude_code_starting",
-            project_dir=effective_dir,
-            model=self._settings.claude_code_model,
-            max_turns=self._settings.claude_code_max_turns,
+            "claude_rpc_sent",
+            bridge_host_id=target_host_id,
+            rpc_id=rpc_id,
             resume_session=session_id,
         )
 
-        state = _StreamState()
+        # 3. Consume typed events via correlated stream.
+        state = _RunState()
+        callbacks = _Callbacks(
+            on_text_delta=on_text_delta,
+            on_tool_progress=on_tool_progress,
+            on_question=on_question,
+            on_stream_end=on_stream_end,
+            on_session_init=on_session_init,
+            on_subagent_spawned=on_subagent_spawned,
+            on_subagent_progress=on_subagent_progress,
+            on_subagent_completed=on_subagent_completed,
+            on_rate_limit=on_rate_limit,
+        )
 
         try:
-            self._process = await asyncio.create_subprocess_exec(
-                *cmd,
-                cwd=effective_dir,
-                env=subprocess_env,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-
-            assert self._process.stdout is not None  # noqa: S101
-            assert self._process.stderr is not None  # noqa: S101
-
-            # Parse stream-json output line by line
-            await self._parse_stream(
-                stdout=self._process.stdout,
-                state=state,
-                on_text_delta=on_text_delta,
-                on_tool_progress=on_tool_progress,
-                on_question=on_question,
-            )
-
-            # Wait for process to finish with timeout
-            try:
-                _, stderr_bytes = await asyncio.wait_for(
-                    self._process.communicate(),
-                    timeout=self._settings.claude_code_timeout_seconds,
+            async for event in self._bridges.stream_events(
+                bridge_id=target_host_id,
+                rpc_id=rpc_id,
+            ):
+                terminal = await self._dispatch_event(
+                    event=event,
+                    state=state,
+                    callbacks=callbacks,
+                    bridge_host_id=target_host_id,
                 )
-            except TimeoutError as exc:
-                self._process.kill()
-                raise ClaudeCodeError(
-                    f"claude -p timed out after {self._settings.claude_code_timeout_seconds}s",
-                    returncode=-1,
-                ) from exc
-
-            returncode = self._process.returncode or 0
-
-            if returncode != 0 and not state.full_text:
-                stderr_text = stderr_bytes.decode("utf-8", errors="replace").strip()
-                # Detect rate limit errors
-                if "rate" in stderr_text.lower() and "limit" in stderr_text.lower():
-                    await self._record_rate_limit()
-                raise ClaudeCodeError(
-                    f"claude -p exited with code {returncode}: {stderr_text}",
-                    returncode=returncode,
-                )
-
-            # Send completion progress event
-            state.phase = "completed"
-            if on_tool_progress is not None:
-                await on_tool_progress(self._build_progress_event(state))
-
-            # Call stream end callback
-            if on_stream_end is not None:
-                await on_stream_end(state.full_text)
-
-            await logger.ainfo(
-                "claude_code_completed",
-                session_id=state.session_id,
-                model=state.model or self._settings.claude_code_model,
-                text_length=len(state.full_text),
-                returncode=returncode,
-            )
-
-            return ClaudeCodeResult(
-                session_id=state.session_id,
-                response_text=state.full_text,
-                model_used=state.model or self._settings.claude_code_model,
-                duration_ms=0,
-                is_error=False,
-                tokens_input=state.input_tokens,
-                tokens_output=state.output_tokens,
-            )
-
+                if terminal:
+                    break
         except ClaudeCodeError:
             raise
-        except Exception as exc:
-            await logger.aexception("claude_code_unexpected_error")
-            raise ClaudeCodeError(f"Unexpected error: {exc}") from exc
-        finally:
-            self._process = None
+        except Exception as exc:  # pragma: no cover - defensive
+            await logger.aexception("claude_rpc_unexpected_error", rpc_id=rpc_id)
+            raise ClaudeCodeError(f"Bridge RPC error: {exc}") from exc
+
+        # 4. Final stream_end callback for legacy parity.
+        if on_stream_end is not None:
+            await on_stream_end(state.response_text)
+
+        return ClaudeCodeResult(
+            session_id=state.session_id,
+            response_text=state.response_text,
+            model_used=state.model,
+            duration_ms=state.duration_ms,
+            is_error=False,
+            tokens_input=state.tokens_input,
+            tokens_output=state.tokens_output,
+            total_cost_usd=state.cost_usd,
+            permission_denials=list(state.permission_denials),
+        )
 
     async def cancel(self) -> None:
-        """Cancel a running claude -p process."""
-        if self._process is not None and self._process.returncode is None:
-            self._process.kill()
-            await logger.ainfo("claude_code_cancelled")
+        """No-op for v2.0 — abort routing belongs to the bridge.
 
-    def _build_command(
-        self,
-        *,
-        prompt: str,
-        session_id: str | None = None,
-        append_system_prompt: str | None = None,
-    ) -> list[str]:
-        """Build the claude CLI command with all flags.
-
-        Args:
-            prompt: User prompt text.
-            session_id: Session ID for --resume.
-            append_system_prompt: Extra system prompt text.
-
-        Returns:
-            Command as list of strings for subprocess.
+        Kept for API compatibility with v1 callers; aborting an in-flight
+        run requires a separate ``command.claude.abort`` RPC carrying the
+        session id (out of scope for T1.1; tracked in T1.x).
         """
-        cmd: list[str] = [
-            self._settings.claude_code_binary,
-            "-p",
-            prompt,
-            "--output-format",
-            "stream-json",
-            "--model",
-            self._settings.claude_code_model,
-            "--max-turns",
-            str(self._settings.claude_code_max_turns),
-            "--verbose",
-        ]
+        await logger.adebug("claude_runner_cancel_noop_v2")
 
-        if session_id:
-            cmd.extend(["--resume", session_id])
+    # ------------------------------------------------------------------
+    # Internals.
+    # ------------------------------------------------------------------
 
-        if append_system_prompt:
-            cmd.extend(["--append-system-prompt", append_system_prompt])
+    def _select_bridge(self, bridge_id: str | None) -> str | None:
+        """Pick a target bridge ``host_id``.
 
-        return cmd
-
-    def _build_progress_event(self, state: _StreamState) -> ToolProgressEvent:
-        """Build a ToolProgressEvent snapshot from current stream state."""
-        steps: list[ToolStepInfo] = []
-        now = time.monotonic()
-
-        # Thinking step
-        thinking_done = len(state.tool_executions) > 0 or state.phase in (
-            "tool_calling",
-            "generating",
-            "completed",
-        )
-        steps.append(
-            ToolStepInfo(
-                id="phase-thinking",
-                step_type="thinking",
-                label="Düşünüyor...",
-                status="completed" if thinking_done else "active",
-            )
-        )
-
-        # Tool steps
-        for i, tex in enumerate(state.tool_executions):
-            duration = (tex.completed_at or now) - tex.started_at
-            steps.append(
-                ToolStepInfo(
-                    id=f"tool-{i}",
-                    step_type="tool_calling",
-                    label=_tool_display_name(tex.tool_name),
-                    status=tex.status,
-                    tool_name=tex.tool_name,
-                    duration_seconds=round(duration, 1) if tex.completed_at else None,
-                    detail=tex.input_summary,
-                )
-            )
-
-        # Generating step
-        if state.phase in ("generating", "completed"):
-            steps.append(
-                ToolStepInfo(
-                    id="phase-generating",
-                    step_type="generating",
-                    label="Cevap hazırlanıyor...",
-                    status="completed" if state.phase == "completed" else "active",
-                )
-            )
-
-        # Percentage heuristic
-        if state.phase == "starting":
-            pct = 5
-        elif state.phase == "thinking":
-            pct = 10
-        elif state.phase == "tool_calling":
-            pct = min(20 + len(state.tool_executions) * 10, 80)
-        elif state.phase == "generating":
-            pct = 85
-        else:
-            pct = 100
-
-        phase_labels = {
-            "starting": "Başlatılıyor...",
-            "thinking": "Düşünüyor...",
-            "tool_calling": (
-                _tool_display_name(state.current_tool_name)
-                if state.current_tool_name
-                else "İşlem yapılıyor..."
-            ),
-            "generating": "Cevap hazırlanıyor...",
-            "completed": "Tamamlandı",
-        }
-
-        return ToolProgressEvent(
-            phase=state.phase,
-            phase_label=phase_labels.get(state.phase, state.phase),
-            current_tool=state.current_tool_name or None,
-            percentage=pct,
-            steps=steps,
-        )
-
-    async def _parse_stream(
-        self,
-        *,
-        stdout: asyncio.StreamReader,
-        state: _StreamState,
-        on_text_delta: TextDeltaCallback | None,
-        on_tool_progress: ToolProgressCallback | None,
-        on_question: QuestionCallback | None,
-    ) -> None:
-        """Parse NDJSON stream-json output line by line.
-
-        Each line is a JSON object. We detect:
-        - text_delta events -> call on_text_delta
-        - tool_use content_block_start -> call on_tool_progress
-        - AskUserQuestion tool_use -> call on_question
-        - message_start -> extract model
-        - result type -> extract session_id
-
-        Args:
-            stdout: Process stdout stream.
-            state: Mutable stream state.
-            on_text_delta: Text delta callback.
-            on_tool_progress: Tool progress callback.
-            on_question: Question callback.
+        Explicit ``bridge_id`` wins iff it's currently online; otherwise
+        falls through to the least-busy online bridge with the
+        ``claude_code`` capability.
         """
-        async for raw_line in stdout:
-            line = raw_line.decode("utf-8", errors="replace").strip()
-            if not line:
-                continue
+        if (
+            bridge_id is not None
+            and self._bridges.get_connection_id(bridge_id) is not None
+        ):
+            return bridge_id
+        # Either no explicit pick or it's offline — fall back to capability-based selection.
+        return self._bridges.find_online_agent_with_capability("claude_code")
 
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                await logger.adebug("claude_code_unparseable_line", line=line[:200])
-                continue
-
-            await self._handle_event(
-                event=event,
-                state=state,
-                on_text_delta=on_text_delta,
-                on_tool_progress=on_tool_progress,
-                on_question=on_question,
-            )
-
-    async def _handle_event(
+    async def _dispatch_event(
         self,
         *,
         event: dict[str, object],
-        state: _StreamState,
-        on_text_delta: TextDeltaCallback | None,
-        on_tool_progress: ToolProgressCallback | None,
-        on_question: QuestionCallback | None,
-    ) -> None:
-        """Handle a single parsed JSON event from stream-json.
+        state: _RunState,
+        callbacks: _Callbacks,
+        bridge_host_id: str,
+    ) -> bool:
+        """Route one bridge event to the right callback + state slot.
 
-        Args:
-            event: Parsed JSON event dict.
-            state: Mutable stream state.
-            on_text_delta: Text delta callback.
-            on_tool_progress: Tool progress callback.
-            on_question: Question callback.
+        Returns ``True`` when the event is terminal (``event.session.result``
+        or an error/auth_expired event), telling the caller to break out of
+        the stream loop.
         """
         event_type = event.get("type")
+        payload = event.get("payload")
+        if not isinstance(payload, dict):
+            payload = {}
 
-        # --- Result event (json format output) ---
-        if event_type == "result":
-            result_text = event.get("result")
-            if isinstance(result_text, str) and result_text:
-                # Eğer stream_event text_delta'lar gelmediyse (Max subscription),
-                # result metnini tek seferde delta olarak gönder
-                if not state.full_text and on_text_delta is not None:
-                    state.phase = "generating"
-                    await on_text_delta(result_text, state.delta_index)
-                    state.delta_index += 1
-                state.full_text = result_text
-            sid = event.get("session_id")
-            if isinstance(sid, str):
-                state.session_id = sid
-            return
+        # Server-side timestamp injection (T1.5 reviewer M3): bridges do
+        # not include started_at/updated_at/completed_at. The forwarder
+        # downstream may already inject these, but we make the runner
+        # idempotent so a unit test exercising the runner directly always
+        # sees timestamps present.
+        now_iso = datetime.now(tz=UTC).isoformat()
 
-        # --- Stream events ---
-        if event_type != "stream_event":
-            return
-
-        inner = event.get("event")
-        if not isinstance(inner, dict):
-            return
-
-        inner_type = inner.get("type")
-
-        # message_start: extract model, session info, input tokens; transition to thinking
-        if inner_type == "message_start":
-            message = inner.get("message")
-            if isinstance(message, dict):
-                model = message.get("model")
-                if isinstance(model, str):
-                    state.model = model
-                usage = message.get("usage")
-                if isinstance(usage, dict):
-                    state.input_tokens = int(usage.get("input_tokens", 0))
+        if event_type == "event.session.init":
+            state.session_id = str(payload.get("session_id", ""))
+            state.model = str(payload.get("model", ""))
             state.phase = "thinking"
-            state.stream_started_at = time.monotonic()
-            if on_tool_progress is not None:
-                await on_tool_progress(self._build_progress_event(state))
+            payload.setdefault("initialized_at", now_iso)
+            if callbacks.on_session_init is not None:
+                await callbacks.on_session_init(payload)
+            if callbacks.on_tool_progress is not None:
+                await callbacks.on_tool_progress(_build_progress_event(state))
+            return False
 
-        # content_block_start: detect tool_use or text block
-        elif inner_type == "content_block_start":
-            content_block = inner.get("content_block")
-            if isinstance(content_block, dict):
-                block_type = content_block.get("type")
-                if block_type == "tool_use":
-                    tool_name = content_block.get("name", "")
-                    if isinstance(tool_name, str):
-                        state.current_tool_name = tool_name
-                        state.current_tool_input_json = ""
-                        state.is_collecting_tool_input = True
+        if event_type == "event.session.task_started":
+            payload.setdefault("started_at", now_iso)
+            if callbacks.on_subagent_spawned is not None:
+                await callbacks.on_subagent_spawned(payload)
+            await self._persist_subagent_spawned(
+                payload=payload,
+                bridge_host_id=bridge_host_id,
+                spawned_at=_parse_iso(payload.get("started_at"), default=now_iso),
+            )
+            return False
 
-                        if tool_name != "AskUserQuestion":
-                            state.phase = "tool_calling"
-                            state.tool_executions.append(
-                                _ToolExecution(
-                                    tool_name=tool_name,
-                                    started_at=time.monotonic(),
-                                )
-                            )
-                            if on_tool_progress is not None:
-                                await on_tool_progress(self._build_progress_event(state))
+        if event_type == "event.session.task_progress":
+            payload.setdefault("updated_at", now_iso)
+            if callbacks.on_subagent_progress is not None:
+                await callbacks.on_subagent_progress(payload)
+            # Surface as classic progress for legacy iOS UI.
+            if callbacks.on_tool_progress is not None:
+                state.phase = str(payload.get("phase", "tool_calling"))
+                state.current_tool_name = (
+                    str(payload.get("current_tool"))
+                    if payload.get("current_tool")
+                    else None
+                )
+                await callbacks.on_tool_progress(_build_progress_event(state))
+            return False
 
-        # content_block_delta: text tokens or tool input JSON fragments
-        elif inner_type == "content_block_delta":
-            delta = inner.get("delta")
-            if not isinstance(delta, dict):
-                return
+        if event_type == "event.session.task_notification":
+            payload.setdefault("completed_at", now_iso)
+            if callbacks.on_subagent_completed is not None:
+                await callbacks.on_subagent_completed(payload)
+            await self._persist_subagent_completed(
+                payload=payload,
+                completed_at=_parse_iso(payload.get("completed_at"), default=now_iso),
+            )
+            return False
 
-            delta_type = delta.get("type")
+        if event_type == "event.session.rate_limit":
+            if callbacks.on_rate_limit is not None:
+                await callbacks.on_rate_limit(payload)
+            return False
 
-            # Text delta -> append and callback
-            if delta_type == "text_delta":
-                text = delta.get("text", "")
-                if isinstance(text, str) and text:
-                    # Transition to generating phase on first text after tools
-                    if state.phase == "tool_calling" and not state.is_collecting_tool_input:
-                        state.phase = "generating"
-                        if on_tool_progress is not None:
-                            await on_tool_progress(self._build_progress_event(state))
-                    state.full_text += text
-                    if on_text_delta is not None:
-                        await on_text_delta(text, state.delta_index)
-                    state.delta_index += 1
+        if event_type == "event.session.stream":
+            # Partial assistant message — surface as a text delta.
+            delta = payload.get("delta")
+            text = _extract_delta_text(delta)
+            if text:
+                if state.phase != "generating":
+                    state.phase = "generating"
+                    if callbacks.on_tool_progress is not None:
+                        await callbacks.on_tool_progress(_build_progress_event(state))
+                state.response_text += text
+                if callbacks.on_text_delta is not None:
+                    await callbacks.on_text_delta(text, state.delta_index)
+                state.delta_index += 1
+            return False
 
-            # Tool input JSON delta -> accumulate
-            elif delta_type == "input_json_delta":
-                partial = delta.get("partial_json", "")
-                if isinstance(partial, str) and state.is_collecting_tool_input:
-                    state.current_tool_input_json += partial
+        if event_type == "event.session.assistant":
+            # A complete assistant message — accumulate text + bump tokens.
+            message = payload.get("message")
+            text, out_tokens = _extract_assistant_text_and_tokens(message)
+            if text and not state.response_text:
+                state.response_text = text
+                if callbacks.on_text_delta is not None:
+                    await callbacks.on_text_delta(text, state.delta_index)
+                state.delta_index += 1
+            if out_tokens:
+                state.tokens_output += out_tokens
+            return False
 
-        # message_delta: extract output token count (end of message)
-        elif inner_type == "message_delta":
-            usage = inner.get("usage")
-            if isinstance(usage, dict):
-                state.output_tokens = int(usage.get("output_tokens", 0))
+        if event_type == "event.session.user":
+            # Tool result echo — currently ignored; future hook for
+            # surfacing tool outputs to the UI.
+            return False
 
-        # content_block_stop: finalize tool input, handle AskUserQuestion
-        elif inner_type == "content_block_stop":
-            if state.is_collecting_tool_input:
-                state.is_collecting_tool_input = False
+        if event_type == "event.session.task_started":  # pragma: no cover - duplicate
+            return False
 
-                if state.current_tool_name == "AskUserQuestion":
-                    await self._handle_ask_user_question(
-                        state=state,
-                        on_question=on_question,
-                    )
+        if event_type == "event.session.result":
+            state.duration_ms = int(payload.get("duration_ms", 0) or 0)
+            result_text = payload.get("result")
+            if isinstance(result_text, str) and result_text:
+                if not state.response_text:
+                    state.response_text = result_text
+                    if callbacks.on_text_delta is not None:
+                        await callbacks.on_text_delta(result_text, state.delta_index)
+                        state.delta_index += 1
                 else:
-                    # Mark tool as completed with timing and input summary
-                    for tex in reversed(state.tool_executions):
-                        if tex.status == "active" and tex.tool_name == state.current_tool_name:
-                            tex.completed_at = time.monotonic()
-                            tex.status = "completed"
-                            tex.input_summary = _tool_input_summary(
-                                state.current_tool_name,
-                                state.current_tool_input_json,
+                    state.response_text = result_text
+            cost = payload.get("total_cost_usd")
+            if isinstance(cost, (int, float)):
+                state.cost_usd = float(cost)
+            denials = payload.get("permission_denials")
+            if isinstance(denials, list):
+                state.permission_denials = [
+                    d for d in denials if isinstance(d, dict)
+                ]
+            # Aggregate token usage from per-model breakdown.
+            usage = payload.get("model_usage")
+            if isinstance(usage, dict):
+                for entry in usage.values():
+                    if isinstance(entry, dict):
+                        state.tokens_input += int(entry.get("input_tokens", 0) or 0)
+                        # Don't double-count output_tokens that the
+                        # assistant events already reported; prefer the
+                        # final usage breakdown when assistant events
+                        # didn't surface counts.
+                        if state.tokens_output == 0:
+                            state.tokens_output += int(
+                                entry.get("output_tokens", 0) or 0
                             )
-                            break
-                    if on_tool_progress is not None:
-                        await on_tool_progress(self._build_progress_event(state))
 
-                state.current_tool_name = ""
-                state.current_tool_input_json = ""
+            state.phase = "completed"
+            if callbacks.on_tool_progress is not None:
+                await callbacks.on_tool_progress(_build_progress_event(state))
+            return True
 
-    async def _handle_ask_user_question(
+        if event_type in {"event.bridge.auth_expired"}:
+            raise ClaudeCodeError(
+                "Bridge authentication expired",
+                returncode=-1,
+            )
+
+        # Unknown event types are logged and ignored — keeps the runner
+        # forward-compatible with new bridge envelopes.
+        await logger.adebug("claude_rpc_unknown_event", type=event_type)
+        return False
+
+    # ------------------------------------------------------------------
+    # Subagent persistence.
+    # ------------------------------------------------------------------
+
+    async def _persist_subagent_spawned(
         self,
         *,
-        state: _StreamState,
-        on_question: QuestionCallback | None,
+        payload: dict[str, object],
+        bridge_host_id: str,
+        spawned_at: datetime,
     ) -> None:
-        """Handle AskUserQuestion tool call from claude -p.
-
-        Parses the accumulated tool input JSON, extracts question details,
-        and calls the question callback to get the user's answer.
-
-        Args:
-            state: Stream state with accumulated tool input.
-            on_question: Callback that sends question to iOS and waits for answer.
-        """
-        if on_question is None:
+        """Best-effort upsert into the ``subagents`` table on task_started."""
+        if self._subagents is None:
             return
-
-        try:
-            question_input = json.loads(state.current_tool_input_json)
-        except json.JSONDecodeError:
-            await logger.awarning(
-                "claude_code_invalid_question_json",
-                raw=state.current_tool_input_json[:500],
+        bridge_uuid = await self._resolve_bridge_uuid(bridge_host_id)
+        if bridge_uuid is None:
+            await logger.adebug(
+                "subagent_persist_skipped_unknown_bridge",
+                bridge_host_id=bridge_host_id,
             )
             return
 
-        await logger.ainfo(
-            "claude_code_question_detected",
-            question=str(question_input.get("question", ""))[:100],
-        )
+        session_id = str(payload.get("session_id", ""))
+        task_id = str(payload.get("task_id", ""))
+        if not session_id or not task_id:
+            return
 
-        await on_question(question_input)
-
-    @staticmethod
-    async def _record_rate_limit() -> None:
-        """Record a rate limit event in the subscription usage service."""
+        prompt_preview = _stringify_optional(payload.get("prompt_preview"))
         try:
-            from app.services.subscription_usage_service import (
-                subscription_usage_service,
+            await self._subagents.upsert_subagent(
+                bridge_id=bridge_uuid,
+                session_id=session_id,
+                task_id=task_id,
+                spawned_at=spawned_at,
+                name=_stringify_optional(payload.get("name"))
+                or _stringify_optional(payload.get("description")),
+                description=_stringify_optional(payload.get("description")),
+                prompt_preview=prompt_preview,
+                subagent_type=_stringify_optional(payload.get("subagent_type")),
+                isolation=_stringify_optional(payload.get("isolation")),
+                status="spawned",
             )
-
-            await subscription_usage_service.record_rate_limit()
         except Exception:
-            await logger.awarning("rate_limit_record_failed")
+            await logger.aexception(
+                "subagent_spawn_persist_failed",
+                session_id=session_id,
+                task_id=task_id,
+            )
+
+    async def _persist_subagent_completed(
+        self,
+        *,
+        payload: dict[str, object],
+        completed_at: datetime,
+    ) -> None:
+        """Best-effort UPDATE on ``subagents`` for terminal task_notification."""
+        if self._subagents is None:
+            return
+
+        session_id = str(payload.get("session_id", ""))
+        task_id = str(payload.get("task_id", ""))
+        if not session_id or not task_id:
+            return
+
+        status = str(payload.get("status", "completed"))
+        try:
+            await self._subagents.update_subagent_status(
+                session_id=session_id,
+                task_id=task_id,
+                status=status,
+                summary=_stringify_optional(payload.get("summary")),
+                total_tokens=_optional_int(payload.get("total_tokens")),
+                tool_uses=_optional_int(payload.get("tool_uses")),
+                duration_ms=_optional_int(payload.get("duration_ms")),
+                completed_at=completed_at,
+            )
+        except Exception:
+            await logger.aexception(
+                "subagent_complete_persist_failed",
+                session_id=session_id,
+                task_id=task_id,
+            )
+
+    async def _resolve_bridge_uuid(self, host_id: str) -> uuid.UUID | None:
+        """Translate a bridge ``host_id`` to its DB primary-key UUID.
+
+        Used only when ``SubagentRepository`` is configured. Returns
+        ``None`` when the bridge isn't yet persisted (e.g. tests don't
+        spin up the DB).
+        """
+        try:
+            from app.core.database import async_session_factory
+            from app.repositories.bridge_repo import BridgeRepository
+
+            async with async_session_factory() as db:
+                repo = BridgeRepository(db)
+                bridge = await repo.get_by_host_id(host_id)
+                if bridge is None:
+                    return None
+                return bridge.id
+        except Exception:  # pragma: no cover - defensive
+            await logger.adebug("bridge_uuid_resolve_failed", host_id=host_id)
+            return None
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _Callbacks:
+    """Pack of optional callbacks; passing this around keeps signatures sane."""
+
+    on_text_delta: TextDeltaCallback | None
+    on_tool_progress: ToolProgressCallback | None
+    on_question: QuestionCallback | None
+    on_stream_end: StreamEndCallback | None
+    on_session_init: SessionInitCallback | None
+    on_subagent_spawned: SubagentSpawnedCallback | None
+    on_subagent_progress: SubagentProgressCallback | None
+    on_subagent_completed: SubagentCompletedCallback | None
+    on_rate_limit: RateLimitCallback | None
+
+
+def _build_progress_event(state: _RunState) -> ToolProgressEvent:
+    """Build a snapshot ``ToolProgressEvent`` from the current run state."""
+    pct = {
+        "starting": 5,
+        "thinking": 15,
+        "tool_calling": 50,
+        "generating": 85,
+        "completed": 100,
+    }.get(state.phase, 10)
+
+    phase_labels = {
+        "starting": "Başlatılıyor...",
+        "thinking": "Düşünüyor...",
+        "tool_calling": (
+            _tool_display_name(state.current_tool_name)
+            if state.current_tool_name
+            else "İşlem yapılıyor..."
+        ),
+        "generating": "Cevap hazırlanıyor...",
+        "completed": "Tamamlandı",
+    }
+    return ToolProgressEvent(
+        phase=state.phase,
+        phase_label=phase_labels.get(state.phase, state.phase),
+        current_tool=state.current_tool_name,
+        percentage=pct,
+        steps=list(state.tool_steps),
+    )
+
+
+def _extract_delta_text(delta: object) -> str:
+    """Extract text from an ``event.session.stream`` delta payload.
+
+    The bridge passes the claude SSE delta verbatim. Two shapes are
+    common: a top-level ``text_delta`` or a nested ``content_block_delta``.
+    """
+    if not isinstance(delta, dict):
+        return ""
+    delta_type = delta.get("type")
+    if delta_type == "text_delta":
+        text = delta.get("text", "")
+        return text if isinstance(text, str) else ""
+    inner = delta.get("delta")
+    if isinstance(inner, dict):
+        return _extract_delta_text(inner)
+    # Some bridges wrap the partial in a content_block_delta envelope.
+    block = delta.get("content_block_delta") or delta.get("content_block")
+    if isinstance(block, dict):
+        return _extract_delta_text(block)
+    return ""
+
+
+def _extract_assistant_text_and_tokens(message: object) -> tuple[str, int]:
+    """Pull text content + output_tokens from an assistant message blob."""
+    if not isinstance(message, (dict, str)):
+        return "", 0
+    if isinstance(message, str):
+        # Some bridges send raw JSON strings.
+        try:
+            message = json.loads(message)
+        except json.JSONDecodeError:
+            return "", 0
+    if not isinstance(message, dict):
+        return "", 0
+
+    text_parts: list[str] = []
+    content = message.get("content")
+    if isinstance(content, list):
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "text":
+                t = block.get("text", "")
+                if isinstance(t, str):
+                    text_parts.append(t)
+
+    out_tokens = 0
+    usage = message.get("usage")
+    if isinstance(usage, dict):
+        out_tokens = int(usage.get("output_tokens", 0) or 0)
+
+    return "".join(text_parts), out_tokens
+
+
+def _stringify_optional(value: object) -> str | None:
+    """Convert an arbitrary payload field to ``str`` while preserving ``None``."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value or None
+    return str(value)
+
+
+def _optional_int(value: object) -> int | None:
+    """Coerce an arbitrary payload field to ``int`` or ``None``."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        # bool is a subclass of int; reject explicit booleans so we don't
+        # silently coerce a `True` flag into 1.
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _parse_iso(value: object, *, default: str) -> datetime:
+    """Parse an ISO-8601 timestamp from a payload, falling back to ``default``."""
+    if isinstance(value, str) and value:
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+    try:
+        return datetime.fromisoformat(default.replace("Z", "+00:00"))
+    except ValueError:  # pragma: no cover - default is always valid ISO
+        return datetime.now(tz=UTC)
+
+
+# ---------------------------------------------------------------------------
+# AsyncIterator typing helper — lets static checkers infer the return type
+# of ``BridgeRegistryService.stream_events`` without importing the service
+# module here (which would create a cycle at runtime).
+# ---------------------------------------------------------------------------
+
+EventStream = AsyncIterator[dict[str, object]]

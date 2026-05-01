@@ -8,10 +8,20 @@ Replaces the legacy ``AgentRegistryService`` as part of the V1 production
 pivot (docs/10 §6.1.1, T1.3). The Python "host agent" daemon has been
 archived (``apps/_archive/agent``) and superseded by the Go bridge in
 ``apps/rafraf-bridge/``.
+
+T1.1 additions:
+    * :meth:`send_to_bridge` — fire-and-forget RPC envelope dispatch.
+    * :meth:`stream_events` — correlated AsyncIterator for the events the
+      bridge emits in response to a particular RPC, keyed by
+      ``correlation_id`` (= ``rpc_id``).
+    * :meth:`dispatch_event` — public sink the WS endpoint
+      (``agent_ws.py``) calls for every inbound bridge event so the
+      runner can consume it via :meth:`stream_events`.
 """
 
 import asyncio
 import contextlib
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -88,12 +98,25 @@ class BridgeRegistryService:
         heartbeat_timeout_seconds: int = 90,
         stale_check_interval_seconds: int = 30,
         ios_manager: "ConnectionManager | None" = None,
+        agent_manager: "ConnectionManager | None" = None,
     ) -> None:
         self._bridges: dict[str, _BridgeRecord] = {}
         self._heartbeat_timeout = heartbeat_timeout_seconds
         self._stale_check_interval = stale_check_interval_seconds
         self._stale_task: asyncio.Task[None] | None = None
         self._ios_manager: ConnectionManager | None = ios_manager
+        # ``agent_manager`` (the bridge-side ConnectionManager) is injected
+        # lazily by ``agent_ws.py`` once both modules are imported. It owns
+        # the actual WebSocket sending; the registry just looks up which
+        # connection to use.
+        self._agent_manager: ConnectionManager | None = agent_manager
+        # Per-bridge, per-correlation-id event subscribers. Each waiter
+        # receives events whose ``correlation_id`` matches the rpc_id it
+        # registered under; the queue is drained until either the runner
+        # cancels the iterator or a terminal event is observed.
+        self._event_subscribers: dict[
+            tuple[str, str], asyncio.Queue[dict[str, object]]
+        ] = {}
 
     # ------------------------------------------------------------------
     # Backwards-compatible accessor for tests / legacy call sites.
@@ -306,6 +329,128 @@ class BridgeRegistryService:
                 )
                 return record.host_id
         return None
+
+    # ------------------------------------------------------------------
+    # Bridge RPC (T1.1) — outbound envelopes + correlated event streams.
+    # ------------------------------------------------------------------
+
+    def set_agent_manager(self, manager: "ConnectionManager") -> None:
+        """Inject the bridge-side ConnectionManager.
+
+        Called once by ``agent_ws.py`` during application startup. Kept
+        as a setter (rather than a constructor arg) so the singleton at
+        the bottom of this module stays importable from anywhere without
+        triggering the import cycle through ``agent_ws``.
+        """
+        self._agent_manager = manager
+
+    async def send_to_bridge(
+        self,
+        host_id: str,
+        envelope: dict[str, object],
+    ) -> bool:
+        """Send a single RPC envelope to the bridge identified by ``host_id``.
+
+        Returns ``True`` on a successful send, ``False`` when the bridge
+        is offline, has no connection, or the manager isn't wired yet.
+        """
+        if self._agent_manager is None:
+            await logger.awarning(
+                "bridge_send_no_manager",
+                host_id=host_id,
+                envelope_type=envelope.get("type"),
+            )
+            return False
+        connection_id = self.get_connection_id(host_id)
+        if connection_id is None:
+            await logger.awarning(
+                "bridge_send_no_connection",
+                host_id=host_id,
+                envelope_type=envelope.get("type"),
+            )
+            return False
+        sent: bool = await self._agent_manager.send_json(connection_id, envelope)
+        return sent
+
+    async def stream_events(
+        self,
+        *,
+        bridge_id: str,
+        rpc_id: str,
+    ) -> AsyncIterator[dict[str, object]]:
+        """Yield bridge events whose ``correlation_id`` matches ``rpc_id``.
+
+        Iteration stops once a terminal event (``event.session.result`` or
+        ``event.bridge.auth_expired``) is observed. The runner can also
+        break out early — the queue is unregistered in either case.
+
+        The implementation uses a single per-(bridge, rpc) queue; this
+        is sufficient because exactly one runner subscribes per RPC.
+        """
+        key = (bridge_id, rpc_id)
+        queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+        # Replace any stale subscriber under the same key (this shouldn't
+        # happen in practice — RPC ids are random uuids — but the guard is
+        # cheap and prevents leaks in pathological tests).
+        prev = self._event_subscribers.get(key)
+        if prev is not None:
+            await logger.awarning(
+                "bridge_stream_subscriber_overwritten",
+                host_id=bridge_id,
+                rpc_id=rpc_id,
+            )
+        self._event_subscribers[key] = queue
+        terminal_types = {
+            "event.session.result",
+            "event.bridge.auth_expired",
+        }
+        try:
+            while True:
+                event = await queue.get()
+                yield event
+                if str(event.get("type")) in terminal_types:
+                    break
+        finally:
+            # Pop only if the queue we yield via is still the registered
+            # subscriber — defensive against the rare overwrite path.
+            if self._event_subscribers.get(key) is queue:
+                self._event_subscribers.pop(key, None)
+
+    async def dispatch_event(self, event: dict[str, object]) -> None:
+        """Route an incoming bridge event to its correlated subscriber.
+
+        Called by ``agent_ws.py`` for every envelope received on a bridge
+        WebSocket. Events without a ``correlation_id`` (broadcasts such
+        as ``event.bridge.alive``) are intentionally dropped — the
+        runner is the only consumer for now; broadcast handling can be
+        layered in later via a fan-out subscriber map.
+        """
+        correlation_id = event.get("correlation_id")
+        if not isinstance(correlation_id, str) or not correlation_id:
+            await logger.adebug(
+                "bridge_event_no_correlation",
+                event_type=event.get("type"),
+            )
+            return
+        # The dispatcher accepts events from any bridge — match by
+        # rpc_id alone, then narrow by host_id if multiple subscribers
+        # collide on the same id (extremely unlikely with uuid4).
+        for (host_id, rpc_id), queue in list(self._event_subscribers.items()):
+            if rpc_id == correlation_id:
+                await queue.put(event)
+                await logger.adebug(
+                    "bridge_event_dispatched",
+                    host_id=host_id,
+                    rpc_id=rpc_id,
+                    event_type=event.get("type"),
+                )
+                return
+
+        await logger.adebug(
+            "bridge_event_no_subscriber",
+            rpc_id=correlation_id,
+            event_type=event.get("type"),
+        )
 
     # ------------------------------------------------------------------
     # Connection lookup (for task dispatch)

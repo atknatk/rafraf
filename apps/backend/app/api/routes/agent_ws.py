@@ -33,6 +33,10 @@ router = APIRouter()
 # Dedicated connection manager for agent connections (separate from iOS clients)
 agent_manager = ConnectionManager(heartbeat_interval=30, heartbeat_timeout=10)
 
+# Wire the bridge-side ConnectionManager into the registry singleton so
+# ClaudeCodeRunner can route ``command.claude.run`` envelopes (T1.1).
+bridge_registry.set_agent_manager(agent_manager)
+
 # Task manager singleton (initialized lazily to avoid circular imports)
 _task_manager: TaskManager | None = None
 
@@ -150,6 +154,11 @@ async def agent_websocket_endpoint(
                 await _handle_claude_stream_end(raw_data, connection_id)
             elif msg_type == "claude_stream_error":
                 await _handle_claude_stream_error(raw_data, connection_id)
+            elif isinstance(msg_type, str) and msg_type.startswith("event."):
+                # Bridge → backend RPC events (T1.1). Routed to the
+                # ClaudeCodeRunner subscriber that owns the matching
+                # correlation_id.
+                await bridge_registry.dispatch_event(raw_data)
             elif msg_type == "pong":
                 await logger.adebug(
                     "agent_pong_received",

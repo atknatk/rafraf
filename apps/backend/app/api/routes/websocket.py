@@ -458,10 +458,11 @@ async def _process_with_orchestrator(
     project_id: str | None = None,
     agent_id: str | None = None,
 ) -> None:
-    """Process a message through claude -p or API fallback.
+    """Process a message through claude -p (via bridge) or API fallback.
 
-    Primary path: claude -p subprocess (Max subscription, $0).
-    Fallback path: Bedrock/Anthropic API (per-token).
+    Primary path: ``ClaudeCodeRunner`` → bridge RPC → claude CLI on the
+    Mac (Max subscription, zero per-token cost).
+    Fallback path: direct Anthropic API call (per-token billing).
 
     Streams text deltas via chat.stream messages as Claude generates tokens.
     """
