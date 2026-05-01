@@ -1,5 +1,9 @@
 # RafRaf — Host Agent Specification
 
+> **⚠️ ARCHIVED — V2'ye ertelendi.** Bu doc RafRaf'ın v0.1 vizyonuna ait;
+> V1'de scope dışı (bkz. [`10_Production_Pivot_Spec.md`](10_Production_Pivot_Spec.md) §5).
+> V2'de güncellenecek.
+
 **Document 8/8** | Version 1.0 | March 2026
 
 ---

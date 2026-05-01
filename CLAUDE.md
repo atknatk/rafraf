@@ -18,9 +18,10 @@
 
 ```
 rafraf/
+├── apps/_archive/         # Historical artifacts (Python v0.1 host agent)
 ├── apps/backend/          # FastAPI WebSocket server + AI orchestrator
 ├── apps/ios/              # SwiftUI iOS app (Clean Architecture)
-├── apps/agent/            # Python host agent daemon
+├── apps/rafraf-bridge/    # Mac Go bridge (Faz 0.5 in progress)
 ├── shared/                # API contracts + feature specs
 ├── docs/                  # System specs (01-08) + standards + pipeline
 ├── infra/                 # Docker, K8s configs
