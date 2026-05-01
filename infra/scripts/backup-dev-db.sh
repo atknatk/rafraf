@@ -19,8 +19,8 @@ BACKUP_DIR="${BACKUP_DIR:-${HOME}/Code/rafraf-backups}"
 
 # Load env file if it exists (does not override pre-existing env vars).
 if [[ -f "${ENV_FILE}" ]]; then
-  # shellcheck disable=SC1090
   set -a
+  # shellcheck disable=SC1090
   source "${ENV_FILE}"
   set +a
 fi
@@ -40,7 +40,7 @@ TIMESTAMP="$(date +%Y-%m-%d-%H%M%S)"
 OUTFILE="${BACKUP_DIR}/${TIMESTAMP}.sql.gz"
 
 echo "Dumping ${POSTGRES_DB}@${CONTAINER} as ${POSTGRES_USER} -> ${OUTFILE}"
-docker exec -t "${CONTAINER}" pg_dump -U "${POSTGRES_USER}" "${POSTGRES_DB}" \
+docker exec "${CONTAINER}" pg_dump -U "${POSTGRES_USER}" "${POSTGRES_DB}" \
   | gzip > "${OUTFILE}"
 
 SIZE="$(du -h "${OUTFILE}" | cut -f1)"

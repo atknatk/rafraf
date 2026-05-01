@@ -30,7 +30,7 @@ help: ## Bu yardim mesajini goster
 
 # ---------- Docker Compose ----------
 
-up: ## Tum servisleri baslat (postgres, redis, mem0)
+up: ## Tum servisleri baslat (postgres, redis)
 	$(COMPOSE_CMD) up -d
 	@echo ""
 	@echo "Servisler baslatildi. Durum kontrol: make status"
