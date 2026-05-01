@@ -136,7 +136,9 @@ actor WebSocketMessageRouter {
             // TODO(T1.8): RateLimitInfoContent → kullanici uyarisi / banner.
             logger.info("rate_limit.info alindi (handler bekleniyor): \(message.id)")
         case WebSocketMessageType.sessionTitle.rawValue:
-            // TODO(T1.7): SessionTitleContent → Home session listesi baslik guncellemesi.
+            // T1.8: Handler kaydedilmedigi takdirde dusen log.
+            // Normal akista `SessionTitleMessageHandler` (Home feature) handler
+            // olarak kayitli oldugu icin bu branch'e dusulmez.
             logger.info("session.title alindi (handler bekleniyor): \(message.id)")
         case WebSocketMessageType.sessionPrOpened.rawValue:
             // TODO(T1.7): SessionPrOpenedContent → PR linki UI.

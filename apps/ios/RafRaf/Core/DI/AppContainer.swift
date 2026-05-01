@@ -199,6 +199,35 @@ extension Container {
         .singleton
     }
 
+    // MARK: - Home Feature
+
+    /// Session AI baslik guncellemeleri repository'si (T1.8).
+    /// Singleton — WebSocket router handler ve view model'ler ayni instance'a baglanir.
+    var sessionTitleRepository: Factory<SessionTitleRepositoryImpl> {
+        self { SessionTitleRepositoryImpl() }
+            .singleton
+    }
+
+    /// `session.title` mesajlari icin WebSocket handler'i (T1.8).
+    /// `WebSocketConnectionManager` baglandiktan sonra router'a kaydedilir.
+    var sessionTitleMessageHandler: Factory<SessionTitleMessageHandler> {
+        self {
+            SessionTitleMessageHandler(repository: self.sessionTitleRepository())
+        }
+        .singleton
+    }
+
+    /// Home feature ViewModel.
+    var homeViewModel: Factory<HomeViewModel> {
+        self { @MainActor in
+            HomeViewModel(
+                observeSessionTitleUpdatesUseCase: ObserveSessionTitleUpdatesUseCase(
+                    repository: self.sessionTitleRepository()
+                )
+            )
+        }
+    }
+
     // MARK: - Approval Feature
 
     /// Approval repository.
