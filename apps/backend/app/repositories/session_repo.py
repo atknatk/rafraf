@@ -57,9 +57,13 @@ class SessionRepository:
         message_count_increment: int = 0,
         tokens_input: int = 0,
         tokens_output: int = 0,
-        cost_usd_increment: float = 0.0,
     ) -> None:
-        """Increment session statistics."""
+        """Increment session statistics (message count + token totals).
+
+        Cost tracking removed alongside cost service deletion (T0.7+T0.8);
+        the ``sessions.total_cost_usd`` column is left in the schema for
+        backwards compatibility but is no longer written by the application.
+        """
         record = await self.get_by_id(session_id)
         if record is None:
             return
@@ -74,7 +78,4 @@ class SessionRepository:
             int(output_val) if isinstance(output_val, (int, float)) else 0
         ) + tokens_output
         record.total_tokens_used = current_tokens
-        from decimal import Decimal
-
-        record.total_cost_usd += Decimal(str(cost_usd_increment))
         await self._session.flush()
