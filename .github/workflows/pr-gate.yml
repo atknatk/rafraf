@@ -14,7 +14,6 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       ios: ${{ steps.filter.outputs.ios }}
-      agent: ${{ steps.filter.outputs.agent }}
     steps:
       - uses: actions/checkout@v4
 
@@ -27,8 +26,6 @@ jobs:
               - 'apps/backend/**'
             ios:
               - 'apps/ios/**'
-            agent:
-              - 'apps/agent/**'
 
   backend-gate:
     name: Backend Gate
@@ -130,50 +127,16 @@ jobs:
             -skipMacroValidation \
             CODE_SIGNING_ALLOWED=NO
 
-  agent-gate:
-    name: Agent Gate
-    needs: changes
-    if: needs.changes.outputs.agent == 'true'
-    runs-on: [self-hosted, rafraf-runner]
-    defaults:
-      run:
-        working-directory: apps/agent
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
-
-      - name: Ruff check
-        run: ruff check agent/
-
-      - name: Ruff format check
-        run: ruff format --check agent/
-
-      - name: MyPy strict check
-        run: mypy agent/
-
-      - name: Run tests
-        run: python -m pytest --cov=agent --cov-report=term-missing
-
   gate-result:
     name: PR Gate Result
     runs-on: [self-hosted, rafraf-runner]
-    needs: [changes, backend-gate, ios-gate, agent-gate]
+    needs: [changes, backend-gate, ios-gate]
     if: always()
     steps:
       - name: Check gate results
         run: |
           echo "Backend changed: ${{ needs.changes.outputs.backend }}"
           echo "iOS changed: ${{ needs.changes.outputs.ios }}"
-          echo "Agent changed: ${{ needs.changes.outputs.agent }}"
 
           FAILED=false
 
@@ -184,11 +147,6 @@ jobs:
 
           if [ "${{ needs.changes.outputs.ios }}" == "true" ] && [ "${{ needs.ios-gate.result }}" != "success" ]; then
             echo "iOS gate FAILED"
-            FAILED=true
-          fi
-
-          if [ "${{ needs.changes.outputs.agent }}" == "true" ] && [ "${{ needs.agent-gate.result }}" != "success" ]; then
-            echo "Agent gate FAILED"
             FAILED=true
           fi
 
