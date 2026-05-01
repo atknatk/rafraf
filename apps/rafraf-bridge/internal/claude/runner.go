@@ -13,8 +13,10 @@
 //   - ExecCommandFn — injectable command factory so tests can substitute
 //     `cat testdata/*.jsonl` for the real claude binary.
 //
-// T0.5.6 will replace the placeholder Parser with full stream-json
-// dispatch + state tracking; the Runner contract here is stable.
+// T0.5.6 replaces the placeholder Parser with full stream-json dispatch
+// + state tracking; the Runner contract here is unchanged. The same task
+// folds in the M1 reviewer fix to activeRuns (compare-and-delete via a
+// generation counter).
 package claude
 
 import (
@@ -54,6 +56,16 @@ const stdoutMaxLineSize = 16 << 20 // 16 MiB
 // lines never trigger an allocation while leaving headroom up to the cap.
 const stdoutInitialBufSize = 1 << 20 // 1 MiB
 
+// activeRun pairs a per-run cancel function with a monotonically-increasing
+// generation counter. The generation is the compare-and-delete token that
+// keeps unregisterActive from clobbering a newer run's entry — see the
+// T0.5.5 reviewer M1 fix folded into T0.5.6 and the dedicated
+// TestRunner_ConcurrentSameSession_GenSafetyKeepsNewer test.
+type activeRun struct {
+	cancel context.CancelFunc
+	gen    uint64
+}
+
 // Runner spawns and supervises `claude -p --output-format stream-json`
 // subprocesses. A single Runner can host multiple concurrent sessions
 // keyed by RunRequest.SessionID; each may be cancelled independently
@@ -63,7 +75,8 @@ type Runner struct {
 	logger *slog.Logger
 
 	mu         sync.Mutex
-	activeRuns map[string]context.CancelFunc // sessionID → cancel
+	activeRuns map[string]activeRun // sessionID → cancel + generation
+	nextGen    uint64               // monotonic, advanced under mu
 }
 
 // RunRequest is the per-invocation control surface. Empty fields fall
@@ -95,8 +108,8 @@ type RunRequest struct {
 // are expected to be cheap (typically a single envelope build + queue
 // push); blocking work belongs downstream of the sink.
 //
-// T0.5.5 ships the contract; the placeholder Parser does not yet invoke
-// any of these — T0.5.6 wires up dispatch.
+// T0.5.6 wires up dispatch — the Parser now invokes one of these methods
+// per recognised stream-json frame.
 type EventSink interface {
 	OnInit(ev protocol.EventSessionInit) error
 	OnAssistant(ev protocol.EventSessionAssistant) error
@@ -124,7 +137,7 @@ func NewRunner(cfg *config.Config, logger *slog.Logger) *Runner {
 	return &Runner{
 		cfg:        cfg,
 		logger:     logger,
-		activeRuns: make(map[string]context.CancelFunc),
+		activeRuns: make(map[string]activeRun),
 	}
 }
 
@@ -154,8 +167,8 @@ func (r *Runner) runWithExec(
 	defer cancel()
 
 	if req.SessionID != "" {
-		r.registerActive(req.SessionID, cancel)
-		defer r.unregisterActive(req.SessionID)
+		gen := r.registerActive(req.SessionID, cancel)
+		defer r.unregisterActive(req.SessionID, gen)
 	}
 
 	args := r.buildArgs(req)
@@ -296,32 +309,45 @@ func (r *Runner) drainStderr(stderr io.Reader) {
 // window lets the subprocess flush before Abort returns.
 func (r *Runner) Abort(sessionID string) error {
 	r.mu.Lock()
-	cancel, ok := r.activeRuns[sessionID]
+	cur, ok := r.activeRuns[sessionID]
 	r.mu.Unlock()
 	if !ok {
 		return fmt.Errorf("claude: no active run for session %q", sessionID)
 	}
-	cancel()
+	cur.cancel()
 	r.logger.Info("claude subprocess abort signalled", "session_id", sessionID)
 	time.Sleep(abortGracePeriod)
 	return nil
 }
 
-func (r *Runner) registerActive(sessionID string, cancel context.CancelFunc) {
+// registerActive stores the cancel func keyed by sessionID and returns a
+// monotonically-increasing generation token. If a previous run with the
+// same sessionID is still mapped, it is cancelled before being overwritten
+// so we never leak a goroutine. The returned gen must be supplied to
+// unregisterActive so a stale defer cannot delete a newer entry — this
+// is the T0.5.5 reviewer M1 fix that survives same-SessionID concurrent
+// runs (Run A's defer no longer kills Run B's mapping).
+func (r *Runner) registerActive(sessionID string, cancel context.CancelFunc) uint64 {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	// If a previous run with the same SessionID is somehow still mapped,
-	// cancel it before overwriting so we never leak a goroutine.
 	if prev, exists := r.activeRuns[sessionID]; exists {
-		prev()
+		prev.cancel()
 	}
-	r.activeRuns[sessionID] = cancel
+	r.nextGen++
+	gen := r.nextGen
+	r.activeRuns[sessionID] = activeRun{cancel: cancel, gen: gen}
+	return gen
 }
 
-func (r *Runner) unregisterActive(sessionID string) {
+// unregisterActive removes the entry for sessionID iff the stored
+// generation matches gen. Compare-and-delete prevents a deferred
+// unregister from a now-superseded run from clobbering the newer entry.
+func (r *Runner) unregisterActive(sessionID string, gen uint64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	delete(r.activeRuns, sessionID)
+	if cur, ok := r.activeRuns[sessionID]; ok && cur.gen == gen {
+		delete(r.activeRuns, sessionID)
+	}
 }
 
 // AuthCheck verifies the local claude CLI is logged in by parsing

@@ -356,3 +356,99 @@ func TestRunner_Abort_UnknownSessionReturnsError(t *testing.T) {
 		t.Fatalf("Abort: expected error for unknown session, got nil")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// activeRuns generation safety — T0.5.5 reviewer M1 fix folded into T0.5.6.
+//
+// Scenario: Run A registers, Run B registers under the same SessionID
+// (which cancels A and replaces the entry). Then A's deferred
+// unregisterActive must NOT delete B's entry — Abort(sessionID) must
+// still resolve to B's cancel.
+// ---------------------------------------------------------------------------
+
+func TestRunner_ConcurrentSameSession_GenSafetyKeepsNewer(t *testing.T) {
+	t.Parallel()
+
+	r := NewRunner(&config.Config{ClaudeBinary: "claude"}, silentLogger())
+	const sessionID = "shared-session"
+
+	_, cancelA := context.WithCancel(context.Background())
+	defer cancelA()
+	genA := r.registerActive(sessionID, cancelA)
+
+	// Simulate B taking over the slot — registerActive cancels A and
+	// returns a new generation token.
+	bCancelled := make(chan struct{}, 1)
+	cancelB := func() {
+		select {
+		case bCancelled <- struct{}{}:
+		default:
+		}
+	}
+	genB := r.registerActive(sessionID, cancelB)
+	if genA == genB {
+		t.Fatalf("expected distinct generations, got A=%d B=%d", genA, genB)
+	}
+
+	// A's deferred unregister fires now — it MUST be a no-op because
+	// cur.gen == genB, not genA.
+	r.unregisterActive(sessionID, genA)
+
+	r.mu.Lock()
+	cur, present := r.activeRuns[sessionID]
+	r.mu.Unlock()
+	if !present {
+		t.Fatalf("activeRuns[%q] dropped by stale-gen unregister", sessionID)
+	}
+	if cur.gen != genB {
+		t.Fatalf("activeRuns[%q].gen: want %d (B), got %d", sessionID, genB, cur.gen)
+	}
+
+	// Abort must hit B's cancel, not error out.
+	if err := r.Abort(sessionID); err != nil {
+		t.Fatalf("Abort: unexpected error: %v", err)
+	}
+	select {
+	case <-bCancelled:
+	default:
+		t.Fatalf("Abort did not invoke B's cancel func")
+	}
+
+	// And the matching-gen unregister cleans up.
+	r.unregisterActive(sessionID, genB)
+	r.mu.Lock()
+	_, stillPresent := r.activeRuns[sessionID]
+	r.mu.Unlock()
+	if stillPresent {
+		t.Fatalf("activeRuns[%q] not cleaned up by matching-gen unregister", sessionID)
+	}
+}
+
+// TestRunner_RegisterActive_CancelsPrevious — sanity check that the
+// "second register cancels the first" branch fires; the M1 fix preserves
+// this behaviour while also patching the stale-defer race.
+func TestRunner_RegisterActive_CancelsPrevious(t *testing.T) {
+	t.Parallel()
+
+	r := NewRunner(&config.Config{ClaudeBinary: "claude"}, silentLogger())
+	const sessionID = "first-then-second"
+
+	firstCancelled := make(chan struct{}, 1)
+	cancelFirst := func() {
+		select {
+		case firstCancelled <- struct{}{}:
+		default:
+		}
+	}
+	r.registerActive(sessionID, cancelFirst)
+
+	_, cancelSecond := context.WithCancel(context.Background())
+	defer cancelSecond()
+	r.registerActive(sessionID, cancelSecond)
+
+	select {
+	case <-firstCancelled:
+	default:
+		t.Fatalf("registerActive did not cancel the previous holder")
+	}
+}
