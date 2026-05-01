@@ -25,9 +25,6 @@ struct SettingsRepositoryImplTests {
 
         let settings = repository.loadSettings()
 
-        #expect(settings.ttsSpeed == AppSettings.defaults.ttsSpeed)
-        #expect(settings.ttsAutoPlay == AppSettings.defaults.ttsAutoPlay)
-        #expect(settings.ttsLanguage == AppSettings.defaults.ttsLanguage)
         #expect(settings.pushNotificationsEnabled == AppSettings.defaults.pushNotificationsEnabled)
         #expect(settings.appearance == AppSettings.defaults.appearance)
         #expect(settings.fontSize == AppSettings.defaults.fontSize)
@@ -43,9 +40,6 @@ struct SettingsRepositoryImplTests {
         repository.saveSettings(customSettings)
         let loaded = repository.loadSettings()
 
-        #expect(loaded.ttsSpeed == customSettings.ttsSpeed)
-        #expect(loaded.ttsAutoPlay == customSettings.ttsAutoPlay)
-        #expect(loaded.ttsLanguage == customSettings.ttsLanguage)
         #expect(loaded.pushNotificationsEnabled == customSettings.pushNotificationsEnabled)
         #expect(loaded.enabledNotificationTypes == customSettings.enabledNotificationTypes)
         #expect(loaded.appearance == customSettings.appearance)
@@ -63,18 +57,6 @@ struct SettingsRepositoryImplTests {
     }
 
     // MARK: - Individual Fields
-
-    @Test("saveSettings TTS hiz degerini dogru kaydetmeli")
-    func saveTTSSpeed() {
-        let (repository, _) = makeRepository()
-        var settings = AppSettings.defaults
-        settings.ttsSpeed = 1.8
-
-        repository.saveSettings(settings)
-        let loaded = repository.loadSettings()
-
-        #expect(loaded.ttsSpeed == 1.8)
-    }
 
     @Test("saveSettings gorunum modunu dogru kaydetmeli")
     func saveAppearance() {
@@ -132,12 +114,12 @@ struct SettingsRepositoryImplTests {
     func updateSingleField() {
         let (repository, _) = makeRepository()
 
-        repository.updateSetting(\.ttsSpeed, value: 0.7)
+        repository.updateSetting(\.appearance, value: .dark)
         let loaded = repository.loadSettings()
 
-        #expect(loaded.ttsSpeed == 0.7)
+        #expect(loaded.appearance == .dark)
         // Diger degerler varsayilan kalmali
-        #expect(loaded.appearance == AppSettings.defaults.appearance)
+        #expect(loaded.fontSize == AppSettings.defaults.fontSize)
     }
 
     @Test("updateSetting gorunum modunu guncellemeli")
@@ -157,14 +139,12 @@ struct SettingsRepositoryImplTests {
         let suiteName = "test.settings.invalid.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.set("invalid_appearance", forKey: "settings.appearance")
-        defaults.set("invalid_language", forKey: "settings.tts.language")
         defaults.set("invalid_font", forKey: "settings.fontSize")
 
         let repository = SettingsRepositoryImpl(defaults: defaults)
         let loaded = repository.loadSettings()
 
         #expect(loaded.appearance == AppSettings.defaults.appearance)
-        #expect(loaded.ttsLanguage == AppSettings.defaults.ttsLanguage)
         #expect(loaded.fontSize == AppSettings.defaults.fontSize)
     }
 }

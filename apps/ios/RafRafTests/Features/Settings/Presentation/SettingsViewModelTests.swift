@@ -75,7 +75,6 @@ struct SettingsViewModelTests {
         repository.storedSettings = SettingsTestFactory.createCustomSettings()
         let (vm, _) = makeSUT(repository: repository)
 
-        #expect(vm.settings.ttsSpeed == 1.5)
         #expect(vm.settings.appearance == .dark)
         #expect(vm.settings.fontSize == .large)
     }
@@ -85,104 +84,6 @@ struct SettingsViewModelTests {
     func initialLogoutConfirmation() {
         let (vm, _) = makeSUT()
         #expect(vm.isShowingLogoutConfirmation == false)
-    }
-
-    // MARK: - TTS Speed
-
-    @Test("updateTTSSpeed hizi guncellemeli")
-    @MainActor
-    func updateTTSSpeed() {
-        let (vm, repository) = makeSUT()
-
-        vm.updateTTSSpeed(1.5)
-
-        #expect(vm.settings.ttsSpeed == 1.5)
-        #expect(repository.saveCallCount >= 1)
-    }
-
-    @Test("updateTTSSpeed alt sinirda clamp etmeli")
-    @MainActor
-    func updateTTSSpeedClampLow() {
-        let (vm, _) = makeSUT()
-
-        vm.updateTTSSpeed(0.1)
-
-        #expect(vm.settings.ttsSpeed == 0.5)
-    }
-
-    @Test("updateTTSSpeed ust sinirda clamp etmeli")
-    @MainActor
-    func updateTTSSpeedClampHigh() {
-        let (vm, _) = makeSUT()
-
-        vm.updateTTSSpeed(3.0)
-
-        #expect(vm.settings.ttsSpeed == 2.0)
-    }
-
-    @Test("ttsSpeedText dogru formatta olmali")
-    @MainActor
-    func ttsSpeedText() {
-        let (vm, _) = makeSUT()
-        vm.updateTTSSpeed(1.5)
-
-        #expect(vm.ttsSpeedText == "1.5x")
-    }
-
-    @Test("ttsSpeedText varsayilan hiz icin dogru olmali")
-    @MainActor
-    func ttsSpeedTextDefault() {
-        let (vm, _) = makeSUT()
-
-        #expect(vm.ttsSpeedText == "1.0x")
-    }
-
-    // MARK: - TTS AutoPlay
-
-    @Test("updateTTSAutoPlay durumu guncellemeli")
-    @MainActor
-    func updateTTSAutoPlay() {
-        let (vm, repository) = makeSUT()
-
-        vm.updateTTSAutoPlay(true)
-
-        #expect(vm.settings.ttsAutoPlay == true)
-        #expect(repository.saveCallCount >= 1)
-    }
-
-    @Test("updateTTSAutoPlay false ile kapatmali")
-    @MainActor
-    func updateTTSAutoPlayOff() {
-        let (vm, _) = makeSUT()
-        vm.updateTTSAutoPlay(true)
-
-        vm.updateTTSAutoPlay(false)
-
-        #expect(vm.settings.ttsAutoPlay == false)
-    }
-
-    // MARK: - TTS Language
-
-    @Test("updateTTSLanguage dili guncellemeli")
-    @MainActor
-    func updateTTSLanguage() {
-        let (vm, repository) = makeSUT()
-
-        vm.updateTTSLanguage(.english)
-
-        #expect(vm.settings.ttsLanguage == .english)
-        #expect(repository.saveCallCount >= 1)
-    }
-
-    @Test("updateTTSLanguage Turkce'ye geri donebilmeli")
-    @MainActor
-    func updateTTSLanguageBackToTurkish() {
-        let (vm, _) = makeSUT()
-        vm.updateTTSLanguage(.english)
-
-        vm.updateTTSLanguage(.turkish)
-
-        #expect(vm.settings.ttsLanguage == .turkish)
     }
 
     // MARK: - Push Notifications
@@ -305,26 +206,26 @@ struct SettingsViewModelTests {
         let initialLoadCount = repository.loadCallCount
 
         // Ayarlari degistir ve tekrar yukle
-        repository.storedSettings.ttsSpeed = 1.8
+        repository.storedSettings.appearance = .dark
         vm.loadCurrentSettings()
 
-        #expect(vm.settings.ttsSpeed == 1.8)
+        #expect(vm.settings.appearance == .dark)
         #expect(repository.loadCallCount > initialLoadCount)
     }
 
     // MARK: - Settings Persistence
 
-    @Test("updateTTSSpeed kaydetme use case'ini tetiklemeli")
+    @Test("updateAppearance kaydetme use case'ini tetiklemeli")
     @MainActor
-    func updateTTSSpeedPersists() {
+    func updateAppearancePersists() {
         let repository = MockSettingsRepository()
         let (vm, _) = makeSUT(repository: repository)
         let initialSaveCount = repository.saveCallCount
 
-        vm.updateTTSSpeed(1.3)
+        vm.updateAppearance(.light)
 
         #expect(repository.saveCallCount > initialSaveCount)
-        #expect(repository.lastSavedSettings?.ttsSpeed == 1.3)
+        #expect(repository.lastSavedSettings?.appearance == .light)
     }
 
     @Test("Birden fazla guncelleme tum degisiklikleri korumali")
@@ -332,13 +233,11 @@ struct SettingsViewModelTests {
     func multipleUpdatesMaintainAllChanges() {
         let (vm, repository) = makeSUT()
 
-        vm.updateTTSSpeed(1.7)
         vm.updateAppearance(.dark)
         vm.updateFontSize(.large)
         vm.updatePushNotifications(false)
 
         let lastSaved = repository.lastSavedSettings
-        #expect(lastSaved?.ttsSpeed == 1.7)
         #expect(lastSaved?.appearance == .dark)
         #expect(lastSaved?.fontSize == .large)
         #expect(lastSaved?.pushNotificationsEnabled == false)
