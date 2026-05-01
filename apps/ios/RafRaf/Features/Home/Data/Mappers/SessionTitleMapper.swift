@@ -11,8 +11,11 @@ enum SessionTitleMapper {
     /// - Parameter content: Decode edilmis WebSocket payload.
     /// - Returns: Domain modeli.
     static func toDomain(_ content: SessionTitleContent) -> SessionTitleUpdate {
+        // T1.6-fix: SessionTitleContent.sessionId is Foundation.UUID per backend
+        // SessionTitlePayload contract. Convert to lowercase canonical string at the
+        // Data/Domain boundary so SessionTitleUpdate.sessionId stays String-keyed.
         SessionTitleUpdate(
-            sessionId: content.sessionId,
+            sessionId: content.sessionId.uuidString.lowercased(),
             aiTitle: content.aiTitle,
             generatedAt: content.generatedAt
         )
