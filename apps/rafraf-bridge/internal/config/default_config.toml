@@ -1,0 +1,30 @@
+backend_url = "wss://api.rafraf.app/api/v1/agent/ws"
+pairing_token = ""              # ilk kurulum, sonra api_token_path kullanılır
+api_token_path = "~/.config/rafraf-bridge/token"
+bridge_id = ""                  # backend tarafından atanır (ilk register sonrası)
+
+claude_binary = "claude"
+project_dir = "~/Code"
+permission_mode = "acceptEdits"
+agent_teams = true
+
+heartbeat_interval = "15s"
+reconnect_initial = "500ms"
+reconnect_max = "30s"
+
+[storage_watcher]
+enabled = true
+projects_root = "~/.claude/projects"
+max_file_age_days = 30
+
+[statusline]
+enabled = true
+usage_path = "~/.claude/usage.json"
+poll_every = "5s"
+stale_after = "30m"
+
+[telemetry]
+expvar_enabled = true
+expvar_addr = "127.0.0.1:9090"  # /debug/vars
+log_level = "info"
+log_file = "~/Library/Logs/rafraf-bridge/bridge.log"

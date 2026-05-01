@@ -77,3 +77,8 @@ Thumbs.db
 # ─── Dev session logs and seed files (T0.2) ───────────
 log*.txt
 seed.md
+
+
+.claude/worktrees
+.claude/*.lock
+.orchestrate/state*.md

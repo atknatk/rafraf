@@ -1,0 +1,87 @@
+name: bridge-ci
+
+on:
+  push:
+    branches: [develop, "feature/f0.5/**"]
+    paths:
+      - "apps/rafraf-bridge/**"
+      - ".github/workflows/bridge-ci.yml"
+  pull_request:
+    paths:
+      - "apps/rafraf-bridge/**"
+      - ".github/workflows/bridge-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-lint:
+    name: build + test + lint (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: true
+          cache-dependency-path: apps/rafraf-bridge/go.sum
+
+      - name: go mod download
+        working-directory: apps/rafraf-bridge
+        run: go mod download
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v2.12.0
+          working-directory: apps/rafraf-bridge
+
+      - name: go test (race + count=1)
+        working-directory: apps/rafraf-bridge
+        run: go test -race -count=1 ./...
+
+      - name: go build (cross-arch sanity)
+        working-directory: apps/rafraf-bridge
+        run: |
+          GOOS=darwin GOARCH=arm64 go build -o /dev/null ./cmd/bridge
+          GOOS=darwin GOARCH=amd64 go build -o /dev/null ./cmd/bridge
+
+  release-binary:
+    name: release prebuilt binaries (darwin)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-test-lint
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: true
+          cache-dependency-path: apps/rafraf-bridge/go.sum
+
+      - name: Build prebuilt binaries
+        working-directory: apps/rafraf-bridge
+        run: |
+          mkdir -p dist
+          VERSION="${GITHUB_REF_NAME#v}"
+          LDFLAGS="-X main.Version=${VERSION}"
+          GOOS=darwin GOARCH=arm64 go build -ldflags "${LDFLAGS}" \
+            -o dist/rafraf-bridge-darwin-arm64 ./cmd/bridge
+          GOOS=darwin GOARCH=amd64 go build -ldflags "${LDFLAGS}" \
+            -o dist/rafraf-bridge-darwin-amd64 ./cmd/bridge
+          ls -lh dist/
+
+      - name: GitHub Release upload
+        uses: softprops/action-gh-release@v2
+        with:
+          files: apps/rafraf-bridge/dist/*
