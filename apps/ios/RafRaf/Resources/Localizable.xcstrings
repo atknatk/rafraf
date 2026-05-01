@@ -5684,6 +5684,142 @@
         }
       }
     },
+    "usage.fiveHour.resetsIn" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resets %@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ sıfırlanır"
+          }
+        }
+      }
+    },
+    "usage.fiveHour.short" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5h"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5sa"
+          }
+        }
+      }
+    },
+    "usage.fiveHour.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5-Hour Usage"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 Saatlik Kullanım"
+          }
+        }
+      }
+    },
+    "usage.gauge.accessibility.hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inner ring shows 5-hour quota, outer ring shows weekly quota."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İç halka 5 saatlik kotayı, dış halka haftalık kotayı gösterir."
+          }
+        }
+      }
+    },
+    "usage.gauge.accessibility.label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5-hour usage %1$@%%, weekly usage %2$@%%"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 saatlik kullanım %%%1$@, haftalık kullanım %%%2$@"
+          }
+        }
+      }
+    },
+    "usage.over" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Over"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aşıldı"
+          }
+        }
+      }
+    },
+    "usage.weekly.resetsIn" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weekly resets %@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haftalık %@ sıfırlanır"
+          }
+        }
+      }
+    },
+    "usage.weekly.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weekly Usage"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haftalık Kullanım"
+          }
+        }
+      }
+    },
     "•" : {}
   },
   "version" : "1.0"

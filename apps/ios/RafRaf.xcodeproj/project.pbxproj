@@ -163,6 +163,7 @@
 		9FB51D0C2ADF4374EF9612F5 /* AgentProjectDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB37DB67BF513D9C7C244FB8 /* AgentProjectDTO.swift */; };
 		9FCD8CB4BFE8F40FC4223322 /* RFLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747F8B6AF88D6C525824A2B4 /* RFLoadingView.swift */; };
 		A22A6A583A654864E5C29068 /* SubscriptionUsageDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A69614E0AA9E837C59F7019 /* SubscriptionUsageDTO.swift */; };
+		A2343A13FBFB4C857B078581 /* RFUsageGauge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E99979A69C2B6796B103118 /* RFUsageGauge.swift */; };
 		A2ABE3A46A5D9EB3D516B95B /* MockChatRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5C19344181D70DA7F175D9E /* MockChatRepository.swift */; };
 		A32481051F472709B19F6D75 /* RFCodeBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20CD7C997F970FBA36D3C074 /* RFCodeBlock.swift */; };
 		A4E21319115E48A9BACD194E /* ChatRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7BDBED213305ACA70334DBA /* ChatRepositoryImpl.swift */; };
@@ -232,6 +233,7 @@
 		EDFAA96C8F5C83B957E1DC86 /* RFColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ECFBBAEFFE940FB82263775 /* RFColors.swift */; };
 		EECAA7A546A3DD77278EDB3F /* SubmitApprovalDecisionUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CA61012D78580A68D7F7FD5 /* SubmitApprovalDecisionUseCase.swift */; };
 		EF5E63D4A4015423C2C4BA2F /* UserProfileDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71B262091F1518F1D4513B24 /* UserProfileDTO.swift */; };
+		F00EA17EA34162982B6C9251 /* RFUsageGaugeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23E95621568A4E0ECEEBAD34 /* RFUsageGaugeTests.swift */; };
 		F01B19A772173B4171C6F451 /* RFRegisterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21C674551BDF23B45BDDEEA1 /* RFRegisterView.swift */; };
 		F06A839AC7D6E526623AB2F0 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4EC690700D185EF47D4747A /* OnboardingView.swift */; };
 		F0B5922F85D2F43F5C55E60B /* RafRafShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B9C394A6C630F6E1295BBF4 /* RafRafShortcuts.swift */; };
@@ -298,6 +300,7 @@
 		21F39AF4256F417AE5C96B4E /* WebSocketClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketClientTests.swift; sourceTree = "<group>"; };
 		22FC93AA407B33BA3BC65486 /* AgentListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentListView.swift; sourceTree = "<group>"; };
 		23E2D765F065D22E06E3B119 /* GitHubEventService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubEventService.swift; sourceTree = "<group>"; };
+		23E95621568A4E0ECEEBAD34 /* RFUsageGaugeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFUsageGaugeTests.swift; sourceTree = "<group>"; };
 		2414963E26EADDBD66E7BCF7 /* AuthManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManagerTests.swift; sourceTree = "<group>"; };
 		249EF47971A35E816A840720 /* NotificationRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRouterTests.swift; sourceTree = "<group>"; };
 		26E40E45FC70F75C1A03072E /* HandleNotificationUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandleNotificationUseCaseTests.swift; sourceTree = "<group>"; };
@@ -370,6 +373,7 @@
 		6AF975E23D5CC28945FC7254 /* RFProjectPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFProjectPicker.swift; sourceTree = "<group>"; };
 		6B034A26D2C78F515EE7DC5A /* ApprovalModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalModelTests.swift; sourceTree = "<group>"; };
 		6E5B2EDFD388B80900006C19 /* ApprovalQuestionDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalQuestionDTO.swift; sourceTree = "<group>"; };
+		6E99979A69C2B6796B103118 /* RFUsageGauge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFUsageGauge.swift; sourceTree = "<group>"; };
 		71B262091F1518F1D4513B24 /* UserProfileDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfileDTO.swift; sourceTree = "<group>"; };
 		71C93280E1D8CE2C3ED37AB6 /* PushNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationManager.swift; sourceTree = "<group>"; };
 		73EDDECB3A8862452651E8E2 /* RFErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFErrorView.swift; sourceTree = "<group>"; };
@@ -532,6 +536,7 @@
 				873A95A473C0B0BC9B36ACED /* RFCardTests.swift */,
 				EC6A2CB9D986C62030FB1136 /* RFTextFieldTests.swift */,
 				D9494F1BB2D75D74A4D23360 /* RFTextTests.swift */,
+				23E95621568A4E0ECEEBAD34 /* RFUsageGaugeTests.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -692,6 +697,7 @@
 				7CAB4ABB8E67FFA103513EF2 /* RFShimmerModifier.swift */,
 				E6016664D42539CA3682B2BB /* RFText.swift */,
 				F50CEA586C89F51C32CEF461 /* RFTextField.swift */,
+				6E99979A69C2B6796B103118 /* RFUsageGauge.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -2216,6 +2222,7 @@
 				4F6C1FB2D7AB80DBD0590C48 /* RFTransitions.swift in Sources */,
 				CE6768C80CB433F3BBC46ED5 /* RFTypingIndicator.swift in Sources */,
 				AE78026CAD68EE7743A9CF0B /* RFTypography.swift in Sources */,
+				A2343A13FBFB4C857B078581 /* RFUsageGauge.swift in Sources */,
 				8731A1F3065CA8D887333C03 /* RafRafApp.swift in Sources */,
 				6F8B12B61BD2D3982605B404 /* RafRafError.swift in Sources */,
 				3980085A59D15FD38D39A910 /* RafRafLiveActivity.swift in Sources */,
@@ -2295,6 +2302,7 @@
 				BB8F03022D41EA75F5C4B537 /* RFTextFieldTests.swift in Sources */,
 				0094D3ECB7DE3EDD40CFCA6E /* RFTextTests.swift in Sources */,
 				6E57A7C79B809272E78BBBFA /* RFTypographyTests.swift in Sources */,
+				F00EA17EA34162982B6C9251 /* RFUsageGaugeTests.swift in Sources */,
 				8E3780EE4B737661383464D4 /* RefreshTokenUseCaseTests.swift in Sources */,
 				F96D453993430F1AE425A673 /* RegisterDeviceTokenUseCaseTests.swift in Sources */,
 				CEB59EDD52E3E003144110BE /* SaveSettingsUseCaseTests.swift in Sources */,
