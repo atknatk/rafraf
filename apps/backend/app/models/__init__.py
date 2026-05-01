@@ -10,6 +10,7 @@ from app.models.message import Message
 from app.models.proactive_notification import ProactiveNotification
 from app.models.project import Project
 from app.models.session import Session
+from app.models.subagent import Subagent
 from app.models.task import Task
 from app.models.user import User
 from app.models.webhook_event import WebhookEvent
@@ -26,6 +27,7 @@ __all__ = [
     "ProactiveNotification",
     "Project",
     "Session",
+    "Subagent",
     "Task",
     "User",
     "WebhookEvent",

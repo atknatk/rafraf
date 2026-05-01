@@ -7,12 +7,16 @@ Replaces the legacy ``HostAgent`` model as part of the V1 production pivot
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDMixin
+
+if TYPE_CHECKING:
+    from app.models.subagent import Subagent
 
 
 class Bridge(Base, UUIDMixin, TimestampMixin):
@@ -74,4 +78,15 @@ class Bridge(Base, UUIDMixin, TimestampMixin):
     bridge_version: Mapped[str | None] = mapped_column(
         String(32),
         nullable=True,
+    )
+
+    # ── ORM relationships ──
+    # Reverse side of Subagent.bridge — every subagent row carries a FK to a
+    # bridge (ON DELETE CASCADE in the schema). Eager-loading is intentionally
+    # opt-in; default lazy loading keeps Bridge queries cheap.
+    subagents: Mapped[list["Subagent"]] = relationship(
+        "Subagent",
+        back_populates="bridge",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
