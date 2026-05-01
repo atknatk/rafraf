@@ -550,13 +550,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Set BACKEND_WS_URL and AGENT_API_KEY in your environment"
+            "value" : "Set BACKEND_WS_URL in your environment (auth via JWT)"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "BACKEND_WS_URL ve AGENT_API_KEY değişkenlerini ayarlayın"
+            "value" : "BACKEND_WS_URL değişkenini ayarlayın (kimlik dogrulama JWT ile)"
           }
         }
       }

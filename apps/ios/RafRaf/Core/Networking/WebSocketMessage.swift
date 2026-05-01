@@ -31,6 +31,15 @@ enum WebSocketMessageType: String, Codable, Sendable {
     case streamCancelled = "stream.cancelled"
     // Task status updates (server → client)
     case taskStatus = "task_status"
+    // Claude Agent Teams events (server → client, sourced from bridge stream-json)
+    case sessionInit = "session.init"
+    case subagentSpawned = "subagent.spawned"
+    case subagentProgress = "subagent.progress"
+    case subagentCompleted = "subagent.completed"
+    case rateLimitInfo = "rate_limit.info"
+    case sessionTitle = "session.title"
+    case sessionPrOpened = "session.pr_opened"
+    case usageReport = "usage.report"
 }
 
 /// Mesaj yonu.
@@ -88,6 +97,54 @@ struct WebSocketBaseMessage: Codable, Sendable {
             } else {
                 self.content = nil
             }
+        } else if self.type == WebSocketMessageType.sessionInit.rawValue {
+            if let payload = try? container.decodeIfPresent(SessionInitContent.self, forKey: .content) {
+                self.content = .sessionInit(payload)
+            } else {
+                self.content = nil
+            }
+        } else if self.type == WebSocketMessageType.subagentSpawned.rawValue {
+            if let payload = try? container.decodeIfPresent(SubagentSpawnedContent.self, forKey: .content) {
+                self.content = .subagentSpawned(payload)
+            } else {
+                self.content = nil
+            }
+        } else if self.type == WebSocketMessageType.subagentProgress.rawValue {
+            if let payload = try? container.decodeIfPresent(SubagentProgressContent.self, forKey: .content) {
+                self.content = .subagentProgress(payload)
+            } else {
+                self.content = nil
+            }
+        } else if self.type == WebSocketMessageType.subagentCompleted.rawValue {
+            if let payload = try? container.decodeIfPresent(SubagentCompletedContent.self, forKey: .content) {
+                self.content = .subagentCompleted(payload)
+            } else {
+                self.content = nil
+            }
+        } else if self.type == WebSocketMessageType.rateLimitInfo.rawValue {
+            if let payload = try? container.decodeIfPresent(RateLimitInfoContent.self, forKey: .content) {
+                self.content = .rateLimitInfo(payload)
+            } else {
+                self.content = nil
+            }
+        } else if self.type == WebSocketMessageType.sessionTitle.rawValue {
+            if let payload = try? container.decodeIfPresent(SessionTitleContent.self, forKey: .content) {
+                self.content = .sessionTitle(payload)
+            } else {
+                self.content = nil
+            }
+        } else if self.type == WebSocketMessageType.sessionPrOpened.rawValue {
+            if let payload = try? container.decodeIfPresent(SessionPrOpenedContent.self, forKey: .content) {
+                self.content = .sessionPrOpened(payload)
+            } else {
+                self.content = nil
+            }
+        } else if self.type == WebSocketMessageType.usageReport.rawValue {
+            if let payload = try? container.decodeIfPresent(UsageReportContent.self, forKey: .content) {
+                self.content = .usageReport(payload)
+            } else {
+                self.content = nil
+            }
         } else {
             self.content = try? container.decodeIfPresent(WebSocketContent.self, forKey: .content)
         }
@@ -126,6 +183,15 @@ enum WebSocketContent: Codable, Sendable {
     case githubEvent(GitHubEventPayload)
     case agentStatusChange(AgentStatusChangePayload)
     case taskStatus(TaskStatusContent)
+    // Claude Agent Teams events (T1.6)
+    case sessionInit(SessionInitContent)
+    case subagentSpawned(SubagentSpawnedContent)
+    case subagentProgress(SubagentProgressContent)
+    case subagentCompleted(SubagentCompletedContent)
+    case rateLimitInfo(RateLimitInfoContent)
+    case sessionTitle(SessionTitleContent)
+    case sessionPrOpened(SessionPrOpenedContent)
+    case usageReport(UsageReportContent)
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
@@ -221,6 +287,22 @@ enum WebSocketContent: Codable, Sendable {
         case .agentStatusChange(let value):
             try container.encode(value)
         case .taskStatus(let value):
+            try container.encode(value)
+        case .sessionInit(let value):
+            try container.encode(value)
+        case .subagentSpawned(let value):
+            try container.encode(value)
+        case .subagentProgress(let value):
+            try container.encode(value)
+        case .subagentCompleted(let value):
+            try container.encode(value)
+        case .rateLimitInfo(let value):
+            try container.encode(value)
+        case .sessionTitle(let value):
+            try container.encode(value)
+        case .sessionPrOpened(let value):
+            try container.encode(value)
+        case .usageReport(let value):
             try container.encode(value)
         }
     }
@@ -556,6 +638,159 @@ struct AgentStatusChangePayload: Codable, Sendable {
         case status
         case reason
         case isNew = "is_new"
+    }
+}
+
+// MARK: - Claude Agent Teams Content (T1.6)
+
+/// `session.init` mesaj icerigi. Bridge stream-json `system/init` event'inden uretilir.
+/// Kontrat: `apps/backend/app/schemas/messages.py::SessionInitPayload`.
+public struct SessionInitContent: Codable, Sendable, Equatable {
+    public let sessionId: String
+    public let model: String
+    public let permissionMode: String
+    public let apiKeySource: String
+    public let cwd: String
+    public let agentTeamsEnabled: Bool
+    public let initializedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case sessionId = "session_id"
+        case model
+        case permissionMode = "permission_mode"
+        case apiKeySource = "api_key_source"
+        case cwd
+        case agentTeamsEnabled = "agent_teams_enabled"
+        case initializedAt = "initialized_at"
+    }
+}
+
+/// `subagent.spawned` mesaj icerigi.
+/// Kontrat: `apps/backend/app/schemas/messages.py::SubagentSpawnedPayload`.
+public struct SubagentSpawnedContent: Codable, Sendable, Equatable {
+    public let taskId: String
+    public let name: String
+    public let description: String?
+    public let promptPreview: String
+    public let subagentType: String?
+    public let isolation: String?
+    public let startedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case taskId = "task_id"
+        case name
+        case description
+        case promptPreview = "prompt_preview"
+        case subagentType = "subagent_type"
+        case isolation
+        case startedAt = "started_at"
+    }
+}
+
+/// `subagent.progress` mesaj icerigi.
+/// Kontrat: `apps/backend/app/schemas/messages.py::SubagentProgressPayload`.
+public struct SubagentProgressContent: Codable, Sendable, Equatable {
+    public let taskId: String
+    public let status: String
+    public let activity: String
+    public let updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case taskId = "task_id"
+        case status
+        case activity
+        case updatedAt = "updated_at"
+    }
+}
+
+/// `subagent.completed` mesaj icerigi.
+/// Kontrat: `apps/backend/app/schemas/messages.py::SubagentCompletedPayload`.
+public struct SubagentCompletedContent: Codable, Sendable, Equatable {
+    public let taskId: String
+    public let status: String
+    public let summary: String?
+    public let totalTokens: Int
+    public let toolUses: Int
+    public let durationMs: Int
+    public let completedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case taskId = "task_id"
+        case status
+        case summary
+        case totalTokens = "total_tokens"
+        case toolUses = "tool_uses"
+        case durationMs = "duration_ms"
+        case completedAt = "completed_at"
+    }
+}
+
+/// `rate_limit.info` mesaj icerigi.
+/// Kontrat: `apps/backend/app/schemas/messages.py::RateLimitInfoPayload`.
+public struct RateLimitInfoContent: Codable, Sendable, Equatable {
+    public let status: String
+    public let rateLimitType: String
+    public let resetsAt: Int
+    public let overageStatus: String
+    public let isUsingOverage: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case rateLimitType = "rate_limit_type"
+        case resetsAt = "resets_at"
+        case overageStatus = "overage_status"
+        case isUsingOverage = "is_using_overage"
+    }
+}
+
+/// `session.title` mesaj icerigi (storage watcher `ai-title`).
+/// Kontrat: `apps/backend/app/schemas/messages.py::SessionTitlePayload`.
+public struct SessionTitleContent: Codable, Sendable, Equatable {
+    public let sessionId: String
+    public let aiTitle: String
+    public let generatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case sessionId = "session_id"
+        case aiTitle = "ai_title"
+        case generatedAt = "generated_at"
+    }
+}
+
+/// `session.pr_opened` mesaj icerigi (storage watcher `pr-link`).
+/// Kontrat: `apps/backend/app/schemas/messages.py::SessionPrOpenedPayload`.
+public struct SessionPrOpenedContent: Codable, Sendable, Equatable {
+    public let sessionId: String
+    public let prNumber: Int
+    public let prUrl: String
+    public let prRepository: String
+    public let openedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case sessionId = "session_id"
+        case prNumber = "pr_number"
+        case prUrl = "pr_url"
+        case prRepository = "pr_repository"
+        case openedAt = "opened_at"
+    }
+}
+
+/// `usage.report` mesaj icerigi — 5h + 7d Claude Code subscription kotalari.
+/// Kontrat: `apps/backend/app/schemas/messages.py::UsageReportPayload`.
+/// Tum zaman alanlari unix timestamp (saniye).
+public struct UsageReportContent: Codable, Sendable, Equatable {
+    public let fiveHourPct: Int
+    public let sevenDayPct: Int
+    public let fiveHourResetsAt: Int
+    public let sevenDayResetsAt: Int
+    public let reportedAt: Int
+
+    enum CodingKeys: String, CodingKey {
+        case fiveHourPct = "five_hour_pct"
+        case sevenDayPct = "seven_day_pct"
+        case fiveHourResetsAt = "five_hour_resets_at"
+        case sevenDayResetsAt = "seven_day_resets_at"
+        case reportedAt = "reported_at"
     }
 }
 
