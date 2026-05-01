@@ -8,9 +8,6 @@ final class SettingsRepositoryImpl: SettingsRepositoryProtocol, @unchecked Senda
     // MARK: - Constants
 
     private enum Keys {
-        static let ttsSpeed = "settings.tts.speed"
-        static let ttsAutoPlay = "settings.tts.autoPlay"
-        static let ttsLanguage = "settings.tts.language"
         static let pushNotificationsEnabled = "settings.notifications.pushEnabled"
         static let enabledNotificationTypes = "settings.notifications.enabledTypes"
         static let appearance = "settings.appearance"
@@ -33,12 +30,6 @@ final class SettingsRepositoryImpl: SettingsRepositoryProtocol, @unchecked Senda
     func loadSettings() -> AppSettings {
         logger.info("Ayarlar yukleniyor")
 
-        let ttsSpeed = defaults.object(forKey: Keys.ttsSpeed) as? Double
-            ?? AppSettings.defaults.ttsSpeed
-        let ttsAutoPlay = defaults.object(forKey: Keys.ttsAutoPlay) as? Bool
-            ?? AppSettings.defaults.ttsAutoPlay
-        let ttsLanguageRaw = defaults.string(forKey: Keys.ttsLanguage)
-            ?? AppSettings.defaults.ttsLanguage.rawValue
         let pushEnabled = defaults.object(forKey: Keys.pushNotificationsEnabled) as? Bool
             ?? AppSettings.defaults.pushNotificationsEnabled
         let notificationTypesRaw = defaults.stringArray(forKey: Keys.enabledNotificationTypes)
@@ -55,10 +46,6 @@ final class SettingsRepositoryImpl: SettingsRepositoryProtocol, @unchecked Senda
         }
 
         return AppSettings(
-            ttsSpeed: ttsSpeed,
-            ttsAutoPlay: ttsAutoPlay,
-            ttsLanguage: TTSLanguage(rawValue: ttsLanguageRaw)
-                ?? AppSettings.defaults.ttsLanguage,
             pushNotificationsEnabled: pushEnabled,
             enabledNotificationTypes: enabledTypes,
             appearance: AppAppearance(rawValue: appearanceRaw)
@@ -71,9 +58,6 @@ final class SettingsRepositoryImpl: SettingsRepositoryProtocol, @unchecked Senda
     func saveSettings(_ settings: AppSettings) {
         logger.info("Ayarlar kaydediliyor")
 
-        defaults.set(settings.ttsSpeed, forKey: Keys.ttsSpeed)
-        defaults.set(settings.ttsAutoPlay, forKey: Keys.ttsAutoPlay)
-        defaults.set(settings.ttsLanguage.rawValue, forKey: Keys.ttsLanguage)
         defaults.set(settings.pushNotificationsEnabled, forKey: Keys.pushNotificationsEnabled)
         defaults.set(
             settings.enabledNotificationTypes.map(\.rawValue),

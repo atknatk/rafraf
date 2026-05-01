@@ -7460,23 +7460,6 @@
         }
       }
     },
-    "settings.section.voice" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Voice"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ses"
-          }
-        }
-      }
-    },
     "settings.title" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7494,40 +7477,6 @@
         }
       }
     },
-    "settings.tts.language.english" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "English"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ingilizce"
-          }
-        }
-      }
-    },
-    "settings.tts.language.turkish" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Turkish"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Turkce"
-          }
-        }
-      }
-    },
     "settings.version" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7541,57 +7490,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Surum"
-          }
-        }
-      }
-    },
-    "settings.voice.autoPlay" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Auto Play"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Otomatik Oynat"
-          }
-        }
-      }
-    },
-    "settings.voice.language" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Voice Language"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ses Dili"
-          }
-        }
-      }
-    },
-    "settings.voice.speed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Speech Speed"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Konusma Hizi"
           }
         }
       }

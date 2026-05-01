@@ -41,20 +41,6 @@ enum AppFontSize: String, Sendable, CaseIterable, Equatable {
     }
 }
 
-/// TTS dil secenekleri.
-enum TTSLanguage: String, Sendable, CaseIterable, Equatable {
-    case turkish = "tr-TR"
-    case english = "en-US"
-
-    /// Kullaniciya gosterilecek lokalize baslik.
-    var localizedTitle: String {
-        switch self {
-        case .turkish: return String(localized: "settings.tts.language.turkish")
-        case .english: return String(localized: "settings.tts.language.english")
-        }
-    }
-}
-
 /// Bildirim tipi.
 enum NotificationType: String, Sendable, CaseIterable, Equatable {
     case taskUpdates
@@ -74,17 +60,6 @@ enum NotificationType: String, Sendable, CaseIterable, Equatable {
 /// Uygulama ayarlari domain modeli.
 /// UserDefaults ile persist edilen tum ayarlar burada tanimlanir.
 struct AppSettings: Sendable, Equatable {
-    // MARK: - Ses Ayarlari
-
-    /// TTS konusma hizi (0.5 - 2.0 arasi).
-    var ttsSpeed: Double
-
-    /// Mesaj geldiginde otomatik sesli okuma aktif mi.
-    var ttsAutoPlay: Bool
-
-    /// TTS dil secimi.
-    var ttsLanguage: TTSLanguage
-
     // MARK: - Bildirim Ayarlari
 
     /// Push bildirimleri aktif mi.
@@ -105,9 +80,6 @@ struct AppSettings: Sendable, Equatable {
 
     /// Varsayilan ayarlar.
     static let defaults = AppSettings(
-        ttsSpeed: 1.0,
-        ttsAutoPlay: false,
-        ttsLanguage: .turkish,
         pushNotificationsEnabled: true,
         enabledNotificationTypes: Set(NotificationType.allCases),
         appearance: .system,

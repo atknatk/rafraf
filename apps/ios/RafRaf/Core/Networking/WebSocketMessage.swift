@@ -470,21 +470,6 @@ enum WebSocketMessageFactory {
         )
     }
 
-    /// Sesli mesaj (transcribed text) olusturur.
-    static func voiceMessage(
-        _ text: String,
-        sessionId: String? = nil
-    ) -> WebSocketBaseMessage {
-        WebSocketBaseMessage(
-            type: "voice",
-            content: .text(text),
-            metadata: WebSocketMessageMetadata(
-                sessionId: sessionId,
-                direction: WebSocketMessageDirection.clientToServer.rawValue
-            )
-        )
-    }
-
     /// Aktif stream'i iptal etmek icin mesaj olusturur.
     static func cancelStreamMessage(sessionId: String? = nil) -> WebSocketBaseMessage {
         WebSocketBaseMessage(

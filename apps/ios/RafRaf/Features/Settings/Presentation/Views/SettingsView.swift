@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Ayarlar ana ekrani.
-/// Profil, ses, bildirim, gorunum ve hesap ayarlarini card-based layout ile gosterir.
+/// Profil, bildirim, gorunum ve hesap ayarlarini card-based layout ile gosterir.
 /// Glass profil karti ve hero gradient arkaplan ile premium gorunum.
 struct SettingsView: View {
     @State private var viewModel: SettingsViewModel
@@ -22,9 +22,6 @@ struct SettingsView: View {
                         securityCard
                             .rfEntrance(isAppeared: isAppeared, delay: 0.08)
                     }
-
-                    voiceSettingsCard
-                        .rfEntrance(isAppeared: isAppeared, delay: 0.1)
 
                     notificationSettingsCard
                         .rfEntrance(isAppeared: isAppeared, delay: 0.15)
@@ -162,66 +159,6 @@ struct SettingsView: View {
             }
         }
         .sensoryFeedback(.selection, trigger: viewModel.isBiometricEnabled)
-    }
-
-    // MARK: - Voice Settings Card
-
-    private var voiceSettingsCard: some View {
-        RFCard {
-            VStack(spacing: RFSpacing.md) {
-                settingsCardHeader(
-                    icon: "speaker.wave.2.fill",
-                    title: String(localized: "settings.section.voice"),
-                    color: RFColors.info
-                )
-
-                VStack(alignment: .leading, spacing: RFSpacing.xs) {
-                    HStack {
-                        RFText(
-                            String(localized: "settings.voice.speed"),
-                            style: .body
-                        )
-                        Spacer()
-                        RFText(viewModel.ttsSpeedText, style: .captionBold)
-                    }
-                    Slider(
-                        value: Binding(
-                            get: { viewModel.settings.ttsSpeed },
-                            set: { viewModel.updateTTSSpeed($0) }
-                        ),
-                        in: 0.5...2.0,
-                        step: 0.1
-                    )
-                    .tint(RFColors.fallbackPrimary)
-                }
-
-                Divider()
-
-                settingsToggleRow(
-                    title: String(localized: "settings.voice.autoPlay"),
-                    isOn: Binding(
-                        get: { viewModel.settings.ttsAutoPlay },
-                        set: { viewModel.updateTTSAutoPlay($0) }
-                    )
-                )
-
-                Divider()
-
-                settingsPickerRow(
-                    title: String(localized: "settings.voice.language")
-                ) {
-                    Picker("", selection: Binding(
-                        get: { viewModel.settings.ttsLanguage },
-                        set: { viewModel.updateTTSLanguage($0) }
-                    )) {
-                        ForEach(TTSLanguage.allCases, id: \.self) { language in
-                            Text(language.localizedTitle).tag(language)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                }
-            }
-        }
     }
 
     // MARK: - Notification Settings Card
