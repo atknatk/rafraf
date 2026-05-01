@@ -237,6 +237,15 @@ struct WebSocketMessageMetadata: Codable, Sendable {
     let messageId: String?
     let direction: String
 
+    enum CodingKeys: String, CodingKey {
+        case timestamp
+        case sessionId = "session_id"
+        case projectId = "project_id"
+        case agentId = "agent_id"
+        case messageId = "message_id"
+        case direction
+    }
+
     init(
         timestamp: String = ISO8601DateFormatter().string(from: Date()),
         sessionId: String? = nil,
@@ -262,6 +271,13 @@ struct WebSocketMessageAttachment: Codable, Sendable {
     let url: String
     let mimeType: String
     let sizeBytes: Int
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case url
+        case mimeType = "mime_type"
+        case sizeBytes = "size_bytes"
+    }
 }
 
 // MARK: - Content Types
@@ -271,6 +287,12 @@ struct ConnectionAckContent: Codable, Sendable {
     let userId: String
     let sessionId: String
     let serverTime: String
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case sessionId = "session_id"
+        case serverTime = "server_time"
+    }
 }
 
 /// AI text response icerigi (backend'den gelen cevap).
@@ -278,6 +300,12 @@ struct TextResponseContent: Codable, Sendable {
     let text: String
     let modelUsed: String?
     let tokensUsed: TokenUsage?
+
+    enum CodingKeys: String, CodingKey {
+        case text
+        case modelUsed = "model_used"
+        case tokensUsed = "tokens_used"
+    }
 }
 
 /// Token kullanim bilgileri.
@@ -293,6 +321,14 @@ struct ErrorMessageContent: Codable, Sendable {
     let recoverable: Bool
     let details: String?
     let suggestion: String?
+
+    enum CodingKeys: String, CodingKey {
+        case errorCode = "error_code"
+        case message
+        case recoverable
+        case details
+        case suggestion
+    }
 }
 
 /// Ilerleme mesaj icerigi.
@@ -304,6 +340,16 @@ struct ProgressMessageContent: Codable, Sendable {
     let details: String?
     let phase: String?
     let stepsDetail: [ProgressStepDetailContent]?
+
+    enum CodingKeys: String, CodingKey {
+        case task
+        case step
+        case totalSteps = "total_steps"
+        case percentage
+        case details
+        case phase
+        case stepsDetail = "steps_detail"
+    }
 }
 
 /// Detayli ilerleme adimi icerigi.
@@ -315,6 +361,16 @@ struct ProgressStepDetailContent: Codable, Sendable {
     let toolName: String?
     let durationSeconds: Double?
     let detail: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case stepType = "step_type"
+        case label
+        case status
+        case toolName = "tool_name"
+        case durationSeconds = "duration_seconds"
+        case detail
+    }
 }
 
 /// Heartbeat (ping/pong) icerigi.
@@ -331,6 +387,12 @@ struct ChatStreamContent: Codable, Sendable {
     let messageId: String
     let delta: String
     let index: Int
+
+    enum CodingKeys: String, CodingKey {
+        case messageId = "message_id"
+        case delta
+        case index
+    }
 }
 
 /// Stream tamamlanma icerigi.
@@ -339,6 +401,13 @@ struct ChatStreamEndContent: Codable, Sendable {
     let fullText: String
     let modelUsed: String
     let tokensUsed: TokenUsage?
+
+    enum CodingKeys: String, CodingKey {
+        case messageId = "message_id"
+        case fullText = "full_text"
+        case modelUsed = "model_used"
+        case tokensUsed = "tokens_used"
+    }
 }
 
 /// Code diff satiri icerigi.
@@ -347,6 +416,13 @@ struct CodeDiffLineContent: Codable, Sendable {
     let content: String
     let lineNumberOld: Int?
     let lineNumberNew: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case content
+        case lineNumberOld = "line_number_old"
+        case lineNumberNew = "line_number_new"
+    }
 }
 
 /// Dosya diff icerigi.
@@ -357,6 +433,15 @@ struct CodeDiffFileContent: Codable, Sendable {
     let additions: Int
     let deletions: Int
     let lines: [CodeDiffLineContent]
+
+    enum CodingKeys: String, CodingKey {
+        case filePath = "file_path"
+        case isNewFile = "is_new_file"
+        case isDeleted = "is_deleted"
+        case additions
+        case deletions
+        case lines
+    }
 }
 
 /// Code diff mesaj icerigi.
@@ -366,12 +451,25 @@ struct CodeDiffContent: Codable, Sendable {
     let totalDeletions: Int
     let filesChanged: Int
     let files: [CodeDiffFileContent]
+
+    enum CodingKeys: String, CodingKey {
+        case projectPath = "project_path"
+        case totalAdditions = "total_additions"
+        case totalDeletions = "total_deletions"
+        case filesChanged = "files_changed"
+        case files
+    }
 }
 
 /// Proaktif oneri mesaj icerigi.
 struct SuggestionContent: Codable, Sendable {
     let messageId: String
     let suggestions: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case messageId = "message_id"
+        case suggestions
+    }
 }
 
 /// GitHub webhook event ozeti (broadcast payload).
@@ -385,6 +483,18 @@ struct GitHubEventSummaryPayload: Codable, Sendable {
     let commitCount: Int?
     let headMessage: String?
     let pusher: String?
+
+    enum CodingKeys: String, CodingKey {
+        case number
+        case title
+        case url
+        case merged
+        case sender
+        case branch
+        case commitCount = "commit_count"
+        case headMessage = "head_message"
+        case pusher
+    }
 
     init(
         number: Int? = nil, title: String? = nil, url: String? = nil,
@@ -412,6 +522,8 @@ struct GitHubEventPayload: Codable, Sendable {
 }
 
 /// Task durum guncelleme mesaj icerigi.
+/// Backend (Pydantic) snake_case JSON gonderiyor; iOS Swift camelCase mapping yapilir.
+/// Doc 10 §6.3.1 — `keyNotFound(taskId)` hatasi bu CodingKeys ile cozulur.
 struct TaskStatusContent: Codable, Sendable {
     let taskId: String
     let status: String
@@ -420,6 +532,16 @@ struct TaskStatusContent: Codable, Sendable {
     let completedSteps: Int
     let totalSteps: Int
     let detail: String?
+
+    enum CodingKeys: String, CodingKey {
+        case taskId = "task_id"
+        case status
+        case currentStep = "current_step"
+        case progressPct = "progress_pct"
+        case completedSteps = "completed_steps"
+        case totalSteps = "total_steps"
+        case detail
+    }
 }
 
 /// Agent durum degisikligi broadcast mesaj icerigi.
@@ -428,6 +550,13 @@ struct AgentStatusChangePayload: Codable, Sendable {
     let status: String
     let reason: String?
     let isNew: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case hostId = "host_id"
+        case status
+        case reason
+        case isNew = "is_new"
+    }
 }
 
 // MARK: - Message Factory
