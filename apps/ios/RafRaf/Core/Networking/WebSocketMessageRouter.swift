@@ -42,7 +42,11 @@ actor WebSocketMessageRouter {
 
     init() {
         let jsonDecoder = JSONDecoder()
-        jsonDecoder.keyDecodingStrategy = .convertFromSnakeCase
+        // NOTE: keyDecodingStrategy = .convertFromSnakeCase YASAK — her Content struct'inin
+        // explicit snake_case CodingKeys raw value'lari mevcut. Strategy uygulanirsa JSON
+        // key'leri once camelCase'e cevrilir ve CodingKeys raw value'lari ile eslesmez
+        // (sessizce keyNotFound → try? swallows → content nil). T0.6 (TaskStatusContent)
+        // tasarim niyeti: explicit CodingKeys = tek dogru kontrat kaynagi.
         // Backend (Pydantic) ISO8601 datetime serileştirir; Mac bridge ise mikrosaniyeli
         // veya offset'siz olabilir. Esnek bir tarih decoder'i ile her iki bicimi destekle.
         jsonDecoder.dateDecodingStrategy = .custom { decoder in
@@ -59,7 +63,8 @@ actor WebSocketMessageRouter {
         self.decoder = jsonDecoder
 
         let jsonEncoder = JSONEncoder()
-        jsonEncoder.keyEncodingStrategy = .convertToSnakeCase
+        // NOTE: keyEncodingStrategy = .convertToSnakeCase YASAK — decoder ile simetri icin
+        // ayni kural; explicit CodingKeys snake_case wire format kontratidir.
         jsonEncoder.dateEncodingStrategy = .iso8601
         self.encoder = jsonEncoder
     }
@@ -174,12 +179,14 @@ enum WebSocketMessageRouterError: Error, Sendable {
 /// Esnek ISO8601 tarih ayristirici — Pydantic mikrosaniyeli, offset'siz veya
 /// "Z" sonlu cikti uretebilir. Bu yardimci hepsini dener.
 enum WebSocketISODateParser {
+    // SAFETY: Apple guarantees DateFormatter / ISO8601DateFormatter are thread-safe after init; do not mutate after the closure returns.
     nonisolated(unsafe) private static let withFractionalSeconds: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
 
+    // SAFETY: Apple guarantees DateFormatter / ISO8601DateFormatter are thread-safe after init; do not mutate after the closure returns.
     nonisolated(unsafe) private static let standard: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
@@ -188,6 +195,7 @@ enum WebSocketISODateParser {
 
     /// Pydantic `datetime.isoformat()` ciktisi gibi offset'siz tarih bicimi
     /// (ornek: `2026-04-02T12:34:56.789012`).
+    // SAFETY: Apple guarantees DateFormatter / ISO8601DateFormatter are thread-safe after init; do not mutate after the closure returns.
     nonisolated(unsafe) private static let pydanticNaive: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -196,6 +204,7 @@ enum WebSocketISODateParser {
         return formatter
     }()
 
+    // SAFETY: Apple guarantees DateFormatter / ISO8601DateFormatter are thread-safe after init; do not mutate after the closure returns.
     nonisolated(unsafe) private static let pydanticNaiveNoFraction: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")

@@ -1,4 +1,12 @@
 import Foundation
+import os
+
+/// Bridge contract drift gozlemlenebilirligi icin paylasilan logger
+/// (`WebSocketBaseMessage.init(from:)` payload decode fallback'lari).
+private let webSocketMessageLogger = Logger(
+    subsystem: "com.rafraf",
+    category: "WebSocketMessage"
+)
 
 // MARK: - WebSocket Message Types
 
@@ -98,51 +106,68 @@ struct WebSocketBaseMessage: Codable, Sendable {
                 self.content = nil
             }
         } else if self.type == WebSocketMessageType.sessionInit.rawValue {
-            if let payload = try? container.decodeIfPresent(SessionInitContent.self, forKey: .content) {
-                self.content = .sessionInit(payload)
-            } else {
+            // M2: silent try? yerine yapilandirilmis log — bridge contract drift gorulebilsin.
+            do {
+                let payload = try container.decodeIfPresent(SessionInitContent.self, forKey: .content)
+                self.content = payload.map { .sessionInit($0) }
+            } catch {
+                webSocketMessageLogger.warning("session.init payload decode failed: \(String(describing: error))")
                 self.content = nil
             }
         } else if self.type == WebSocketMessageType.subagentSpawned.rawValue {
-            if let payload = try? container.decodeIfPresent(SubagentSpawnedContent.self, forKey: .content) {
-                self.content = .subagentSpawned(payload)
-            } else {
+            do {
+                let payload = try container.decodeIfPresent(SubagentSpawnedContent.self, forKey: .content)
+                self.content = payload.map { .subagentSpawned($0) }
+            } catch {
+                webSocketMessageLogger.warning("subagent.spawned payload decode failed: \(String(describing: error))")
                 self.content = nil
             }
         } else if self.type == WebSocketMessageType.subagentProgress.rawValue {
-            if let payload = try? container.decodeIfPresent(SubagentProgressContent.self, forKey: .content) {
-                self.content = .subagentProgress(payload)
-            } else {
+            do {
+                let payload = try container.decodeIfPresent(SubagentProgressContent.self, forKey: .content)
+                self.content = payload.map { .subagentProgress($0) }
+            } catch {
+                webSocketMessageLogger.warning("subagent.progress payload decode failed: \(String(describing: error))")
                 self.content = nil
             }
         } else if self.type == WebSocketMessageType.subagentCompleted.rawValue {
-            if let payload = try? container.decodeIfPresent(SubagentCompletedContent.self, forKey: .content) {
-                self.content = .subagentCompleted(payload)
-            } else {
+            do {
+                let payload = try container.decodeIfPresent(SubagentCompletedContent.self, forKey: .content)
+                self.content = payload.map { .subagentCompleted($0) }
+            } catch {
+                webSocketMessageLogger.warning("subagent.completed payload decode failed: \(String(describing: error))")
                 self.content = nil
             }
         } else if self.type == WebSocketMessageType.rateLimitInfo.rawValue {
-            if let payload = try? container.decodeIfPresent(RateLimitInfoContent.self, forKey: .content) {
-                self.content = .rateLimitInfo(payload)
-            } else {
+            do {
+                let payload = try container.decodeIfPresent(RateLimitInfoContent.self, forKey: .content)
+                self.content = payload.map { .rateLimitInfo($0) }
+            } catch {
+                webSocketMessageLogger.warning("rate_limit.info payload decode failed: \(String(describing: error))")
                 self.content = nil
             }
         } else if self.type == WebSocketMessageType.sessionTitle.rawValue {
-            if let payload = try? container.decodeIfPresent(SessionTitleContent.self, forKey: .content) {
-                self.content = .sessionTitle(payload)
-            } else {
+            do {
+                let payload = try container.decodeIfPresent(SessionTitleContent.self, forKey: .content)
+                self.content = payload.map { .sessionTitle($0) }
+            } catch {
+                webSocketMessageLogger.warning("session.title payload decode failed: \(String(describing: error))")
                 self.content = nil
             }
         } else if self.type == WebSocketMessageType.sessionPrOpened.rawValue {
-            if let payload = try? container.decodeIfPresent(SessionPrOpenedContent.self, forKey: .content) {
-                self.content = .sessionPrOpened(payload)
-            } else {
+            do {
+                let payload = try container.decodeIfPresent(SessionPrOpenedContent.self, forKey: .content)
+                self.content = payload.map { .sessionPrOpened($0) }
+            } catch {
+                webSocketMessageLogger.warning("session.pr_opened payload decode failed: \(String(describing: error))")
                 self.content = nil
             }
         } else if self.type == WebSocketMessageType.usageReport.rawValue {
-            if let payload = try? container.decodeIfPresent(UsageReportContent.self, forKey: .content) {
-                self.content = .usageReport(payload)
-            } else {
+            do {
+                let payload = try container.decodeIfPresent(UsageReportContent.self, forKey: .content)
+                self.content = payload.map { .usageReport($0) }
+            } catch {
+                webSocketMessageLogger.warning("usage.report payload decode failed: \(String(describing: error))")
                 self.content = nil
             }
         } else {
@@ -193,6 +218,12 @@ enum WebSocketContent: Codable, Sendable {
     case sessionPrOpened(SessionPrOpenedContent)
     case usageReport(UsageReportContent)
 
+    // MARK: M1 (deferred — Faz 1 polish queue)
+    // Asagidaki singleValueContainer fall-through 8 yeni Agent Teams Content
+    // tipini denemiyor. Su an Agent Teams payload'lari WebSocketBaseMessage
+    // init'inde type-dispatch ile decode edildiginden bu kullanilmiyor; ancak
+    // birisi WebSocketContent.init(from:)'u dogrudan cagirirsa typeMismatch
+    // olur. Cozum: enum'u type-discriminated polymorphic decode'a tasi.
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
 
@@ -745,8 +776,10 @@ public struct RateLimitInfoContent: Codable, Sendable, Equatable {
 
 /// `session.title` mesaj icerigi (storage watcher `ai-title`).
 /// Kontrat: `apps/backend/app/schemas/messages.py::SessionTitlePayload`.
+/// `sessionId` backend Pydantic `UUID` tipinde — Foundation.UUID kullan
+/// (T1.5 reviewer notu, contract drift onleme).
 public struct SessionTitleContent: Codable, Sendable, Equatable {
-    public let sessionId: String
+    public let sessionId: UUID
     public let aiTitle: String
     public let generatedAt: Date
 
@@ -759,8 +792,10 @@ public struct SessionTitleContent: Codable, Sendable, Equatable {
 
 /// `session.pr_opened` mesaj icerigi (storage watcher `pr-link`).
 /// Kontrat: `apps/backend/app/schemas/messages.py::SessionPrOpenedPayload`.
+/// `sessionId` backend Pydantic `UUID` tipinde — Foundation.UUID kullan
+/// (T1.5 reviewer notu, contract drift onleme).
 public struct SessionPrOpenedContent: Codable, Sendable, Equatable {
-    public let sessionId: String
+    public let sessionId: UUID
     public let prNumber: Int
     public let prUrl: String
     public let prRepository: String

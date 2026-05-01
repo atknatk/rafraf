@@ -11,10 +11,10 @@ struct WebSocketMessageDecodingTests {
 
     // MARK: - Helpers
 
-    /// Router'in kullandigi decoder ile ayni: snake_case + esnek ISO8601 datetime.
+    /// Router'in kullandigi decoder ile ayni: explicit snake_case CodingKeys
+    /// kontrat kaynagidir; `.convertFromSnakeCase` strategy uygulanmaz (T1.6-fix C1).
     private static func makeDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let raw = try container.decode(String.self)
@@ -31,7 +31,6 @@ struct WebSocketMessageDecodingTests {
 
     private static func makeEncoder() -> JSONEncoder {
         let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
         encoder.dateEncodingStrategy = .iso8601
         return encoder
     }
@@ -317,7 +316,7 @@ struct WebSocketMessageDecodingTests {
             Issue.record("Content sessionTitle olmali")
             return
         }
-        #expect(payload.sessionId == "f47ac10b-58cc-4372-a567-0e02b2c3d479")
+        #expect(payload.sessionId == UUID(uuidString: "f47ac10b-58cc-4372-a567-0e02b2c3d479"))
         #expect(payload.aiTitle == "Refactor auth flow to JWT")
     }
 
@@ -345,7 +344,7 @@ struct WebSocketMessageDecodingTests {
             Issue.record("Content sessionPrOpened olmali")
             return
         }
-        #expect(payload.sessionId == "f47ac10b-58cc-4372-a567-0e02b2c3d479")
+        #expect(payload.sessionId == UUID(uuidString: "f47ac10b-58cc-4372-a567-0e02b2c3d479"))
         #expect(payload.prNumber == 42)
         #expect(payload.prUrl == "https://github.com/org/repo/pull/42")
         #expect(payload.prRepository == "org/repo")
@@ -353,8 +352,9 @@ struct WebSocketMessageDecodingTests {
 
     @Test("SessionPrOpenedContent round-trip encode/decode")
     func sessionPrOpenedRoundTrip() throws {
+        let sessionUuid = try #require(UUID(uuidString: "f47ac10b-58cc-4372-a567-0e02b2c3d479"))
         let original = SessionPrOpenedContent(
-            sessionId: "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+            sessionId: sessionUuid,
             prNumber: 7,
             prUrl: "https://github.com/x/y/pull/7",
             prRepository: "x/y",
