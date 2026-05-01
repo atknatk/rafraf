@@ -14,7 +14,7 @@ import structlog
 
 from app.core.websocket import ConnectionManager
 from app.schemas.agent import AgentTaskSummary, TaskStatus
-from app.services.agent_registry_service import AgentRegistryService
+from app.services.bridge_registry_service import BridgeRegistryService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -75,7 +75,7 @@ class TaskManager:
 
     def __init__(
         self,
-        agent_registry: AgentRegistryService,
+        agent_registry: BridgeRegistryService,
         agent_manager: ConnectionManager,
     ) -> None:
         self._registry = agent_registry

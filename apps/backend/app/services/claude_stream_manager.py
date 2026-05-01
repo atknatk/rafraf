@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
     from app.core.websocket import ConnectionManager
-    from app.services.agent_registry_service import AgentRegistryService
+    from app.services.bridge_registry_service import BridgeRegistryService
 
     TextDeltaCallback = Callable[[str, int], Coroutine[object, object, None]]
     ToolProgressCallback = Callable[[ToolProgressEvent], Coroutine[object, object, None]]
@@ -76,7 +76,7 @@ class ClaudeStreamManager:
 
     def __init__(
         self,
-        agent_registry: AgentRegistryService,
+        agent_registry: BridgeRegistryService,
         agent_manager: ConnectionManager,
     ) -> None:
         self._registry = agent_registry

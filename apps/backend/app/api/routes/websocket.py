@@ -30,8 +30,8 @@ from app.schemas.messages import (
     ProgressStepPayload,
     SuggestionPayload,
 )
-from app.services.agent_registry_service import agent_registry
 from app.services.approval_service import get_approval_service
+from app.services.bridge_registry_service import bridge_registry
 from app.services.conversation_service import ConversationService
 from app.services.orchestrator_service import OrchestratorService
 from app.services.task_orchestrator_service import TaskOrchestratorService
@@ -353,7 +353,7 @@ async def _handle_text(
 
 async def _build_host_status() -> str | None:
     """Build formatted agent status string for system prompt injection."""
-    agent_list = await agent_registry.list_agents()
+    agent_list = await bridge_registry.list_agents()
     if not agent_list.agents:
         return None
 

@@ -184,10 +184,3 @@ class AgentDetailResponse(BaseModel):
     active_tasks: int | None = None
     resources: ResourceInfo | None = None
     claude_processes: list[ClaudeProcessInfo] = Field(default_factory=list)
-    dangerously_skip_permissions: bool = False
-
-
-class AgentSettingsRequest(BaseModel):
-    """Request body for PATCH /api/v1/agents/{host_id}/settings."""
-
-    dangerously_skip_permissions: bool

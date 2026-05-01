@@ -1,4 +1,9 @@
-"""Host agent repository — async database access layer."""
+"""Bridge repository — async database access layer.
+
+Replaces the legacy ``host_agent_repo`` as part of the V1 production pivot
+(docs/10 §6.1.1, T1.3). Persists the registry of registered Go bridges
+(``bridges`` table; renamed from ``host_agents`` in alembic 014).
+"""
 
 from datetime import UTC, datetime
 
@@ -7,16 +12,13 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# TODO(T1.3): rename file to ``bridge_repo.py`` + switch import to
-# ``from app.models.bridge import Bridge``. For now keep the legacy alias so
-# the rename migration (T1.4) can land without touching service-layer code.
-from app.models.bridge import HostAgent
+from app.models.bridge import Bridge
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
-class HostAgentRepository:
-    """DB access layer for host_agents table."""
+class BridgeRepository:
+    """DB access layer for the ``bridges`` table."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -34,8 +36,8 @@ class HostAgentRepository:
         agent_version: str | None = None,
         connection_id: str | None = None,
         last_resources: dict[str, object] | None = None,
-    ) -> HostAgent:
-        """Insert or update a host agent record on heartbeat."""
+    ) -> Bridge:
+        """Insert or update a bridge record on heartbeat."""
         now = datetime.now(tz=UTC)
         values: dict[str, object] = {
             "host_id": host_id,
@@ -59,57 +61,39 @@ class HostAgentRepository:
         if last_resources is not None:
             values["last_resources"] = last_resources
 
-        insert_stmt = pg_insert(HostAgent).values(**values)
+        insert_stmt = pg_insert(Bridge).values(**values)
         update_cols = {k: v for k, v in values.items() if k != "host_id"}
         update_cols["updated_at"] = now
         returning_stmt = insert_stmt.on_conflict_do_update(
             index_elements=["host_id"],
             set_=update_cols,
-        ).returning(HostAgent)
+        ).returning(Bridge)
 
         result = await self._session.execute(returning_stmt)
-        agent = result.scalar_one()
-        await logger.adebug("host_agent_upserted", host_id=host_id)
-        return agent
+        bridge = result.scalar_one()
+        await logger.adebug("bridge_upserted", host_id=host_id)
+        return bridge
 
-    async def get_by_host_id(self, host_id: str) -> HostAgent | None:
-        """Get a host agent by host_id."""
-        query = select(HostAgent).where(HostAgent.host_id == host_id)
+    async def get_by_host_id(self, host_id: str) -> Bridge | None:
+        """Get a bridge by host_id."""
+        query = select(Bridge).where(Bridge.host_id == host_id)
         result = await self._session.execute(query)
         return result.scalar_one_or_none()
 
-    async def list_all(self, status_filter: str | None = None) -> list[HostAgent]:
-        """List all host agents, optionally filtered by status."""
-        query = select(HostAgent)
+    async def list_all(self, status_filter: str | None = None) -> list[Bridge]:
+        """List all bridges, optionally filtered by status."""
+        query = select(Bridge)
         if status_filter is not None:
-            query = query.where(HostAgent.status == status_filter)
-        query = query.order_by(HostAgent.last_heartbeat_at.desc().nulls_last())
+            query = query.where(Bridge.status == status_filter)
+        query = query.order_by(Bridge.last_heartbeat_at.desc().nulls_last())
         result = await self._session.execute(query)
         return list(result.scalars().all())
 
     async def mark_offline(self, host_id: str) -> None:
-        """Mark a host agent as offline."""
+        """Mark a bridge as offline."""
         stmt = (
-            update(HostAgent)
-            .where(HostAgent.host_id == host_id)
+            update(Bridge)
+            .where(Bridge.host_id == host_id)
             .values(status="offline", updated_at=datetime.now(tz=UTC))
         )
         await self._session.execute(stmt)
-
-    async def update_settings(
-        self,
-        host_id: str,
-        *,
-        dangerously_skip_permissions: bool,
-    ) -> bool:
-        """Update agent settings. Returns True if record was found and updated."""
-        stmt = (
-            update(HostAgent)
-            .where(HostAgent.host_id == host_id)
-            .values(
-                dangerously_skip_permissions=dangerously_skip_permissions,
-                updated_at=datetime.now(tz=UTC),
-            )
-        )
-        result = await self._session.execute(stmt)
-        return result.rowcount > 0  # type: ignore[attr-defined, no-any-return]

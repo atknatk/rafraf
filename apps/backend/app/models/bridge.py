@@ -4,16 +4,11 @@ Replaces the legacy ``HostAgent`` model as part of the V1 production pivot
 (docs/10 §6.1.1, T1.4). The Python "host agent" daemon has been archived
 (``apps/_archive/agent``) and superseded by the Go bridge in
 ``apps/rafraf-bridge/``.
-
-The legacy ``HostAgent`` symbol is still exported as an alias from
-``app.models`` so that T1.3-scope code (services / routes / repositories that
-have not yet been refactored) keeps importing successfully. Remove the alias
-once T1.3 lands.
 """
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -72,11 +67,6 @@ class Bridge(Base, UUIDMixin, TimestampMixin):
         String(50),
         nullable=True,
     )
-    dangerously_skip_permissions: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        server_default="false",
-    )
     pairing_token: Mapped[str | None] = mapped_column(
         String(64),
         nullable=True,
@@ -85,8 +75,3 @@ class Bridge(Base, UUIDMixin, TimestampMixin):
         String(32),
         nullable=True,
     )
-
-
-# TODO(T1.3): remove this alias after services / repositories / routes stop
-# importing ``HostAgent`` and switch to ``Bridge`` directly.
-HostAgent = Bridge

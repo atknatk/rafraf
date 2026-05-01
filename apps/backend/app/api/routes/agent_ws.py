@@ -21,7 +21,7 @@ from app.schemas.agent import (
     ClaudeProcessInfo,
 )
 from app.services.agent_project_service import AgentProjectService
-from app.services.agent_registry_service import agent_registry
+from app.services.bridge_registry_service import bridge_registry
 from app.services.claude_stream_manager import ClaudeStreamManager
 from app.services.project_service import ProjectService
 from app.services.task_manager_service import TaskManager
@@ -42,7 +42,7 @@ def get_task_manager() -> TaskManager:
     global _task_manager  # noqa: PLW0603
     if _task_manager is None:
         _task_manager = TaskManager(
-            agent_registry=agent_registry,
+            agent_registry=bridge_registry,
             agent_manager=agent_manager,
         )
     return _task_manager
@@ -57,7 +57,7 @@ def get_claude_stream_manager() -> ClaudeStreamManager:
     global _claude_stream_manager  # noqa: PLW0603
     if _claude_stream_manager is None:
         _claude_stream_manager = ClaudeStreamManager(
-            agent_registry=agent_registry,
+            agent_registry=bridge_registry,
             agent_manager=agent_manager,
         )
     return _claude_stream_manager
@@ -92,10 +92,21 @@ async def agent_websocket_endpoint(
     settings = get_settings()
 
     # --- API key authentication ---
+    # TODO(T1.x bridge pairing): replace agent_api_key shared-secret auth with
+    # the per-bridge ``pairing_token`` lookup (see ``bridges.pairing_token``
+    # column added in alembic 014). The ``agent_api_key`` setting is
+    # deprecated but kept as the only auth mechanism until T1.x lands.
     if api_key != settings.agent_api_key:
         await logger.awarning("agent_ws_auth_failed", reason="invalid_api_key")
         await websocket.close(code=4008, reason="Invalid API key")
         return
+    await logger.awarning(
+        "agent_api_key_auth_deprecated",
+        message=(
+            "agent_api_key shared-secret auth is deprecated; bridge "
+            "pairing_token mechanism lands in T1.x"
+        ),
+    )
 
     # --- Connection setup (use a placeholder user_id / session_id) ---
     connection_id = await agent_manager.connect(
@@ -171,9 +182,9 @@ async def agent_websocket_endpoint(
         )
     finally:
         if registered_host_id is not None:
-            await agent_registry.mark_disconnected(registered_host_id)
+            await bridge_registry.mark_disconnected(registered_host_id)
         else:
-            await agent_registry.unregister_by_connection(connection_id)
+            await bridge_registry.unregister_by_connection(connection_id)
         await agent_manager.disconnect(connection_id)
 
 
@@ -194,7 +205,7 @@ async def _handle_register(
         version=str(content.get("version", "")),
     )
 
-    await agent_registry.register_agent(payload, connection_id)
+    await bridge_registry.register_agent(payload, connection_id)
 
     ack = AgentRegisterAckPayload(
         host_id=payload.host_id,
@@ -260,7 +271,7 @@ async def _handle_heartbeat(
         claude_processes=claude_processes,
     )
 
-    found = await agent_registry.process_heartbeat(payload)
+    found = await bridge_registry.process_heartbeat(payload)
     if not found:
         await logger.awarning(
             "agent_heartbeat_unknown",
@@ -354,7 +365,7 @@ async def _handle_resource_report(
         "disk_free_gb": float(metrics_raw.get("disk_free_gb", 0)),
     }
 
-    found = await agent_registry.update_resources(host_id, resources)
+    found = await bridge_registry.update_resources(host_id, resources)
     if found:
         await logger.adebug(
             "agent_resource_report_processed",

@@ -4,7 +4,7 @@ from app.models.agent_project import AgentProject
 from app.models.approval_request import ApprovalRequest
 from app.models.audit_log import AuditLog
 from app.models.base import Base
-from app.models.bridge import Bridge, HostAgent
+from app.models.bridge import Bridge
 from app.models.device_token import DeviceToken, NotificationSettings
 from app.models.message import Message
 from app.models.proactive_notification import ProactiveNotification
@@ -21,9 +21,6 @@ __all__ = [
     "Base",
     "Bridge",
     "DeviceToken",
-    # TODO(T1.3): remove ``HostAgent`` re-export once services/repositories
-    # switch to ``Bridge`` directly.
-    "HostAgent",
     "Message",
     "NotificationSettings",
     "ProactiveNotification",

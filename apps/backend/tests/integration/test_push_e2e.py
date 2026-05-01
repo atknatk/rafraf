@@ -35,7 +35,7 @@ def mock_db_session() -> AsyncMock:
 
 @pytest.fixture
 def mock_agent_registry() -> AsyncMock:
-    """Provide a mock AgentRegistryService."""
+    """Provide a mock BridgeRegistryService."""
     registry = AsyncMock()
     registry.get_agent = AsyncMock(return_value={
         "host_id": "macbook-pro",

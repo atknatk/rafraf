@@ -7,7 +7,7 @@ import pytest
 
 from app.orchestrator.claude_code_runner import ClaudeCodeError
 from app.schemas.agent import AgentCapability, AgentRegisterPayload
-from app.services.agent_registry_service import AgentRegistryService
+from app.services.bridge_registry_service import BridgeRegistryService
 from app.services.claude_stream_manager import (
     ClaudeStreamCallbacks,
     ClaudeStreamManager,
@@ -15,9 +15,9 @@ from app.services.claude_stream_manager import (
 )
 
 
-def _make_registry_with_agent(host_id: str = "mac-1") -> AgentRegistryService:
+def _make_registry_with_agent(host_id: str = "mac-1") -> BridgeRegistryService:
     """Create a registry with one online agent registered."""
-    registry = AgentRegistryService()
+    registry = BridgeRegistryService()
     loop = asyncio.get_event_loop()
     payload = AgentRegisterPayload(
         host_id=host_id,
@@ -77,7 +77,7 @@ async def test_dispatch_sends_claude_task_execute(
 @pytest.mark.asyncio()
 async def test_dispatch_offline_agent_raises(agent_manager: MagicMock) -> None:
     """Dispatch to offline agent should raise ClaudeCodeError."""
-    registry = AgentRegistryService()
+    registry = BridgeRegistryService()
     csm = ClaudeStreamManager(agent_registry=registry, agent_manager=agent_manager)
 
     with pytest.raises(ClaudeCodeError, match="bulunamadi"):

@@ -13,7 +13,6 @@ from app.core.exceptions import NotFoundError
 from app.schemas.agent import (
     AgentDetailResponse,
     AgentListResponse,
-    AgentSettingsRequest,
     AgentStatus,
     AgentTaskListResponse,
     DispatchTaskRequest,
@@ -25,7 +24,7 @@ from app.schemas.agent_project import (
     AgentProjectUpdateRequest,
 )
 from app.services.agent_project_service import AgentProjectService
-from app.services.agent_registry_service import agent_registry
+from app.services.bridge_registry_service import bridge_registry
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -40,7 +39,7 @@ async def list_agents(
     ] = None,
 ) -> AgentListResponse:
     """Return all registered agents, optionally filtered by status."""
-    return await agent_registry.list_agents(status_filter=status)
+    return await bridge_registry.list_agents(status_filter=status)
 
 
 @router.get("/all-linked-projects", response_model=list[AgentProjectsResponse])
@@ -55,7 +54,7 @@ async def list_all_agent_projects(
 @router.get("/{host_id}", response_model=AgentDetailResponse)
 async def get_agent(host_id: str) -> AgentDetailResponse:
     """Return details for a single agent identified by host_id."""
-    detail = await agent_registry.get_agent(host_id)
+    detail = await bridge_registry.get_agent(host_id)
     if detail is None:
         raise NotFoundError(message=f"Agent '{host_id}' not found")
     return detail
@@ -93,7 +92,7 @@ async def update_agent_project(
 @router.get("/{host_id}/processes", response_model=AgentProcessesResponse)
 async def get_agent_processes(host_id: str) -> AgentProcessesResponse:
     """Agent'ta calisan claude process listesini dondurur."""
-    processes = agent_registry.get_claude_processes(host_id)
+    processes = bridge_registry.get_claude_processes(host_id)
     return AgentProcessesResponse(
         agent_id=host_id,
         processes=processes,
@@ -124,7 +123,7 @@ async def dispatch_agent_task(
 ) -> AgentTaskListResponse:
     """Agent'a yeni bir gorev gonder ve guncellenmis gorev listesini dondur."""
     task_manager = get_task_manager()
-    detail = await agent_registry.get_agent(host_id)
+    detail = await bridge_registry.get_agent(host_id)
     if detail is None:
         raise NotFoundError(message=f"Agent '{host_id}' not found")
     import asyncio
@@ -148,52 +147,10 @@ async def dispatch_agent_task(
     )
 
 
-@router.patch("/{host_id}/settings", response_model=AgentDetailResponse)
-async def update_agent_settings(
-    host_id: str,
-    body: AgentSettingsRequest,
-    session: Annotated[AsyncSession, Depends(get_db)],
-) -> AgentDetailResponse:
-    """Agent ayarlarini guncelle ve agent'a config_update mesaji gonder."""
-    from app.repositories.host_agent_repo import HostAgentRepository
-
-    # DB'ye yaz
-    repo = HostAgentRepository(session)
-    updated = await repo.update_settings(
-        host_id,
-        dangerously_skip_permissions=body.dangerously_skip_permissions,
-    )
-    if not updated:
-        raise NotFoundError(message=f"Agent '{host_id}' not found")
-    await session.commit()
-
-    # In-memory guncelle
-    await agent_registry.update_skip_permissions(host_id, body.dangerously_skip_permissions)
-
-    # Agent online ise WS config_update gonder
-    connection_id = agent_registry.get_connection_id(host_id)
-    if connection_id is not None:
-        msg = {
-            "type": "config_update",
-            "dangerously_skip_permissions": body.dangerously_skip_permissions,
-        }
-        await agent_manager.send_json(connection_id, msg)
-        await logger.ainfo(
-            "agent_config_update_sent",
-            host_id=host_id,
-            dangerously_skip_permissions=body.dangerously_skip_permissions,
-        )
-
-    detail = await agent_registry.get_agent(host_id)
-    if detail is None:
-        raise NotFoundError(message=f"Agent '{host_id}' not found")
-    return detail
-
-
 @router.post("/{host_id}/projects/rescan", status_code=202)
 async def rescan_agent_projects(host_id: str) -> dict[str, str]:
     """Agent'a bagli projeleri yeniden tarar (rescan komutu gonderir)."""
-    record = agent_registry.get_connection_id(host_id)
+    record = bridge_registry.get_connection_id(host_id)
     if record is None:
         raise NotFoundError(message=f"Agent '{host_id}' not connected")
     msg: dict[str, object] = {"type": "rescan_projects", "request_id": str(uuid.uuid4())}

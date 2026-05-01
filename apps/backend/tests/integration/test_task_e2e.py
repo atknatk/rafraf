@@ -14,7 +14,7 @@ import pytest
 
 from app.models.task import Task, TaskStatus
 from app.services.task_orchestrator_service import TaskOrchestratorService
-from app.services.agent_registry_service import AgentRegistryService
+from app.services.bridge_registry_service import BridgeRegistryService
 
 
 # ---------------------------------------------------------------------------
@@ -44,8 +44,8 @@ class _MockAgentInfo:
 
 @pytest.fixture
 def mock_agent_registry() -> AsyncMock:
-    """Provide a mock AgentRegistryService."""
-    registry = AsyncMock(spec=AgentRegistryService)
+    """Provide a mock BridgeRegistryService."""
+    registry = AsyncMock(spec=BridgeRegistryService)
     registry.get_agent = AsyncMock(return_value=_MockAgentInfo())
     return registry
 

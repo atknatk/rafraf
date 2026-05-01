@@ -456,9 +456,9 @@ class OrchestratorService:
         1. Agent linked to the project (via AgentProjectService)
         2. Any online agent with claude_code capability
         """
-        # Import from agent_registry_service to use the same registry instance
-        # that receives agent registrations via WebSocket
-        from app.services.agent_registry_service import agent_registry
+        # Import from bridge_registry_service to use the same registry instance
+        # that receives bridge registrations via WebSocket
+        from app.services.bridge_registry_service import bridge_registry as agent_registry
 
         if project_id and db_session is not None:
             try:
