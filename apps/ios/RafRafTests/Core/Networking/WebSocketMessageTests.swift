@@ -360,4 +360,94 @@ struct WebSocketMessageTests {
             Issue.record("Content heartbeat olmali")
         }
     }
+
+    // MARK: - TaskStatus Content (T0.6 — Doc 10 §6.3.1)
+
+    /// Backend Pydantic snake_case payload (`task_id`) iOS Swift camelCase (`taskId`)
+    /// alanina dogru decode olmali. Eski `keyNotFound(taskId)` hatasi `CodingKeys`
+    /// eklenmesi ile cozuldu. Default JSONDecoder (snake_case strategy yok) ile bile
+    /// calismali — explicit CodingKeys garanti saglar.
+    @Test("TaskStatusContent default JSONDecoder ile snake_case'den decode edilmeli")
+    func taskStatusContentDecodeWithDefaultDecoder() throws {
+        let json = #"""
+        {"task_id": "abc-123", "status": "completed", "progress_pct": 100, "completed_steps": 4, "total_steps": 4}
+        """#
+        let data = try #require(json.data(using: .utf8))
+
+        let decoder = JSONDecoder()
+        let content = try decoder.decode(TaskStatusContent.self, from: data)
+
+        #expect(content.taskId == "abc-123")
+        #expect(content.status == "completed")
+        #expect(content.progressPct == 100)
+        #expect(content.completedSteps == 4)
+        #expect(content.totalSteps == 4)
+        #expect(content.currentStep == nil)
+        #expect(content.detail == nil)
+    }
+
+    @Test("TaskStatusContent tum alanlarla snake_case'den decode edilmeli")
+    func taskStatusContentDecodeFull() throws {
+        let json = #"""
+        {
+            "task_id": "task-42",
+            "status": "implementing",
+            "current_step": "implementing",
+            "progress_pct": 65,
+            "completed_steps": 2,
+            "total_steps": 4,
+            "detail": "Refactoring complete"
+        }
+        """#
+        let data = try #require(json.data(using: .utf8))
+
+        let decoder = JSONDecoder()
+        let content = try decoder.decode(TaskStatusContent.self, from: data)
+
+        #expect(content.taskId == "task-42")
+        #expect(content.status == "implementing")
+        #expect(content.currentStep == "implementing")
+        #expect(content.progressPct == 65)
+        #expect(content.completedSteps == 2)
+        #expect(content.totalSteps == 4)
+        #expect(content.detail == "Refactoring complete")
+    }
+
+    @Test("task_status mesaji WebSocketBaseMessage uzerinden decode edilmeli (Router yolu)")
+    func taskStatusMessageRouterDecode() throws {
+        // Router'in kullandigi snake_case strategy ile end-to-end decode
+        let json = #"""
+        {
+            "id": "ws-msg-1",
+            "type": "task_status",
+            "content": {
+                "task_id": "task-abc",
+                "status": "testing",
+                "current_step": "testing",
+                "progress_pct": 80,
+                "completed_steps": 3,
+                "total_steps": 4,
+                "detail": "Tests running"
+            }
+        }
+        """#
+        let data = try #require(json.data(using: .utf8))
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let message = try decoder.decode(WebSocketBaseMessage.self, from: data)
+
+        #expect(message.type == "task_status")
+        if case .taskStatus(let task) = message.content {
+            #expect(task.taskId == "task-abc")
+            #expect(task.status == "testing")
+            #expect(task.currentStep == "testing")
+            #expect(task.progressPct == 80)
+            #expect(task.completedSteps == 3)
+            #expect(task.totalSteps == 4)
+            #expect(task.detail == "Tests running")
+        } else {
+            Issue.record("Content taskStatus olmali")
+        }
+    }
 }

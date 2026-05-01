@@ -6,8 +6,7 @@ import SwiftUI
 /// Glass material tab bar ve auth gecis animasyonu ile premium gorunum.
 struct ContentView: View {
     @Injected(\.authManager) private var authManager
-    @State private var selectedTab: AppTab = .projects
-    @State private var projectListViewModel = Container.shared.projectListViewModel()
+    @State private var selectedTab: AppTab = .home
     @State private var chatSessionManager = Container.shared.chatSessionManager()
     @State private var agentListViewModel = Container.shared.agentListViewModel()
     @State private var settingsViewModel = Container.shared.settingsViewModel()
@@ -62,11 +61,11 @@ struct ContentView: View {
     @ViewBuilder
     private var mainTabView: some View {
         TabView(selection: $selectedTab) {
-            ProjectListView(viewModel: projectListViewModel)
+            HomeView()
                 .tabItem {
-                    Label(String(localized: "tab.projects"), systemImage: "folder.fill")
+                    Label(String(localized: "tab.home"), systemImage: "house.fill")
                 }
-                .tag(AppTab.projects)
+                .tag(AppTab.home)
 
             ChatView(sessionManager: chatSessionManager)
                 .tabItem {
@@ -120,7 +119,7 @@ struct ContentView: View {
 
 /// Uygulama tab tipleri.
 enum AppTab: String, Hashable, Sendable {
-    case projects
+    case home
     case chat
     case agents
     case settings

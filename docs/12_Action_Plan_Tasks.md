@@ -122,7 +122,7 @@ ls -lh ~/Code/rafraf-backups/
 - `.gitignore` (`log.txt`, `log2.txt` zaten orada mı kontrol)
 
 **Done criteria:**
-- [ ] `seed.md` içeriği 1Password / Mac Keychain'e kaydedildi (atknphone@gmail.com / Rafraf2026!)
+- [ ] `seed.md` içeriği 1Password / Mac Keychain'e kaydedildi (creds redacted — see seed.md backup)
 - [ ] `seed.md` ve `log.txt` repo'dan silindi
 - [ ] `.gitignore`'da `log*.txt` pattern'i var
 - [ ] commit: `chore: remove dev log and seed files [T0.2]`

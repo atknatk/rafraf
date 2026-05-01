@@ -199,98 +199,6 @@ extension Container {
         .singleton
     }
 
-    // MARK: - Voice Input Feature
-
-    /// Ses oturumu yoneticisi.
-    var audioSessionManager: Factory<RFAudioSessionManager> {
-        self { RFAudioSessionManager() }
-            .singleton
-    }
-
-    /// Deepgram STT tanici.
-    var speechRecognizer: Factory<RFSpeechRecognizer> {
-        self { RFSpeechRecognizer(keychainHelper: self.keychainHelper()) }
-            .singleton
-    }
-
-    /// Voice input repository.
-    var voiceInputRepository: Factory<VoiceInputRepositoryProtocol> {
-        self {
-            VoiceInputRepositoryImpl(
-                speechRecognizer: self.speechRecognizer(),
-                audioSessionManager: self.audioSessionManager()
-            )
-        }
-    }
-
-    /// Voice input ViewModel.
-    var voiceInputViewModel: Factory<VoiceInputViewModel> {
-        self { @MainActor in
-            let repository = self.voiceInputRepository()
-            return VoiceInputViewModel(
-                startRecordingUseCase: StartVoiceRecordingUseCase(repository: repository),
-                stopRecordingUseCase: StopVoiceRecordingUseCase(repository: repository),
-                audioSessionManager: self.audioSessionManager()
-            )
-        }
-        .singleton
-    }
-
-    // MARK: - Voice Conversation Feature
-
-    /// Streaming ses oynatici.
-    var streamingAudioPlayer: Factory<StreamingAudioPlayer> {
-        self { StreamingAudioPlayer() }
-    }
-
-    /// Voice conversation ViewModel.
-    var voiceConversationViewModel: Factory<VoiceConversationViewModel> {
-        self { @MainActor in
-            VoiceConversationViewModel(
-                voiceInputVM: self.voiceInputViewModel(),
-                webSocketManager: self.webSocketConnectionManager(),
-                streamingAudioPlayer: self.streamingAudioPlayer(),
-                chatViewModel: self.chatViewModel()
-            )
-        }
-    }
-
-    // MARK: - Voice Output Feature
-
-    /// TTS ses cache yoneticisi.
-    var ttsAudioCache: Factory<TTSAudioCache> {
-        self { TTSAudioCache() }
-            .singleton
-    }
-
-    /// Voice output repository.
-    var voiceOutputRepository: Factory<VoiceOutputRepositoryProtocol> {
-        self {
-            VoiceOutputRepositoryImpl(
-                networkClient: self.networkClient(),
-                cache: self.ttsAudioCache()
-            )
-        }
-    }
-
-    /// Ses oynatici.
-    var voiceAudioPlayer: Factory<VoiceAudioPlayerProtocol> {
-        self { VoiceAudioPlayer() }
-    }
-
-    /// Voice output ViewModel.
-    var voiceOutputViewModel: Factory<VoiceOutputViewModel> {
-        self { @MainActor in
-            let repository = self.voiceOutputRepository()
-            let player = self.voiceAudioPlayer()
-            return VoiceOutputViewModel(
-                synthesizeSpeechUseCase: SynthesizeSpeechUseCase(repository: repository),
-                audioPlayer: player
-            )
-        }
-        .singleton
-    }
-
     // MARK: - Approval Feature
 
     /// Approval repository.
@@ -311,43 +219,6 @@ extension Container {
                 submitDecisionUseCase: SubmitApprovalDecisionUseCase(
                     repository: repository
                 )
-            )
-        }
-    }
-
-    // MARK: - Screenshot Viewer Feature
-
-    /// Screenshot repository.
-    var screenshotRepository: Factory<ScreenshotRepositoryProtocol> {
-        self { ScreenshotRepositoryImpl(networkClient: self.networkClient()) }
-    }
-
-    /// Screenshot viewer ViewModel.
-    var screenshotViewerViewModel: Factory<ScreenshotViewerViewModel> {
-        self { @MainActor in
-            let repository = self.screenshotRepository()
-            return ScreenshotViewerViewModel(
-                loadScreenshotUseCase: LoadScreenshotUseCase(
-                    repository: repository
-                )
-            )
-        }
-    }
-
-    // MARK: - File Sharing Feature
-
-    /// File sharing repository.
-    var fileRepository: Factory<FileRepositoryProtocol> {
-        self { FileRepositoryImpl(networkClient: self.networkClient()) }
-    }
-
-    /// File picker ViewModel.
-    var filePickerViewModel: Factory<FilePickerViewModel> {
-        self { @MainActor in
-            let repository = self.fileRepository()
-            return FilePickerViewModel(
-                uploadFileUseCase: UploadFileUseCase(repository: repository),
-                downloadFileUseCase: DownloadFileUseCase(repository: repository)
             )
         }
     }
@@ -399,26 +270,6 @@ extension Container {
         .singleton
     }
 
-    // MARK: - Project Feature
-
-    /// Project repository.
-    var projectRepository: Factory<ProjectStatusRepositoryProtocol> {
-        self { ProjectRepositoryImpl(networkClient: self.networkClient()) }
-    }
-
-    /// Project list ViewModel.
-    var projectListViewModel: Factory<ProjectListViewModel> {
-        self { @MainActor in
-            let repository = self.projectRepository()
-            let agentRepository = self.agentRepository()
-            return ProjectListViewModel(
-                getProjectsUseCase: GetProjectsUseCase(repository: repository),
-                updateProjectStatusUseCase: UpdateProjectStatusUseCase(repository: repository),
-                getAgentsUseCase: GetAgentsUseCase(repository: agentRepository)
-            )
-        }
-    }
-
     // MARK: - Agent Feature
 
     /// Agent repository.
@@ -445,18 +296,6 @@ extension Container {
                 updateSettingsUseCase: UpdateAgentSettingsUseCase(repository: repository)
             )
         }
-    }
-
-    // MARK: - Monitoring Feature
-
-    /// Monitoring repository.
-    var monitoringRepository: Factory<MonitoringRepositoryProtocol> {
-        self { MonitoringRepositoryImpl(networkClient: self.networkClient()) }
-    }
-
-    /// Monitoring dashboard use case.
-    var getMonitoringDashboardUseCase: Factory<GetMonitoringDashboardUseCase> {
-        self { GetMonitoringDashboardUseCase(repository: self.monitoringRepository()) }
     }
 
     // MARK: - Proactive Notifications Feature

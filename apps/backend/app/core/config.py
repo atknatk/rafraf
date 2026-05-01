@@ -47,8 +47,6 @@ class Settings(BaseSettings):
 
     # External APIs
     anthropic_api_key: str = ""
-    deepgram_api_key: str = ""
-    openai_api_key: str = ""
 
     # AWS
     aws_access_key_id: str = ""

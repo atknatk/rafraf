@@ -46,18 +46,16 @@ def build_system_prompt(
     *,
     project_context: str | None = None,
     host_status: str | None = None,
-    user_memories: str | None = None,
     recent_history: str | None = None,
 ) -> str:
     """Build a complete system prompt with dynamic context.
 
     Combines the base system prompt with optional dynamic sections
-    that vary per request (project info, host status, memories, etc.).
+    that vary per request (project info, host status, etc.).
 
     Args:
         project_context: YAML-formatted active project info.
         host_status: Current status of host agents.
-        user_memories: Relevant memories from mem0.
         recent_history: Recent audit log entries.
 
     Returns:
@@ -70,9 +68,6 @@ def build_system_prompt(
 
     if host_status:
         sections.append(f"\n\n# Host Agent Durumlari\n{host_status}")
-
-    if user_memories:
-        sections.append(f"\n\n# Kullanici Hafizasi (mem0)\n{user_memories}")
 
     if recent_history:
         sections.append(f"\n\n# Son Islem Gecmisi\n{recent_history}")

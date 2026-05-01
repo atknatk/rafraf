@@ -111,8 +111,9 @@ final class LiveActivityManager: ObservableObject, LiveActivityManaging {
             isActive: true
         )
 
+        let activityId = activity.id
         Task {
-            await activity.update(using: newState)
+            await Self.updateRafRafActivity(activityId: activityId, state: newState)
         }
     }
 
@@ -127,17 +128,28 @@ final class LiveActivityManager: ObservableObject, LiveActivityManaging {
             isActive: false
         )
 
+        let activityId = activity.id
+        let endLogger = logger
         Task {
-            await activity.end(using: finalState, dismissalPolicy: .after(Date().addingTimeInterval(5)))
-            logger.info("Live activity ended")
+            await Self.endRafRafActivity(
+                activityId: activityId,
+                finalState: finalState,
+                dismissalPolicy: .after(Date().addingTimeInterval(5))
+            )
+            endLogger.info("Live activity ended")
         }
         currentActivity = nil
     }
 
     private func stopCurrent() {
         guard let activity = currentActivity else { return }
+        let activityId = activity.id
         Task {
-            await activity.end(dismissalPolicy: .immediate)
+            await Self.endRafRafActivity(
+                activityId: activityId,
+                finalState: nil,
+                dismissalPolicy: .immediate
+            )
         }
         currentActivity = nil
     }
@@ -273,6 +285,36 @@ final class LiveActivityManager: ObservableObject, LiveActivityManaging {
             ActivityContent(state: finalState, staleDate: nil),
             dismissalPolicy: .after(Date().addingTimeInterval(5))
         )
+    }
+
+    /// RafRaf activity'sini nonisolated context'te guncelle (Swift 6 sendability uyumlu).
+    private nonisolated static func updateRafRafActivity(
+        activityId: String,
+        state: RafRafActivityAttributes.ContentState
+    ) async {
+        guard let activity = Activity<RafRafActivityAttributes>.activities.first(where: { $0.id == activityId }) else {
+            return
+        }
+        await activity.update(ActivityContent(state: state, staleDate: nil))
+    }
+
+    /// RafRaf activity'sini nonisolated context'te sonlandir (Swift 6 sendability uyumlu).
+    private nonisolated static func endRafRafActivity(
+        activityId: String,
+        finalState: RafRafActivityAttributes.ContentState?,
+        dismissalPolicy: ActivityUIDismissalPolicy
+    ) async {
+        guard let activity = Activity<RafRafActivityAttributes>.activities.first(where: { $0.id == activityId }) else {
+            return
+        }
+        if let finalState {
+            await activity.end(
+                ActivityContent(state: finalState, staleDate: nil),
+                dismissalPolicy: dismissalPolicy
+            )
+        } else {
+            await activity.end(nil, dismissalPolicy: dismissalPolicy)
+        }
     }
 
     // MARK: - Push Token Observation

@@ -32,13 +32,14 @@ class SessionService:
         message_count_increment: int = 0,
         tokens_input: int = 0,
         tokens_output: int = 0,
-        cost_usd_increment: float = 0.0,
     ) -> None:
-        """Increment session statistics after a message exchange."""
+        """Increment session statistics after a message exchange.
+
+        Cost tracking removed alongside cost service deletion (T0.7+T0.8).
+        """
         await self._repo.update_stats(
             session_id,
             message_count_increment=message_count_increment,
             tokens_input=tokens_input,
             tokens_output=tokens_output,
-            cost_usd_increment=cost_usd_increment,
         )

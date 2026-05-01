@@ -26,13 +26,6 @@ class TestBuildSystemPrompt:
         assert status in prompt
         assert "Host Agent Durumlari" in prompt
 
-    def test_user_memories_added(self) -> None:
-        """User memories should be appended when provided."""
-        memories = "User prefers Turkish responses"
-        prompt = build_system_prompt(user_memories=memories)
-        assert memories in prompt
-        assert "Kullanici Hafizasi" in prompt
-
     def test_recent_history_added(self) -> None:
         """Recent history should be appended when provided."""
         history = "docker_manager compose_up project-x"
@@ -51,12 +44,10 @@ class TestBuildSystemPrompt:
         prompt = build_system_prompt(
             project_context="project info",
             host_status="host info",
-            user_memories="memory info",
             recent_history="history info",
         )
         assert "project info" in prompt
         assert "host info" in prompt
-        assert "memory info" in prompt
         assert "history info" in prompt
 
     def test_approval_rules_in_base(self) -> None:

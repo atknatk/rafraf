@@ -3,7 +3,7 @@ import os
 
 /// Ayarlar ViewModel.
 /// Settings ekraninin durumunu ve islemlerini yonetir.
-/// Ses, bildirim, gorunum ve hesap ayarlarini yonetir.
+/// Bildirim, gorunum ve hesap ayarlarini yonetir.
 @Observable
 @MainActor
 final class SettingsViewModel {
@@ -40,11 +40,6 @@ final class SettingsViewModel {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
         return "\(version) (\(build))"
-    }
-
-    /// TTS hizi gosterge metni.
-    var ttsSpeedText: String {
-        String(format: "%.1fx", settings.ttsSpeed)
     }
 
     // MARK: - Private
@@ -133,31 +128,6 @@ final class SettingsViewModel {
             logger.error("Profil guncelleme hatasi: \(error.localizedDescription)")
             errorMessage = String(localized: "settings.profile.updateError")
         }
-    }
-
-    /// TTS hizini gunceller.
-    /// - Parameter speed: Yeni hiz degeri (0.5 - 2.0).
-    func updateTTSSpeed(_ speed: Double) {
-        let clampedSpeed = min(max(speed, 0.5), 2.0)
-        settings.ttsSpeed = clampedSpeed
-        saveCurrentSettings()
-        logger.info("TTS hizi guncellendi: \(clampedSpeed)")
-    }
-
-    /// TTS otomatik oynatma durumunu degistirir.
-    /// - Parameter enabled: Aktif mi.
-    func updateTTSAutoPlay(_ enabled: Bool) {
-        settings.ttsAutoPlay = enabled
-        saveCurrentSettings()
-        logger.info("TTS auto-play guncellendi: \(enabled)")
-    }
-
-    /// TTS dilini degistirir.
-    /// - Parameter language: Yeni dil secimi.
-    func updateTTSLanguage(_ language: TTSLanguage) {
-        settings.ttsLanguage = language
-        saveCurrentSettings()
-        logger.info("TTS dili guncellendi: \(language.rawValue)")
     }
 
     /// Push bildirim durumunu degistirir.
