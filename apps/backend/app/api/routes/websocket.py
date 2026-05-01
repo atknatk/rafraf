@@ -7,7 +7,6 @@ import contextlib
 import time
 import uuid as _uuid_mod
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import structlog
@@ -30,16 +29,12 @@ from app.schemas.messages import (
     ProgressPayload,
     ProgressStepPayload,
     SuggestionPayload,
-    VoiceAudioChunkPayload,
 )
 from app.services.agent_registry_service import agent_registry
 from app.services.approval_service import get_approval_service
 from app.services.conversation_service import ConversationService
 from app.services.orchestrator_service import OrchestratorService
 from app.services.task_orchestrator_service import TaskOrchestratorService
-
-if TYPE_CHECKING:
-    from app.services.tts_service import TTSService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -238,12 +233,8 @@ async def _handle_message(
         await _handle_client_ping(raw_data, connection_id, session_id)
     elif msg_type == MessageType.TEXT:
         await _handle_text(raw_data, connection_id, session_id, user_id)
-    elif msg_type == MessageType.VOICE:
-        await _handle_voice(raw_data, connection_id, session_id, user_id)
     elif msg_type == MessageType.APPROVAL_RESPONSE:
         await _handle_approval_response(raw_data, connection_id, session_id)
-    elif msg_type == MessageType.VOICE_INTERRUPT:
-        await _handle_voice_interrupt(connection_id)
     elif msg_type == MessageType.CANCEL_STREAM:
         await _handle_cancel_stream(connection_id, session_id)
     else:
@@ -360,44 +351,6 @@ async def _handle_text(
     )
 
 
-async def _handle_voice(
-    raw_data: dict[str, object],
-    connection_id: str,
-    session_id: str,
-    user_id: str,
-) -> None:
-    """Process a voice message from the client via AI orchestrator.
-
-    Voice content is assumed to already be transcribed (STT done client-side or
-    by a separate service). The transcribed text is routed to the orchestrator.
-    """
-    content = raw_data.get("content", "")
-    if not isinstance(content, str):
-        content = str(content)
-
-    project_id = _extract_project_id(raw_data)
-    agent_id = _extract_agent_id(raw_data)
-
-    logger.info(
-        "voice_message_received",
-        connection_id=connection_id,
-        user_id=user_id,
-        project_id=project_id,
-        agent_id=agent_id,
-    )
-
-    # Route through AI orchestrator (transcribed text) with TTS streaming
-    await _process_with_orchestrator(
-        message=content,
-        connection_id=connection_id,
-        session_id=session_id,
-        user_id=user_id,
-        voice_mode=True,
-        project_id=project_id,
-        agent_id=agent_id,
-    )
-
-
 async def _build_host_status() -> str | None:
     """Build formatted agent status string for system prompt injection."""
     agent_list = await agent_registry.list_agents()
@@ -502,7 +455,6 @@ async def _process_with_orchestrator(
     connection_id: str,
     session_id: str,
     user_id: str,
-    voice_mode: bool = False,
     project_id: str | None = None,
     agent_id: str | None = None,
 ) -> None:
@@ -512,24 +464,12 @@ async def _process_with_orchestrator(
     Fallback path: Bedrock/Anthropic API (per-token).
 
     Streams text deltas via chat.stream messages as Claude generates tokens.
-    Optionally generates TTS audio chunks for voice mode.
     """
     settings = get_settings()
     message_id = str(uuid4())
-    tts_service = None
-    sentence_acc = None
 
     # Task orchestrator state — mutable container so callbacks can access task_id
     _task_id_ref: list[_uuid_mod.UUID | None] = [None]
-
-    if voice_mode:
-        from app.services.tts_service import SentenceAccumulator, TTSService
-
-        tts_service = TTSService()
-        sentence_acc = SentenceAccumulator()
-
-    tts_tasks: list[asyncio.Task[None]] = []
-    chunk_index = 0
 
     # Stream-based progress tracking for Live Activity
     _stream_char_count: list[int] = [0]
@@ -576,7 +516,6 @@ async def _process_with_orchestrator(
 
     async def _on_text_delta(delta: str, index: int) -> None:
         """Send streaming text delta to client."""
-        nonlocal chunk_index
         stream_msg = _build_message(
             MessageType.CHAT_STREAM,
             ChatStreamPayload(
@@ -634,28 +573,8 @@ async def _process_with_orchestrator(
                     detail="Yanıt yazılıyor...",
                 )
 
-        # TTS: accumulate sentences and send audio chunks
-        if tts_service is not None and sentence_acc is not None:
-            sentences = sentence_acc.add(delta)
-            for sentence in sentences:
-                ci = chunk_index
-                chunk_index += 1
-                task = asyncio.create_task(
-                    _send_tts_chunk(
-                        tts_service,
-                        sentence,
-                        message_id,
-                        ci,
-                        connection_id,
-                        session_id,
-                    )
-                )
-                tts_tasks.append(task)
-
     async def _on_stream_end(_full_text: str) -> None:
-        """Finalize streaming: flush TTS buffer, send stream end."""
-        nonlocal chunk_index
-
+        """Finalize streaming: send stream end progress update."""
         # --- Stream-based Live Activity: finalizing phase ---
         _tid = _task_id_ref[0]
         if _tid is not None:
@@ -665,36 +584,6 @@ async def _process_with_orchestrator(
                 pct=90,
                 detail="Tamamlanıyor...",
             )
-
-        if tts_service is not None and sentence_acc is not None:
-            remaining = sentence_acc.flush()
-            if remaining:
-                ci = chunk_index
-                chunk_index += 1
-                task = asyncio.create_task(
-                    _send_tts_chunk(
-                        tts_service,
-                        remaining,
-                        message_id,
-                        ci,
-                        connection_id,
-                        session_id,
-                        is_last=True,
-                    )
-                )
-                tts_tasks.append(task)
-
-        if tts_tasks:
-            await asyncio.gather(*tts_tasks, return_exceptions=True)
-
-        if tts_service is not None:
-            audio_end_msg = _build_message(
-                MessageType.VOICE_AUDIO_END,
-                {"message_id": message_id},
-                session_id=session_id,
-            )
-            with contextlib.suppress(Exception):
-                await manager.send_json(_current_conn(), audio_end_msg)
 
     async def _on_tool_progress(event: ToolProgressEvent) -> None:
         """Send detailed progress to iOS."""
@@ -912,17 +801,6 @@ async def _process_with_orchestrator(
                 except Exception:
                     logger.warning("code_diff_send_failed", session_id=session_id)
 
-            # Save conversation turn to mem0 (fire-and-forget, non-blocking)
-            if response_text:
-                asyncio.create_task(
-                    _save_turn_to_memory(
-                        user_id=user_id,
-                        session_id=session_id,
-                        user_message=message,
-                        assistant_response=response_text,
-                    )
-                )
-
         except Exception as _exc:
             logger.exception(
                 "run_processing_failed",
@@ -971,8 +849,8 @@ async def _process_with_orchestrator(
                 connection_id=connection_id,
             )
 
-        # Suggestions: arka planda uret ve gonder (fire-and-forget, voice modda degil)
-        if response_text and not voice_mode:
+        # Suggestions: arka planda uret ve gonder (fire-and-forget)
+        if response_text:
 
             async def _send_suggestions() -> None:
                 try:
@@ -1016,9 +894,6 @@ async def _process_with_orchestrator(
             connection_id=connection_id,
             session_id=session_id,
         )
-        for tts_task in tts_tasks:
-            if not tts_task.done():
-                tts_task.cancel()
     except Exception:
         logger.exception(
             "process_orchestrator_task_failed",
@@ -1029,77 +904,6 @@ async def _process_with_orchestrator(
         _active_streams.pop(connection_id, None)
         _user_streams.pop(user_project_key, None)
         _user_connections.pop(user_project_key, None)
-
-
-async def _save_turn_to_memory(
-    user_id: str,
-    session_id: str,
-    user_message: str,
-    assistant_response: str,
-) -> None:
-    """Save a conversation turn to mem0 personal memory (Layer 3). Fire-and-forget."""
-    from app.services.memory_service import MemoryServiceError, memory_service
-
-    try:
-        await memory_service.save_conversation_facts(
-            user_id=user_id,
-            session_id=session_id,
-            messages=[
-                {"role": "user", "content": user_message},
-                {"role": "assistant", "content": assistant_response},
-            ],
-        )
-        logger.debug("turn_memory_saved", user_id=user_id, session_id=session_id)
-    except MemoryServiceError:
-        logger.warning("turn_memory_save_failed", user_id=user_id)
-    except Exception:
-        logger.warning("turn_memory_save_unexpected", user_id=user_id)
-
-
-async def _send_tts_chunk(
-    tts_service: TTSService,
-    sentence: str,
-    message_id: str,
-    chunk_index: int,
-    connection_id: str,
-    session_id: str,
-    *,
-    is_last: bool = False,
-) -> None:
-    """Generate TTS for a sentence and send audio chunk over WebSocket."""
-    import base64
-
-    try:
-        audio_bytes = await tts_service.synthesize_sentence(sentence)
-        audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
-
-        chunk_payload = VoiceAudioChunkPayload(
-            message_id=message_id,
-            chunk_index=chunk_index,
-            audio_data=audio_b64,
-            sentence_text=sentence,
-            is_last_chunk=is_last,
-        )
-        chunk_msg = _build_message(
-            MessageType.VOICE_AUDIO_CHUNK,
-            chunk_payload.model_dump(),
-            session_id=session_id,
-        )
-        await manager.send_json(connection_id, chunk_msg)
-    except Exception:
-        logger.exception(
-            "tts_chunk_failed",
-            sentence=sentence[:50],
-            chunk_index=chunk_index,
-        )
-
-
-async def _handle_voice_interrupt(connection_id: str) -> None:
-    """Cancel active streaming for a connection (barge-in)."""
-    task = _active_streams.get(connection_id)
-    if task and not task.done():
-        task.cancel()
-        logger.info("voice_stream_interrupted", connection_id=connection_id)
 
 
 async def _handle_approval_response(

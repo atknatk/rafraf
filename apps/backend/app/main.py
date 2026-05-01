@@ -12,24 +12,14 @@ from app.api.middleware.rate_limit import RateLimitMiddleware
 from app.api.middleware.request_logging import RequestLoggingMiddleware
 from app.api.routes.agent_ws import router as agent_ws_router
 from app.api.routes.agents import router as agents_router
-from app.api.routes.analytics import router as analytics_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.backups import router as backups_router
-from app.api.routes.conversation_memory import router as conversation_memory_router
 from app.api.routes.conversations import router as conversations_router
-from app.api.routes.cost import router as cost_router
-from app.api.routes.cost_alerts import router as cost_alerts_router
 from app.api.routes.files import router as files_router
 from app.api.routes.health import router as health_router
-from app.api.routes.maestro import router as maestro_router
-from app.api.routes.memory import router as memory_router
-from app.api.routes.monitoring import router as monitoring_router
 from app.api.routes.notifications import router as notifications_router
-from app.api.routes.personal_memory import router as personal_memory_router
 from app.api.routes.proactive_notifications import router as proactive_notifications_router
 from app.api.routes.projects import router as projects_router
-from app.api.routes.pulse import router as pulse_router
-from app.api.routes.subscription import router as subscription_router
 from app.api.routes.tasks import router as tasks_router
 from app.api.routes.webhooks import router as webhooks_router
 from app.api.routes.websocket import router as websocket_router
@@ -125,24 +115,12 @@ def create_app() -> FastAPI:
     application.include_router(agent_ws_router)
     application.include_router(agents_router)
     application.include_router(webhooks_router)
-    application.include_router(memory_router)
-    application.include_router(
-        conversations_router
-    )  # /history, /missed — must be before conversation_memory
-    application.include_router(conversation_memory_router)  # /{session_id} catch-all
+    application.include_router(conversations_router)
     application.include_router(projects_router)
-    application.include_router(cost_router)
     application.include_router(files_router)
     application.include_router(notifications_router)
     application.include_router(proactive_notifications_router)
-    application.include_router(personal_memory_router)
-    application.include_router(maestro_router)
-    application.include_router(subscription_router)
-    application.include_router(pulse_router)
-    application.include_router(analytics_router)
-    application.include_router(cost_alerts_router)
     application.include_router(backups_router)
-    application.include_router(monitoring_router)
     application.include_router(tasks_router)
 
     return application

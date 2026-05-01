@@ -82,7 +82,6 @@ class OrchestratorAgent:
         *,
         progress_callback: ProgressCallback | None = None,
         host_status: str | None = None,
-        user_memories: str | None = None,
     ) -> OrchestratorResponse:
         """Process a user message through the AI orchestrator.
 
@@ -94,7 +93,6 @@ class OrchestratorAgent:
             request: Orchestrator request with user message.
             progress_callback: Optional async callback for progress updates.
             host_status: Formatted agent status for system prompt.
-            user_memories: Formatted user memories for system prompt.
 
         Returns:
             OrchestratorResponse with the final AI response.
@@ -121,7 +119,6 @@ class OrchestratorAgent:
         # Build system prompt with dynamic context
         system_prompt = build_system_prompt(
             host_status=host_status,
-            user_memories=user_memories,
         )
 
         # Get or create conversation history
@@ -291,7 +288,6 @@ class OrchestratorAgent:
         on_stream_end: Callable[[str], Coroutine[object, object, None]] | None = None,
         progress_callback: ProgressCallback | None = None,
         host_status: str | None = None,
-        user_memories: str | None = None,
     ) -> OrchestratorResponse:
         """Process a user message with streaming text output.
 
@@ -310,7 +306,6 @@ class OrchestratorAgent:
 
         system_prompt = build_system_prompt(
             host_status=host_status,
-            user_memories=user_memories,
         )
 
         conversation = self._get_conversation(request.session_id)

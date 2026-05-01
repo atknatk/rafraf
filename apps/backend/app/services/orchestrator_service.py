@@ -15,10 +15,7 @@ from app.orchestrator.claude_code_runner import (
 )
 from app.orchestrator.tool_registry import ToolRegistry
 from app.schemas.orchestrator import OrchestratorRequest, OrchestratorResponse
-from app.services.memory_service import MemoryServiceError, memory_service
-from app.tools.cost_tool import CostTool
 from app.tools.github_tool import GitHubTool
-from app.tools.memory_tool import MemoryTool
 from app.tools.s3_tool import S3Tool
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -31,8 +28,6 @@ def _register_default_tools(registry: ToolRegistry) -> None:
     """Register all built-in tools with the registry."""
     tools = [
         GitHubTool(),
-        MemoryTool(),
-        CostTool(),
         S3Tool(),
     ]
     for tool in tools:
@@ -80,7 +75,6 @@ class OrchestratorService:
         project_id: str | None = None,
         progress_callback: ProgressCallback | None = None,
         host_status: str | None = None,
-        user_memories: str | None = None,
     ) -> OrchestratorResponse:
         """Process a user message and return the AI response.
 
@@ -91,7 +85,6 @@ class OrchestratorService:
             project_id: Optional project context.
             progress_callback: Optional async callback for tool execution progress.
             host_status: Formatted agent status for system prompt.
-            user_memories: Formatted user memories for system prompt.
 
         Returns:
             OrchestratorResponse with AI response text and metadata.
@@ -115,7 +108,6 @@ class OrchestratorService:
                 request,
                 progress_callback=progress_callback,
                 host_status=host_status,
-                user_memories=user_memories,
             )
             await logger.ainfo(
                 "orchestrator_response_generated",
@@ -171,7 +163,6 @@ class OrchestratorService:
         project_id: str | None = None,
         progress_callback: ProgressCallback | None = None,
         host_status: str | None = None,
-        user_memories: str | None = None,
     ) -> OrchestratorResponse:
         """Process a user message with streaming text output.
 
@@ -198,7 +189,6 @@ class OrchestratorService:
                 on_stream_end=on_stream_end,
                 progress_callback=progress_callback,
                 host_status=host_status,
-                user_memories=user_memories,
             )
             await logger.ainfo(
                 "orchestrator_streaming_response_generated",
@@ -241,51 +231,6 @@ class OrchestratorService:
                 tokens_output=0,
                 tool_calls_count=0,
             )
-
-    async def _build_memory_context(
-        self,
-        user_id: str,
-        message: str,
-        project_id: str | None,
-    ) -> str:
-        """Build memory context string from 3-layer memory system.
-
-        Silently returns empty string on failure to avoid blocking AI responses.
-        """
-        try:
-            import json
-
-            from app.core.database import async_session_factory
-            from app.repositories.memory_repository import MemoryRepository
-
-            project_uuid = uuid.UUID(project_id) if project_id else None
-            async with async_session_factory() as _mem_db:
-                repo = MemoryRepository(_mem_db)
-                context = await memory_service.get_context_for_message(
-                    repo=repo,
-                    user_id=user_id,
-                    message=message,
-                    project_id=project_uuid,
-                )
-            parts: list[str] = []
-            if context.personal_memories:
-                items = "\n".join(f"- {m}" for m in context.personal_memories)
-                parts.append(f"Kisisel hafiza:\n{items}")
-            if context.project_summary:
-                summary = json.dumps(context.project_summary, ensure_ascii=False)
-                parts.append(f"Proje hafizasi:\n{summary}")
-            if context.conversation_summary:
-                parts.append("Konusma ozeti:\n" + context.conversation_summary)
-            if not parts:
-                return ""
-            return "\n\n## Hafiza Baglami\n" + "\n\n".join(parts)
-        except (MemoryServiceError, Exception):
-            await logger.awarning(
-                "memory_context_build_failed",
-                user_id=user_id,
-                project_id=project_id,
-            )
-            return ""
 
     async def process_with_claude_code(
         self,
@@ -369,9 +314,6 @@ class OrchestratorService:
 
             git_ctx = await build_git_context(project_local_path)
 
-        # Build memory context from 3-layer memory system
-        memory_ctx = await self._build_memory_context(user_id, message, project_id)
-
         # When starting a fresh session after rotation, inject recent conversation context
         recent_ctx = ""
         if claude_session_id is None and project_id and db_session:
@@ -388,8 +330,6 @@ class OrchestratorService:
             context_parts.append(f"Project Directory: {project_local_path}")
         if git_ctx:
             context_parts.append(git_ctx)
-        if memory_ctx:
-            context_parts.append(memory_ctx)
         if recent_ctx:
             context_parts.append(recent_ctx)
         append_prompt = "\n".join(context_parts)
