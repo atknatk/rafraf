@@ -10,6 +10,7 @@
 package telemetry
 
 import (
+	"expvar"
 	"fmt"
 	"sync/atomic"
 )
@@ -39,6 +40,19 @@ var (
 	ClaudeLinesRead atomic.Int64
 	// ClaudeRateLimitHits counts rate_limit_event lines observed.
 	ClaudeRateLimitHits atomic.Int64
+)
+
+// expvar surfaces. Per docs/11_Bridge_Spec.md §9, these are exported for the
+// /debug/vars endpoint that T0.5.11 will expose. Per-key counters use
+// expvar.Map so the dispatch site can label by event subtype without
+// pre-declaring every value.
+var (
+	// StorageWatcherEventsTotal counts storage events the watcher dispatched
+	// to its sink, keyed by the event subtype ("ai-title", "pr-link",
+	// "attachment"). Incremented in internal/storage on every recognised
+	// frame regardless of decode outcome so operators can spot a sudden
+	// drop in any one stream.
+	StorageWatcherEventsTotal = expvar.NewMap("storage_watcher_events_total")
 )
 
 // FormatMetricsLine produces the single-line stderr summary that the bridge
