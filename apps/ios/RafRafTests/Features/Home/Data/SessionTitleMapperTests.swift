@@ -10,7 +10,7 @@ struct SessionTitleMapperTests {
     func mapsAllFields() {
         let date = Date(timeIntervalSince1970: 1_714_500_000)
         let content = SessionTitleContent(
-            sessionId: "00000000-0000-0000-0000-000000000123",
+            sessionId: UUID(uuidString: "00000000-0000-0000-0000-000000000123")!,
             aiTitle: "Backend test sonuclarinin incelenmesi",
             generatedAt: date
         )
@@ -22,23 +22,24 @@ struct SessionTitleMapperTests {
         #expect(domain.generatedAt == date)
     }
 
-    @Test("Identifiable id alani sessionId ile esit olmali")
+    @Test("Identifiable id alani sessionId ile esit olmali — UUID lowercased canonical")
     func identifiableMatchesSessionId() {
+        let uuid = UUID()
         let content = SessionTitleContent(
-            sessionId: "abc",
+            sessionId: uuid,
             aiTitle: "x",
             generatedAt: Date()
         )
 
         let domain = SessionTitleMapper.toDomain(content)
 
-        #expect(domain.id == "abc")
+        #expect(domain.id == uuid.uuidString.lowercased())
     }
 
     @Test("Bos aiTitle korunur — domain validation katmaninda kontrol edilir")
     func emptyTitlePreserved() {
         let content = SessionTitleContent(
-            sessionId: "s1",
+            sessionId: UUID(),
             aiTitle: "",
             generatedAt: Date()
         )

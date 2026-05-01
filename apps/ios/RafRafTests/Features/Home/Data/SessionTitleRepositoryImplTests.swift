@@ -12,8 +12,9 @@ struct SessionTitleRepositoryImplTests {
         let stream = repository.titleUpdates()
 
         let date = Date(timeIntervalSince1970: 1_714_500_000)
+        let uuid = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
         let content = SessionTitleContent(
-            sessionId: "session-1",
+            sessionId: uuid,
             aiTitle: "Yeni baslik",
             generatedAt: date
         )
@@ -25,7 +26,7 @@ struct SessionTitleRepositoryImplTests {
         let received = await firstUpdate(from: stream, timeout: 1.0)
 
         #expect(received != nil)
-        #expect(received?.sessionId == "session-1")
+        #expect(received?.sessionId == uuid.uuidString.lowercased())
         #expect(received?.aiTitle == "Yeni baslik")
         #expect(received?.generatedAt == date)
     }

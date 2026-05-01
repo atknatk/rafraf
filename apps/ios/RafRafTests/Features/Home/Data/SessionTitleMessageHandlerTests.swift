@@ -11,8 +11,9 @@ struct SessionTitleMessageHandlerTests {
         let repository = SessionTitleRepositoryImpl()
         let handler = SessionTitleMessageHandler(repository: repository)
 
+        let uuid = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
         let payload = SessionTitleContent(
-            sessionId: "s1",
+            sessionId: uuid,
             aiTitle: "iletim testi",
             generatedAt: Date(timeIntervalSince1970: 1_000_000)
         )
@@ -24,7 +25,7 @@ struct SessionTitleMessageHandlerTests {
         await handler.handle(message)
 
         let snapshot = await repository.snapshot()
-        #expect(snapshot["s1"]?.aiTitle == "iletim testi")
+        #expect(snapshot[uuid.uuidString.lowercased()]?.aiTitle == "iletim testi")
     }
 
     @Test("Beklenmedik content tipi geldiginde repository degismemeli")
