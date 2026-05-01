@@ -1,0 +1,1316 @@
+# 10 — Production Pivot Spec
+
+> **Bu doküman bir context handoff + action plan dosyasıdır.** Yeni bir Claude session veya yeni bir geliştirici bu doc'u okuduğunda RafRaf'ın bugünkü durumunu, neyin değişeceğini ve production-grade'e nasıl taşınacağını **sıfırdan başka bir kaynağa bakmadan** anlayabilmelidir.
+
+**Sürüm:** 1.1 (review düzeltmeleri — tool aliasing, 1000-sample dağılımı, RafRaf path doğrulamaları)
+**Tarih:** 2026-05-01
+**Sahip:** The Abi (mr.the.abi@gmail.com)
+**Geliştirici:** Claude (Opus 4.7, 1M context)
+**Spike kaynağı:** [`~/Code/claude-teams-spike/`](file:///Users/atakan/Code/claude-teams-spike/) (notes/_decision.md)
+**Hedef:** RafRaf'ı paralel `claude` agent orkestrasyonuna pivot et + production-grade hâle getir.
+
+**Sürüm geçmişi:**
+- 1.0 — İlk yazım
+- 1.1 — Review düzeltmeleri: tool aliasing (Task↔Agent), 1000-sample tool dağılımı, system/init tools listesi, RafRaf gerçek path'leri (`WebSocketMessage.swift`, `subprocess_env` line 236), `agent_registry_service` SİL listesine taşındı (host agent registry, subagent değil), JWT algoritma `settings.jwt_algorithm` referansı, cost senaryosu Mac/VPS/EKS ayrı.
+
+---
+
+## 0. İçindekiler
+
+1. [Önsöz: nereden geliyoruz](#1-önsöz-nereden-geliyoruz)
+2. [Spike bulguları (özet)](#2-spike-bulguları-özet)
+3. [Mevcut RafRaf durumu](#3-mevcut-rafraf-durumu)
+4. [Hedef mimari (V1)](#4-hedef-mimari-v1)
+5. [Scope reduction — kalanlar / çıkanlar](#5-scope-reduction--kalanlar--çıkanlar)
+6. [Mimari değişiklikler (kod düzeyinde)](#6-mimari-değişiklikler-kod-düzeyinde)
+7. [Production-grade kriterler](#7-production-grade-kriterler)
+8. [Migration / pivot fazları](#8-migration--pivot-fazları)
+9. [Açık sorular / kararlar](#9-açık-sorular--kararlar)
+10. [Kaynaklar](#10-kaynaklar)
+
+---
+
+## 1. Önsöz: nereden geliyoruz
+
+### Olay sırası
+
+1. **2026-Mart**: RafRaf "AI Project Supervisor" olarak tasarlandı — sesli/yazılı asistanla proje yönetimi. Backend FastAPI, iOS SwiftUI, Mac'te host agent daemon (Docker/Maestro/Playwright/shell runners), mem0 3-katmanlı bellek, voice (Deepgram + OpenAI TTS), 18 iOS feature, 24 backend endpoint.
+2. **2026-Apr**: 9 numaralı doc (`09_Hybrid_Claude_Code_Architecture.md`) yazıldı — "her iOS mesajı `claude -p` subprocess ile işlenir, API fallback'tir" mimarisi. `claude_code_runner.py` impl edildi.
+3. **2026-Apr-09 (son commit)**: TestFlight CI workflow eklendi, sonra geliştirme durduruldu. Sebep: scope explosion, çok fazla dış servis bağımlılığı (13+ env var: Anthropic, Deepgram, OpenAI, GitHub, AWS×3, mem0, APNs×4), aktif kullanıma geçirilemedi.
+4. **2026-May-01 (bugün)**: Bağımsız bir spike çalışması yapıldı (`~/Code/claude-teams-spike/`). 8 test PASS + history mining + Bridge prototype. **Sonuç: GO**, ama RafRaf'ı yenilenen anlayışa göre düzelt.
+
+### Bu doc'un amacı
+
+Spike'ın kanıtladığı şeylerin, RafRaf'ın mevcut kod tabanına nasıl uygulanacağını adım adım yazmak. Bir niyet doc'u değil — eylem planı. Yeni Claude session bu doc'u açıp Faz 0'dan başlayabilir.
+
+---
+
+## 2. Spike bulguları (özet)
+
+Spike `~/Code/claude-teams-spike/` 8 test, 1 history mining, 1 Bridge prototype içerdi. Detay için spike repo'daki `notes/_decision.md` ve test note'ları.
+
+### 2.1 Doğrulanan iki temel iddia
+
+| İddia | Kanıt | Etki |
+|---|---|---|
+| **Anthropic Ocak 2026'da OpenCode/3rd-party'ın subscription OAuth'unu bloke etti** ([Register](https://www.theregister.com/2026/02/20/anthropic_clarifies_ban_third_party_claude_access/), [Hacker News](https://news.ycombinator.com/item?id=47633396)) | 4 Nisan 2026'da tam enforcement | OpenCode + 3rd-party harness'lar artık subscription kullanamıyor. Sadece **resmî `claude` CLI** subscription destekliyor. RafRaf'ın `claude_code_runner.py` zaten resmî CLI kullanıyor → hâlâ geçerli. |
+| **Anthropic Şubat 2026'da Claude Opus 4.6 ile Agent Teams çıkardı** ([Claude Code Docs](https://code.claude.com/docs/en/agent-teams)) | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` env var, `claude` CLI v2.1.32+ | Lead session **`Agent` tool** ile teammate spawn ediyor; `isolation: "worktree"` ile git worktree built-in; P2P messaging + shared task list. RafRaf bunu **kullanmıyor** — entegre edilecek. |
+
+### 2.2 `claude -p` headless behavior
+
+```bash
+claude auth status
+# {
+#   "loggedIn": true,
+#   "authMethod": "claude.ai",       ← OAuth login
+#   "apiProvider": "firstParty",
+#   "subscriptionType": "max",
+#   ...
+# }
+
+unset ANTHROPIC_API_KEY
+claude -p "merhaba"
+# Çalışıyor. apiKeySource: "none" (system/init event'inde) → subscription kullanılıyor.
+```
+
+**RafRaf'a etki**: `claude_code_runner.py:236` zaten ANTHROPIC_API_KEY'i subprocess env'inden çıkarıyor:
+
+```python
+# apps/backend/app/orchestrator/claude_code_runner.py:236
+subprocess_env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+```
+
+Bu pattern aktif → **Backend'in Anthropic API key'i `.env`'de bulundurmasına gerek yok**. Fallback olarak kalabilir, varsayılan kapalı.
+
+### 2.3 Stream-JSON event şeması (genişletilmiş)
+
+`claude -p --output-format stream-json --verbose` çıktısı, RafRaf'ın `claude_code_runner.py`'sinde **kısmen** parse ediliyor. Spike'ta **tüm event tipleri** çıkartıldı:
+
+| Type / Subtype | Açıklama | RafRaf'ta var mı? |
+|---|---|---|
+| `rate_limit_event` | Her run başında, 5-saatlik bucket info | ❌ — eklenecek |
+| `system/init` | Session metadata: tools, model, permissionMode, apiKeySource | ⚠️ kısmen |
+| `system/task_started` | Subagent (Agent Teams) spawn | ❌ — eklenecek |
+| `system/task_progress` | Subagent ilerleme | ❌ — eklenecek |
+| `system/task_notification` | Subagent completed (usage stats) | ❌ — eklenecek |
+| `system/status` | Session status updates | ⚠️ kısmen |
+| `system/hook_started`, `hook_response` | Pre/PostToolUse hook lifecycle | ❌ — eklenecek (V2 yeterli olabilir) |
+| `assistant`, `user` | Mesaj turları | ✅ var |
+| `stream_event` | Token-level streaming chunks | ✅ var |
+| `result` | Final summary (cost, duration, modelUsage, permission_denials) | ⚠️ kısmen — total_cost_usd projeksiyonu yok |
+
+### 2.4 Storage event şeması (yeni)
+
+`~/.claude/projects/<proj>/<session>.jsonl` storage'ı stream-json'dan **farklı**. Spike'ta history mining ile çıkartıldı. RafRaf'ın hiç tanımadığı bir cevher: gerçek-zamanlı stream'de yok ama persistent storage'da var olan event'ler.
+
+| Storage type | Anlam | iOS UX değeri |
+|---|---|---|
+| `ai-title` | Claude'un session için ürettiği kısa başlık | **Yüksek**: iOS session list'inde session_id yerine title göster |
+| `pr-link` | Claude'un açtığı GitHub PR | **Yüksek**: iOS'ta "Bu session bir PR açtı" notification + tıklanabilir link |
+| `attachment.type=hook_*` | Pre/PostToolUse hook çıktıları | Orta: V2 |
+| `queue-operation` | Kullanıcının queue'ladığı komutlar | Düşük: zaten WebSocket akışında |
+| `file-history-snapshot` | Checkpoint dosya state'leri | V2 nice-to-have ("geri al" UX) |
+| `permission-mode` | Mode değişiklikleri | Düşük: log için |
+| `worktree-state` | Worktree state snapshot'ları | V2 |
+| `last-prompt` | Son prompt cache | Düşük |
+| `progress` | Progress update | Orta |
+
+### 2.5 `Agent` tool input pattern'ları (gerçek)
+
+Mac'teki 200 sample session'da `Agent` tool 175 kez kullanılmış. Input key kombinasyonları:
+
+```
+22 ["description","name","prompt","subagent_type"]
+19 ["description","name","prompt","run_in_background","subagent_type"]
+ 6 ["description","prompt","subagent_type"]
+ 3 ["description","isolation","name","prompt","subagent_type"]
+```
+
+**Önemli**: Gerçek kullanımda **`isolation: "none"` baskın** (197 vs 3 worktree). Yani teammate'ler aynı dizinde çalışıyor (race condition riski). RafRaf V1'de iOS UI default `isolation: "worktree"` zorlamalı — explicit user choice ile `none` opsiyonu.
+
+`subagent_type` değerleri: built-in (`general-purpose`, `Explore`, `Plan`) veya plugin (`<namespace>:<agent>` örn. `dark-factory:holdout-validator`). RafRaf Bridge tool isimlerini opaque tutmalı — namespace istediği gibi gelir.
+
+### 2.6 `--resume`, `--continue`, `--fork-session`
+
+```bash
+claude -p --resume <session_id> "..."   # context korunur, num_turns artar
+claude -p --continue "..."              # cwd'deki en son session'a dön
+claude -p --resume <id> --fork-session  # yeni session_id ile resume (branch)
+```
+
+**RafRaf'a etki**: iOS arka plana atılıp dönünce, `--resume` ile session reattach. Backend zaten `claude_code_runner.run(session_id=...)` aldığı için ufak değişiklik.
+
+### 2.7 Git worktree built-in
+
+```bash
+claude -w spike-test5 -p "..."   # → .claude/worktrees/spike-test5/ + branch worktree-spike-test5
+```
+
+`Agent` tool'da `isolation: "worktree"` aynı mekanizma. **Otomatik cleanup** (subagent task bitince worktree+branch silinir). RafRaf'ın opencode-ensemble pattern'i replikasyonu **gerekmez**. Mevcut RafRaf zaten kendi worktree yönetimini yapmıyor — built-in CLI'ya bırakırız.
+
+### 2.8 Rate limit (Max plan)
+
+5 paralel `claude -p` × 80 saniye burst → toplam **$0.71**, **hiçbiri rate-limit'e çarpmadı** (`status: allowed` her event'te). Max plan V1 başlangıç için fazlasıyla yeterli.
+
+### 2.9 Bridge prototype — RafRaf için ders
+
+Spike'ta minimal Go bridge yazıldı (`~/Code/claude-teams-spike/bridge/main.go`, 276 satır):
+- `coder/websocket` v1.8.13 (eski `nhooyr.io/websocket` Mart 2026'da arşivlendi)
+- Outbound persistent WS, exponential backoff + jitter, 15s heartbeat
+- claude subprocess yönetimi, stream-json line-by-line parse + envelope
+
+**RafRaf'a etki**: RafRaf zaten bu pattern'i Python'da yapıyor (FastAPI WebSocket + claude_code_runner). RafRaf'ın mimarisi spike'tan **daha sade**: ayrı Bridge Agent yok, backend hem WS server hem claude subprocess runner. Bu **good design** — V1'de basit, V2'de remote development için Bridge kavramı eklenir.
+
+### 2.10 Real-world tool distribution (1000 session sample, ~30+ unique tool)
+
+İki ayrı veri seti var; karıştırılmamalı:
+
+#### A) `system/init` event'inde listelenen TÜM destekli tool'lar (kayıtlı, kullanılmasa da)
+
+Spike'ta yakalanan örnek (Mac'in mevcut config'i, MCP'ler dahil):
+
+```json
+{"type":"system","subtype":"init","tools":[
+  "Task","AskUserQuestion","Bash","CronCreate","CronDelete","CronList",
+  "Edit","EnterPlanMode","EnterWorktree","ExitPlanMode","ExitWorktree",
+  "LSP","Monitor","NotebookEdit","PushNotification","Read","RemoteTrigger",
+  "ScheduleWakeup","SendMessage","Skill","TaskOutput","TaskStop",
+  "TeamCreate","TeamDelete","TodoWrite","ToolSearch","WebFetch","WebSearch","Write",
+  "mcp__claude_ai_Gmail__authenticate","mcp__claude_ai_Gmail__complete_authentication",
+  "mcp__claude_ai_Google_Calendar__authenticate","mcp__claude_ai_Google_Calendar__complete_authentication",
+  "mcp__claude_ai_Google_Drive__authenticate","mcp__claude_ai_Google_Drive__complete_authentication",
+  "mcp__plugin_figma_figma__authenticate","mcp__plugin_figma_figma__complete_authentication",
+  "mcp__plugin_medusa-dev_MedusaDocs__ask_medusa_question"
+]}
+```
+
+**Built-in core (29)**: `Task`, `AskUserQuestion`, `Bash`, `Edit`, `Read`, `Write`, `TodoWrite`, `Glob` (init'te listelenmemiş ama sık kullanılıyor), `Grep` (yok), `ToolSearch`, `WebFetch`, `WebSearch`, `EnterPlanMode`, `ExitPlanMode`, `EnterWorktree`, `ExitWorktree`, `CronCreate`, `CronDelete`, `CronList`, `TeamCreate`, `TeamDelete`, `SendMessage`, `TaskOutput`, `TaskStop`, `Skill`, `RemoteTrigger`, `Monitor`, `PushNotification`, `NotebookEdit`, `LSP`, `ScheduleWakeup`.
+
+**MCP tool'ları**: kullanıcının kurduğu MCP server'lara göre dinamik. Örn: `mcp__claude_ai_Gmail__*`, `mcp__plugin_figma_figma__*`, `mcp__xcodebuildmcp__*`, `mcp__playwright__*`, `mcp__mobile-mcp__*`, `mcp__firecrawl-mcp__*`, `mcp__plugin_medusa-dev_MedusaDocs__*`, `mcp__sportsbook-php__*`, `mcp__workspace-mcp__*`.
+
+#### B) 1000-sample session'da gerçekten KULLANILAN tool dağılımı
+
+| Tool | Kullanım |
+|---|---|
+| `Bash` | 17590 |
+| `Read` | 9868 |
+| `Edit` | 4795 |
+| `Grep` | 2569 |
+| `Write` | 2352 |
+| `TodoWrite` | 1481 |
+| `Glob` | 1110 |
+| **`Agent`** (subagent spawn) | **938** |
+| `ToolSearch` | 551 |
+| `mcp__xcodebuildmcp__*` | 200+ (15+ alt-tool: build_run_sim, screenshot, snapshot_ui, vs.) |
+| `mcp__workspace-mcp__workspace_api` | 104 |
+| `mcp__playwright__*` | 100+ (browser_navigate, browser_take_screenshot, vs.) |
+| `ExitPlanMode` / `EnterPlanMode` | 55 / 16 |
+| `mcp__firecrawl-mcp__*` | 36+ |
+| `ScheduleWakeup` | 40 |
+| `AskUserQuestion` | 38 |
+| `WebFetch` / `WebSearch` | 29+24 = 53 |
+| `RemoteTrigger` | 28 |
+| `CronCreate` / `CronDelete` / `CronList` | 24+21+17 = **62** |
+| `Monitor` | 18 |
+| `Skill` | 14 |
+| `SendMessage` | 11 |
+| `TaskOutput` / `TaskStop` | 5 / 6 |
+| `mcp__plugin_figma_figma__*` | 9+ |
+| `mcp__mobile-mcp__*` | 8+ |
+
+#### C) **`Task` ↔ `Agent` aliasing** (kritik)
+
+**Önemli ayrım**:
+- `system/init.tools[]` listesinde **`Task`** tool kayıtlı, `Agent` yok.
+- Ama assistant content'te `tool_use.name` her zaman **`Agent`**.
+- Storage'da 1000-sample'da `Task` ismiyle 0 kullanım, `Agent` ismiyle 938 kullanım.
+
+Yani Mac'te tool **`Task`** ismiyle kayıt, ama runtime'da **`Agent`** olarak görünüyor. Bridge Agent parser **her ikisini de aynı şey olarak handle etmeli** (claude CLI'ın internal aliasing'i bu — muhtemelen 2.x'te rename edildi, init listesi henüz sync olmadı).
+
+```python
+# claude_code_runner / WS forwarder pseudocode
+TOOL_NAME_ALIASES = {"Task": "Agent"}  # canonical isim Agent
+
+def canonical_tool_name(name: str) -> str:
+    return TOOL_NAME_ALIASES.get(name, name)
+```
+
+#### D) RafRaf'a etki
+
+- **iOS Chat ekranı tool ismini bilmek zorunda değil** — generic `tool_use` schema yeterli. Top 10'u special-case edip kalanı "custom tool" olarak göster.
+- **MCP tool'ları kullanıcının setup'ına bağlı dinamik gelir** — hardcoded liste imkansız (50+ farklı tool).
+- **`Task` ↔ `Agent` aliasing**: parser her ikisini de subagent spawn'ı olarak handle etmeli.
+- **iOS UX için kritik tool gruplarına özel handling**:
+  - **Plan mode** (`EnterPlanMode`, `ExitPlanMode`, 71 toplam): iOS'ta "Planlıyor..." badge / banner.
+  - **Cron** (`CronCreate/Delete/List`, 62 toplam): "Bu session bir scheduled task oluşturdu" notification.
+  - **Subagent control** (`SendMessage`, `TaskOutput`, `TaskStop`): Agent feature view'ında subagent satırı altında "Mesaj at / Çıktı gör / Durdur" butonları.
+
+---
+
+## 3. Mevcut RafRaf durumu
+
+### 3.1 Stack (apps/)
+
+| Katman | Teknoloji | Olgunluk |
+|---|---|---|
+| **Backend** | FastAPI 0.115+, Python 3.12, SQLAlchemy 2.0 async, asyncpg, redis, alembic, anthropic SDK, mem0ai, aioboto3, aioapns | 24 route, 35 service, 7 orchestrator, 7 tool, 9 alembic migration → **olgun** |
+| **iOS** | SwiftUI, iOS 17+, Swift 6, Clean Architecture, Factory DI, Nuke | **296 Swift dosyası, 18 feature, 13 RF\* design system component** → **olgun** |
+| **Host Agent** | Python asyncio daemon, Docker/Maestro/Playwright/shell runners | Yarım kalmış, log'larda "0 agent online" → **archive edilecek** |
+
+### 3.2 Çalışıyor mu?
+
+`log.txt` (Apr 2) son 30 satır göstergesi:
+- iOS WebSocket bağlandı, `chat.stream` mesajları akıyor
+- `code.diff` event geldi (7 dosya rapor edildi)
+- `task_status: completed` event'i alındı
+- Live Activity update + end ediliyor
+- **Tek küçük bug**: `TaskStatusContent` decode error — `taskId` key bulunamıyor (snake_case `task_id` ile camelCase mismatch)
+
+Yani **temel akış çalışıyor**, ama production-grade değil:
+- Test coverage doğrulanmamış
+- Observability eksik
+- "Aktiflestirilemedi" sebep: 13+ dış servis bağımlılığı setup'ı zor
+- Agent Teams entegre değil
+- Stream-JSON parser eksik event tipleri var
+
+### 3.3 Mevcut env (`.env.example` 23 değişken)
+
+```
+POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_PORT, DATABASE_URL
+REDIS_PORT, REDIS_URL
+ANTHROPIC_API_KEY              ← V1'de OPSİYONEL (subscription default)
+DEEPGRAM_API_KEY               ← SİL (voice scope dışı)
+OPENAI_API_KEY                 ← SİL (voice scope dışı)
+GITHUB_TOKEN                   ← TUT (PR tracking)
+AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION  ← TUT (S3 backups)
+USE_BEDROCK                    ← SİL (sadece subscription)
+JWT_SECRET_KEY                 ← TUT
+AGENT_API_KEY                  ← SİL (host agent yok)
+BACKEND_WS_URL                 ← TUT (iOS config için)
+APNS_KEY_PATH, APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, APNS_USE_SANDBOX  ← TUT
+```
+
+**EKLENECEK** (Hibrit doc 09'dan + spike'tan):
+
+```
+CLAUDE_CODE_ENABLED=true
+CLAUDE_CODE_BINARY=claude
+CLAUDE_CODE_PROJECT_DIR=/opt/rafraf
+CLAUDE_CODE_MAX_TURNS=30
+CLAUDE_CODE_MODEL=opus               # spike'ta opus-4-7[1m] kullanıldı
+CLAUDE_CODE_TIMEOUT_SECONDS=300
+CLAUDE_CODE_FALLBACK_TO_API=false    # spike'ta subscription yeterli
+CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1   # ← yeni
+CLAUDE_CODE_INCLUDE_HOOK_EVENTS=false    # V2'de true
+CLAUDE_CODE_PERMISSION_MODE=acceptEdits  # default
+```
+
+---
+
+## 4. Hedef mimari (V1)
+
+### 4.1 Topoloji (V1, simplified)
+
+```
+                       ┌──────────────┐
+                       │  APNs (Apple)│
+                       └──────▲───────┘
+                              │ push
+                              │
+   iPhone (SwiftUI) ──HTTPS──▶ ┌──────────────────────┐
+   ──WSS──▶                    │  RafRaf Backend       │
+                                │  (FastAPI, EKS or VPS)│
+                                │  ─ Apple Sign In + JWT│
+                                │  ─ /sessions /agents  │
+                                │  ─ /websocket (WS)    │
+                                │  ─ /events (SSE proj.)│
+                                │  ─ APNs sender        │
+                                │  ─ Postgres + Redis   │
+                                └─┬─────────┬───────────┘
+                                  │         │
+                                  ▼         ▼
+                ┌───────────────────────┐  ┌──────────────────┐
+                │  claude_code_runner   │  │  storage_watcher │
+                │  (subprocess pool)    │  │  (~/.claude/.../ │
+                │  ── claude -p         │  │   projects tail) │
+                │  ── stream-json parse │  │  ── ai-title     │
+                │  ── Agent Teams env   │  │  ── pr-link      │
+                │  ── --resume support  │  │  ── hook events  │
+                └───────────────────────┘  └──────────────────┘
+```
+
+**V1 simplification**: Backend Mac'te (kullanıcının makinesi) veya küçük bir VPS'de. EKS V2'de.
+
+**V2 (sonraki)**: Backend EKS pod'da, Mac'te ayrı bir Bridge Agent (spike'ta yazılan Go prototype'a evrilir) outbound WS köprüsü açar. iOS app aynı API'ye konuşur.
+
+### 4.2 Akış (V1)
+
+```
+1. iOS kullanıcı mesaj yazar → WS message: {type: "user.message", content: "..."}
+2. Backend WS handler:
+   a. Mesajı conversations tablosuna kaydet
+   b. claude_code_runner.run(prompt, session_id=resume_id) çağır
+3. claude_code_runner:
+   a. claude -p --output-format stream-json --verbose --resume <id> --permission-mode acceptEdits "<prompt>"
+   b. Subprocess'in stdout'unu line-by-line parse et
+   c. Her event'i WS üzerinden iOS'a forward (mapping aşağıda)
+4. Aynı zamanda storage_watcher arkaplanda:
+   a. ~/.claude/projects/<proj>/<session>.jsonl tail (watchdog)
+   b. ai-title, pr-link event'leri yakalandığında WS push
+5. iOS:
+   a. chat.stream events (text streaming)
+   b. task_progress / task_notification events (subagent UI)
+   c. ai-title event → session list başlığı güncelle
+   d. result event → cost + duration göster + Live Activity end
+```
+
+### 4.3 Stream-JSON → WS event mapping (RafRaf konvansiyonu)
+
+RafRaf zaten kendi WS message type'ları kullanıyor (`chat.stream`, `chat.stream_end`, `task_status`, `code.diff`, vs.). claude_code_runner stream-json event'lerini bu type'lara çevirir:
+
+| Stream-JSON `type/subtype` | RafRaf WS message `type` |
+|---|---|
+| `assistant` (text content) | `chat.stream` |
+| `assistant` (tool_use) | `progress` (mevcut) veya `tool.use` (yeni) |
+| `user` (tool_result) | `progress` (mevcut) veya `tool.result` (yeni) |
+| `stream_event` | `chat.stream` (zaten yapılıyor) |
+| `system/init` | `session.init` (yeni) |
+| `system/task_started` | `subagent.spawned` (yeni) |
+| `system/task_progress` | `subagent.progress` (yeni) |
+| `system/task_notification` | `subagent.completed` (yeni) |
+| `system/hook_started` | `hook.started` (yeni, V2 yeterli) |
+| `rate_limit_event` | `rate_limit.info` (yeni) |
+| `result` | `chat.stream_end` (mevcut, ama cost+usage payload eklenmeli) |
+| Storage `ai-title` | `session.title` (yeni) |
+| Storage `pr-link` | `session.pr_opened` (yeni) |
+
+**Yeni schema'lar `apps/backend/app/schemas/messages.py`'a eklenecek.** iOS tarafı `apps/ios/RafRaf/Core/Networking/`'de WebSocketContent decoder'a bu yeni type'ları ekler.
+
+---
+
+## 5. Scope reduction — kalanlar / çıkanlar
+
+### 5.1 iOS Features (18 → 8 V1)
+
+**TUT** (8 feature):
+
+| Feature | Sebep |
+|---|---|
+| `Auth` | Apple Sign In + JWT, kritik |
+| `Onboarding` | İlk kullanım UX |
+| `Home` | Session listesi (ai-title ile zenginleştirilecek) |
+| `Chat` | Ana etkileşim ekranı, claude akışı görünür |
+| `Agent` | Subagent tree view (Agent Teams için kritik) |
+| `Approval` | Tool permission akışı, write/bash için onay |
+| `Notifications` | APNs + iOS notification settings |
+| `Settings` | Plan, subscription, preferences |
+
+**SİL veya V2'YE ERTELE** (10 feature):
+
+| Feature | Sebep | Karar |
+|---|---|---|
+| `VoiceInput` | Deepgram dependency, V1 scope dışı | V2 |
+| `VoiceOutput` | OpenAI TTS dependency, V1 scope dışı | V2 |
+| `VoiceConversation` | Voice composite, V1 scope dışı | V2 |
+| `ScreenshotViewer` | Host agent dependency, V1 scope dışı | V2 |
+| `FileSharing` | V1 nice-to-have, kompleks UX | V2 |
+| `Pulse` | Reports dashboard, V2 feature | V2 |
+| `Project` (sayfa) | Standalone project view; Home + Chat yeterli V1'de | V2'de geri gelir |
+| `Tasks` | Standalone task view; subagent UI içinde göster | Agent feature içinde merge |
+| `Progress` | Progress dashboard; Live Activity yeterli V1 | V2 |
+| `Monitoring` | Sistem monitoring; observability backend'de yeter | V2 |
+
+**Klasör aksiyonları**:
+- `apps/ios/RafRaf/Features/{Voice*, ScreenshotViewer, FileSharing, Pulse, Project, Monitoring}` → **arşiv branch'e taşı** (ileride geri çağrılabilir), main'den sil
+- `Tasks` ve `Progress` feature'larındaki yararlı View'lar `Agent` feature'ı içine merge edilir, ardından klasörler silinir
+
+### 5.2 Backend services (35 → ~18 V1)
+
+**TUT** (V1 zorunlu):
+
+```
+auth_service.py
+session_service.py
+conversation_service.py
+approval_service.py
+audit_service.py
+apns_client.py
+live_activity_push_service.py
+notification_service.py
+orchestrator_service.py
+git_context_service.py                ← .claude/projects projection için
+git_diff_service.py                   ← code.diff event üretimi için
+github_service.py                     ← pr-link / PR webhook için
+project_service.py                    ← session.cwd projeksiyonu
+proactive_notification_service.py     ← idle session uyarıları
+backup_service.py                     ← S3 backup (RDS dump)
+s3_service.py                         ← attachment storage
+claude_stream_manager.py              ← claude_code_runner ile coupled
+```
+
+**YENİ EKLENECEK** (Faz 1):
+
+```
+subagent_registry_service.py          ← Agent Teams subagent metadata (in-memory + DB projection)
+storage_watcher_service.py            ← ~/.claude/projects/ tail (§6.2)
+```
+
+**SİL / ARCHIVE** (V1 dışı):
+
+```
+agent_registry_service.py             ← MEVCUT SERVICE: host agent registry'idir (heartbeat/stale-check),
+                                        useCoda'da host agent yok → SİL.
+                                        İsim çakışması var: yerine subagent_registry_service.py (yukarıda).
+analytics_service.py                  ← V1.1 (basit metric'ler structlog yeterli)
+cost_service.py                       ← spike'ta result.total_cost_usd projeksiyonuna basitleşir
+cost_alert_service.py                 ← V1.1
+maestro_service.py                    ← Host agent ile birlikte gider
+memory_service.py                     ← mem0, V2
+conversation_memory_service.py        ← mem0, V2
+personal_memory_service.py            ← mem0, V2
+project_memory_service.py             ← mem0, V2
+pulse_service.py                      ← Pulse feature ile birlikte gider
+```
+
+**Önemli not — `agent_registry_service` ile çakışma**:
+
+Mevcut `apps/backend/app/services/agent_registry_service.py` üst dosya açıklaması: "Host Agent registry and health monitoring service. Manages agent registration, heartbeat tracking, and stale-agent detection." — bu **host agent**'lar (Mac daemon'ları) için. useCoda'da host agent kavramı yok.
+
+`apps/backend/app/main.py` 5 yerde import ediyor (`from app.services.agent_registry_service import agent_registry`); `apps/backend/app/tools/host_agent_tool.py` da import ediyor. Faz 0'da host_agent_tool ile birlikte komple silinir, ardından Faz 1'de yeni `subagent_registry_service.py` (Agent Teams için) yazılır. Yeni service hiç tutmaz API surface'ını eskiden — temiz başlangıç.
+
+### 5.3 Backend routes (24 → 13 V1)
+
+**TUT**:
+
+```
+auth.py, agents.py, agent_ws.py, websocket.py
+projects.py, tasks.py, conversations.py
+notifications.py, proactive_notifications.py
+files.py, backups.py
+health.py, webhooks.py
+```
+
+**SİL / ARCHIVE**:
+
+```
+analytics.py, cost.py, cost_alerts.py
+memory.py, personal_memory.py, conversation_memory.py
+maestro.py, pulse.py, monitoring.py, subscription.py
+```
+
+### 5.4 Backend tools (7 → 3 V1)
+
+LLM'in Claude Agent SDK üzerinden register edip kullandığı tool katmanı. useCoda'da claude CLI'ın **kendi** tool'ları (Bash, Read, Edit, vs.) zaten var — backend tarafı sadece Claude Agent SDK için register edilmiş tool'lar (V1'de minimal kullanım).
+
+**TUT**:
+
+```
+base.py               ← Tool taban sınıfı
+github_tool.py        ← PR opening (LLM'e izin verilirse)
+s3_tool.py            ← backup/attachment
+```
+
+**SİL** (mem0 + cost + host agent):
+
+```
+memory_tool.py        ← mem0, V2
+cost_tool.py          ← cost service ile birlikte
+host_agent_tool.py    ← agent_registry_service ile coupled (host agent registry kullanıyor),
+                        host agent gidiyor → SİL.
+                        useCoda'da claude CLI subprocess olarak doğrudan invoke ediliyor;
+                        ayrıca tool katmanına gerek yok.
+```
+
+**Sebep**: useCoda'nın çekirdeği `claude_code_runner.py` orchestrator (subprocess). Backend'in Claude Agent SDK için tool register etmesi V1'de yalnızca **`github_tool` (PR opening)** ve **`s3_tool` (attachment)** için anlamlı. Claude'un kendi içsel tool'ları (Bash/Edit/Write/Agent) `claude` CLI tarafında.
+
+### 5.5 Backend orchestrator (7 → 5 V1)
+
+**TUT**:
+
+```
+__init__.py
+agent.py
+claude_code_runner.py  ← BÜYÜK GÜNCELLEME (Agent Teams + yeni event tipleri)
+prompt_builder.py
+question_bridge.py
+tool_registry.py
+```
+
+**SİL**:
+
+```
+model_router.py        ← Sadece claude (subscription), router gereksiz
+```
+
+### 5.6 Apps (host agent kalkıyor)
+
+`apps/agent/` (Python host agent daemon) → **archive branch'e taşı**, main'den sil.
+
+Sebebi: RafRaf'ın orijinal vizyonunda agent kullanıcının Mac'inde Docker/Maestro/Playwright/shell çalıştırıyordu ("AI Project Supervisor" işleri için). useCoda'nın hedefi paralel claude orkestrasyonu — claude CLI bunu kendi başına yapıyor (Bash/Edit/Read tool'ları + Agent Teams). Backend doğrudan `claude -p` subprocess olarak çağırıyor; ayrı Mac daemon **gereksiz**.
+
+V2'de remote development senaryosu için Bridge Agent kavramı geri gelir (spike'ta yazılan Go prototype'a evrilir, ama Python alternatifi de mümkün).
+
+### 5.7 Alembic migrations cleanup
+
+Mevcut 9 migration:
+1. ✅ users — TUT
+2. ❌ cost_logs — SİL (cost service ile birlikte)
+3. ✅ projects — TUT
+4. ⚠️ remaining_tables — incele, mem0/voice tablolarını ayır
+5. ✅ host_agents/sessions/audit/approval — TUT (host_agents bölümü subagent registry'ye rename)
+6. ✅ user_display_name — TUT
+7. ✅ project_local_path — TUT
+8. ❌ pulse_reports — SİL
+9. ⚠️ message_ratings — incele (V1'de kalsın belki)
+
+**Yeni migrations** (V1 için):
+10. `010_subagent_registry.py` — Agent Teams subagent metadata
+11. `011_session_cost_tracking.py` — `sessions.total_cost_usd`, `sessions.total_tokens`, `sessions.duration_ms`
+12. `012_storage_event_cache.py` — ai-title, pr-link projection cache
+
+### 5.8 Dış servis bağımlılığı (13 → 5 V1)
+
+**KALAN** (V1 zorunlu):
+- Anthropic Claude (subscription, dolayısıyla **API key bile zorunlu değil**)
+- PostgreSQL 16 (RDS veya self-hosted)
+- Redis 7 (ElastiCache veya self-hosted)
+- Apple APNs (.p8 key)
+- AWS S3 (backup/attachment için, opsiyonel olabilir V1'de)
+
+**KALKAN**:
+- Deepgram STT (voice scope dışı)
+- OpenAI TTS (voice scope dışı)
+- AWS Bedrock (subscription yeterli, fallback kapalı)
+- mem0 (V2)
+- pgvector (mem0 ile birlikte, V2)
+- GitHub PAT — **kalır**, ama V1'de optional (PR tracking için)
+
+---
+
+## 6. Mimari değişiklikler (kod düzeyinde)
+
+### 6.1 `claude_code_runner.py` güncellemeleri
+
+`apps/backend/app/orchestrator/claude_code_runner.py` (mevcut implementasyon)'a eklemeler:
+
+#### 6.1.1 Subprocess env injection
+
+Mevcut `claude_code_runner.py:236` zaten ANTHROPIC_API_KEY çıkarıyor. Tek satırlık ekleme yeterli:
+
+```python
+# apps/backend/app/orchestrator/claude_code_runner.py — line 236 etrafı
+subprocess_env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+# YENİ:
+subprocess_env["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
+# (Bu config'den okunabilir: settings.claude_code_experimental_agent_teams)
+```
+
+**Mimari not (V2 hazırlık)**: `claude_code_runner.py`'nin subprocess invocation'ını ayrı bir `ClaudeProcessExecutor` strategy'sine taşımak V2 için iyi olur. V1'de `LocalSubprocessExecutor` (mevcut), V2'de `BridgeWebSocketExecutor` (Mac'teki Bridge Agent'a WS üzerinden komut gönderir, Bridge Agent claude'u çalıştırır). Faz 0/1 sırasında bu refactor küçük tutulabilir — şimdilik bir TODO comment'i:
+
+```python
+# TODO(scope: V2): _build_command + create_subprocess_exec'i
+# ClaudeProcessExecutor strategy'sine ayırın.
+# Local subprocess (V1) ↔ Bridge Agent WS (V2) için aynı interface.
+```
+
+#### 6.1.2 Yeni stream-json event handler'lar
+
+`_StreamState`'e ekleme:
+
+```python
+@dataclass
+class _StreamState:
+    full_text: str = ""
+    delta_index: int = 0
+    session_id: str = ""
+    model: str = ""
+    current_tool_name: str = ""
+    current_tool_input_json: str = ""
+    is_collecting_tool_input: bool = False
+    pending_question: dict[str, object] | None = None
+    # YENİ:
+    rate_limit_info: dict[str, object] | None = None
+    permission_mode: str | None = None
+    api_key_source: str | None = None
+    active_subagents: dict[str, dict[str, object]] = field(default_factory=dict)  # task_id → metadata
+    completed_subagents: list[dict[str, object]] = field(default_factory=list)
+    total_cost_usd: float = 0.0
+    permission_denials: list[dict[str, object]] = field(default_factory=list)
+```
+
+Yeni callback signature'ları:
+
+```python
+SubagentSpawnedCallback = Callable[[dict[str, object]], Coroutine[object, object, None]]
+SubagentCompletedCallback = Callable[[dict[str, object]], Coroutine[object, object, None]]
+RateLimitInfoCallback = Callable[[dict[str, object]], Coroutine[object, object, None]]
+SessionInitCallback = Callable[[dict[str, object]], Coroutine[object, object, None]]
+ResultCallback = Callable[[ClaudeCodeResult], Coroutine[object, object, None]]  # cost + usage ile
+```
+
+`run()` parametre listesine eklenir.
+
+Event dispatch:
+
+```python
+async def _dispatch_event(self, event: dict, state: _StreamState) -> None:
+    etype = event.get("type")
+    subtype = event.get("subtype")
+
+    if etype == "rate_limit_event":
+        state.rate_limit_info = event.get("rate_limit_info")
+        if self._on_rate_limit:
+            await self._on_rate_limit(state.rate_limit_info)
+
+    elif etype == "system" and subtype == "init":
+        state.permission_mode = event.get("permissionMode")
+        state.api_key_source = event.get("apiKeySource")
+        state.session_id = event.get("session_id", "")
+        if self._on_session_init:
+            await self._on_session_init(event)
+
+    elif etype == "system" and subtype == "task_started":
+        task_id = event["task_id"]
+        state.active_subagents[task_id] = {
+            "task_id": task_id,
+            "name": event.get("description"),
+            "prompt_preview": event.get("prompt", "")[:200],
+            "started_at": datetime.now(UTC).isoformat(),
+        }
+        if self._on_subagent_spawned:
+            await self._on_subagent_spawned(state.active_subagents[task_id])
+
+    elif etype == "system" and subtype == "task_notification":
+        task_id = event["task_id"]
+        sub = state.active_subagents.pop(task_id, {})
+        sub.update({
+            "status": event.get("status"),
+            "summary": event.get("summary"),
+            "usage": event.get("usage", {}),
+            "completed_at": datetime.now(UTC).isoformat(),
+        })
+        state.completed_subagents.append(sub)
+        if self._on_subagent_completed:
+            await self._on_subagent_completed(sub)
+
+    elif etype == "result":
+        state.total_cost_usd = float(event.get("total_cost_usd", 0.0))
+        state.permission_denials = event.get("permission_denials", [])
+        # ... existing handling
+```
+
+#### 6.1.3 Yeni CLI flag'leri
+
+`--include-hook-events`, `--include-partial-messages` opsiyonel destek (config flag ile).
+
+### 6.2 Yeni service: `storage_watcher_service.py`
+
+`apps/backend/app/services/storage_watcher_service.py` (yeni dosya):
+
+```python
+"""Watches ~/.claude/projects/<proj>/<session>.jsonl for storage-only events.
+
+Stream-JSON misses these (they're persisted by claude CLI but not in real-time stream):
+  - ai-title (session title generated by Claude)
+  - pr-link (GitHub PR opened)
+  - attachment.type=hook_* (hook lifecycle)
+  - permission-mode (mode changes)
+
+Uses watchdog (filesystem events) + tail-on-write pattern.
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+from collections.abc import AsyncIterator
+from pathlib import Path
+from typing import Any
+
+import structlog
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
+
+logger = structlog.get_logger()
+
+CLAUDE_PROJECTS_ROOT = Path.home() / ".claude" / "projects"
+
+
+class StorageEvent(dict[str, Any]):
+    """Type alias for clarity."""
+
+    @property
+    def event_type(self) -> str:
+        return self.get("type", "unknown")
+
+    @property
+    def session_id(self) -> str:
+        return self.get("sessionId", "")
+
+    @property
+    def is_sidechain(self) -> bool:
+        return bool(self.get("isSidechain", False))
+
+
+class StorageWatcher:
+    """Tails session jsonl files and yields events of interest."""
+
+    INTERESTED_TYPES = {
+        "ai-title",
+        "pr-link",
+        "attachment",       # filtered by .attachment.type starting with "hook_"
+        "permission-mode",
+        "worktree-state",
+    }
+
+    def __init__(self) -> None:
+        self._queue: asyncio.Queue[StorageEvent] = asyncio.Queue()
+        self._observer: Observer | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._tail_offsets: dict[Path, int] = {}
+
+    async def start(self) -> None:
+        self._loop = asyncio.get_running_loop()
+        handler = _Handler(self)
+        self._observer = Observer()
+        self._observer.schedule(handler, str(CLAUDE_PROJECTS_ROOT), recursive=True)
+        self._observer.start()
+        await logger.ainfo("storage_watcher_started", root=str(CLAUDE_PROJECTS_ROOT))
+
+    async def stop(self) -> None:
+        if self._observer:
+            self._observer.stop()
+            self._observer.join()
+
+    async def events(self) -> AsyncIterator[StorageEvent]:
+        while True:
+            event = await self._queue.get()
+            yield event
+
+    def _tail_file(self, path: Path) -> None:
+        """Read new lines from path since last offset, parse + filter, push to queue."""
+        try:
+            with path.open() as f:
+                f.seek(self._tail_offsets.get(path, 0))
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        ev = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    etype = ev.get("type")
+                    if etype not in self.INTERESTED_TYPES:
+                        continue
+                    if etype == "attachment":
+                        atype = ev.get("attachment", {}).get("type", "")
+                        if not atype.startswith("hook_"):
+                            continue
+                    if self._loop:
+                        asyncio.run_coroutine_threadsafe(
+                            self._queue.put(StorageEvent(ev)), self._loop
+                        )
+                self._tail_offsets[path] = f.tell()
+        except OSError:
+            pass
+
+
+class _Handler(FileSystemEventHandler):
+    def __init__(self, watcher: StorageWatcher) -> None:
+        self._watcher = watcher
+
+    def on_modified(self, event: Any) -> None:
+        if event.is_directory:
+            return
+        path = Path(event.src_path)
+        if path.suffix != ".jsonl":
+            return
+        self._watcher._tail_file(path)
+```
+
+`pyproject.toml`'a ekle: `watchdog>=4.0.0`
+
+`main.py` lifespan içinde başlat, conversation_service ile bağla → ai-title geldiğinde session.title update + WS push.
+
+**Docker deployment notu**: Backend Docker container'da çalışıyorsa `~/.claude/projects/` host'un home'unda. Container içinden erişim için bind mount gerekir:
+
+```yaml
+# infra/docker/docker-compose.dev.yml
+services:
+  backend:
+    volumes:
+      - ${HOME}/.claude:/root/.claude:ro   # readonly bind mount
+    environment:
+      CLAUDE_PROJECTS_ROOT: /root/.claude/projects
+```
+
+Service kodu `CLAUDE_PROJECTS_ROOT` env var'ı tercih etmeli (default `Path.home() / ".claude" / "projects"`).
+
+### 6.3 iOS değişiklikleri
+
+#### 6.3.1 task_status decode hatası fix
+
+`log.txt`'de görülen:
+
+```
+[WebSocketContent] TaskStatusContent decode error: keyNotFound(taskId)
+```
+
+Backend `task_status` event'inde `task_id` (snake_case) gönderiyor, iOS `TaskStatusContent` struct'ı `taskId` (camelCase) bekliyor — kendi `CodingKeys`'i eksik.
+
+**Doğru dosya**: `apps/ios/RafRaf/Core/Networking/WebSocketMessage.swift` (TaskStatusContent struct'ı bu dosyada tanımlı; satır 90'da kullanılıyor; parent `WebSocketMessage`'ın CodingKeys'i zaten doğru ama TaskStatusContent içeride kendi keys'i eksik).
+
+**Fix**:
+
+```swift
+// apps/ios/RafRaf/Core/Networking/WebSocketMessage.swift — TaskStatusContent struct
+struct TaskStatusContent: Codable, Sendable {
+    let taskId: String
+    let status: String
+    // ...
+
+    enum CodingKeys: String, CodingKey {
+        case taskId = "task_id"     // ← Pydantic snake_case → Swift camelCase
+        case status
+        // ...
+    }
+}
+```
+
+Aynı pattern tüm WS message Content DTO'larına uygulanmalı (RafRaf konvansiyonu Pydantic snake_case ↔ Swift camelCase). Faz 0 sırasında WebSocketMessage.swift'teki tüm Content struct'larını gözden geçir.
+
+#### 6.3.2 Yeni WS message type'ları
+
+Enum **`apps/ios/RafRaf/Core/Networking/WebSocketMessage.swift`** dosyasında (satır 7'de `enum WebSocketMessageType: String, Codable, Sendable {`). Mevcut enum'a ekleme:
+
+```swift
+enum WebSocketMessageType: String, Codable, Sendable {
+    // ... existing
+    case sessionInit       = "session.init"          // ← yeni
+    case subagentSpawned   = "subagent.spawned"      // ← yeni
+    case subagentProgress  = "subagent.progress"     // ← yeni
+    case subagentCompleted = "subagent.completed"    // ← yeni
+    case rateLimitInfo     = "rate_limit.info"       // ← yeni
+    case sessionTitle      = "session.title"         // ← yeni (storage)
+    case sessionPrOpened   = "session.pr_opened"     // ← yeni (storage)
+}
+```
+
+Aynı dosyada `WebSocketContent` enum'unun `init(from:)` switch'ine bu type'lara karşılık decode case'leri eklenmeli.
+
+#### 6.3.3 Agent feature subagent tree view
+
+`apps/ios/RafRaf/Features/Agent/Presentation/Views/AgentDetailView.swift` (mevcut)'e subagent listesi eklenir. `subagent.spawned` ile lazım, `subagent.completed` ile durumu güncelle. SwiftUI `OutlineGroup` ile lead → subagent ağacı.
+
+#### 6.3.4 Home feature'da ai-title kullanımı
+
+`apps/ios/RafRaf/Features/Home/Presentation/Views/HomeView.swift` (mevcut) — session listesindeki başlık alanı raw session_id veya kullanıcının ilk mesajı yerine, varsa `session.title` (storage'dan gelen `ai-title`).
+
+### 6.4 Schemas (`apps/backend/app/schemas/messages.py`)
+
+Mevcut `MessageType` enum'a:
+
+```python
+class MessageType(str, Enum):
+    # ... existing
+    SESSION_INIT       = "session.init"
+    SUBAGENT_SPAWNED   = "subagent.spawned"
+    SUBAGENT_PROGRESS  = "subagent.progress"
+    SUBAGENT_COMPLETED = "subagent.completed"
+    RATE_LIMIT_INFO    = "rate_limit.info"
+    SESSION_TITLE      = "session.title"
+    SESSION_PR_OPENED  = "session.pr_opened"
+```
+
+Yeni Pydantic payload modelleri:
+
+```python
+class SubagentSpawnedPayload(BaseModel):
+    task_id: str
+    name: str
+    description: str | None = None
+    prompt_preview: str
+    subagent_type: str | None = None
+    isolation: str | None = None
+    started_at: datetime
+
+class SubagentCompletedPayload(BaseModel):
+    task_id: str
+    status: str  # "completed", "failed"
+    summary: str | None = None
+    total_tokens: int
+    tool_uses: int
+    duration_ms: int
+    completed_at: datetime
+
+class RateLimitInfoPayload(BaseModel):
+    status: str            # "allowed", "limited"
+    rate_limit_type: str   # "five_hour"
+    resets_at: int         # unix timestamp
+    overage_status: str
+    is_using_overage: bool
+
+class SessionTitlePayload(BaseModel):
+    session_id: UUID
+    ai_title: str
+
+class SessionPrOpenedPayload(BaseModel):
+    session_id: UUID
+    pr_number: int
+    pr_url: str
+    pr_repository: str
+```
+
+---
+
+## 7. Production-grade kriterler
+
+### 7.1 Test coverage
+
+| Katman | Hedef coverage |
+|---|---|
+| Backend services (domain logic) | %80+ |
+| Backend orchestrator (claude_code_runner) | %90+ (fixture stream-json sample'larıyla) |
+| iOS ViewModels (`@Observable`) | %70+ (Swift Testing) |
+| iOS DTO mapper'lar | %100 |
+
+**Spike repo'da gerçek `~/.claude/projects/` örnekleri** test fixture olarak kullanılabilir (privacy: kullanıcı içeriği temizlenmeli).
+
+### 7.2 CI/CD
+
+Mevcut `.github/workflows/`:
+- `ios-testflight.yml` ✅
+- `ios-testflight-staging.yml` ✅ (Apr 2 commit)
+
+**EKLENECEK**:
+- `backend-ci.yml` — ruff + mypy strict + pytest + Docker build push
+- `agent-ci.yml` — KALDIR (host agent gidiyor)
+
+### 7.3 Observability
+
+| Sinyal | Mevcut | Hedef |
+|---|---|---|
+| Structured logging | ✅ structlog | Loki ship |
+| Tracing | ❌ | OpenTelemetry, Grafana Cloud Tempo |
+| Metrics | ❌ | OpenTelemetry, Prometheus remote_write |
+| Error tracking | ❌ | Sentry (optional V1.1) |
+
+**Önemli metric'ler** (spike'tan):
+
+Backend:
+- `claude_subprocess_count` (gauge)
+- `claude_subprocess_duration_seconds` (histogram)
+- `claude_rate_limit_hits_total` (counter)
+- `claude_total_cost_usd_total` (counter)
+- `subagent_spawned_total` (counter)
+- `ws_connections_active` (gauge)
+- `apns_delivery_success_total` / `apns_delivery_failure_total`
+
+Storage watcher:
+- `storage_events_processed_total{type}` (counter)
+- `storage_watcher_lag_seconds` (gauge)
+
+### 7.4 Security
+
+Mevcut RafRaf:
+- ✅ JWT — `apps/backend/app/core/security.py` `jwt.encode/decode` `algorithm=settings.jwt_algorithm` config'den okuyor. `Settings` class'ında default değer kontrol edilmeli (HS256 mı RS256 mı). Önerim: **RS256'ya migrate** (asymmetric, key rotation kolay, leaked public key zarar vermez). Migration: yeni RSA key pair üret, `JWT_PUBLIC_KEY` + `JWT_PRIVATE_KEY` env, eski HS256 token'ları grace period ile geçerli tut.
+- ✅ bcrypt password hashing
+- ✅ Rate limit middleware
+- ✅ Request logging middleware
+- ✅ Approval service (write/bash için onay)
+- ⚠️ Apple Sign In — `apps/backend/app/api/routes/auth.py` doğrula
+
+**EKLENECEK**:
+- WAF (production'da, ALB seviyesinde)
+- IP allow-list (opsiyonel, sadece The Abi V1)
+- KMS encrypted secrets (AWS Secrets Manager)
+- IRSA (EKS pod permissions)
+- API key rotation runbook
+
+### 7.5 Disaster recovery
+
+| Hedef | Mevcut | Plan |
+|---|---|---|
+| RPO | ❌ | 24 saat (PITR) |
+| RTO | ❌ | 1 saat |
+| Backup | ⚠️ S3 backup_service var | Otomatize, restore drill ayda 1 |
+| Disaster runbook | ❌ | `docs/runbooks/disaster-recovery.md` |
+
+### 7.6 Multi-AZ
+
+V1 başlangıç: tek AZ (cost), V2'de prod multi-AZ.
+
+### 7.7 Cost target (V1)
+
+Üç deploy senaryosu için ayrı (§9.1'deki seçenekler):
+
+| Kalem | Mac local (önerim) | VPS (Hetzner/DO) | EKS (V2 önizleme) |
+|---|---|---|---|
+| Compute | $0 | $20-40/ay | $73/ay (EKS control plane) |
+| Postgres | $0 (local Docker) | $0 (Docker on VPS) | $25/ay (RDS db.t4g.small) |
+| Redis | $0 (local Docker) | $0 (Docker on VPS) | $20/ay (ElastiCache cache.t4g.micro) |
+| Load balancer | $0 (Tailscale yeterli) | $0 (nginx) | $22/ay (ALB) |
+| Network egress | $0 | ~$5/ay | $30/ay (NAT GW + data transfer) |
+| Misc (S3, Route53, ACM, ECR) | ~$5/ay (S3 backup) | ~$5/ay (S3) | ~$10/ay |
+| **Infra subtoplam** | **~$5/ay** | **~$30-50/ay** | **~$180/ay** |
+| Claude Code subscription Max | $200/ay (mevcut plan) | $200/ay | $200/ay |
+| **TOPLAM** | **~$205/ay** | **~$230-250/ay** | **~$380/ay** |
+
+V1 önerim: **Mac local** (~$205/ay), V2'de Bridge Agent kavramı eklenince EKS'e geçiş.
+
+Spike Test 6'da 5 paralel session'da $0.71 tüketildi — Max plan rate-limit'e çarpmadan. V1 öngörüsü: günlük 10-20 session × ortalama $0.50 = aylık $150-300 ek subscription tüketimi (Max plan içinde, ekstra ücret yok). **Yani Max plan'ın token quota'sı V1 için sınırlayıcı değil**.
+
+---
+
+## 8. Migration / pivot fazları
+
+Toplam **4 hafta** RafRaf'ı production-grade hâle getirmek için.
+
+### Faz 0 — Cleanup (1 hafta)
+
+**Done criteria:**
+
+- [ ] **iOS feature pruning** (10 feature arşivlendi/silindi):
+  - [ ] `git checkout -b archive/voice-and-host-agent-features`
+  - [ ] Sil: `apps/ios/RafRaf/Features/{VoiceInput,VoiceOutput,VoiceConversation,ScreenshotViewer,FileSharing,Pulse,Project,Monitoring}`
+  - [ ] Tasks/Progress yararlı View'larını `Agent/Presentation/Components/`'a merge et, sonra klasörleri sil
+  - [ ] `apps/ios/RafRaf.xcodeproj` referanslarını temizle, `xcodegen generate`
+  - [ ] iOS build temiz: `xcodebuild build -scheme RafRaf` exit 0
+- [ ] **Backend service/route/tool pruning**:
+  - [ ] Sil: 10 service (mem0×4, voice, cost×2, maestro, pulse, **agent_registry_service**), 11 route (analytics, cost×2, memory×3, maestro, pulse, monitoring, subscription), 3 tool (memory_tool, cost_tool, **host_agent_tool**), 1 orchestrator (model_router)
+  - [ ] `app/main.py` import'ları + lifespan'daki `agent_registry.start_stale_checker()` / `stop_stale_checker()` çağrıları kaldır
+  - [ ] `_register_host_agent_tool()` fonksiyonu sil (main.py'de)
+  - [ ] Backend test: `pytest` pass (eski test'leri de temizle, özellikle host_agent_tool/agent_registry test'leri)
+- [ ] **Host agent archive**:
+  - [ ] `apps/agent/` arşiv branch'e taşı
+  - [ ] `infra/docker/docker-compose.dev.yml`'den agent service'ini kaldır
+  - [ ] `Makefile` agent target'larını sil
+- [ ] **mem0 cleanup**:
+  - [ ] `mem0ai` dependency `pyproject.toml`'dan kaldır
+  - [ ] `infra/docker/mem0/` arşivle
+  - [ ] alembic migration cleanup (mem0 tabloları)
+- [ ] **`.env.example` revize**: 23 var → ~12 var (5.8'deki listeye göre)
+- [ ] **Docs cleanup**: `docs/03_AI_Agent_Tool_Layer_Specification.md`, `docs/05_Memory_System_Specification.md`, `docs/08_Host_Agent_Specification.md` "ARCHIVED — V2" notu ekle, kalan içerikten referans verme
+
+**Sonuç:** Repo boyutu 823 MB → ~600 MB tahmini. Build temiz.
+
+### Faz 1 — Agent Teams entegrasyonu (1 hafta)
+
+**Done criteria:**
+
+- [ ] **`claude_code_runner.py` güncelleme** (§6.1):
+  - [ ] `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` env injection
+  - [ ] `_StreamState`'e yeni alanlar (rate_limit, subagents, cost)
+  - [ ] Yeni callback'ler (subagent_spawned, subagent_completed, rate_limit, session_init)
+  - [ ] Event dispatch güncelleme
+  - [ ] Test fixture'ları: spike'tan gerçek stream-json örneklerini `tests/fixtures/stream_json/` altına koy
+  - [ ] pytest coverage %90+ runner için
+- [ ] **`storage_watcher_service.py` yeni service** (§6.2):
+  - [ ] `watchdog>=4.0.0` dependency
+  - [ ] `~/.claude/projects/` watch + tail (CLAUDE_PROJECTS_ROOT env var'ı tercih et)
+  - [ ] ai-title, pr-link event'lerini queue'ya push
+  - [ ] `main.py` lifespan'da başlat
+  - [ ] Docker volume mount (compose.yml'de host `~/.claude` → container `/root/.claude:ro`)
+  - [ ] Test: temp dir'de fake jsonl yazıp event yakalama
+- [ ] **`subagent_registry_service.py` yeni service** (§5.2):
+  - [ ] In-memory subagent state (task_id → metadata)
+  - [ ] DB projection (Postgres `subagents` tablosu, migration `010_subagent_registry.py`)
+  - [ ] claude_code_runner subagent_spawned/completed callback'lerini bu service'e bağla
+- [ ] **WebSocket route güncelleme** (`websocket.py`):
+  - [ ] Yeni MessageType'ları handle et
+  - [ ] claude_code_runner callback'leri WS push'a bağla
+  - [ ] Storage watcher → WS push
+- [ ] **Schemas güncelleme** (`schemas/messages.py`):
+  - [ ] Yeni Pydantic payload model'leri (§6.4)
+- [ ] **iOS WS decoder güncelleme**:
+  - [ ] WebSocketMessageType enum'a 7 yeni case
+  - [ ] Yeni Content struct'lar (CodingKeys ile snake_case → camelCase)
+  - [ ] **TaskStatusContent decode error fix** (§6.3.1)
+- [ ] **iOS Agent feature subagent tree** (§6.3.3):
+  - [ ] AgentDetailView'a subagent listesi
+  - [ ] subagent.spawned/progress/completed handle
+- [ ] **iOS Home feature ai-title** (§6.3.4):
+  - [ ] HomeView session listesinde varsa ai-title göster
+- [ ] E2E test (manuel, terminal'den): iOS WebSocket bağlan → claude task gönder → 3 subagent spawn → her birinin durumu iOS'ta görünüyor
+
+### Faz 2 — Production hardening (1 hafta)
+
+**Done criteria:**
+
+- [ ] **OpenTelemetry tracing**:
+  - [ ] FastAPI middleware
+  - [ ] `claude_code_runner` span'leri
+  - [ ] Grafana Cloud Tempo'ya export
+- [ ] **Metrics** (§7.3):
+  - [ ] `prometheus_client` veya OTel SDK
+  - [ ] §7.3'teki metric listesini emit
+  - [ ] `/metrics` endpoint
+- [ ] **Health check + readiness**:
+  - [ ] `/health` (liveness)
+  - [ ] `/ready` (DB + Redis + claude binary)
+- [ ] **Rate limit middleware adapt**:
+  - [ ] Anthropic 429 yakalandığında client'a `rate_limit.info` push
+  - [ ] iOS UI'da "rate limit yakın, X dk sonra reset" göster
+- [ ] **Cost tracking**:
+  - [ ] Migration `011_session_cost_tracking.py`
+  - [ ] `result.total_cost_usd` projeksiyonu sessions tablosuna
+  - [ ] Aylık özet endpoint `/sessions/cost-summary`
+- [ ] **DB backup + restore drill**:
+  - [ ] PITR aktif (RDS) veya cron pg_dump (self-hosted)
+  - [ ] Manual restore drill, çıktı: `/health` 200 dön
+  - [ ] Runbook: `docs/runbooks/disaster-recovery.md`
+- [ ] **CI**:
+  - [ ] `.github/workflows/backend-ci.yml` — ruff, mypy strict, pytest, Docker build, push GHCR
+  - [ ] `agent-ci.yml` sil (host agent yok)
+
+### Faz 3 — TestFlight & launch (1 hafta)
+
+**Done criteria:**
+
+- [ ] **iOS UI polish**:
+  - [ ] Agent feature subagent UI test edildi
+  - [ ] Live Activity update test (yeni subagent spawn'da)
+  - [ ] Approval sheet UX (Spike #5'in fallback ağacı: write/edit/bash → ask, read/grep → allow)
+- [ ] **Permission flow doğrulama**:
+  - [ ] Spike Test 2'deki "subagent permission inheritance" gerçek launchd deployment'ta doğrulan
+  - [ ] V1 default: lead `--permission-mode acceptEdits`, subagent default permission (denial olursa iOS'ta approval sheet)
+- [ ] **TestFlight build**:
+  - [ ] iOS build #20001+ staging branch
+  - [ ] Manuel device test: The Abi'nin iPhone'unda
+  - [ ] Crash-free rate %99+ (3 saat smoke test)
+- [ ] **Backend production deploy**:
+  - [ ] Docker image build (`apps/backend/Dockerfile`)
+  - [ ] Hedef: küçük VPS veya EKS (V1'de tercihe bağlı, useCoda master plan v0.3'te EKS)
+  - [ ] DB migrate, Redis bağlantı, APNs key dosyası mount
+  - [ ] Secrets: AWS Secrets Manager veya env (V1'de env yeterli)
+  - [ ] **Mac'te `claude` CLI yüklü ve login** (subscription gerekli)
+- [ ] **End-to-end smoke**:
+  - [ ] iOS TestFlight → backend prod → claude -p subprocess → cevap geri
+  - [ ] Subagent spawn → tree view → completed
+  - [ ] PR opened (gerçek GitHub repo) → iOS notification
+- [ ] **Documentation**:
+  - [ ] `docs/runbooks/deploy.md`
+  - [ ] `docs/runbooks/secret-rotation.md`
+  - [ ] `docs/runbooks/anthropic-cli-upgrade.md` (claude CLI haftalık check)
+
+**Toplam: 4 hafta**, RafRaf v1.0 production-grade.
+
+---
+
+## 9. Açık sorular / kararlar
+
+### 9.1 Backend deploy yeri (V1)
+
+Üç opsiyon:
+
+- **A — Mac'te local** (en basit): kullanıcının Mac'inde docker-compose'la backend + Postgres + Redis. iOS Tailscale ile bağlanır. Cost: $0 (zaten Mac var). Sınır: Mac kapalıyken backend yok.
+- **B — Küçük VPS** (Hetzner/DigitalOcean, $20-40/ay): Mac dışında uptime, ama claude CLI Mac'te (subscription bound). Backend VPS'te → claude CLI'a erişim için Mac'e SSH? Sorunlu.
+- **C — EKS** (master plan v0.3 önerimi, ~$180/ay): production-grade ama claude CLI EKS'te subscription kullanamaz (Mac keychain'e bağlı).
+
+**Önerim**: **A'yla başla** (V1 launch hızlı), V2'de Bridge Agent kavramı eklenince C'ye geç. RafRaf zaten log.txt'de `192.168.0.100:8000` (lokal IP) kullanmış — yani Mac'te backend mimari fikri.
+
+### 9.2 Subscription auth login flow
+
+Backend `claude -p` çağırınca Mac'in Claude Code login durumunu kullanıyor. Eğer:
+- Mac'te `claude` login değilse → subprocess fail
+- Login expire olursa → subprocess fail
+- Backend Linux'ta (VPS) ise → Mac keychain yok → fail
+
+**Aksiyon**: `claude_code_runner` startup'ta `claude auth status` çalıştır, `loggedIn: false` ise iOS'a `event.auth.expired` push, kullanıcıya "Mac'te `claude` login yenile" notification.
+
+### 9.3 RafRaf ismi kalsın mı?
+
+Kullanıcının kararı: **kalsın** (mesajda "rafraf'ı saglamsitacak"). Bundle ID `app.rafraf` da kalır. Domain ayrı bir karar (rafraf.dev / rafraf.app — WHOIS check edilmedi).
+
+### 9.4 Mevcut 55 proje + 9 alembic migration
+
+`log2.txt`'de "Proje listesi alindi: 55 proje" — büyük olasılıkla The Abi'nin gerçek geliştirme projelerinin listesi (RafRaf test sırasında otomatik discovery yapmış olabilir; örn. `apps/agent/agent/discovery/` dizini var, `git_context_service` repo path'lerini tarıyor). Faz 0 cleanup sırasında:
+- **Önce**: `pg_dump` al — `infra/scripts/backup-dev-db.sh` (yoksa yaz). Backup `~/Code/rafraf-backups/$(date +%Y-%m-%d).sql.gz`'a düşsün.
+- Eğer test data: temizle, fixture olarak `tests/fixtures/projects.sql`
+- Eğer gerçek The Abi'nin verisi: koru, Faz 1'de yeni schema'ya migrate (özellikle `projects.local_path` field'ı useCoda'da `sessions.cwd` olarak kullanılacak)
+
+**Aksiyon**: Faz 0 ilk adım = DB dump al + The Abi'ye "55 proje gerçek mi test mi?" sor.
+
+### 9.5 V2'de Bridge Agent
+
+V2 hedef: backend EKS pod'da, Mac'te ayrı Bridge Agent (Go veya Python) outbound WS köprüsü. Spike'taki Go prototype'ı V2'nin başlangıç noktası.
+
+V1 sırasında dikkat: backend ↔ claude_code_runner protokolünü "subprocess" özelinden ayırma. Bridge Agent V2'de gelecek interface aynı kalmalı (yani `ClaudeCodeRunner` interface'i, `process_executor: ClaudeProcessExecutor` strategy ile abstract — V1'de `LocalSubprocessExecutor`, V2'de `BridgeWebSocketExecutor`).
+
+### 9.6 Live Activity edge case'leri
+
+Spike'ta test edilmedi. Bilinen RafRaf davranışı (log.txt'den): Live Activity update + end çalışıyor. Faz 1 sonu manuel test:
+- Subagent spawn olunca Live Activity update (kaç subagent aktif)
+- Tüm subagent'lar tamamlanınca Live Activity end
+- 4KB APNs payload limiti — kaç subagent metadata'sı sığar?
+
+### 9.7 Permission UI scope (V1)
+
+Spike Test 2'de subagent'lar Write blocked oldu. Spike `_decision.md` §6.2 fallback ağacı:
+- **Case A**: subagent permission_mode'u `Agent` tool input'undan geçirilebiliyor → V1 dynamic approval
+- **Case B**: blocked, OpenCode-tarzı PR yaz → V1 statik denylist (write/bash/edit deny default, kullanıcı toggle ile aç)
+- **Case C**: blocked, plugin yaz → V1 statik denylist
+
+Faz 1'de bu test edilmeli (`_dispatch_event` içinde `subagent permission_denial` event yakalama).
+
+### 9.8 Storage watcher'ın CPU/I/O yükü
+
+`~/.claude/projects/` 3.3 GB, 4474 jsonl. Watchdog tüm dizini izlerse CPU artabilir. **Optimizasyon**: sadece son N gün modify edilmiş dosyaları izle, eski'leri ignore et.
+
+---
+
+## 10. Kaynaklar
+
+### 10.1 Spike repo
+
+- [`~/Code/claude-teams-spike/`](file:///Users/atakan/Code/claude-teams-spike/)
+  - `notes/_decision.md` — GO kararı + 8 test özeti
+  - `notes/00-history-mining.md` — Mac history schema + tool dağılımı
+  - `notes/01-subscription.md` — claude -p subscription doğrulaması
+  - `notes/02-agent-teams.md` — Agent Teams + 3 paralel subagent
+  - `notes/03-stream-json.md` — Tüm event tipleri + Go interface taslakları
+  - `notes/04-resume.md` — --resume / --continue
+  - `notes/05-worktree.md` — Built-in git worktree
+  - `notes/06-rate-limit.md` — Max plan 5 paralel
+  - `notes/07-bridge-stability.md` — Mini soak test
+  - `notes/08-sse-wrapper.md` — Uçtan uca akış
+  - `bridge/main.go` — Go bridge prototype (V2 başlangıcı için)
+  - `mock-control-plane/server.ts` — Bun mock CP
+
+### 10.2 Web search bulguları (doğrulandı)
+
+- [Anthropic clarifies ban on third-party tool access to Claude — The Register](https://www.theregister.com/2026/02/20/anthropic_clarifies_ban_third_party_claude_access/)
+- [Anthropic Walled Garden: Claude Code Crackdown — paddo.dev](https://paddo.dev/blog/anthropic-walled-garden-crackdown/)
+- [Tell HN: Anthropic no longer allowing Claude Code subscriptions to use OpenClaw — Hacker News](https://news.ycombinator.com/item?id=47633396)
+- [Orchestrate teams of Claude Code sessions — Claude Code Docs](https://code.claude.com/docs/en/agent-teams)
+- [Claude Code Agent Teams: Setup & Usage Guide 2026 — claudefa.st](https://claudefa.st/blog/guide/agents/agent-teams)
+- [Collaborating with agents teams in Claude Code — Heeki Park (Medium)](https://heeki.medium.com/collaborating-with-agents-teams-in-claude-code-f64a465f3c11)
+
+### 10.3 RafRaf mevcut docs (referans)
+
+- `docs/01_System_Architecture_Overview.md` — Sistem mimarisi (V1 sonrası güncellenmeli)
+- `docs/02_Backend_API_WebSocket_Specification.md` — WS protokol (yeni event'ler eklenecek)
+- `docs/03_AI_Agent_Tool_Layer_Specification.md` — **ARCHIVED** (host agent ile birlikte)
+- `docs/04_iOS_App_Specification.md` — iOS spec (V1 scope'a göre güncellenmeli)
+- `docs/05_Memory_System_Specification.md` — **ARCHIVED V2** (mem0)
+- `docs/06_Testing_Strategy.md` — Test stratejisi (geçerli, %80 coverage hedefi)
+- `docs/07_Security_Permissions_Cost_Analysis.md` — Güvenlik (geçerli)
+- `docs/08_Host_Agent_Specification.md` — **ARCHIVED V2** (host agent)
+- `docs/09_Hybrid_Claude_Code_Architecture.md` — claude -p hibrit mimari (claude_code_runner.py kaynağı)
+
+### 10.4 Yeni eklenmesi planlanan docs
+
+- `docs/runbooks/deploy.md` — Mac local + VPS + EKS deploy adımları
+- `docs/runbooks/disaster-recovery.md` — RPO/RTO + restore drill
+- `docs/runbooks/secret-rotation.md` — JWT key, APNs key, GitHub PAT rotation
+- `docs/runbooks/anthropic-cli-upgrade.md` — Haftalık `claude --version` check + breaking change response
+- `docs/runbooks/manual-test-checklist.md` — TestFlight öncesi manuel smoke test (iOS akışları)
+- `docs/runbooks/jwt-rs256-migration.md` — HS256 → RS256 geçiş (eğer mevcut HS256 ise)
+- `docs/adr/0001-record-architecture-decisions.md`
+- `docs/adr/0002-pivot-to-agent-teams.md` — Bu doc'un ADR özeti
+- `docs/adr/0003-archive-host-agent.md` — agent_registry_service + host_agent_tool + apps/agent/ archive sebebi
+- `docs/adr/0004-archive-mem0-and-voice.md`
+- `docs/adr/0005-tool-name-aliasing.md` — Task↔Agent aliasing kararı
+
+---
+
+**Belge sonu.** Yeni Claude session bu doc'u okuyup [§8 Migration fazları](#8-migration--pivot-fazları)'ndan **Faz 0 — Cleanup**'a başlayabilir. Spike repo (`~/Code/claude-teams-spike/`) referans olarak hep yanı başında dursun.
