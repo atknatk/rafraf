@@ -74,8 +74,6 @@ logs/
 .DS_Store
 Thumbs.db
 
-# ─── Dev runtime logs ─────────────────────────────────
-log.txt
-
-
+# ─── Dev session logs and seed files (T0.2) ───────────
+log*.txt
 seed.md
