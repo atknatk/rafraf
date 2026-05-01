@@ -121,14 +121,17 @@ actor WebSocketMessageRouter {
             // TODO(T1.7): SessionInitContent handler ekle (Home/Agent feature).
             logger.info("session.init alindi (handler bekleniyor): \(message.id)")
         case WebSocketMessageType.subagentSpawned.rawValue:
-            // TODO(T1.7): SubagentSpawnedContent → AgentDetailView subagent tree.
-            logger.info("subagent.spawned alindi (handler bekleniyor): \(message.id)")
+            // T1.7: SubagentSpawnedHandler app start'ta register edilir
+            // (ContentView.registerSubagentHandlers). Bu log fallback'i sadece
+            // handler register edilmediginde (ornek: arka planda erken mesaj)
+            // gorunur — operasyonel debug icin tutuluyor.
+            logger.info("subagent.spawned alindi (handler henuz register degil): \(message.id)")
         case WebSocketMessageType.subagentProgress.rawValue:
-            // TODO(T1.7): SubagentProgressContent → subagent activity update.
-            logger.info("subagent.progress alindi (handler bekleniyor): \(message.id)")
+            // T1.7: SubagentProgressHandler app start'ta register edilir.
+            logger.info("subagent.progress alindi (handler henuz register degil): \(message.id)")
         case WebSocketMessageType.subagentCompleted.rawValue:
-            // TODO(T1.7): SubagentCompletedContent → subagent final state.
-            logger.info("subagent.completed alindi (handler bekleniyor): \(message.id)")
+            // T1.7: SubagentCompletedHandler app start'ta register edilir.
+            logger.info("subagent.completed alindi (handler henuz register degil): \(message.id)")
         case WebSocketMessageType.rateLimitInfo.rawValue:
             // TODO(T1.8): RateLimitInfoContent → kullanici uyarisi / banner.
             logger.info("rate_limit.info alindi (handler bekleniyor): \(message.id)")

@@ -298,6 +298,24 @@ extension Container {
         }
     }
 
+    /// Subagent state repository (Claude Agent Teams subagent tree — T1.7).
+    var subagentRepository: Factory<SubagentRepository> {
+        self { SubagentRepositoryImpl() }
+            .singleton
+    }
+
+    /// Subagent gozlemleme use case'i.
+    var observeSubagentsUseCase: Factory<ObserveSubagentsUseCase> {
+        self { ObserveSubagentsUseCase(repository: self.subagentRepository()) }
+    }
+
+    /// Subagent tree ViewModel — her acilista yeni instance (per-session scope).
+    var subagentTreeViewModel: Factory<SubagentTreeViewModel> {
+        self { @MainActor in
+            SubagentTreeViewModel(observeUseCase: self.observeSubagentsUseCase())
+        }
+    }
+
     // MARK: - Proactive Notifications Feature
 
     /// Proaktif bildirim repository.

@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var notificationCenterViewModel = Container.shared.notificationCenterViewModel()
     @State private var isShowingNotifications = false
     private let webSocketManager = Container.shared.webSocketConnectionManager()
+    private let subagentRepository = Container.shared.subagentRepository()
 
     init() {
         configureTabBarAppearance()
@@ -38,6 +39,10 @@ struct ContentView: View {
             webSocketManager.onReconnect = { [chatSessionManager] in
                 await chatSessionManager.fetchMissedMessagesForAll()
             }
+
+            // Claude Agent Teams subagent handler'larini WebSocket router'a bagla.
+            // Doc 10 §6.3.3 — T1.7. Acilis sirasinda bir kez kayit yeterli.
+            await registerSubagentHandlers()
 
             await authManager.checkExistingAuth()
             // Auth basarili ise hemen WebSocket bagla
@@ -104,6 +109,27 @@ struct ContentView: View {
             }
         }
         .animation(RFAnimation.springResponsive, value: authViewModel.isShowingRegister)
+    }
+
+    // MARK: - Subagent Handlers
+
+    /// Doc 10 §6.3.3 — `subagent.spawned` / `subagent.progress` /
+    /// `subagent.completed` mesajlarini SubagentRepositoryImpl'e tasiyan
+    /// handler'lari WebSocketMessageRouter'a kaydeder. T1.6 sonrasi
+    /// router'da kalan TODO'lar bu cagri ile gercek handler'a baglanir.
+    private func registerSubagentHandlers() async {
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.subagentSpawned.rawValue,
+            handler: SubagentSpawnedHandler(repository: subagentRepository)
+        )
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.subagentProgress.rawValue,
+            handler: SubagentProgressHandler(repository: subagentRepository)
+        )
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.subagentCompleted.rawValue,
+            handler: SubagentCompletedHandler(repository: subagentRepository)
+        )
     }
 
     // MARK: - Tab Bar Configuration
