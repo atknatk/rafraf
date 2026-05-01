@@ -1,0 +1,54 @@
+// Package telemetry exposes process-wide atomic counters used by the bridge
+// runtime. The counters mirror those introduced in the spike
+// (~/Code/claude-teams-spike/bridge/main.go) but are now exported so that
+// other packages (ws, claude, cmd/bridge) can update them without sharing a
+// package boundary.
+//
+// The full expvar/OTel surface described in docs/11_Bridge_Spec.md §9 will
+// land in later tasks (T0.5.11+); for T0.5.2 we keep the lean atomic set so
+// behavior is identical to the spike.
+package telemetry
+
+import (
+	"fmt"
+	"sync/atomic"
+)
+
+// Atomic counters. Names mirror docs/11_Bridge_Spec.md §9 where reasonable.
+var (
+	// WSConnected is 1 while the WebSocket session is up, 0 otherwise.
+	WSConnected atomic.Int32
+	// WSReconnects counts every successful (re)connect.
+	WSReconnects atomic.Int64
+	// WSDisconnects counts every observed disconnect.
+	WSDisconnects atomic.Int64
+	// WSEventsForwarded counts envelopes successfully written to the socket.
+	WSEventsForwarded atomic.Int64
+	// WSEventsDropped counts envelopes dropped because the outbox was full.
+	WSEventsDropped atomic.Int64
+
+	// ClaudeSubprocesses tracks active claude subprocesses (gauge).
+	ClaudeSubprocesses atomic.Int64
+	// ClaudeLinesRead counts stream-JSON lines read from claude stdout.
+	ClaudeLinesRead atomic.Int64
+	// ClaudeRateLimitHits counts rate_limit_event lines observed.
+	ClaudeRateLimitHits atomic.Int64
+)
+
+// FormatMetricsLine produces the single-line stderr summary that the bridge
+// prints every 15 seconds. Centralising the format string here keeps the
+// metrics goroutine in cmd/bridge thin and lets us extend the catalogue
+// without touching main.
+func FormatMetricsLine() string {
+	return fmt.Sprintf(
+		"[metrics] connected=%d reconnects=%d disconnects=%d events=%d dropped=%d claude_subs=%d claude_lines=%d rate_limit_hits=%d",
+		WSConnected.Load(),
+		WSReconnects.Load(),
+		WSDisconnects.Load(),
+		WSEventsForwarded.Load(),
+		WSEventsDropped.Load(),
+		ClaudeSubprocesses.Load(),
+		ClaudeLinesRead.Load(),
+		ClaudeRateLimitHits.Load(),
+	)
+}
