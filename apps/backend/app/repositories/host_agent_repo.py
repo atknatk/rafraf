@@ -7,7 +7,10 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.host_agent import HostAgent
+# TODO(T1.3): rename file to ``bridge_repo.py`` + switch import to
+# ``from app.models.bridge import Bridge``. For now keep the legacy alias so
+# the rename migration (T1.4) can land without touching service-layer code.
+from app.models.bridge import HostAgent
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
