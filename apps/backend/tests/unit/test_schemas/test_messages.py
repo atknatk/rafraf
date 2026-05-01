@@ -1,5 +1,8 @@
 """Unit tests for WebSocket message schemas."""
 
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
+
 import pytest
 from pydantic import ValidationError as PydanticValidationError
 
@@ -12,6 +15,14 @@ from app.schemas.messages import (
     MessageType,
     PingPongPayload,
     ProgressPayload,
+    RateLimitInfoPayload,
+    SessionInitPayload,
+    SessionPrOpenedPayload,
+    SessionTitlePayload,
+    SubagentCompletedPayload,
+    SubagentProgressPayload,
+    SubagentSpawnedPayload,
+    UsageReportPayload,
     WebSocketMessage,
 )
 
@@ -65,9 +76,29 @@ class TestMessageType:
             "task_status",
             "stream.cancel",
             "stream.cancelled",
+            # Agent Teams (T1.5)
+            "session.init",
+            "subagent.spawned",
+            "subagent.progress",
+            "subagent.completed",
+            "rate_limit.info",
+            "session.title",
+            "session.pr_opened",
+            "usage.report",
         }
         actual = {t.value for t in MessageType}
         assert actual == expected
+
+    def test_agent_teams_type_values(self) -> None:
+        """Each Agent Teams MessageType has the documented string value."""
+        assert MessageType.SESSION_INIT.value == "session.init"
+        assert MessageType.SUBAGENT_SPAWNED.value == "subagent.spawned"
+        assert MessageType.SUBAGENT_PROGRESS.value == "subagent.progress"
+        assert MessageType.SUBAGENT_COMPLETED.value == "subagent.completed"
+        assert MessageType.RATE_LIMIT_INFO.value == "rate_limit.info"
+        assert MessageType.SESSION_TITLE.value == "session.title"
+        assert MessageType.SESSION_PR_OPENED.value == "session.pr_opened"
+        assert MessageType.USAGE_REPORT.value == "usage.report"
 
 
 class TestMessageDirection:
@@ -321,3 +352,475 @@ class TestPingPongPayload:
         payload = PingPongPayload(timestamp="2026-03-02T10:00:00Z")
         with pytest.raises(PydanticValidationError):
             payload.timestamp = "2026-03-02T11:00:00Z"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# Agent Teams payloads (T1.5)
+# ---------------------------------------------------------------------------
+
+
+class TestSessionInitPayload:
+    """Tests for SessionInitPayload model."""
+
+    def test_create_full(self) -> None:
+        """SessionInitPayload constructs with all required fields."""
+        ts = datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC)
+        payload = SessionInitPayload(
+            session_id="abc-123",
+            model="claude-opus-4-7",
+            permission_mode="acceptEdits",
+            api_key_source="subscription",
+            cwd="/Users/dev/project",
+            agent_teams_enabled=True,
+            initialized_at=ts,
+        )
+        assert payload.session_id == "abc-123"
+        assert payload.model == "claude-opus-4-7"
+        assert payload.permission_mode == "acceptEdits"
+        assert payload.api_key_source == "subscription"
+        assert payload.cwd == "/Users/dev/project"
+        assert payload.agent_teams_enabled is True
+        assert payload.initialized_at == ts
+
+    def test_round_trip_json(self) -> None:
+        """SessionInitPayload survives a JSON dump/load round-trip."""
+        original = SessionInitPayload(
+            session_id="abc-123",
+            model="claude-opus-4-7",
+            permission_mode="acceptEdits",
+            api_key_source="subscription",
+            cwd="/Users/dev/project",
+            agent_teams_enabled=True,
+            initialized_at=datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC),
+        )
+        json_str = original.model_dump_json()
+        restored = SessionInitPayload.model_validate_json(json_str)
+        assert restored == original
+
+    def test_missing_required_field_rejected(self) -> None:
+        """Missing required field raises ValidationError."""
+        with pytest.raises(PydanticValidationError):
+            SessionInitPayload.model_validate(
+                {
+                    "session_id": "abc",
+                    "model": "claude-opus-4-7",
+                    "permission_mode": "acceptEdits",
+                    "api_key_source": "subscription",
+                    # missing: cwd, agent_teams_enabled, initialized_at
+                }
+            )
+
+    def test_is_frozen(self) -> None:
+        """SessionInitPayload is immutable."""
+        payload = SessionInitPayload(
+            session_id="abc",
+            model="claude-opus-4-7",
+            permission_mode="acceptEdits",
+            api_key_source="subscription",
+            cwd="/x",
+            agent_teams_enabled=True,
+            initialized_at=datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC),
+        )
+        with pytest.raises(PydanticValidationError):
+            payload.model = "claude-sonnet-4-7"  # type: ignore[misc]
+
+
+class TestSubagentSpawnedPayload:
+    """Tests for SubagentSpawnedPayload model."""
+
+    def test_create_minimal(self) -> None:
+        """SubagentSpawnedPayload constructs with only required fields."""
+        ts = datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC)
+        payload = SubagentSpawnedPayload(
+            task_id="task-001",
+            name="frontend-impl",
+            prompt_preview="Implement the cart UI",
+            started_at=ts,
+        )
+        assert payload.task_id == "task-001"
+        assert payload.name == "frontend-impl"
+        assert payload.description is None
+        assert payload.subagent_type is None
+        assert payload.isolation is None
+        assert payload.started_at == ts
+
+    def test_create_full(self) -> None:
+        """SubagentSpawnedPayload accepts all optional fields."""
+        ts = datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC)
+        payload = SubagentSpawnedPayload(
+            task_id="task-001",
+            name="frontend-impl",
+            description="UI work for cart",
+            prompt_preview="Implement the cart UI",
+            subagent_type="general-purpose",
+            isolation="worktree",
+            started_at=ts,
+        )
+        assert payload.description == "UI work for cart"
+        assert payload.subagent_type == "general-purpose"
+        assert payload.isolation == "worktree"
+
+    def test_round_trip_json(self) -> None:
+        """SubagentSpawnedPayload survives JSON round-trip."""
+        original = SubagentSpawnedPayload(
+            task_id="task-001",
+            name="frontend-impl",
+            description="UI",
+            prompt_preview="...",
+            subagent_type="general-purpose",
+            isolation="worktree",
+            started_at=datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC),
+        )
+        restored = SubagentSpawnedPayload.model_validate_json(original.model_dump_json())
+        assert restored == original
+
+    def test_missing_required_field_rejected(self) -> None:
+        """Missing task_id raises ValidationError."""
+        with pytest.raises(PydanticValidationError):
+            SubagentSpawnedPayload.model_validate(
+                {
+                    "name": "frontend-impl",
+                    "prompt_preview": "...",
+                    "started_at": "2026-05-01T12:00:00Z",
+                }
+            )
+
+
+class TestSubagentProgressPayload:
+    """Tests for SubagentProgressPayload model."""
+
+    def test_create(self) -> None:
+        """SubagentProgressPayload constructs with required fields."""
+        ts = datetime(2026, 5, 1, 12, 5, 0, tzinfo=UTC)
+        payload = SubagentProgressPayload(
+            task_id="task-001",
+            status="in_progress",
+            activity="Editing config.toml",
+            updated_at=ts,
+        )
+        assert payload.task_id == "task-001"
+        assert payload.status == "in_progress"
+        assert payload.activity == "Editing config.toml"
+        assert payload.updated_at == ts
+
+    def test_round_trip_json(self) -> None:
+        """SubagentProgressPayload survives JSON round-trip."""
+        original = SubagentProgressPayload(
+            task_id="task-001",
+            status="queued",
+            activity="Waiting for runner",
+            updated_at=datetime(2026, 5, 1, 12, 5, 0, tzinfo=UTC),
+        )
+        restored = SubagentProgressPayload.model_validate_json(original.model_dump_json())
+        assert restored == original
+
+    def test_missing_field_rejected(self) -> None:
+        """Missing activity raises ValidationError."""
+        with pytest.raises(PydanticValidationError):
+            SubagentProgressPayload.model_validate(
+                {
+                    "task_id": "task-001",
+                    "status": "in_progress",
+                    "updated_at": "2026-05-01T12:05:00Z",
+                }
+            )
+
+
+class TestSubagentCompletedPayload:
+    """Tests for SubagentCompletedPayload model."""
+
+    def test_create_completed(self) -> None:
+        """SubagentCompletedPayload constructs for a successful completion."""
+        ts = datetime(2026, 5, 1, 12, 30, 0, tzinfo=UTC)
+        payload = SubagentCompletedPayload(
+            task_id="task-001",
+            status="completed",
+            summary="Implemented cart UI with 3 components",
+            total_tokens=12_345,
+            tool_uses=42,
+            duration_ms=180_000,
+            completed_at=ts,
+        )
+        assert payload.task_id == "task-001"
+        assert payload.status == "completed"
+        assert payload.summary == "Implemented cart UI with 3 components"
+        assert payload.total_tokens == 12_345
+        assert payload.tool_uses == 42
+        assert payload.duration_ms == 180_000
+        assert payload.completed_at == ts
+
+    def test_create_failed_no_summary(self) -> None:
+        """SubagentCompletedPayload allows failed status without summary."""
+        payload = SubagentCompletedPayload(
+            task_id="task-002",
+            status="failed",
+            total_tokens=100,
+            tool_uses=1,
+            duration_ms=5_000,
+            completed_at=datetime(2026, 5, 1, 12, 30, 0, tzinfo=UTC),
+        )
+        assert payload.summary is None
+        assert payload.status == "failed"
+
+    def test_round_trip_json(self) -> None:
+        """SubagentCompletedPayload survives JSON round-trip."""
+        original = SubagentCompletedPayload(
+            task_id="task-001",
+            status="completed",
+            summary="ok",
+            total_tokens=1,
+            tool_uses=1,
+            duration_ms=1,
+            completed_at=datetime(2026, 5, 1, 12, 30, 0, tzinfo=UTC),
+        )
+        restored = SubagentCompletedPayload.model_validate_json(original.model_dump_json())
+        assert restored == original
+
+    def test_missing_field_rejected(self) -> None:
+        """Missing duration_ms raises ValidationError."""
+        with pytest.raises(PydanticValidationError):
+            SubagentCompletedPayload.model_validate(
+                {
+                    "task_id": "task-001",
+                    "status": "completed",
+                    "total_tokens": 1,
+                    "tool_uses": 1,
+                    "completed_at": "2026-05-01T12:30:00Z",
+                }
+            )
+
+
+class TestRateLimitInfoPayload:
+    """Tests for RateLimitInfoPayload model."""
+
+    def test_create_allowed(self) -> None:
+        """RateLimitInfoPayload constructs in 'allowed' state."""
+        payload = RateLimitInfoPayload(
+            status="allowed",
+            rate_limit_type="five_hour",
+            resets_at=1_777_000_000,
+            overage_status="not_using",
+            is_using_overage=False,
+        )
+        assert payload.status == "allowed"
+        assert payload.rate_limit_type == "five_hour"
+        assert payload.resets_at == 1_777_000_000
+        assert payload.overage_status == "not_using"
+        assert payload.is_using_overage is False
+
+    def test_round_trip_json(self) -> None:
+        """RateLimitInfoPayload survives JSON round-trip."""
+        original = RateLimitInfoPayload(
+            status="limited",
+            rate_limit_type="five_hour",
+            resets_at=1_777_000_000,
+            overage_status="opted_in",
+            is_using_overage=True,
+        )
+        restored = RateLimitInfoPayload.model_validate_json(original.model_dump_json())
+        assert restored == original
+
+    def test_missing_field_rejected(self) -> None:
+        """Missing is_using_overage raises ValidationError."""
+        with pytest.raises(PydanticValidationError):
+            RateLimitInfoPayload.model_validate(
+                {
+                    "status": "allowed",
+                    "rate_limit_type": "five_hour",
+                    "resets_at": 1,
+                    "overage_status": "not_using",
+                }
+            )
+
+
+class TestSessionTitlePayload:
+    """Tests for SessionTitlePayload model."""
+
+    def test_create(self) -> None:
+        """SessionTitlePayload constructs with a UUID session_id."""
+        sid = uuid4()
+        ts = datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC)
+        payload = SessionTitlePayload(
+            session_id=sid,
+            ai_title="Refactor cart checkout flow",
+            generated_at=ts,
+        )
+        assert payload.session_id == sid
+        assert payload.ai_title == "Refactor cart checkout flow"
+        assert payload.generated_at == ts
+
+    def test_round_trip_json(self) -> None:
+        """SessionTitlePayload survives JSON round-trip."""
+        original = SessionTitlePayload(
+            session_id=UUID("12345678-1234-5678-1234-567812345678"),
+            ai_title="Refactor",
+            generated_at=datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC),
+        )
+        restored = SessionTitlePayload.model_validate_json(original.model_dump_json())
+        assert restored == original
+
+    def test_invalid_uuid_rejected(self) -> None:
+        """Non-UUID session_id raises ValidationError."""
+        with pytest.raises(PydanticValidationError):
+            SessionTitlePayload.model_validate(
+                {
+                    "session_id": "not-a-uuid",
+                    "ai_title": "x",
+                    "generated_at": "2026-05-01T12:00:00Z",
+                }
+            )
+
+
+class TestSessionPrOpenedPayload:
+    """Tests for SessionPrOpenedPayload model."""
+
+    def test_create(self) -> None:
+        """SessionPrOpenedPayload constructs with all fields."""
+        sid = uuid4()
+        ts = datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC)
+        payload = SessionPrOpenedPayload(
+            session_id=sid,
+            pr_number=42,
+            pr_url="https://github.com/owner/repo/pull/42",
+            pr_repository="owner/repo",
+            opened_at=ts,
+        )
+        assert payload.session_id == sid
+        assert payload.pr_number == 42
+        assert payload.pr_url == "https://github.com/owner/repo/pull/42"
+        assert payload.pr_repository == "owner/repo"
+        assert payload.opened_at == ts
+
+    def test_round_trip_json(self) -> None:
+        """SessionPrOpenedPayload survives JSON round-trip."""
+        original = SessionPrOpenedPayload(
+            session_id=UUID("12345678-1234-5678-1234-567812345678"),
+            pr_number=42,
+            pr_url="https://github.com/o/r/pull/42",
+            pr_repository="o/r",
+            opened_at=datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC),
+        )
+        restored = SessionPrOpenedPayload.model_validate_json(original.model_dump_json())
+        assert restored == original
+
+    def test_missing_field_rejected(self) -> None:
+        """Missing pr_number raises ValidationError."""
+        with pytest.raises(PydanticValidationError):
+            SessionPrOpenedPayload.model_validate(
+                {
+                    "session_id": "12345678-1234-5678-1234-567812345678",
+                    "pr_url": "https://x",
+                    "pr_repository": "o/r",
+                    "opened_at": "2026-05-01T12:00:00Z",
+                }
+            )
+
+
+class TestUsageReportPayload:
+    """Tests for UsageReportPayload model."""
+
+    def test_create(self) -> None:
+        """UsageReportPayload constructs with all fields."""
+        payload = UsageReportPayload(
+            five_hour_pct=42,
+            seven_day_pct=18,
+            five_hour_resets_at=1_777_000_000,
+            seven_day_resets_at=1_777_500_000,
+            reported_at=1_776_999_000,
+        )
+        assert payload.five_hour_pct == 42
+        assert payload.seven_day_pct == 18
+        assert payload.five_hour_resets_at == 1_777_000_000
+        assert payload.seven_day_resets_at == 1_777_500_000
+        assert payload.reported_at == 1_776_999_000
+
+    def test_overage_above_100_allowed(self) -> None:
+        """UsageReportPayload allows pct > 100 (overage)."""
+        payload = UsageReportPayload(
+            five_hour_pct=137,
+            seven_day_pct=42,
+            five_hour_resets_at=1,
+            seven_day_resets_at=2,
+            reported_at=0,
+        )
+        assert payload.five_hour_pct == 137
+
+    def test_round_trip_json(self) -> None:
+        """UsageReportPayload survives JSON round-trip."""
+        original = UsageReportPayload(
+            five_hour_pct=42,
+            seven_day_pct=18,
+            five_hour_resets_at=1_777_000_000,
+            seven_day_resets_at=1_777_500_000,
+            reported_at=1_776_999_000,
+        )
+        restored = UsageReportPayload.model_validate_json(original.model_dump_json())
+        assert restored == original
+
+    def test_missing_field_rejected(self) -> None:
+        """Missing reported_at raises ValidationError."""
+        with pytest.raises(PydanticValidationError):
+            UsageReportPayload.model_validate(
+                {
+                    "five_hour_pct": 42,
+                    "seven_day_pct": 18,
+                    "five_hour_resets_at": 1,
+                    "seven_day_resets_at": 2,
+                }
+            )
+
+    def test_is_frozen(self) -> None:
+        """UsageReportPayload is immutable."""
+        payload = UsageReportPayload(
+            five_hour_pct=42,
+            seven_day_pct=18,
+            five_hour_resets_at=1,
+            seven_day_resets_at=2,
+            reported_at=0,
+        )
+        with pytest.raises(PydanticValidationError):
+            payload.five_hour_pct = 99  # type: ignore[misc]
+
+
+class TestAgentTeamsEnvelope:
+    """Confirm new payloads can ride on the WebSocketMessage envelope."""
+
+    def test_session_init_in_envelope(self) -> None:
+        """SessionInitPayload serializes inside WebSocketMessage.content."""
+        payload = SessionInitPayload(
+            session_id="abc",
+            model="claude-opus-4-7",
+            permission_mode="acceptEdits",
+            api_key_source="subscription",
+            cwd="/x",
+            agent_teams_enabled=True,
+            initialized_at=datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC),
+        )
+        msg = WebSocketMessage(
+            type=MessageType.SESSION_INIT,
+            content=payload.model_dump(mode="json"),
+        )
+        assert msg.type == MessageType.SESSION_INIT
+        data = msg.model_dump(mode="json")
+        assert data["type"] == "session.init"
+        assert isinstance(data["content"], dict)
+        assert data["content"]["session_id"] == "abc"
+
+    def test_usage_report_in_envelope(self) -> None:
+        """UsageReportPayload serializes inside WebSocketMessage.content."""
+        payload = UsageReportPayload(
+            five_hour_pct=42,
+            seven_day_pct=18,
+            five_hour_resets_at=1,
+            seven_day_resets_at=2,
+            reported_at=0,
+        )
+        msg = WebSocketMessage(
+            type=MessageType.USAGE_REPORT,
+            content=payload.model_dump(mode="json"),
+        )
+        assert msg.type == MessageType.USAGE_REPORT
+        data = msg.model_dump(mode="json")
+        assert data["type"] == "usage.report"
+        assert isinstance(data["content"], dict)
+        assert data["content"]["five_hour_pct"] == 42
