@@ -6,15 +6,11 @@ import SwiftUI
 /// Proje bazli chat sessionlari destekler — her proje kendi mesaj gecmisine sahiptir.
 struct ChatView: View {
     @State private var sessionManager: ChatSessionManager
-    @State private var voiceInputViewModel = Container.shared.voiceInputViewModel()
-    @State private var voiceOutputViewModel = Container.shared.voiceOutputViewModel()
     @State private var progressViewModel = Container.shared.progressViewModel()
     @State private var isProgressExpanded = false
     @State private var bookmarkService = BookmarkService()
     @State private var showBookmarks = false
     @State private var showSearch = false
-    @State private var showVoiceOverlay = false
-    @State private var showVoiceConversation = false
     @State private var quickCommandQuery: String = ""
     @State private var availableAgentProjects: [AgentProject] = []
     @State private var exportedText: String?
@@ -81,13 +77,6 @@ struct ChatView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
-                // Ses kaydi overlay'i — chat input'un ustunde gosterilir
-                if showVoiceOverlay {
-                    RFVoiceInputView(viewModel: voiceInputViewModel)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .background(RFColors.fallbackSurface)
-                }
-
                 suggestionChipsView
                 commandPaletteView
 
@@ -147,7 +136,6 @@ struct ChatView: View {
                 }
             }
             .task {
-                setupVoiceCallbacks()
                 setupConnectionMonitor()
                 await registerMessageHandlers()
                 await loadProjects()
@@ -233,22 +221,12 @@ struct ChatView: View {
                     errorBanner(message: errorMessage)
                 }
             }
-            .animation(RFAnimation.springResponsive, value: showVoiceOverlay)
             .animation(RFAnimation.springResponsive, value: progressViewModel.isVisible)
             .animation(RFAnimation.springResponsive, value: viewModel.pendingSuggestions.isEmpty)
             .animation(RFAnimation.springResponsive, value: showCommandPalette)
             .animation(RFAnimation.springResponsive, value: viewModel.messageQueue.isEmpty)
             .animation(RFAnimation.springResponsive, value: githubEventService.latestEvent?.event)
             .animation(RFAnimation.springResponsive, value: latestAgentStatusChange?.hostId)
-            .fullScreenCover(isPresented: $showVoiceConversation) {
-                let voiceVM = Container.shared.voiceConversationViewModel()
-                VoiceConversationView(viewModel: voiceVM) {
-                    showVoiceConversation = false
-                }
-                .task {
-                    await voiceVM.enterVoiceMode()
-                }
-            }
             .background {
                 keyboardShortcutsLayer
             }
@@ -315,9 +293,7 @@ struct ChatView: View {
                                 RFMessageBubble(
                                     message: message,
                                     onCopy: { viewModel.copyMessage($0) },
-                                    onSpeak: message.sender == .assistant
-                                        ? { Task { await voiceOutputViewModel.speak(text: message.content) } }
-                                        : nil,
+                                    onSpeak: nil,
                                     onBookmark: message.sender == .assistant ? {
                                         bookmarkService.bookmark(
                                             message,
@@ -518,8 +494,6 @@ struct ChatView: View {
             isEnabled: !viewModel.isLoading,
             isSending: viewModel.isSending,
             isProcessing: viewModel.isTyping || viewModel.currentActivity?.isActive == true,
-            isRecording: voiceInputViewModel.isRecording,
-            audioLevel: voiceInputViewModel.audioLevel.normalizedLevel,
             onSend: {
                 Task { @MainActor in
                     let text = viewModel.messageText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -545,12 +519,6 @@ struct ChatView: View {
                     HapticManager.error()
                     LiveActivityManager.shared.end()
                 }
-            },
-            onMicTap: {
-                handleMicTap()
-            },
-            onMicLongPress: {
-                showVoiceConversation = true
             }
         )
     }
@@ -990,41 +958,6 @@ struct ChatView: View {
         }
     }
 
-    // MARK: - Voice
-
-    private func setupVoiceCallbacks() {
-        voiceInputViewModel.onTranscriptionComplete = { transcription in
-            viewModel.messageText = transcription
-            showVoiceOverlay = false
-            Task { @MainActor in
-                let connected = webSocketManager.isConnected
-                let projectName = sessionManager.activeProjectName ?? "RafRaf"
-                if connected {
-                    LiveActivityManager.shared.start(projectName: projectName)
-                }
-                await viewModel.sendMessage(isConnected: connected)
-            }
-        }
-    }
-
-    private func handleMicTap() {
-        if voiceInputViewModel.isRecording {
-            // Kaydi durdur
-            Task {
-                await voiceInputViewModel.stopRecording()
-            }
-        } else if showVoiceOverlay {
-            // Overlay acik ama kayit yok — kapat
-            showVoiceOverlay = false
-        } else {
-            // Overlay ac ve kaydi baslat
-            showVoiceOverlay = true
-            Task {
-                await voiceInputViewModel.startRecording()
-            }
-        }
-    }
-
     // MARK: - Suggestion
 
     /// Oneri chip'ine tıklandığında öneriyi mesaj olarak gönderir.
@@ -1038,7 +971,6 @@ struct ChatView: View {
     // MARK: - WebSocket Handlers
 
     private func registerMessageHandlers() async {
-        let voiceVm = voiceOutputViewModel
         let progressVm = progressViewModel
 
         // Text response handler (non-streaming fallback)
@@ -1051,10 +983,6 @@ struct ChatView: View {
                     sender: .assistant,
                     type: .text
                 ))
-                // Otomatik sesli okuma — sadece aktif proje icin
-                if projectId == sessionManager.activeProjectId || projectId == nil {
-                    await voiceVm.autoPlayIfEnabled(text: text)
-                }
             }
         }
         await webSocketManager.registerHandler(

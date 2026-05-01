@@ -17,10 +17,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate, @unchecked Sendable {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        #if DEBUG
-        DebugSetup.injectKeysIfNeeded()
-        #endif
-
         // Live Activity push token sender'i kur
         configureLiveActivityPushTokenSender()
 

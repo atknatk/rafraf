@@ -14,10 +14,6 @@ enum WebSocketMessageType: String, Codable, Sendable {
     // Streaming response types
     case chatStream = "chat.stream"
     case chatStreamEnd = "chat.stream_end"
-    // Voice conversation types
-    case voiceAudioChunk = "voice.audio_chunk"
-    case voiceAudioEnd = "voice.audio_end"
-    case voiceInterrupt = "voice.interrupt"
     // Code diff type
     case codeDiff = "code.diff"
     // Proactive suggestion type
@@ -125,8 +121,6 @@ enum WebSocketContent: Codable, Sendable {
     case heartbeat(HeartbeatContent)
     case chatStream(ChatStreamContent)
     case chatStreamEnd(ChatStreamEndContent)
-    case voiceAudioChunk(VoiceAudioChunkContent)
-    case voiceAudioEnd(VoiceAudioEndContent)
     case codeDiff(CodeDiffContent)
     case suggestion(SuggestionContent)
     case githubEvent(GitHubEventPayload)
@@ -149,16 +143,6 @@ enum WebSocketContent: Codable, Sendable {
 
         if let streamEnd = try? container.decode(ChatStreamEndContent.self) {
             self = .chatStreamEnd(streamEnd)
-            return
-        }
-
-        if let audioChunk = try? container.decode(VoiceAudioChunkContent.self) {
-            self = .voiceAudioChunk(audioChunk)
-            return
-        }
-
-        if let audioEnd = try? container.decode(VoiceAudioEndContent.self) {
-            self = .voiceAudioEnd(audioEnd)
             return
         }
 
@@ -227,10 +211,6 @@ enum WebSocketContent: Codable, Sendable {
         case .chatStream(let value):
             try container.encode(value)
         case .chatStreamEnd(let value):
-            try container.encode(value)
-        case .voiceAudioChunk(let value):
-            try container.encode(value)
-        case .voiceAudioEnd(let value):
             try container.encode(value)
         case .codeDiff(let value):
             try container.encode(value)
@@ -359,20 +339,6 @@ struct ChatStreamEndContent: Codable, Sendable {
     let fullText: String
     let modelUsed: String
     let tokensUsed: TokenUsage?
-}
-
-/// TTS ses chunk icerigi.
-struct VoiceAudioChunkContent: Codable, Sendable {
-    let messageId: String
-    let chunkIndex: Int
-    let audioData: String  // base64-encoded MP3
-    let sentenceText: String
-    let isLastChunk: Bool
-}
-
-/// Ses akisi tamamlanma icerigi.
-struct VoiceAudioEndContent: Codable, Sendable {
-    let messageId: String
 }
 
 /// Code diff satiri icerigi.
@@ -523,19 +489,6 @@ enum WebSocketMessageFactory {
     static func cancelStreamMessage(sessionId: String? = nil) -> WebSocketBaseMessage {
         WebSocketBaseMessage(
             type: WebSocketMessageType.cancelStream.rawValue,
-            metadata: WebSocketMessageMetadata(
-                sessionId: sessionId,
-                direction: WebSocketMessageDirection.clientToServer.rawValue
-            )
-        )
-    }
-
-    /// Voice interrupt (barge-in) mesaji olusturur.
-    static func voiceInterruptMessage(
-        sessionId: String? = nil
-    ) -> WebSocketBaseMessage {
-        WebSocketBaseMessage(
-            type: WebSocketMessageType.voiceInterrupt.rawValue,
             metadata: WebSocketMessageMetadata(
                 sessionId: sessionId,
                 direction: WebSocketMessageDirection.clientToServer.rawValue
