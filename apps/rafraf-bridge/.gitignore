@@ -1,0 +1,7 @@
+# Build artefacts produced by `make build` and the release pipeline.
+# T0.5.4 reviewer L1 + T0.5.5 reviewer LOW noted that `make build` drops
+# a `bridge` binary at the module root with no .gitignore entry; T0.5.13
+# adds it here so accidental `git add .` invocations do not commit a
+# 10-15 MB binary into the repo.
+/bridge
+/dist/
