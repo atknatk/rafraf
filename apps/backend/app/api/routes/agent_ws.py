@@ -171,6 +171,20 @@ async def agent_websocket_endpoint(
                 # the generic ``event.*`` branch because dispatch_event
                 # drops correlation-less envelopes.
                 await _handle_usage_report(raw_data)
+            elif msg_type == "event.session.title":
+                # Storage-watcher-driven, broadcast event (no RPC
+                # correlation). Resolves session→user via SessionRepository
+                # and forwards a typed ``session.title`` message to that
+                # owner's iOS connections (T1.2-fix H-1). MUST be matched
+                # before the generic ``event.*`` branch.
+                await _handle_session_title(raw_data)
+            elif msg_type == "event.session.pr_opened":
+                # Storage-watcher-driven, broadcast event (no RPC
+                # correlation). Resolves session→user via SessionRepository
+                # and forwards a typed ``session.pr_opened`` message
+                # (T1.2-fix H-1). MUST be matched before the generic
+                # ``event.*`` branch.
+                await _handle_session_pr_opened(raw_data)
             elif isinstance(msg_type, str) and msg_type.startswith("event."):
                 # Bridge → backend RPC events (T1.1). Routed to the
                 # ClaudeCodeRunner subscriber that owns the matching
@@ -656,4 +670,235 @@ async def _handle_usage_report(raw_data: dict[str, object]) -> None:
         sessions_reached=delivered,
         five_hour_pct=five_hour_pct,
         seven_day_pct=seven_day_pct,
+    )
+
+
+def _extract_event_body(
+    raw_data: dict[str, object],
+) -> dict[str, object] | None:
+    """Return the typed payload of a bridge envelope or ``None``.
+
+    The bridge wraps ``EventStorage*`` structs under ``payload`` (preferred);
+    legacy callers may have placed the fields directly under ``content``.
+    """
+    body = raw_data.get("payload")
+    if isinstance(body, dict):
+        return body
+    body = raw_data.get("content")
+    if isinstance(body, dict):
+        return body
+    return None
+
+
+async def _resolve_session_owner(session_id: uuid.UUID) -> str | None:
+    """Look up the ``user_id`` of the user who owns ``session_id``.
+
+    Returns the stringified UUID (matches the iOS-side ``user_id`` keying
+    used by ``ClaudeStreamManager.forward_*``) or ``None`` if the row is
+    missing — that case is logged at the call site so orphan events stay
+    visible to ops.
+    """
+    from app.repositories.session_repo import SessionRepository  # noqa: PLC0415
+
+    async with async_session_factory() as session:
+        repo = SessionRepository(session)
+        record = await repo.get_by_id(session_id)
+        if record is None:
+            return None
+        return str(record.user_id)
+
+
+async def _handle_session_title(raw_data: dict[str, object]) -> None:
+    """Forward an ``event.session.title`` envelope to the session owner.
+
+    The bridge's storage watcher emits this whenever an ``ai-title`` row
+    appears in ``~/.claude/projects/<project>/<session>.json`` (see
+    docs/10 §6.2). The payload carries a session UUID (per T1.5 contract)
+    that we resolve to its owning ``user_id`` via :class:`SessionRepository`,
+    then push as a typed ``session.title`` message to all of that user's
+    iOS connections.
+
+    Server-side ``generated_at`` injection is delegated to
+    :meth:`ClaudeStreamManager.forward_session_title` (T1.5 reviewer M3).
+    """
+    body = _extract_event_body(raw_data)
+    if body is None:
+        await logger.awarning(
+            "session_title_missing_payload",
+            keys=list(raw_data.keys()),
+        )
+        return
+
+    session_id_raw = body.get("session_id")
+    ai_title_raw = body.get("ai_title")
+    if not isinstance(session_id_raw, str) or not session_id_raw:
+        await logger.awarning(
+            "session_title_missing_session_id",
+            payload_keys=list(body.keys()),
+        )
+        return
+    if not isinstance(ai_title_raw, str) or not ai_title_raw:
+        await logger.awarning(
+            "session_title_missing_ai_title",
+            session_id=session_id_raw,
+        )
+        return
+
+    try:
+        session_uuid = uuid.UUID(session_id_raw)
+    except ValueError:
+        await logger.awarning(
+            "session_title_invalid_session_id",
+            session_id=session_id_raw,
+        )
+        return
+
+    generated_at_raw = body.get("generated_at")
+    generated_at: datetime | None = None
+    if isinstance(generated_at_raw, str) and generated_at_raw:
+        try:
+            generated_at = datetime.fromisoformat(generated_at_raw)
+        except ValueError:
+            await logger.awarning(
+                "session_title_invalid_generated_at",
+                session_id=session_id_raw,
+                generated_at=generated_at_raw,
+            )
+            generated_at = None
+
+    user_id = await _resolve_session_owner(session_uuid)
+    if user_id is None:
+        await logger.awarning(
+            "session_title_orphan_session",
+            session_id=session_id_raw,
+        )
+        return
+
+    csm = get_claude_stream_manager()
+    sent = await csm.forward_session_title(
+        user_id=user_id,
+        session_id=session_uuid,
+        ai_title=ai_title_raw,
+        generated_at=generated_at,
+    )
+    await logger.ainfo(
+        "session_title_forwarded",
+        session_id=session_id_raw,
+        user_id=user_id,
+        sessions_reached=sent,
+    )
+
+
+async def _handle_session_pr_opened(raw_data: dict[str, object]) -> None:
+    """Forward an ``event.session.pr_opened`` envelope to the session owner.
+
+    The bridge's storage watcher emits this whenever a ``pr-link`` row
+    appears in the session jsonl (typically after ``gh pr create``; see
+    docs/10 §6.2). The payload's session UUID is resolved to its owning
+    ``user_id`` via :class:`SessionRepository`, then pushed as a typed
+    ``session.pr_opened`` message to all of that user's iOS connections.
+
+    Server-side ``opened_at`` injection is delegated to
+    :meth:`ClaudeStreamManager.forward_session_pr_opened` (T1.5 reviewer M3).
+    """
+    body = _extract_event_body(raw_data)
+    if body is None:
+        await logger.awarning(
+            "session_pr_opened_missing_payload",
+            keys=list(raw_data.keys()),
+        )
+        return
+
+    session_id_raw = body.get("session_id")
+    pr_url_raw = body.get("pr_url")
+    pr_repository_raw = body.get("pr_repository")
+    if not isinstance(session_id_raw, str) or not session_id_raw:
+        await logger.awarning(
+            "session_pr_opened_missing_session_id",
+            payload_keys=list(body.keys()),
+        )
+        return
+    if not isinstance(pr_url_raw, str) or not pr_url_raw:
+        await logger.awarning(
+            "session_pr_opened_missing_pr_url",
+            session_id=session_id_raw,
+        )
+        return
+    if not isinstance(pr_repository_raw, str) or not pr_repository_raw:
+        await logger.awarning(
+            "session_pr_opened_missing_pr_repository",
+            session_id=session_id_raw,
+        )
+        return
+
+    pr_number_raw = body.get("pr_number")
+    if not isinstance(pr_number_raw, (int, str)):
+        await logger.awarning(
+            "session_pr_opened_invalid_pr_number",
+            session_id=session_id_raw,
+            pr_number_type=type(pr_number_raw).__name__,
+        )
+        return
+    try:
+        pr_number = int(pr_number_raw)
+    except (TypeError, ValueError):
+        await logger.awarning(
+            "session_pr_opened_invalid_pr_number",
+            session_id=session_id_raw,
+            pr_number_raw=pr_number_raw,
+        )
+        return
+    if pr_number <= 0:
+        await logger.awarning(
+            "session_pr_opened_invalid_pr_number",
+            session_id=session_id_raw,
+            pr_number=pr_number,
+        )
+        return
+
+    try:
+        session_uuid = uuid.UUID(session_id_raw)
+    except ValueError:
+        await logger.awarning(
+            "session_pr_opened_invalid_session_id",
+            session_id=session_id_raw,
+        )
+        return
+
+    opened_at_raw = body.get("opened_at")
+    opened_at: datetime | None = None
+    if isinstance(opened_at_raw, str) and opened_at_raw:
+        try:
+            opened_at = datetime.fromisoformat(opened_at_raw)
+        except ValueError:
+            await logger.awarning(
+                "session_pr_opened_invalid_opened_at",
+                session_id=session_id_raw,
+                opened_at=opened_at_raw,
+            )
+            opened_at = None
+
+    user_id = await _resolve_session_owner(session_uuid)
+    if user_id is None:
+        await logger.awarning(
+            "session_pr_opened_orphan_session",
+            session_id=session_id_raw,
+        )
+        return
+
+    csm = get_claude_stream_manager()
+    sent = await csm.forward_session_pr_opened(
+        user_id=user_id,
+        session_id=session_uuid,
+        pr_number=pr_number,
+        pr_url=pr_url_raw,
+        pr_repository=pr_repository_raw,
+        opened_at=opened_at,
+    )
+    await logger.ainfo(
+        "session_pr_opened_forwarded",
+        session_id=session_id_raw,
+        user_id=user_id,
+        pr_number=pr_number,
+        sessions_reached=sent,
     )

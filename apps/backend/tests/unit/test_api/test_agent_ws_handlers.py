@@ -1,13 +1,18 @@
 """Unit tests for agent_ws.py module-level handlers.
 
-Focused on the T1.2 ``event.usage.report`` broadcast path — we exercise it
-in isolation by patching the ``ios_manager`` and ``claude_stream_manager``
-singletons so no real WebSocket / DB round-trip is required.
+Focused on the T1.2 ``event.usage.report`` broadcast path and the
+T1.2-fix ``event.session.title`` / ``event.session.pr_opened`` storage
+paths — we exercise them in isolation by patching the ``ios_manager``,
+``claude_stream_manager``, and ``SessionRepository`` so no real WebSocket
+/ DB round-trip is required.
 """
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 
@@ -34,12 +39,30 @@ def fake_csm(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     """Replace get_claude_stream_manager() with a mock that records forwards."""
     fake = MagicMock()
     fake.forward_usage_report = AsyncMock(return_value=2)
+    fake.forward_session_title = AsyncMock(return_value=1)
+    fake.forward_session_pr_opened = AsyncMock(return_value=1)
     monkeypatch.setattr(
         agent_ws_module,
         "get_claude_stream_manager",
         lambda: fake,
     )
     return fake
+
+
+@pytest.fixture
+def fake_session_owner(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """Patch _resolve_session_owner with an AsyncMock for direct control.
+
+    Returns the AsyncMock so individual tests can override the resolved
+    owner (or set it to ``None`` to simulate an orphan session row).
+    """
+    resolver = AsyncMock(return_value="owner-user-id")
+    monkeypatch.setattr(
+        agent_ws_module,
+        "_resolve_session_owner",
+        resolver,
+    )
+    return resolver
 
 
 @pytest.mark.asyncio
@@ -150,3 +173,377 @@ async def test_handle_usage_report_no_active_users_is_noop(
 def test_usage_report_message_type_is_registered() -> None:
     """Sanity: USAGE_REPORT enum + value match the bridge wire format suffix."""
     assert MessageType.USAGE_REPORT.value == "usage.report"
+
+
+# --------------------------------------------------------------------------
+# event.session.title — T1.2-fix H-1
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_handle_session_title_resolves_owner_and_forwards(
+    fake_csm: MagicMock,
+    fake_session_owner: AsyncMock,
+) -> None:
+    """Happy path: session_id resolves to user → forward_session_title called."""
+    sid = uuid4()
+    raw = {
+        "type": "event.session.title",
+        "payload": {
+            "session_id": str(sid),
+            "ai_title": "Refactor websocket router",
+            "generated_at": "2026-05-02T10:00:00+00:00",
+        },
+    }
+    await agent_ws_module._handle_session_title(raw)
+
+    fake_session_owner.assert_awaited_once_with(sid)
+    fake_csm.forward_session_title.assert_awaited_once()
+    kwargs = fake_csm.forward_session_title.await_args.kwargs
+    assert kwargs["user_id"] == "owner-user-id"
+    assert kwargs["session_id"] == sid
+    assert kwargs["ai_title"] == "Refactor websocket router"
+    assert kwargs["generated_at"] == datetime(2026, 5, 2, 10, 0, tzinfo=UTC)
+
+
+@pytest.mark.asyncio
+async def test_handle_session_title_injects_timestamp_when_omitted(
+    fake_csm: MagicMock,
+    fake_session_owner: AsyncMock,  # noqa: ARG001
+) -> None:
+    """Bridge omits ``generated_at`` → handler passes ``None`` so the CSM
+    forwarder server-side-injects ``datetime.now(UTC)`` (T1.5 reviewer M3).
+    """
+    sid = uuid4()
+    raw = {
+        "type": "event.session.title",
+        "payload": {
+            "session_id": str(sid),
+            "ai_title": "First take",
+            # generated_at omitted on purpose
+        },
+    }
+    await agent_ws_module._handle_session_title(raw)
+
+    fake_csm.forward_session_title.assert_awaited_once()
+    kwargs = fake_csm.forward_session_title.await_args.kwargs
+    # ``None`` → the forwarder fills in datetime.now(UTC) (covered by
+    # claude_stream_manager unit tests — here we assert the contract
+    # boundary at the routing layer).
+    assert kwargs["generated_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_handle_session_title_orphan_session_logs_and_skips(
+    fake_csm: MagicMock,
+    fake_session_owner: AsyncMock,
+) -> None:
+    """Unknown session_id → warn (visibility for ops) + no forward call."""
+    fake_session_owner.return_value = None
+    sid = uuid4()
+    raw = {
+        "type": "event.session.title",
+        "payload": {
+            "session_id": str(sid),
+            "ai_title": "Orphan-title",
+        },
+    }
+    await agent_ws_module._handle_session_title(raw)
+
+    fake_session_owner.assert_awaited_once_with(sid)
+    fake_csm.forward_session_title.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("fake_session_owner")
+async def test_handle_session_title_missing_payload_skips(
+    fake_csm: MagicMock,
+) -> None:
+    """No payload/content → warn + skip; no exception propagated."""
+    await agent_ws_module._handle_session_title({"type": "event.session.title"})
+    fake_csm.forward_session_title.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("fake_session_owner")
+async def test_handle_session_title_missing_session_id_skips(
+    fake_csm: MagicMock,
+) -> None:
+    """Payload without session_id → warn + skip."""
+    raw = {
+        "type": "event.session.title",
+        "payload": {"ai_title": "no-sid"},
+    }
+    await agent_ws_module._handle_session_title(raw)
+    fake_csm.forward_session_title.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("fake_session_owner")
+async def test_handle_session_title_missing_ai_title_skips(
+    fake_csm: MagicMock,
+) -> None:
+    """Payload without ai_title → warn + skip."""
+    raw = {
+        "type": "event.session.title",
+        "payload": {"session_id": str(uuid4())},
+    }
+    await agent_ws_module._handle_session_title(raw)
+    fake_csm.forward_session_title.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("fake_session_owner")
+async def test_handle_session_title_invalid_session_id_skips(
+    fake_csm: MagicMock,
+) -> None:
+    """Non-UUID session_id → warn + skip (no UUID coercion crash)."""
+    raw = {
+        "type": "event.session.title",
+        "payload": {
+            "session_id": "not-a-uuid",
+            "ai_title": "x",
+        },
+    }
+    await agent_ws_module._handle_session_title(raw)
+    fake_csm.forward_session_title.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_handle_session_title_falls_back_to_content_key(
+    fake_csm: MagicMock,
+    fake_session_owner: AsyncMock,  # noqa: ARG001
+) -> None:
+    """Legacy bridges that put fields under ``content`` must still work."""
+    sid = uuid4()
+    raw = {
+        "type": "event.session.title",
+        "content": {
+            "session_id": str(sid),
+            "ai_title": "Legacy",
+        },
+    }
+    await agent_ws_module._handle_session_title(raw)
+    fake_csm.forward_session_title.assert_awaited_once()
+
+
+# --------------------------------------------------------------------------
+# event.session.pr_opened — T1.2-fix H-1
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_handle_session_pr_opened_resolves_owner_and_forwards(
+    fake_csm: MagicMock,
+    fake_session_owner: AsyncMock,
+) -> None:
+    """Happy path: session_id resolves to user → forward_session_pr_opened called."""
+    sid = uuid4()
+    raw = {
+        "type": "event.session.pr_opened",
+        "payload": {
+            "session_id": str(sid),
+            "pr_number": 42,
+            "pr_url": "https://github.com/org/repo/pull/42",
+            "pr_repository": "org/repo",
+            "opened_at": "2026-05-02T11:00:00+00:00",
+        },
+    }
+    await agent_ws_module._handle_session_pr_opened(raw)
+
+    fake_session_owner.assert_awaited_once_with(sid)
+    fake_csm.forward_session_pr_opened.assert_awaited_once()
+    kwargs = fake_csm.forward_session_pr_opened.await_args.kwargs
+    assert kwargs["user_id"] == "owner-user-id"
+    assert kwargs["session_id"] == sid
+    assert kwargs["pr_number"] == 42
+    assert kwargs["pr_url"] == "https://github.com/org/repo/pull/42"
+    assert kwargs["pr_repository"] == "org/repo"
+    assert kwargs["opened_at"] == datetime(2026, 5, 2, 11, 0, tzinfo=UTC)
+
+
+@pytest.mark.asyncio
+async def test_handle_session_pr_opened_injects_timestamp_when_omitted(
+    fake_csm: MagicMock,
+    fake_session_owner: AsyncMock,  # noqa: ARG001
+) -> None:
+    """Bridge omits ``opened_at`` → handler passes ``None`` so the CSM
+    forwarder server-side-injects ``datetime.now(UTC)`` (T1.5 reviewer M3).
+    """
+    sid = uuid4()
+    raw = {
+        "type": "event.session.pr_opened",
+        "payload": {
+            "session_id": str(sid),
+            "pr_number": 7,
+            "pr_url": "https://github.com/org/repo/pull/7",
+            "pr_repository": "org/repo",
+        },
+    }
+    await agent_ws_module._handle_session_pr_opened(raw)
+
+    kwargs = fake_csm.forward_session_pr_opened.await_args.kwargs
+    assert kwargs["opened_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_handle_session_pr_opened_orphan_session_logs_and_skips(
+    fake_csm: MagicMock,
+    fake_session_owner: AsyncMock,
+) -> None:
+    """Unknown session_id → warn + no forward call (orphan visibility)."""
+    fake_session_owner.return_value = None
+    raw = {
+        "type": "event.session.pr_opened",
+        "payload": {
+            "session_id": str(uuid4()),
+            "pr_number": 1,
+            "pr_url": "https://github.com/org/repo/pull/1",
+            "pr_repository": "org/repo",
+        },
+    }
+    await agent_ws_module._handle_session_pr_opened(raw)
+    fake_csm.forward_session_pr_opened.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("fake_session_owner")
+async def test_handle_session_pr_opened_missing_payload_skips(
+    fake_csm: MagicMock,
+) -> None:
+    """No payload/content → warn + skip."""
+    await agent_ws_module._handle_session_pr_opened(
+        {"type": "event.session.pr_opened"},
+    )
+    fake_csm.forward_session_pr_opened.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("fake_session_owner")
+async def test_handle_session_pr_opened_missing_pr_url_skips(
+    fake_csm: MagicMock,
+) -> None:
+    """Missing pr_url → warn + skip."""
+    raw = {
+        "type": "event.session.pr_opened",
+        "payload": {
+            "session_id": str(uuid4()),
+            "pr_number": 1,
+            "pr_repository": "org/repo",
+        },
+    }
+    await agent_ws_module._handle_session_pr_opened(raw)
+    fake_csm.forward_session_pr_opened.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("fake_session_owner")
+async def test_handle_session_pr_opened_invalid_pr_number_skips(
+    fake_csm: MagicMock,
+) -> None:
+    """Non-positive / non-numeric pr_number → warn + skip."""
+    raw = {
+        "type": "event.session.pr_opened",
+        "payload": {
+            "session_id": str(uuid4()),
+            "pr_number": 0,
+            "pr_url": "https://github.com/org/repo/pull/0",
+            "pr_repository": "org/repo",
+        },
+    }
+    await agent_ws_module._handle_session_pr_opened(raw)
+    fake_csm.forward_session_pr_opened.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("fake_session_owner")
+async def test_handle_session_pr_opened_invalid_session_id_skips(
+    fake_csm: MagicMock,
+) -> None:
+    """Non-UUID session_id → warn + skip (no UUID coercion crash)."""
+    raw = {
+        "type": "event.session.pr_opened",
+        "payload": {
+            "session_id": "not-a-uuid",
+            "pr_number": 1,
+            "pr_url": "https://github.com/org/repo/pull/1",
+            "pr_repository": "org/repo",
+        },
+    }
+    await agent_ws_module._handle_session_pr_opened(raw)
+    fake_csm.forward_session_pr_opened.assert_not_awaited()
+
+
+# --------------------------------------------------------------------------
+# _resolve_session_owner — minimal surface, real DB layer is exercised by
+# repository tests; here we verify the SessionRepository is called with
+# the correct UUID and that the user_id is stringified.
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_resolve_session_owner_returns_stringified_user_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When the row exists, the user_id is returned as ``str(uuid)``."""
+    sid = uuid4()
+    owner_uuid = uuid4()
+
+    fake_session = AsyncMock()
+    fake_session.__aenter__.return_value = fake_session
+    fake_session.__aexit__.return_value = None
+    monkeypatch.setattr(
+        agent_ws_module,
+        "async_session_factory",
+        lambda: fake_session,
+    )
+
+    fake_repo = AsyncMock()
+    fake_repo.get_by_id = AsyncMock(
+        return_value=SimpleNamespace(user_id=owner_uuid),
+    )
+    monkeypatch.setattr(
+        "app.repositories.session_repo.SessionRepository",
+        lambda _session: fake_repo,
+    )
+
+    result = await agent_ws_module._resolve_session_owner(sid)
+    assert result == str(owner_uuid)
+    fake_repo.get_by_id.assert_awaited_once_with(sid)
+
+
+@pytest.mark.asyncio
+async def test_resolve_session_owner_returns_none_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing row → ``None`` (caller logs as orphan)."""
+    sid = uuid4()
+
+    fake_session = AsyncMock()
+    fake_session.__aenter__.return_value = fake_session
+    fake_session.__aexit__.return_value = None
+    monkeypatch.setattr(
+        agent_ws_module,
+        "async_session_factory",
+        lambda: fake_session,
+    )
+
+    fake_repo = AsyncMock()
+    fake_repo.get_by_id = AsyncMock(return_value=None)
+    monkeypatch.setattr(
+        "app.repositories.session_repo.SessionRepository",
+        lambda _session: fake_repo,
+    )
+
+    result = await agent_ws_module._resolve_session_owner(sid)
+    assert result is None
+
+
+def test_session_title_message_type_is_registered() -> None:
+    """Sanity: SESSION_TITLE enum + value match the bridge wire format suffix."""
+    assert MessageType.SESSION_TITLE.value == "session.title"
+
+
+def test_session_pr_opened_message_type_is_registered() -> None:
+    """Sanity: SESSION_PR_OPENED enum + value match the bridge wire format."""
+    assert MessageType.SESSION_PR_OPENED.value == "session.pr_opened"
