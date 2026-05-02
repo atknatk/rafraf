@@ -156,8 +156,19 @@ func run(args []string) int {
 		}
 	}
 
-	// WebSocket client (outbound to control plane).
+	// WebSocket client (outbound to control plane). The legacy
+	// agent_register payload requires a deterministic host_id +
+	// version + heartbeat cadence (V1 backend bridge_registry contract,
+	// see apps/backend/app/api/routes/agent_ws.py); seed the client
+	// fields from config now so connectAndPump can fire the legacy
+	// register handshake on every (re)connect without re-deriving them.
 	wsClient := ws.NewClient(cfg.BackendURL)
+	wsClient.HostID = cfg.BridgeID
+	if wsClient.HostID == "" {
+		wsClient.HostID = hostName
+	}
+	wsClient.Version = Version
+	wsClient.HeartbeatInterval = cfg.HeartbeatInterval
 
 	// Claude subprocess runner.
 	runner := claude.NewRunner(cfg, logger)
