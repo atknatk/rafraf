@@ -15,6 +15,8 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os/exec"
+	"sync/atomic"
 	"time"
 )
 
@@ -78,14 +80,68 @@ func ShutdownMetricsServer(ctx context.Context, server *http.Server) error {
 	return server.Shutdown(shutdownCtx)
 }
 
-// healthzHandler returns a tiny JSON body the launchd KeepAlive probe and
-// monitoring scripts can hit. Kept intentionally trivial — anything more
-// involved (e.g. claude auth status) belongs on a dedicated endpoint so
-// the probe stays cheap.
+// claudeBinaryLookup resolves the on-disk path of the claude CLI. Tests
+// override this swap-in to inject deterministic results without depending
+// on the runner's PATH. Defaults to exec.LookPath which is the production
+// behaviour.
+var claudeBinaryLookup atomic.Pointer[func(string) (string, error)]
+
+// claudeBinaryName is the executable name probed by /healthz. The launchd
+// plist guarantees claude is on PATH, so a bare name is sufficient. If a
+// future deployment needs a fixed path, swap claudeBinaryLookup.
+const claudeBinaryName = "claude"
+
+func lookupClaudeBinary(name string) (string, error) {
+	if p := claudeBinaryLookup.Load(); p != nil {
+		return (*p)(name)
+	}
+	return exec.LookPath(name)
+}
+
+// SetClaudeBinaryLookup overrides the function used by /healthz to detect
+// the claude CLI. Provided primarily for tests; production code should
+// leave the default in place. Pass nil to restore the default.
+func SetClaudeBinaryLookup(fn func(string) (string, error)) {
+	if fn == nil {
+		claudeBinaryLookup.Store(nil)
+		return
+	}
+	claudeBinaryLookup.Store(&fn)
+}
+
+// healthzPayload is the JSON body returned by /healthz. Per Doc 10 §8 the
+// fields surface the build version (so the launchd KeepAlive probe can
+// distinguish stale binaries) and whether the claude CLI is on PATH (so
+// monitoring catches a broken install before the next subprocess spawn).
+type healthzPayload struct {
+	Status              string `json:"status"`
+	Service             string `json:"service"`
+	Version             string `json:"version"`
+	ClaudeBinaryPresent bool   `json:"claude_binary_present"`
+}
+
+// healthzHandler returns a small JSON body the launchd KeepAlive probe and
+// monitoring scripts can hit. Per Doc 10 §8 (Faz 2) we include enough
+// signal to detect a bad install (claude binary missing) without doing
+// any network IO — heavier checks (auth state, recent rate-limit) belong
+// on dedicated endpoints so this probe stays cheap.
 func healthzHandler(w http.ResponseWriter, _ *http.Request) {
+	version := ""
+	if p := bridgeVersion.Load(); p != nil {
+		version = *p
+	}
+
+	_, err := lookupClaudeBinary(claudeBinaryName)
+	payload := healthzPayload{
+		Status:              "ok",
+		Service:             "rafraf-bridge",
+		Version:             version,
+		ClaudeBinaryPresent: err == nil,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	// Discard encoder errors: the response writer is the only sink and a
 	// flush failure here cannot be recovered from anyway.
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	_ = json.NewEncoder(w).Encode(payload)
 }

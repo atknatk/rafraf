@@ -104,6 +104,12 @@ class Settings(BaseSettings):
     conversation_ttl_seconds: int = 86400  # 24 hours
     conversation_max_tokens: int = 50000  # Context window token limit
 
+    # Readiness probe
+    # When True, /ready also requires at least one bridge to be online.
+    # Default is False so bare-startup readiness (DB+Redis only) succeeds in
+    # dev/CI; flip to True in production for stricter readiness gating.
+    ready_requires_bridge: bool = False
+
 
 _settings: Settings | None = None
 
