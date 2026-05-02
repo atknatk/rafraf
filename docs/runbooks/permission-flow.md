@@ -585,6 +585,198 @@ simulator. Run in order; each step has an explicit pass criterion.
     `$TMPDIR/rafraf-bridge-settings-*.json` are removed (best-effort
     cleanup; a startup sweep handles leaks > 1 h old).
 
+### 14.1 Pass/fail checklist
+
+After completing all 10 steps, the operator MUST be able to tick every
+box below. A single unchecked box blocks declaring V1 ready for the
+next TestFlight build.
+
+- [ ] **Envelope well-formedness — bridge → backend.** The
+      `event.session.permission_request` envelope captured in step 5
+      validates against
+      `shared/api-contracts/ws/bridge-permission-messages.json`
+      (required keys: `session_id`, `request_id`, `tool_name`,
+      `tool_input`, `input_preview`, `risk`, `timeout_ms`). Use
+      `jq -r .payload` on a captured frame and run
+      `python -m jsonschema -i <frame.json> shared/api-contracts/ws/bridge-permission-messages.json`.
+- [ ] **Envelope well-formedness — backend → iOS.** The `question`
+      envelope received by iOS validates against the `question` entry
+      in `shared/api-contracts/ws/approval-messages.json` (required:
+      `approval_id` UUID, `question`, `options[]`, `timeout_seconds`,
+      `category`).
+- [ ] **Envelope well-formedness — iOS → backend.** The
+      `approval_response` sent on tap validates against the matching
+      entry in `approval-messages.json` (required: `approval_id`,
+      `decision in {approved,rejected}`).
+- [ ] **Envelope well-formedness — backend → bridge.** The
+      `command.claude.permission.deny` (or `.allow`) envelope dispatched
+      back to the bridge validates against the matching entry in
+      `bridge-permission-messages.json` (required: `session_id`,
+      `request_id`, `decision`).
+- [ ] **Counter increments — emitted.**
+      `permission_request_emitted_total{bridge_id="...",tool_name="Bash",risk="high"}`
+      increments by exactly 1 per triggering prompt (steps 5, 8, 9 each
+      add +1).
+- [ ] **Counter increments — decided.**
+      `permission_request_decided_total{decision="rejected"}` +1 after
+      step 7,
+      `permission_request_decided_total{decision="approved"}` +1 after
+      step 8,
+      `permission_request_decided_total{decision="expired"}` +1 after
+      step 9.
+- [ ] **Counter increments — timeout.**
+      `permission_request_timeout_total{tool_name="Bash"}` +1 after
+      step 9 ONLY (steps 7 and 8 must NOT increment this counter).
+- [ ] **Audit log row — reject.** A row exists with
+      `tool_name='Bash'`, `approval_required=TRUE`, and
+      `output_result->>'decision'='rejected'` after step 7.
+- [ ] **Audit log row — approve.** A row exists with
+      `tool_name='Bash'`, `approval_required=TRUE`, and
+      `output_result->>'decision'='approved'` after step 8.
+- [ ] **Audit log row — timeout.** A row exists with
+      `tool_name='Bash'`, `approval_required=TRUE`, and
+      `output_result->>'decision' IN ('expired','rejected')` after
+      step 9.
+- [ ] **Latency budget met.** Time from bridge `permission_request_emit`
+      log entry → iOS sheet rendered ≤ 1 s in steps 5/8/9; time from
+      iOS tap → bridge `permission.deny`/`.allow` envelope received
+      ≤ 1 s in steps 7/8.
+- [ ] **TMPDIR cleanup.** After step 10, `ls $TMPDIR/rafraf-bridge-*`
+      returns no `.sock` or `-settings-*.json` artifacts. (A leaked
+      socket file blocks the next bridge spawn; the startup sweep
+      handles long-stale files but a fresh-shutdown leak is a bug.)
+
+### 14.2 Diagnostic recipes
+
+If a checklist box stays unchecked, work the matching recipe below
+**before** filing an incident. Recipes are ordered by step number; if
+multiple boxes failed, fix the earliest step first because later
+checks usually depend on it.
+
+**Step 4 — iOS sheet didn't appear (no QUESTION envelope reached the
+client).**
+
+1. Confirm the iOS WebSocket is actually connected:
+   ```bash
+   curl -s http://localhost:8000/metrics \
+     | grep 'ws_connections_active{kind="ios"}'
+   ```
+   Expected: `≥ 1`. If `0`, the iOS app hasn't completed the JWT
+   handshake — restart the simulator and re-login.
+2. Check iOS console (Xcode → Devices and Simulators → iOS Simulator
+   → console) for `WebSocketMessageRouter` errors. The most common
+   cause is `WebSocketBaseMessage decode failed: type=question` —
+   means the V1.5 `case question` enum addition regressed; check the
+   `WebSocketMessageType` enum in
+   `apps/ios/RafRaf/Core/Networking/WebSocketMessage.swift`.
+3. Tail bridge logs in another terminal:
+   ```bash
+   tail -f ~/Library/Logs/rafraf-bridge/bridge.log | \
+     grep -E 'permission_request_emit|broker_request|hook_'
+   ```
+   If `permission_request_emit` fired but iOS got nothing → the
+   problem is on the backend ↔ iOS leg (step 4 fail). If
+   `permission_request_emit` did NOT fire → the problem is on the
+   bridge ↔ claude leg (step 5 fail).
+
+**Step 5 — bridge logs show no `permission_request_emit` entry (claude
+fired the tool without prompting).**
+
+1. Verify the per-session settings overlay registered the hook:
+   ```bash
+   ls -la $TMPDIR/rafraf-bridge-settings-*.json
+   cat <newest-file>  # JSON should contain "PreToolUse": [...]
+   ```
+   If the file is missing or malformed → the `--settings` flag
+   injection regressed in `runner.go::buildArgs`.
+2. Check the hook binary exists alongside the bridge binary:
+   ```bash
+   which rafraf-perm-hook
+   ls -la $(dirname $(which rafraf-bridge))/rafraf-perm-hook
+   ```
+   If missing → reinstall the bridge `.pkg`. The hook ships in the
+   same payload (design §5.2 follow-up §6.7).
+3. If the hook exists but never fires, the most common cause is a
+   macOS sandbox profile blocking the UDS connect inside `$TMPDIR`.
+   Run the hook manually with the bridge's env to confirm:
+   ```bash
+   echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{}}' | \
+     RAFRAF_BRIDGE_PERM_SOCK=/tmp/missing.sock rafraf-perm-hook
+   ```
+   Should print a JSON `decision` (`block` because the socket is
+   missing). If it instead exits non-zero with a sandbox error → file
+   the launchd-plist hardening regression.
+
+**Step 6 — sheet renders but countdown reads ≠ 30 s OR risk badge is
+the wrong colour.**
+
+The bridge envelope `timeout_ms` did NOT propagate. Inspect the
+backend logs for the `permission_request_received` debug line — its
+`timeout_ms` field is the value the bridge sent. If it's correct but
+the iOS sheet is still wrong, the regression is in
+`ApprovalService.build_question_message::effective_timeout` (V1.4-fix
+HIGH commit `811ea0f`). For risk badge mismatch: check that
+`record.category` is `DESTRUCTIVE` in the backend log; if `WRITE_REMOTE`
+or `INFRASTRUCTURE` instead of `DESTRUCTIVE`, the bridge's risk
+classifier in `internal/permission/risk.go` returned the wrong value
+for the `Bash` + off-whitelist combination.
+
+**Step 7 — refusal text never reached iOS chat (claude didn't see the
+deny).**
+
+1. Check the bridge dispatch log — was the `command.claude.permission.deny`
+   envelope received and routed?
+   ```bash
+   grep -E 'inbound_dispatch|broker.Resolve|permission.deny' \
+     ~/Library/Logs/rafraf-bridge/bridge.log | tail -20
+   ```
+   Expected: at least one `inbound_dispatch type=command.claude.permission.deny`
+   line followed by a `broker.Resolve request_id=...` line.
+2. If the inbound dispatch fired but `broker.Resolve` did not → the
+   `request_id` mismatch path. Compare the `request_id` in the
+   `permission_request_emit` log line (step 5) with the one in the
+   `command.claude.permission.deny` log line (step 7). They MUST be
+   identical.
+3. If `broker.Resolve` fired but the hook didn't print `block` to
+   stdout, capture the hook subprocess output by adding
+   `RAFRAF_BRIDGE_PERM_HOOK_DEBUG=1` to the bridge env and rerun.
+   The hook will mirror its UDS read/write to stderr.
+
+**Step 9 — timeout counter never incremented.**
+
+1. Confirm the iOS sheet auto-dismissed at 0 s (visually). If it
+   stayed open past 30 s → the `RFApprovalSheet` countdown timer is
+   regressed; check `Features/Approval/Presentation/Views/RFApprovalSheet.swift`.
+2. If the sheet auto-dismissed but no `approval_response` envelope
+   was sent, iOS lost connectivity mid-countdown — check the
+   `WebSocketClient` reconnection log; if reconnect happened, the
+   pending question snapshot replay (V1.4 §4 follow-up) should
+   refire it (this is currently a known limitation; track via runbook
+   §9.2).
+3. If the `approval_response` was sent but the awaiter didn't fire
+   the deny envelope → the backend `ApprovalService` deadline timer
+   is broken. Check `app/services/approval_service.py::_expire_approval`
+   and ensure `CATEGORY_TIMEOUTS[ApprovalCategory.DESTRUCTIVE]` matches
+   the `bridge_timeout_seconds` clamp from V1.4-fix HIGH.
+
+**Step 10 — `$TMPDIR/rafraf-bridge-*` files leaked after Ctrl+C.**
+
+The bridge's `defer cleanup` paths in `cmd/bridge/main.go::Run` did
+not fire. Most common cause: bridge crashed (SIGSEGV) instead of
+clean shutdown. Check `dmesg | grep rafraf-bridge` and the bridge log
+tail for a panic backtrace. The startup sweep will eventually clean
+the leftover files (1 h threshold) but the leak itself is a regression
+worth filing.
+
+### 14.3 Smoke test exit criteria
+
+The recipe is **PASS** if every box in §14.1 is ticked AND no recipe
+in §14.2 was needed (i.e. all 10 steps completed first try). One or
+two diagnostic recipe invocations are tolerated as a **CONDITIONAL
+PASS** (file an issue with the recipe outcome attached). Three or more
+recipe invocations OR any unchecked checklist box after the recipe
+runs is a **FAIL** — V1 is NOT ready for the next TestFlight build.
+
 If any step fails, capture bridge logs (`-log-level debug`) + backend
 logs + the relevant `audit_log` row and file an incident with label
 `runbook:permission-flow`.
