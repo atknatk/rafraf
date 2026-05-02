@@ -442,8 +442,11 @@ func TestRunner_Abort_TerminatesActiveRun(t *testing.T) {
 			!strings.Contains(err.Error(), "exit") {
 			t.Logf("Abort: returned err = %v (acceptable)", err)
 		}
-	case <-time.After(3 * time.Second):
-		t.Fatalf("Abort: Run did not return within 3s of Abort()")
+	case <-time.After(10 * time.Second):
+		// Local runs return in <1s, but Linux CI under -race bumps this
+		// to ~2-3s on a loaded runner. 10s leaves comfortable margin
+		// while still catching a real hang.
+		t.Fatalf("Abort: Run did not return within 10s of Abort()")
 	}
 }
 
