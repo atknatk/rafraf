@@ -185,10 +185,13 @@ func (r *Runner) runWithExec(
 	cmd.Dir = r.resolveProjectDir(req)
 	cmd.Env = r.buildEnv(req)
 
-	// Start a span around the subprocess lifecycle so traces show the
-	// claude subprocess as a top-level work unit. We don't wrap parser.Parse
-	// in a child span here — the parser opens its own per-event spans (see
-	// Parser.dispatchEvent) which carry the bulk of the per-event detail.
+	// claude.subprocess.start: span around the start phase only (a few ms,
+	// covering pipe wiring through cmd.Start()). The parse phase has its own
+	// claude.parser.parse span (opened inside Parser.Parse), and the wait
+	// phase is implicit between parser.End() and cmd.Wait(). These are
+	// intentionally sibling spans — the parser additionally opens per-event
+	// child spans (see Parser.dispatchEvent) which carry the bulk of the
+	// per-event detail.
 	tracer := otel.Tracer(claudeTracerName)
 	ctxStart, startSpan := tracer.Start(runCtx, "claude.subprocess.start",
 		trace.WithAttributes(

@@ -28,9 +28,8 @@ from typing import TYPE_CHECKING
 import structlog
 from opentelemetry import trace
 
-from app.core.telemetry import get_tracer
-
 from app.core import metrics as _metrics
+from app.core.telemetry import get_tracer
 
 if TYPE_CHECKING:
     from app.core.websocket import ConnectionManager
@@ -120,9 +119,7 @@ class BridgeRegistryService:
         # receives events whose ``correlation_id`` matches the rpc_id it
         # registered under; the queue is drained until either the runner
         # cancels the iterator or a terminal event is observed.
-        self._event_subscribers: dict[
-            tuple[str, str], asyncio.Queue[dict[str, object]]
-        ] = {}
+        self._event_subscribers: dict[tuple[str, str], asyncio.Queue[dict[str, object]]] = {}
 
     # ------------------------------------------------------------------
     # Backwards-compatible accessor for tests / legacy call sites.
@@ -403,9 +400,7 @@ class BridgeRegistryService:
             },
         ) as span:
             if self._agent_manager is None:
-                span.set_status(
-                    trace.Status(trace.StatusCode.ERROR, "no agent manager wired")
-                )
+                span.set_status(trace.Status(trace.StatusCode.ERROR, "no agent manager wired"))
                 await logger.awarning(
                     "bridge_send_no_manager",
                     host_id=host_id,
@@ -414,9 +409,7 @@ class BridgeRegistryService:
                 return False
             connection_id = self.get_connection_id(host_id)
             if connection_id is None:
-                span.set_status(
-                    trace.Status(trace.StatusCode.ERROR, "no connection")
-                )
+                span.set_status(trace.Status(trace.StatusCode.ERROR, "no connection"))
                 await logger.awarning(
                     "bridge_send_no_connection",
                     host_id=host_id,
@@ -558,9 +551,7 @@ class BridgeRegistryService:
         """
         event_type = str(event.get("type", ""))
         correlation_id_raw = event.get("correlation_id")
-        correlation_id = (
-            correlation_id_raw if isinstance(correlation_id_raw, str) else ""
-        )
+        correlation_id = correlation_id_raw if isinstance(correlation_id_raw, str) else ""
         with tracer.start_as_current_span(
             "bridge.dispatch_event",
             attributes={

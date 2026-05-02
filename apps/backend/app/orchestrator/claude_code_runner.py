@@ -39,9 +39,8 @@ from typing import TYPE_CHECKING
 import structlog
 from opentelemetry import trace
 
-from app.core.telemetry import get_tracer
-
 from app.core import metrics as _metrics
+from app.core.telemetry import get_tracer
 
 if TYPE_CHECKING:
     from app.repositories.subagent_repo import SubagentRepository
@@ -340,9 +339,7 @@ class ClaudeCodeRunner:
         #    past the consumer. Folds in T1.1 reviewer H1 — see
         #    BridgeRegistryService.register_subscriber for details.
         rpc_id = uuid.uuid4().hex
-        queue = self._bridges.register_subscriber(
-            bridge_id=target_host_id, rpc_id=rpc_id
-        )
+        queue = self._bridges.register_subscriber(bridge_id=target_host_id, rpc_id=rpc_id)
 
         envelope: dict[str, object] = {
             "type": "command.claude.run",
@@ -365,9 +362,7 @@ class ClaudeCodeRunner:
 
         sent = await self._bridges.send_to_bridge(target_host_id, envelope)
         if not sent:
-            self._bridges.unregister_subscriber(
-                bridge_id=target_host_id, rpc_id=rpc_id
-            )
+            self._bridges.unregister_subscriber(bridge_id=target_host_id, rpc_id=rpc_id)
             raise ClaudeCodeError(
                 f"Bridge '{target_host_id}' RPC gönderimi başarısız",
                 returncode=-1,
@@ -473,10 +468,7 @@ class ClaudeCodeRunner:
         falls through to the least-busy online bridge with the
         ``claude_code`` capability.
         """
-        if (
-            bridge_id is not None
-            and self._bridges.get_connection_id(bridge_id) is not None
-        ):
+        if bridge_id is not None and self._bridges.get_connection_id(bridge_id) is not None:
             return bridge_id
         # Either no explicit pick or it's offline — fall back to capability-based selection.
         return self._bridges.find_online_agent_with_capability("claude_code")
@@ -581,9 +573,7 @@ class ClaudeCodeRunner:
             if callbacks.on_tool_progress is not None:
                 state.phase = str(payload.get("phase", "tool_calling"))
                 state.current_tool_name = (
-                    str(payload.get("current_tool"))
-                    if payload.get("current_tool")
-                    else None
+                    str(payload.get("current_tool")) if payload.get("current_tool") else None
                 )
                 await callbacks.on_tool_progress(_build_progress_event(state))
             return False
@@ -679,9 +669,7 @@ class ClaudeCodeRunner:
                 state.cost_usd = float(cost)
             denials = payload.get("permission_denials")
             if isinstance(denials, list):
-                state.permission_denials = [
-                    d for d in denials if isinstance(d, dict)
-                ]
+                state.permission_denials = [d for d in denials if isinstance(d, dict)]
             # Aggregate token usage from per-model breakdown.
             usage = payload.get("model_usage")
             if isinstance(usage, dict):
@@ -693,9 +681,7 @@ class ClaudeCodeRunner:
                         # final usage breakdown when assistant events
                         # didn't surface counts.
                         if state.tokens_output == 0:
-                            state.tokens_output += int(
-                                entry.get("output_tokens", 0) or 0
-                            )
+                            state.tokens_output += int(entry.get("output_tokens", 0) or 0)
 
             state.phase = "completed"
             if callbacks.on_tool_progress is not None:
@@ -835,9 +821,8 @@ class ClaudeCodeRunner:
             return
 
         spawned_at = completed_at - timedelta(milliseconds=1)
-        late_description = (
-            "[late_arrival] "
-            + (_stringify_optional(payload.get("description")) or "subagent")
+        late_description = "[late_arrival] " + (
+            _stringify_optional(payload.get("description")) or "subagent"
         )
         try:
             await self._subagents.upsert_subagent(
