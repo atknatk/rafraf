@@ -26,6 +26,9 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import structlog
+from opentelemetry import trace
+
+from app.core.telemetry import get_tracer
 
 from app.core import metrics as _metrics
 
@@ -45,6 +48,7 @@ from app.schemas.agent import (
 )
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+tracer = get_tracer(__name__)
 
 
 class _BridgeRecord:
@@ -390,23 +394,38 @@ class BridgeRegistryService:
         Returns ``True`` on a successful send, ``False`` when the bridge
         is offline, has no connection, or the manager isn't wired yet.
         """
-        if self._agent_manager is None:
-            await logger.awarning(
-                "bridge_send_no_manager",
-                host_id=host_id,
-                envelope_type=envelope.get("type"),
-            )
-            return False
-        connection_id = self.get_connection_id(host_id)
-        if connection_id is None:
-            await logger.awarning(
-                "bridge_send_no_connection",
-                host_id=host_id,
-                envelope_type=envelope.get("type"),
-            )
-            return False
-        sent: bool = await self._agent_manager.send_json(connection_id, envelope)
-        return sent
+        envelope_type = str(envelope.get("type", ""))
+        with tracer.start_as_current_span(
+            "bridge.send_to_bridge",
+            attributes={
+                "bridge.host_id": host_id,
+                "bridge.envelope_type": envelope_type,
+            },
+        ) as span:
+            if self._agent_manager is None:
+                span.set_status(
+                    trace.Status(trace.StatusCode.ERROR, "no agent manager wired")
+                )
+                await logger.awarning(
+                    "bridge_send_no_manager",
+                    host_id=host_id,
+                    envelope_type=envelope.get("type"),
+                )
+                return False
+            connection_id = self.get_connection_id(host_id)
+            if connection_id is None:
+                span.set_status(
+                    trace.Status(trace.StatusCode.ERROR, "no connection")
+                )
+                await logger.awarning(
+                    "bridge_send_no_connection",
+                    host_id=host_id,
+                    envelope_type=envelope.get("type"),
+                )
+                return False
+            sent: bool = await self._agent_manager.send_json(connection_id, envelope)
+            span.set_attribute("bridge.send_succeeded", sent)
+            return sent
 
     def register_subscriber(
         self,
@@ -430,6 +449,7 @@ class BridgeRegistryService:
         key = (bridge_id, rpc_id)
         queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
         prev = self._event_subscribers.get(key)
+        current_span = trace.get_current_span()
         if prev is not None:
             # RPC ids are uuid4 hex; collisions are vanishingly unlikely
             # but keep the guard so a pathological test can't leak queues.
@@ -437,6 +457,15 @@ class BridgeRegistryService:
                 "bridge_stream_subscriber_overwritten",
                 host_id=bridge_id,
                 rpc_id=rpc_id,
+            )
+            current_span.add_event(
+                "bridge.subscriber.overwritten",
+                attributes={"bridge.host_id": bridge_id, "bridge.rpc_id": rpc_id},
+            )
+        else:
+            current_span.add_event(
+                "bridge.subscriber.registered",
+                attributes={"bridge.host_id": bridge_id, "bridge.rpc_id": rpc_id},
             )
         self._event_subscribers[key] = queue
         return queue
@@ -453,7 +482,11 @@ class BridgeRegistryService:
         the subsequent send-to-bridge fails — without this clean-up the
         queue would leak until process exit.
         """
-        self._event_subscribers.pop((bridge_id, rpc_id), None)
+        if self._event_subscribers.pop((bridge_id, rpc_id), None) is not None:
+            trace.get_current_span().add_event(
+                "bridge.subscriber.unregistered",
+                attributes={"bridge.host_id": bridge_id, "bridge.rpc_id": rpc_id},
+            )
 
     async def stream_events(
         self,
@@ -523,32 +556,47 @@ class BridgeRegistryService:
         runner is the only consumer for now; broadcast handling can be
         layered in later via a fan-out subscriber map.
         """
-        correlation_id = event.get("correlation_id")
-        if not isinstance(correlation_id, str) or not correlation_id:
-            await logger.adebug(
-                "bridge_event_no_correlation",
-                event_type=event.get("type"),
-            )
-            return
-        # The dispatcher accepts events from any bridge — match by
-        # rpc_id alone, then narrow by host_id if multiple subscribers
-        # collide on the same id (extremely unlikely with uuid4).
-        for (host_id, rpc_id), queue in list(self._event_subscribers.items()):
-            if rpc_id == correlation_id:
-                await queue.put(event)
+        event_type = str(event.get("type", ""))
+        correlation_id_raw = event.get("correlation_id")
+        correlation_id = (
+            correlation_id_raw if isinstance(correlation_id_raw, str) else ""
+        )
+        with tracer.start_as_current_span(
+            "bridge.dispatch_event",
+            attributes={
+                "bridge.event_type": event_type,
+                "bridge.correlation_id": correlation_id,
+            },
+        ) as span:
+            if not correlation_id:
+                span.add_event("bridge.event.no_correlation")
                 await logger.adebug(
-                    "bridge_event_dispatched",
-                    host_id=host_id,
-                    rpc_id=rpc_id,
+                    "bridge_event_no_correlation",
                     event_type=event.get("type"),
                 )
                 return
+            # The dispatcher accepts events from any bridge — match by
+            # rpc_id alone, then narrow by host_id if multiple subscribers
+            # collide on the same id (extremely unlikely with uuid4).
+            for (host_id, rpc_id), queue in list(self._event_subscribers.items()):
+                if rpc_id == correlation_id:
+                    await queue.put(event)
+                    span.set_attribute("bridge.host_id", host_id)
+                    span.add_event("bridge.event.dispatched")
+                    await logger.adebug(
+                        "bridge_event_dispatched",
+                        host_id=host_id,
+                        rpc_id=rpc_id,
+                        event_type=event.get("type"),
+                    )
+                    return
 
-        await logger.adebug(
-            "bridge_event_no_subscriber",
-            rpc_id=correlation_id,
-            event_type=event.get("type"),
-        )
+            span.add_event("bridge.event.no_subscriber")
+            await logger.adebug(
+                "bridge_event_no_subscriber",
+                rpc_id=correlation_id,
+                event_type=event.get("type"),
+            )
 
     # ------------------------------------------------------------------
     # Connection lookup (for task dispatch)

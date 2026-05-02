@@ -7,7 +7,8 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 from app.api.middleware.rate_limit import RateLimitMiddleware
 from app.api.middleware.request_logging import RequestLoggingMiddleware
@@ -29,7 +30,12 @@ from app.core.exceptions import register_exception_handlers
 from app.core.logging import setup_logging
 from app.core.metrics import render_metrics
 from app.core.redis import redis_client
+from app.core.telemetry import setup_tracing
 from app.services.bridge_registry_service import bridge_registry
+
+# URLs excluded from FastAPI tracing — health probes and the metrics
+# endpoint (T2.2 will add /metrics) are too noisy and add no signal.
+_OTEL_EXCLUDED_URLS = "health,metrics"
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -39,6 +45,19 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan: startup and shutdown events."""
     settings = get_settings()
     setup_logging(debug=settings.debug)
+    # Tracing setup MUST happen before AsyncPGInstrumentor.instrument()
+    # below — the instrumentor binds the current global TracerProvider at
+    # call-time, so swapping it afterwards leaves the asyncpg hooks
+    # pointing at a NoOpTracerProvider.
+    setup_tracing()
+    # asyncpg instrumentation is idempotent on a per-process basis; calling
+    # it more than once (e.g. uvicorn --reload) is safe — the underlying
+    # instrumentor short-circuits via its is_instrumented_by_opentelemetry
+    # flag. The OTel package ships without inline type hints; the
+    # ``opentelemetry.*`` ignore-missing-imports stanza in pyproject.toml
+    # absorbs the import side, but the ``Call to untyped function`` mypy
+    # error needs an explicit per-call ignore.
+    AsyncPGInstrumentor().instrument()  # type: ignore[no-untyped-call]
     logger.info("app_starting", version=settings.app_version)
     await bridge_registry.start_stale_checker()
     usage_task = asyncio.create_task(_subscription_usage_loop())
@@ -105,13 +124,11 @@ def create_app() -> FastAPI:
     application.include_router(backups_router)
     application.include_router(tasks_router)
 
-    # Prometheus scrape endpoint (T2.2). No auth — scraper is local /
-    # in-cluster, and the metrics surface contains no secrets. Excluded
-    # from OpenAPI to avoid polluting iOS-facing client schemas.
-    @application.get("/metrics", include_in_schema=False)
-    async def metrics_endpoint() -> Response:
-        body, content_type = render_metrics()
-        return Response(content=body, media_type=content_type)
+    # FastAPI auto-instrumentation — emits a server span per request,
+    # propagating W3C tracecontext headers so the bridge (T2.1 Part B)
+    # can stitch into the same trace. /health and /metrics are excluded
+    # so the trace volume stays signal-rich.
+    FastAPIInstrumentor.instrument_app(application, excluded_urls=_OTEL_EXCLUDED_URLS)
 
     return application
 

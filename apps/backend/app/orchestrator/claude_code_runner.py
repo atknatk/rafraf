@@ -37,6 +37,9 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import structlog
+from opentelemetry import trace
+
+from app.core.telemetry import get_tracer
 
 from app.core import metrics as _metrics
 
@@ -45,6 +48,7 @@ if TYPE_CHECKING:
     from app.services.bridge_registry_service import BridgeRegistryService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+tracer = get_tracer(__name__)
 
 
 _TOOL_DISPLAY_NAMES: dict[str, str] = {
@@ -260,10 +264,69 @@ class ClaudeCodeRunner:
             NoBridgeAvailableError: No online bridge was available.
             ClaudeCodeError: Send failure or unexpected event-loop error.
         """
+        # OpenTelemetry span — records the high-level run lifecycle. Attrs
+        # use ``claude.*`` keys so dashboards can group cleanly. Prompt
+        # *length* is recorded but never the prompt text itself (PII).
+        with tracer.start_as_current_span(
+            "claude.run",
+            attributes={
+                "claude.session_id": session_id or "",
+                "claude.bridge_id": bridge_id or "",
+                "claude.user_id": user_id or "",
+                "claude.prompt_chars": len(prompt),
+                "claude.permission_mode": "acceptEdits",
+            },
+        ) as run_span:
+            try:
+                return await self._run_inner(
+                    prompt=prompt,
+                    session_id=session_id,
+                    project_dir=project_dir,
+                    bridge_id=bridge_id,
+                    user_id=user_id,
+                    on_text_delta=on_text_delta,
+                    on_tool_progress=on_tool_progress,
+                    on_question=on_question,
+                    on_stream_end=on_stream_end,
+                    on_session_init=on_session_init,
+                    on_subagent_spawned=on_subagent_spawned,
+                    on_subagent_progress=on_subagent_progress,
+                    on_subagent_completed=on_subagent_completed,
+                    on_rate_limit=on_rate_limit,
+                    span=run_span,
+                )
+            except ClaudeCodeError as exc:
+                run_span.record_exception(exc)
+                run_span.set_status(trace.Status(trace.StatusCode.ERROR, exc.message))
+                raise
+
+    async def _run_inner(
+        self,
+        *,
+        prompt: str,
+        session_id: str | None,
+        project_dir: str | None,
+        bridge_id: str | None,
+        user_id: str | None,
+        on_text_delta: TextDeltaCallback | None,
+        on_tool_progress: ToolProgressCallback | None,
+        on_question: QuestionCallback | None,
+        on_stream_end: StreamEndCallback | None,
+        on_session_init: SessionInitCallback | None,
+        on_subagent_spawned: SubagentSpawnedCallback | None,
+        on_subagent_progress: SubagentProgressCallback | None,
+        on_subagent_completed: SubagentCompletedCallback | None,
+        on_rate_limit: RateLimitCallback | None,
+        span: trace.Span,
+    ) -> ClaudeCodeResult:
+        """Inner body of :meth:`run`, kept separate so the span context manager
+        in the caller can wrap it without growing a deeply-nested ``with``.
+        """
         # 1. Pick target bridge.
         target_host_id = self._select_bridge(bridge_id)
         if target_host_id is None:
             raise NoBridgeAvailableError()
+        span.set_attribute("claude.bridge_host_id", target_host_id)
 
         connection_id = self._bridges.get_connection_id(target_host_id)
         if connection_id is None:
@@ -431,7 +494,44 @@ class ClaudeCodeRunner:
         Returns ``True`` when the event is terminal (``event.session.result``
         or an error/auth_expired event), telling the caller to break out of
         the stream loop.
+
+        Each dispatch is wrapped in a ``claude.dispatch_event`` span so
+        traces show the per-event work as children of the enclosing
+        ``claude.run`` span. Subagent lifecycle transitions are recorded
+        as span events (``subagent.spawned`` / ``subagent.completed``).
         """
+        event_type_raw = event.get("type")
+        event_type = str(event_type_raw) if event_type_raw is not None else ""
+        with tracer.start_as_current_span(
+            "claude.dispatch_event",
+            attributes={
+                "claude.event_type": event_type,
+                "claude.bridge_host_id": bridge_host_id,
+            },
+        ) as span:
+            try:
+                return await self._dispatch_event_inner(
+                    event=event,
+                    state=state,
+                    callbacks=callbacks,
+                    bridge_host_id=bridge_host_id,
+                    span=span,
+                )
+            except ClaudeCodeError as exc:
+                span.record_exception(exc)
+                span.set_status(trace.Status(trace.StatusCode.ERROR, exc.message))
+                raise
+
+    async def _dispatch_event_inner(
+        self,
+        *,
+        event: dict[str, object],
+        state: _RunState,
+        callbacks: _Callbacks,
+        bridge_host_id: str,
+        span: trace.Span,
+    ) -> bool:
+        """Body of :meth:`_dispatch_event`, wrapped by the OTel span."""
         event_type = event.get("type")
         payload = event.get("payload")
         if not isinstance(payload, dict):
@@ -457,10 +557,13 @@ class ClaudeCodeRunner:
 
         if event_type == "event.session.task_started":
             payload.setdefault("started_at", now_iso)
-            _metrics.subagent_spawned_total.labels(
-                bridge_id=bridge_host_id,
-                status="started",
-            ).inc()
+            span.add_event(
+                "subagent.spawned",
+                attributes={
+                    "subagent.task_id": str(payload.get("task_id", "")),
+                    "subagent.session_id": str(payload.get("session_id", "")),
+                },
+            )
             if callbacks.on_subagent_spawned is not None:
                 await callbacks.on_subagent_spawned(payload)
             await self._persist_subagent_spawned(
@@ -487,15 +590,24 @@ class ClaudeCodeRunner:
 
         if event_type == "event.session.task_notification":
             payload.setdefault("completed_at", now_iso)
-            # Bridge surfaces "completed" / "failed" / "aborted" — bucket
-            # everything that isn't a clean "completed" into "failed" so
-            # the Prometheus label cardinality stays bounded.
-            term_status = str(payload.get("status", "completed"))
-            metric_status = "completed" if term_status == "completed" else "failed"
-            _metrics.subagent_spawned_total.labels(
-                bridge_id=bridge_host_id,
-                status=metric_status,
-            ).inc()
+            status_str = str(payload.get("status", "completed"))
+            span.add_event(
+                "subagent.completed",
+                attributes={
+                    "subagent.task_id": str(payload.get("task_id", "")),
+                    "subagent.session_id": str(payload.get("session_id", "")),
+                    "subagent.status": status_str,
+                },
+            )
+            if status_str not in {"completed", "success", "ok"}:
+                # Mark the dispatch span as error so dashboards can filter
+                # subagent failures cheaply (without grep'ing event attrs).
+                span.set_status(
+                    trace.Status(
+                        trace.StatusCode.ERROR,
+                        f"subagent terminal status: {status_str}",
+                    )
+                )
             if callbacks.on_subagent_completed is not None:
                 await callbacks.on_subagent_completed(payload)
             await self._persist_subagent_completed(

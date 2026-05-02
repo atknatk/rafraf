@@ -106,6 +106,23 @@ func run(args []string) int {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// OpenTelemetry tracing (T2.1). A failure to wire the OTLP exporter
+	// is non-fatal — tracing is optional and the bridge must keep
+	// running so claude RPCs remain serviceable. If
+	// OTEL_EXPORTER_OTLP_ENDPOINT is unset the returned shutdown
+	// function is a noop.
+	tracingShutdown, tracingErr := telemetry.SetupTracing(ctx, "rafraf-bridge", Version)
+	if tracingErr != nil {
+		logger.Warn("opentelemetry tracing setup failed", "err", tracingErr)
+	}
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), telemetryShutdownGrace)
+		defer shutdownCancel()
+		if err := tracingShutdown(shutdownCtx); err != nil {
+			logger.Warn("opentelemetry tracing shutdown error", "err", err)
+		}
+	}()
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
