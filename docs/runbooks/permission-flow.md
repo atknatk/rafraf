@@ -243,6 +243,15 @@ Every approval/denial is recorded:
   finally executes, with `approval_required=True` and `approved_at`
   populated. The audit log row is the system-of-record for "did this
   user approve `kubectl apply` at 14:32".
+- **Decision-time emit** — every `submit_decision` call site
+  (`app/api/routes/websocket.py::_handle_approval_response`) now also
+  invokes `AuditService.log_tool_call(approval_required=True,
+  output_result={"decision": ...})` via the
+  `_emit_approval_audit_log` helper. This means approval AND rejection
+  decisions land in the audit log even when the tool never executes
+  (rejected case). Best-effort — audit failure logs
+  `approval_audit_log_emit_failed` but never breaks the WebSocket flow.
+  Resolved 2026-05-02 (was wiring gap #4 in §11).
 - For `permission_request` events from the bridge that never reach a
   decision (because the bridge rejected the tool itself), the denial
   appears on `ClaudeCodeResult.permission_denials`. The
@@ -357,16 +366,16 @@ fixed in T3.2 (per the task scope). Tracked for follow-up:
 - **REST `GET /approvals?status=pending`.** Reconnect snapshot
   currently piggy-backs on the WebSocket ack; a typed REST endpoint
   would simplify iOS reconnect logic.
-- **`AuditService.log_tool_call` emit at `submit_decision` call site.**
-  Wire `AuditService.log_tool_call(approval_required=True,
-  output_result={"decision": ...})` at the `submit_decision` call site
-  so approval decisions appear in the audit log alongside tool
-  execution events. Today the audit log only sees the *tool* row when
-  it eventually executes (§8 first bullet); the decision itself —
-  including `rejected` decisions where no tool runs — is recorded only
-  in `_history`. The integration test
-  `test_audit_log_records_each_decision` is `xfail`-marked against
-  this gap and pins the intended contract.
+- ~~**`AuditService.log_tool_call` emit at `submit_decision` call site.**~~
+  **RESOLVED 2026-05-02.** Wired in
+  `app/api/routes/websocket.py::_handle_approval_response` via the
+  `_emit_approval_audit_log` helper — approval and rejection decisions
+  now both land in `audit_log` with `approval_required=True` and
+  `output_result={"decision": ...}` populated. Unit coverage in
+  `tests/unit/test_api/test_websocket/test_handle_approval_response_audit.py`;
+  the integration test
+  `tests/integration/test_permission_flow.py::test_audit_log_records_each_decision`
+  remains as the contract anchor.
 
 ---
 

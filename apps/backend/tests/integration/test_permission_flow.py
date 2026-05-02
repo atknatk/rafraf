@@ -71,15 +71,19 @@ async def approval_service() -> AsyncIterator[ApprovalService]:
     def _factory() -> _NoOpSession:
         return _NoOpSession()
 
-    with patch(
-        "app.repositories.approval_repo.ApprovalRepository.create",
-        new=AsyncMock(return_value=None),
-    ), patch(
-        "app.repositories.approval_repo.ApprovalRepository.update_status",
-        new=AsyncMock(return_value=None),
-    ), patch(
-        "app.core.database.async_session_factory",
-        side_effect=_factory,
+    with (
+        patch(
+            "app.repositories.approval_repo.ApprovalRepository.create",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.repositories.approval_repo.ApprovalRepository.update_status",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.core.database.async_session_factory",
+            side_effect=_factory,
+        ),
     ):
         yield ApprovalService()
 
@@ -171,9 +175,7 @@ class TestApprovalDecisionPropagation:
         record = await approval_service.create_approval(sample_request)
 
         # Simulate orchestrator awaiting the decision.
-        wait_task = asyncio.create_task(
-            approval_service.wait_for_decision(record.id)
-        )
+        wait_task = asyncio.create_task(approval_service.wait_for_decision(record.id))
         # Give the awaiter one event-loop tick to register its future
         # so submit_decision sees a live waiter.
         for _ in range(5):
@@ -292,8 +294,7 @@ class TestConcurrentApprovals:
 
         # Spin up three concurrent waiters.
         wait_tasks = [
-            asyncio.create_task(approval_service.wait_for_decision(rec.id))
-            for rec in records
+            asyncio.create_task(approval_service.wait_for_decision(rec.id)) for rec in records
         ]
         # Wait for all three futures to register.
         for _ in range(20):
@@ -333,15 +334,6 @@ class TestAuditLogging:
     """Every approval/denial MUST be observable via the audit service —
     this is the system-of-record for "did the user approve X at Y"."""
 
-    @pytest.mark.xfail(
-        strict=False,
-        reason=(
-            "approval-decision audit log emit not yet wired in submit_decision "
-            "(deferred per runbook §11 — see new gap #4). Test pins the intended "
-            "contract — the inline _record_decision helper models the wrapper the "
-            "orchestrator should invoke at the submit_decision call site."
-        ),
-    )
     @pytest.mark.asyncio
     async def test_audit_log_records_each_decision(
         self,
@@ -385,9 +377,7 @@ class TestAuditLogging:
 
             # APPROVE leg.
             approve_rec = await approval_service.create_approval(sample_request)
-            wait_a = asyncio.create_task(
-                approval_service.wait_for_decision(approve_rec.id)
-            )
+            wait_a = asyncio.create_task(approval_service.wait_for_decision(approve_rec.id))
             for _ in range(5):
                 await asyncio.sleep(0)
                 if approve_rec.id in approval_service._waiters:  # noqa: SLF001
@@ -415,9 +405,7 @@ class TestAuditLogging:
                 category=ApprovalCategory.WRITE_REMOTE,
             )
             reject_rec = await approval_service.create_approval(reject_req)
-            wait_r = asyncio.create_task(
-                approval_service.wait_for_decision(reject_rec.id)
-            )
+            wait_r = asyncio.create_task(approval_service.wait_for_decision(reject_rec.id))
             for _ in range(5):
                 await asyncio.sleep(0)
                 if reject_rec.id in approval_service._waiters:  # noqa: SLF001

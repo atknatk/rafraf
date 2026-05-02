@@ -70,7 +70,11 @@ jobs:
 
       - name: mypy strict
         working-directory: apps/backend
-        run: .venv/bin/mypy app/
+        # T2.7 M1: pass --strict explicitly so the workflow line is
+        # belt-and-suspenders with the [tool.mypy] strict=true setting in
+        # pyproject.toml. Either layer being relaxed silently downgrades
+        # the whole pipeline; doubling up keeps the CI guarantee load-bearing.
+        run: .venv/bin/mypy --strict app/
 
       - name: alembic upgrade
         working-directory: apps/backend
@@ -90,7 +94,14 @@ jobs:
           # and patches the Settings singleton to point at it, overriding
           # any env-provided paths. The previous openssl-generated keypair
           # was dead code on the CI runner.
-        run: .venv/bin/python -m pytest -q --cov=app --cov-report=term
+        # T2.7 M4: --cov-fail-under=70 — the suite currently sits at 73%
+        # (measured 2026-05-02 with 1039 passing tests). 70 leaves a 3-pt
+        # buffer to absorb new untested branches across normal PRs while
+        # still ratcheting up the floor relative to the no-floor baseline.
+        # Bump in lockstep with deliberate coverage pushes; keep it
+        # conservative enough that a single big-feature PR doesn't have
+        # to add coverage in a separate follow-up.
+        run: .venv/bin/python -m pytest -q --cov=app --cov-report=term --cov-fail-under=70
 
   docker-build:
     needs: lint-and-test

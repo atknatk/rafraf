@@ -234,7 +234,7 @@ async def _handle_message(
     elif msg_type == MessageType.TEXT:
         await _handle_text(raw_data, connection_id, session_id, user_id)
     elif msg_type == MessageType.APPROVAL_RESPONSE:
-        await _handle_approval_response(raw_data, connection_id, session_id)
+        await _handle_approval_response(raw_data, connection_id, session_id, user_id)
     elif msg_type == MessageType.CANCEL_STREAM:
         await _handle_cancel_stream(connection_id, session_id)
     else:
@@ -911,10 +911,15 @@ async def _handle_approval_response(
     raw_data: dict[str, object],
     connection_id: str,
     session_id: str,
+    user_id: str,
 ) -> None:
     """Process an approval response from the client.
 
     Extracts the decision payload and submits it to the approval service.
+    Wires ``AuditService.log_tool_call(approval_required=True)`` at the
+    submit_decision call site so each user-supplied decision (allow / deny)
+    lands in the audit log alongside tool execution events. Resolves
+    runbook §11 wiring gap #4 (`docs/runbooks/permission-flow.md`).
     """
     content = raw_data.get("content")
     if not isinstance(content, dict):
@@ -957,7 +962,25 @@ async def _handle_approval_response(
     )
 
     approval_service = get_approval_service()
+    # Snapshot the pending record BEFORE submit_decision consumes it (the
+    # service's _process_decision path pops the record from _pending).
+    # We need tool_name/action from the original request to populate the
+    # audit row.
+    pending_snapshot = approval_service.get_pending_approval(approval_id)
     submitted = await approval_service.submit_decision(decision)
+
+    # Wiring gap #4 (T3.2 runbook §11 → §10): every approval/denial must
+    # reach the audit log so SREs can answer "did the user approve X at Y"
+    # without trawling _history. Best-effort — audit failure must NEVER
+    # break the WebSocket flow.
+    if submitted and pending_snapshot is not None:
+        await _emit_approval_audit_log(
+            user_id=user_id,
+            session_id=session_id,
+            tool_name=pending_snapshot.tool_name,
+            action=pending_snapshot.action,
+            decision=decision_str,
+        )
 
     # Also check QuestionBridge for claude -p questions
     if not submitted:
@@ -985,3 +1008,53 @@ async def _handle_approval_response(
         decision=decision_str,
         submitted=submitted,
     )
+
+
+async def _emit_approval_audit_log(
+    *,
+    user_id: str,
+    session_id: str,
+    tool_name: str,
+    action: str,
+    decision: str,
+) -> None:
+    """Persist an approval decision to the audit log via ``AuditService``.
+
+    Wraps the dedicated DB session lifecycle so the WebSocket request flow
+    is decoupled from audit persistence. Mirrors the best-effort posture of
+    the rest of the approval pipeline — exceptions are caught and logged
+    but never re-raised. ``user_id`` is parsed as a UUID; non-UUID
+    subjects (test stubs) are recorded with ``user_id=None`` so the row
+    still lands.
+    """
+    try:
+        user_uuid: _uuid_mod.UUID | None
+        try:
+            user_uuid = _uuid_mod.UUID(user_id)
+        except ValueError:
+            user_uuid = None
+
+        # Lazy imports keep the module import graph thin and avoid
+        # pulling the audit + DB layer into the hot WebSocket import path
+        # for connections that never see an approval response.
+        from app.services.audit_service import AuditService
+
+        async with async_session_factory() as db:
+            audit = AuditService(db)
+            await audit.log_tool_call(
+                tool_name=tool_name,
+                action=action,
+                success=(decision == "approved"),
+                session_id=session_id,
+                user_id=user_uuid,
+                output_result={"decision": decision},
+                approval_required=True,
+            )
+            await db.commit()
+    except Exception:
+        await logger.aexception(
+            "approval_audit_log_emit_failed",
+            session_id=session_id,
+            tool_name=tool_name,
+            decision=decision,
+        )

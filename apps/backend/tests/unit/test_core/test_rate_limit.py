@@ -4,6 +4,7 @@ import json
 import time
 
 import pytest
+import structlog
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -191,3 +192,130 @@ class TestMiddlewareEmission:
         # raw bytes → JSON parse must succeed without exceptions
         parsed = json.loads(resp.content)
         assert parsed["rate_limit"]["status"] == "exceeded"
+
+
+# ---------------------------------------------------------------------------
+# T2.4 L2 — sliding-window Retry-After (no longer fixed at 60s).
+# ---------------------------------------------------------------------------
+
+
+class TestSlidingWindowRetryAfter:
+    """``seconds_until_next_slot`` MUST reflect the actual cool-down time
+    remaining for the oldest in-window entry, not a fixed full-window
+    value. Validates the L2 deferral resolution."""
+
+    def test_returns_short_window_when_oldest_entry_is_aging(self) -> None:
+        """If the oldest entry is already 55s old in a 60s window, the
+        next slot opens in ~5s — the hint MUST reflect that."""
+        store = RateLimitStore()
+        # Saturate the limit with timestamps backdated ~55s.
+        backdated_now = time.monotonic() - 55
+        store._requests["sliding:1"] = [backdated_now] * 10  # noqa: SLF001
+        secs = store.seconds_until_next_slot(key="sliding:1", max_requests=10, window_seconds=60)
+        # Expect ~5s remaining — accept 4..7 to absorb monotonic jitter.
+        assert 4 <= secs <= 7, f"sliding hint should be ~5s, got {secs}"
+
+    def test_returns_full_window_when_just_saturated(self) -> None:
+        """If the burst just landed, the cool-down is essentially the
+        full window."""
+        store = RateLimitStore()
+        now = time.monotonic()
+        store._requests["sliding:2"] = [now] * 10  # noqa: SLF001
+        secs = store.seconds_until_next_slot(key="sliding:2", max_requests=10, window_seconds=60)
+        assert 59 <= secs <= 61, f"freshly saturated → ~60s, got {secs}"
+
+    def test_returns_minimum_one_when_already_thawed(self) -> None:
+        """Even if all entries already aged out (race), Retry-After must
+        be a positive integer so iOS doesn't busy-loop."""
+        store = RateLimitStore()
+        ancient = time.monotonic() - 10_000
+        store._requests["sliding:3"] = [ancient] * 5  # noqa: SLF001
+        secs = store.seconds_until_next_slot(key="sliding:3", max_requests=10, window_seconds=60)
+        assert secs >= 1
+
+    def test_empty_key_falls_back_to_window(self) -> None:
+        """Defensive: no entries → return the full window as the hint."""
+        store = RateLimitStore()
+        secs = store.seconds_until_next_slot(key="never-seen", max_requests=10, window_seconds=60)
+        assert secs == 60
+
+    def test_tokens_available_zero_when_saturated(self) -> None:
+        """``tokens_available`` is 0 on the 429 path."""
+        store = RateLimitStore()
+        now = time.monotonic()
+        store._requests["sat"] = [now] * 10  # noqa: SLF001
+        assert store.tokens_available(key="sat", max_requests=10, window_seconds=60) == 0
+
+    def test_tokens_available_reports_headroom(self) -> None:
+        """When 4 of 10 slots used, headroom must be 6."""
+        store = RateLimitStore()
+        now = time.monotonic()
+        store._requests["partial"] = [now] * 4  # noqa: SLF001
+        assert store.tokens_available(key="partial", max_requests=10, window_seconds=60) == 6
+
+
+class TestSlidingRetryAfterIntegration:
+    """End-to-end: the middleware MUST surface the sliding hint in both
+    the ``Retry-After`` header and the ``rate_limit.retry_after_seconds``
+    body field. The header MUST NOT be the fixed 60s value when the
+    window is aging."""
+
+    def test_retry_after_reflects_sliding_window(
+        self,
+        isolated_store: RateLimitStore,
+    ) -> None:
+        """Backdate the entries, trip the limit, assert the hint shrinks."""
+        app = _build_app(isolated_store)
+        client = TestClient(app)
+        # Saturate with backdated timestamps so the cool-down shrinks.
+        backdated = time.monotonic() - 50
+        isolated_store._requests["auth:testclient"] = [backdated] * 10  # noqa: SLF001
+
+        resp = client.post("/api/v1/auth/login", json={})
+        assert resp.status_code == 429
+        retry_after_header = int(resp.headers["Retry-After"])
+        body = resp.json()
+        retry_after_body = body["rate_limit"]["retry_after_seconds"]
+
+        # Both surfaces must agree.
+        assert retry_after_header == retry_after_body
+        # And the value MUST be smaller than the full window — the whole
+        # point of sliding UX.
+        assert retry_after_header < 60
+        assert retry_after_header >= 1
+
+
+# ---------------------------------------------------------------------------
+# T2.4 L3 — structured 429 log emit.
+# ---------------------------------------------------------------------------
+
+
+class TestStructured429Log:
+    """The 429 path MUST emit a ``rate_limit_exceeded`` log with the
+    fields SREs need to triage complaints (endpoint, ip, tokens_consumed,
+    tokens_available_after, retry_after_seconds, window_seconds)."""
+
+    def test_log_carries_actionable_fields(
+        self,
+        isolated_store: RateLimitStore,
+    ) -> None:
+        app = _build_app(isolated_store)
+        client = TestClient(app)
+
+        with structlog.testing.capture_logs() as cap:
+            for _ in range(10):
+                client.post("/api/v1/auth/login", json={})
+            resp = client.post("/api/v1/auth/login", json={})
+            assert resp.status_code == 429
+
+        rate_logs = [e for e in cap if e.get("event") == "rate_limit_exceeded"]
+        assert rate_logs, "L3: middleware MUST emit a rate_limit_exceeded log"
+        entry = rate_logs[-1]
+        # Fields the runbook requires for SRE triage:
+        assert entry.get("endpoint") == "/api/v1/auth"
+        assert "client_ip" in entry
+        assert "path" in entry
+        assert entry.get("tokens_available_after") == 0
+        assert entry.get("tokens_consumed") == 10  # max_requests on 429
+        assert entry.get("retry_after_seconds", 0) >= 1
+        assert entry.get("window_seconds") == 60
