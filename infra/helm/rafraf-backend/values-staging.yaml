@@ -26,6 +26,9 @@ externalSecrets:
       remoteKey: rafraf/staging/jwt-public-key
     - secretKey: JWT_SECRET_KEY
       remoteKey: rafraf/staging/jwt-secret-key
+    # T3.5-polish (M3): JWT_LEGACY_HS256_SECRET day-1 path; matches prod overlay.
+    - secretKey: JWT_LEGACY_HS256_SECRET
+      remoteKey: rafraf/staging/jwt-legacy-hs256-secret
     - secretKey: ANTHROPIC_API_KEY
       remoteKey: rafraf/staging/anthropic-api-key
     - secretKey: AGENT_API_KEY
@@ -68,3 +71,18 @@ resources:
 
 hpa:
   enabled: false  # staging stays at fixed 1 replica
+
+# T3.5-polish (M4): staging keeps wider CIDRs (faster cluster swaps in CI)
+# but still names the namespaces explicitly. Tighten when staging promotes
+# to a stable VPC.
+networkPolicy:
+  rdsCIDRs:
+    - 10.20.0.0/16  # TODO: staging VPC CIDR
+  redisCIDRs:
+    - 10.20.0.0/16  # TODO: staging VPC CIDR
+  externalHTTPSCIDRs:
+    - 0.0.0.0/0
+  externalHTTPSExcept:
+    - 169.254.169.254/32
+  albNamespace: kube-system
+  prometheusNamespace: monitoring

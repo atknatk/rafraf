@@ -9,6 +9,7 @@ spec:
   # IMPORTANT: V1 architecture uses an in-memory bridge_registry singleton.
   # Always 1 replica unless the registry is moved to Redis. See values.yaml.
   replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit | default 5 }}
   strategy:
     # Single replica + RollingUpdate with maxSurge=1, maxUnavailable=0 means
     # the new pod is fully Ready before the old pod is terminated, preserving
@@ -39,6 +40,7 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "rafraf-backend.serviceAccountName" . }}
+      enableServiceLinks: {{ .Values.enableServiceLinks | default false }}
       {{- with .Values.image.pullSecret }}
       imagePullSecrets:
         - name: {{ . }}
@@ -89,6 +91,14 @@ spec:
               mountPath: /home/rafraf/.claude
             - name: tmp
               mountPath: /tmp
+            # T3.5-polish (M6): backend `setup_logging` mkdir's /app/logs and
+            # opens backend.log for append. With readOnlyRootFilesystem=true
+            # this would crash at startup — mount writable emptyDir here.
+            - name: app-logs
+              mountPath: /app/logs
+            # /var/run is conventionally writable (uvicorn worker pids, etc.)
+            - name: var-run
+              mountPath: /var/run
           {{- if .Values.probes.startup.enabled }}
           startupProbe:
             httpGet:
@@ -151,6 +161,14 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 128Mi
+        # T3.5-polish (M6): writable scratch areas required when
+        # securityContext.readOnlyRootFilesystem=true.
+        - name: app-logs
+          emptyDir:
+            sizeLimit: 128Mi
+        - name: var-run
+          emptyDir:
+            sizeLimit: 16Mi
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

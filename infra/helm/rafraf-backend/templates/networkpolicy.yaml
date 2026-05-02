@@ -13,12 +13,78 @@ spec:
   policyTypes:
     - Ingress
     - Egress
-  {{- with .Values.networkPolicy.ingress }}
   ingress:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-  {{- with .Values.networkPolicy.egress }}
+    {{- /*
+      If `networkPolicy.ingress` is set, it OVERRIDES the structured form.
+      Otherwise we render: ALB controller namespace + Prometheus namespace.
+    */ -}}
+    {{- if .Values.networkPolicy.ingress }}
+    {{- toYaml .Values.networkPolicy.ingress | nindent 4 }}
+    {{- else }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.albNamespace | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.port }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.prometheusNamespace | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.port }}
+    {{- end }}
   egress:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- /*
+      If `networkPolicy.egress` is set, it OVERRIDES the structured form.
+      Otherwise we render four scoped rules: RDS, Redis, DNS, External HTTPS.
+    */ -}}
+    {{- if .Values.networkPolicy.egress }}
+    {{- toYaml .Values.networkPolicy.egress | nindent 4 }}
+    {{- else }}
+    # RDS (PostgreSQL)
+    - to:
+        {{- range .Values.networkPolicy.rdsCIDRs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 5432
+    # ElastiCache (Redis)
+    - to:
+        {{- range .Values.networkPolicy.redisCIDRs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Cluster DNS (CoreDNS lives in any namespace; selector kept wide).
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # External HTTPS (Anthropic API, AWS Secrets Manager VPC endpoint,
+    # OTLP, GitHub, APNs). IMDS is always blocked to force IRSA.
+    - to:
+        {{- range .Values.networkPolicy.externalHTTPSCIDRs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+            {{- with $.Values.networkPolicy.externalHTTPSExcept }}
+            except:
+              {{- range . }}
+              - {{ . | quote }}
+              {{- end }}
+            {{- end }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 443
+    {{- end }}
 {{- end }}

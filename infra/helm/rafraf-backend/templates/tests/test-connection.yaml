@@ -12,7 +12,7 @@ metadata:
 spec:
   restartPolicy: Never
   containers:
-    - name: curl-health
+    - name: curl-ready
       image: curlimages/curl:8.5.0
       command:
         - /bin/sh
@@ -20,7 +20,14 @@ spec:
         - |
           set -eu
           SERVICE="{{ include "rafraf-backend.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}"
-          echo "[smoke] GET http://$SERVICE/health"
+          # T3.5-polish (M5): hit /ready (DB + Redis + optional bridge)
+          # rather than /health (process-up only). /ready is the true
+          # signal that the pod is serving traffic; /health passes even
+          # when DB is dead.
+          echo "[smoke] GET http://$SERVICE/ready"
+          curl -fsS --max-time 10 "http://$SERVICE/ready"
+          echo
+          echo "[smoke] GET http://$SERVICE/health (sanity)"
           curl -fsS --max-time 5 "http://$SERVICE/health"
           echo
           echo "[smoke] GET http://$SERVICE/metrics (header check)"

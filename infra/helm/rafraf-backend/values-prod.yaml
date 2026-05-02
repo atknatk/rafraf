@@ -33,6 +33,12 @@ externalSecrets:
       remoteKey: rafraf/prod/jwt-public-key
     - secretKey: JWT_SECRET_KEY
       remoteKey: rafraf/prod/jwt-secret-key
+    # T3.5-polish (M3): provision the JWT_LEGACY_HS256_SECRET path day-1 so a
+    # future rotation does not require a chart change. Value MAY be empty in
+    # AWS Secrets Manager initially; backend tolerates it (HS256 fallback just
+    # stays disabled). See values.yaml comment for details.
+    - secretKey: JWT_LEGACY_HS256_SECRET
+      remoteKey: rafraf/prod/jwt-legacy-hs256-secret
     - secretKey: ANTHROPIC_API_KEY
       remoteKey: rafraf/prod/anthropic-api-key
     - secretKey: AGENT_API_KEY
@@ -80,33 +86,32 @@ hpa:
   maxReplicas: 1
   targetCPUUtilizationPercentage: 70
 
-# Tighten egress CIDRs to the actual VPC subnets in production.
+# Long-running WS sessions need a longer drain budget than the default 60s.
+# 120s gives the preStop sleep + uvicorn graceful shutdown enough room to
+# finish in-flight Anthropic streams before SIGKILL. Staging keeps the
+# faster 60s default for quicker CI rollouts.
+terminationGracePeriodSeconds: 120
+
+# T3.5-polish (M4): subnet-scoped CIDRs via structured values. The chart
+# template fans these out into the four egress rules (RDS, Redis, DNS,
+# External HTTPS) and the two ingress rules (ALB ns, Prometheus ns).
+# Note: leaving `egress`/`ingress` empty keeps the structured form active.
 networkPolicy:
-  egress:
-    - to:
-        - ipBlock:
-            cidr: 10.10.0.0/16  # TODO: prod VPC CIDR
-      ports:
-        - protocol: TCP
-          port: 5432
-    - to:
-        - ipBlock:
-            cidr: 10.10.0.0/16  # TODO: prod VPC CIDR
-      ports:
-        - protocol: TCP
-          port: 6379
-    - to:
-        - namespaceSelector: {}
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except:
-              - 169.254.169.254/32
-      ports:
-        - protocol: TCP
-          port: 443
+  # TODO: replace with the actual prod RDS subnet CIDR(s) (e.g. /24 per AZ).
+  rdsCIDRs:
+    - 10.10.1.0/24
+    - 10.10.2.0/24
+    - 10.10.3.0/24
+  # TODO: replace with the actual prod ElastiCache subnet CIDR(s).
+  redisCIDRs:
+    - 10.10.11.0/24
+    - 10.10.12.0/24
+    - 10.10.13.0/24
+  # Anthropic + GitHub + APNs publish no fixed CIDR list — keep wide HTTPS,
+  # but always block IMDS to enforce IRSA.
+  externalHTTPSCIDRs:
+    - 0.0.0.0/0
+  externalHTTPSExcept:
+    - 169.254.169.254/32
+  albNamespace: kube-system
+  prometheusNamespace: monitoring
