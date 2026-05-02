@@ -30,6 +30,7 @@ from app.core.exceptions import register_exception_handlers
 from app.core.logging import setup_logging
 from app.core.metrics import render_metrics
 from app.core.redis import redis_client
+from app.core.security import warn_if_deprecated_jwt_secret_only
 from app.core.telemetry import setup_tracing
 from app.services.bridge_registry_service import bridge_registry
 
@@ -59,6 +60,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # error needs an explicit per-call ignore.
     AsyncPGInstrumentor().instrument()  # type: ignore[no-untyped-call]
     logger.info("app_starting", version=settings.app_version)
+    # T2.9-fix (M2): warn once if operator left deprecated JWT_SECRET_KEY
+    # set without configuring JWT_LEGACY_HS256_SECRET (would silently
+    # reject all legacy HS256 tokens during the migration window).
+    warn_if_deprecated_jwt_secret_only()
     await bridge_registry.start_stale_checker()
     usage_task = asyncio.create_task(_subscription_usage_loop())
     yield

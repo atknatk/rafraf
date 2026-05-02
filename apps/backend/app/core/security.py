@@ -206,9 +206,60 @@ def _hs256_grace_active() -> bool:
 
 
 def _hs256_secret() -> str | None:
-    """Return the HS256 verification secret (legacy or DEPRECATED jwt_secret_key)."""
+    """Return the HS256 verification secret (only the explicit legacy secret).
+
+    T2.9-fix (M2): no longer falls back to ``jwt_secret_key``. The deprecated
+    ``jwt_secret_key`` field has a non-empty Pydantic default which would make
+    every deployment look like it has a legacy HS256 secret configured, masking
+    operator misconfiguration and inflating the post-grace warning rate.
+    Operators must explicitly set ``JWT_LEGACY_HS256_SECRET`` to opt into HS256
+    verification during the migration window.
+    """
     settings = get_settings()
-    return settings.jwt_legacy_hs256_secret or settings.jwt_secret_key or None
+    return settings.jwt_legacy_hs256_secret or None
+
+
+_jwt_settings_warning_emitted = False
+
+
+def warn_if_deprecated_jwt_secret_only() -> None:
+    """Emit a one-shot startup warning if jwt_secret_key is set without legacy.
+
+    T2.9-fix (M2 follow-up): if an operator left the deprecated
+    ``JWT_SECRET_KEY`` env var set without configuring
+    ``JWT_LEGACY_HS256_SECRET``, the deployment will silently REJECT all
+    legacy HS256 tokens (because we no longer fall back to ``jwt_secret_key``).
+    Surface this misconfiguration loudly at startup so operators can either
+    migrate the value to ``JWT_LEGACY_HS256_SECRET`` or remove the deprecated
+    env var entirely.
+    """
+    global _jwt_settings_warning_emitted  # noqa: PLW0603
+    if _jwt_settings_warning_emitted:
+        return
+    settings = get_settings()
+    # Only warn when the deprecated key is explicitly customized AND no legacy
+    # secret is configured. If both are unset (or jwt_secret_key matches the
+    # default and no one cares about HS256), stay silent.
+    deprecated_default = "dev-secret-change-in-production"
+    deprecated_set = bool(settings.jwt_secret_key) and settings.jwt_secret_key != deprecated_default
+    legacy_unset = settings.jwt_legacy_hs256_secret is None
+    if deprecated_set and legacy_unset:
+        logger.warning(
+            "jwt_secret_key_set_but_legacy_unset",
+            note=(
+                "JWT_SECRET_KEY is set but JWT_LEGACY_HS256_SECRET is not. "
+                "Legacy HS256 tokens will be REJECTED. Either move the value "
+                "to JWT_LEGACY_HS256_SECRET (during the grace period) or "
+                "remove the deprecated JWT_SECRET_KEY env var."
+            ),
+        )
+    _jwt_settings_warning_emitted = True
+
+
+def _reset_jwt_warning_flag_for_tests() -> None:
+    """Reset the one-shot startup warning flag. Test-only."""
+    global _jwt_settings_warning_emitted  # noqa: PLW0603
+    _jwt_settings_warning_emitted = False
 
 
 def decode_access_token(token: str) -> dict[str, object]:
@@ -268,15 +319,29 @@ def _decode_token(token: str, *, expected_type: str) -> dict[str, object]:
                 raise SecurityError(msg) from exc
         else:
             # Outside grace period (or no legacy secret configured) — reject.
-            if hs_secret is not None and not _hs256_grace_active():
-                # Only log post-grace rejection if we *would* have tried HS256.
-                # We can't know the alg without parsing, so log defensively if
-                # RS256 also failed.
-                logger.warning(
-                    "legacy_hs256_token_rejected_post_grace",
-                    token_type=expected_type,
-                    note="HS256 fallback disabled (grace period expired)",
-                )
+            #
+            # T2.9-fix (M1): the post-grace warning must fire ONLY when the
+            # token actually claims ``alg=HS256``. Before this fix the warning
+            # fired on EVERY failed RS256 verification (including routine
+            # token expiry), inflating the alert rate operators were told to
+            # page on. Inspect the token header (no signature check) and only
+            # log when (a) operator explicitly configured a legacy secret,
+            # (b) we are past the grace deadline, and (c) the token is HS256.
+            settings = get_settings()
+            if (
+                settings.jwt_legacy_hs256_secret is not None
+                and not _hs256_grace_active()
+            ):
+                try:
+                    alg = jwt.get_unverified_header(token).get("alg")
+                except JWTError:
+                    alg = None
+                if alg == "HS256":
+                    logger.warning(
+                        "legacy_hs256_token_rejected_post_grace",
+                        token_type=expected_type,
+                        note="HS256 fallback disabled (grace period expired)",
+                    )
             if rs_error is not None:
                 err_msg = f"Token verification failed: {rs_error}"
             else:
@@ -345,4 +410,5 @@ __all__ = [
     "verify_access_token",
     "verify_password",
     "verify_refresh_token",
+    "warn_if_deprecated_jwt_secret_only",
 ]
