@@ -147,8 +147,13 @@ struct ApprovalMapperTests {
         #expect(req.policy == .prompt(risk: .high))
     }
 
-    @Test("toSheetRequest infrastructure kategori -> medium risk policy")
-    func toSheetRequest_infrastructureCategoryMediumRisk() {
+    @Test("toSheetRequest infrastructure kategori -> low risk policy")
+    func toSheetRequest_infrastructureCategoryLowRisk() {
+        // V1.5 reviewer M1 (commit 9270738) downgraded `.infrastructure` from
+        // `.medium` to `.low` per docs/design/v1-permission-blockers.md §2.1.3.
+        // ApprovalMapper.swift:36-42 documents the change explicitly; this
+        // test was previously asserting the pre-review value and silently
+        // failing CI ever since. Fixed.
         let q = ApprovalTestFactory.makeQuestion(
             id: "sheet-2",
             context: "Tool: Edit, Action: change config",
@@ -157,7 +162,7 @@ struct ApprovalMapperTests {
 
         let req = ApprovalMapper.toSheetRequest(question: q)
 
-        #expect(req.policy == .prompt(risk: .medium))
+        #expect(req.policy == .prompt(risk: .low))
         #expect(req.toolName == "Edit")
     }
 
