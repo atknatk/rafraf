@@ -1,5 +1,6 @@
 """Application configuration via Pydantic Settings."""
 
+from datetime import datetime
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -36,11 +37,29 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 
-    # Security
+    # Security — JWT (T2.9: RS256 migration with HS256 grace period)
+    #
+    # As of T2.9 (Faz 2), the backend signs JWTs with RS256 (asymmetric).
+    # ``jwt_private_key_path`` and ``jwt_public_key_path`` point to PEM files
+    # on disk (in dev: ``./secrets/jwt_*.pem``; in prod: AWS Secrets Manager
+    # / Kubernetes Secrets, mounted as a file).
+    #
+    # ``jwt_legacy_hs256_secret`` is the OLD HS256 shared secret retained for
+    # token *verification only* during the grace period. ``jwt_legacy_grace_until``
+    # is the cutover deadline — after this UTC timestamp, HS256 tokens are
+    # rejected with ``legacy_hs256_token_rejected_post_grace``.
+    #
+    # ``jwt_secret_key`` is DEPRECATED (kept for backward compat / legacy HS256
+    # signing during transition). Will be removed after the grace period ends.
+    # DEPRECATED — use jwt_legacy_hs256_secret instead.
     jwt_secret_key: str = "dev-secret-change-in-production"
-    jwt_algorithm: str = "HS256"
+    jwt_algorithm: str = "RS256"  # T2.9: was HS256
     jwt_access_token_expire_minutes: int = 15
     jwt_refresh_token_expire_days: int = 7
+    jwt_private_key_path: str | None = None  # PEM, RS256 sign
+    jwt_public_key_path: str | None = None  # PEM, RS256 verify
+    jwt_legacy_hs256_secret: str | None = None  # grace period verify only
+    jwt_legacy_grace_until: datetime | None = None  # UTC cutover deadline
 
     # Rate Limiting
     rate_limit_requests_per_minute: int = 10
