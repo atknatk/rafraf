@@ -1,18 +1,28 @@
-"""HostAgent SQLAlchemy model — host agent registry persistence."""
+"""Bridge SQLAlchemy model — Mac/Linux Go bridge registry persistence.
+
+Replaces the legacy ``HostAgent`` model as part of the V1 production pivot
+(docs/10 §6.1.1, T1.4). The Python "host agent" daemon has been archived
+(``apps/_archive/agent``) and superseded by the Go bridge in
+``apps/rafraf-bridge/``.
+"""
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDMixin
 
+if TYPE_CHECKING:
+    from app.models.subagent import Subagent
 
-class HostAgent(Base, UUIDMixin, TimestampMixin):
-    """Persists registered host agents for restart-resilient state."""
 
-    __tablename__ = "host_agents"
+class Bridge(Base, UUIDMixin, TimestampMixin):
+    """Persists registered Go bridges for restart-resilient state."""
+
+    __tablename__ = "bridges"
 
     host_id: Mapped[str] = mapped_column(
         String(50),
@@ -61,8 +71,22 @@ class HostAgent(Base, UUIDMixin, TimestampMixin):
         String(50),
         nullable=True,
     )
-    dangerously_skip_permissions: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        server_default="false",
+    pairing_token: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+    bridge_version: Mapped[str | None] = mapped_column(
+        String(32),
+        nullable=True,
+    )
+
+    # ── ORM relationships ──
+    # Reverse side of Subagent.bridge — every subagent row carries a FK to a
+    # bridge (ON DELETE CASCADE in the schema). Eager-loading is intentionally
+    # opt-in; default lazy loading keeps Bridge queries cheap.
+    subagents: Mapped[list["Subagent"]] = relationship(
+        "Subagent",
+        back_populates="bridge",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )

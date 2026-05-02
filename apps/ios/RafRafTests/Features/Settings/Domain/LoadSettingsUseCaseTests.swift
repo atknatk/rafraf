@@ -27,7 +27,7 @@ struct LoadSettingsUseCaseTests {
         let settings = useCase.execute()
 
         #expect(settings == customSettings)
-        #expect(settings.ttsSpeed == 1.5)
         #expect(settings.appearance == .dark)
+        #expect(settings.fontSize == .large)
     }
 }

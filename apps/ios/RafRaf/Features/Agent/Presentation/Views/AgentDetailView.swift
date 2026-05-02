@@ -17,6 +17,9 @@ struct AgentDetailView: View {
     @State private var showDispatchTask = false
     @State private var processPollingTask: Task<Void, Never>?
     @State private var skipPermissions: Bool = false
+    @State private var showSubagentTree = false
+    @State private var subagentSnapshot: [Subagent] = []
+    @State private var subagentObserveTask: Task<Void, Never>?
 
     private let getUsageUseCase: GetSubscriptionUsageUseCase
     private let refreshUsageUseCase: RefreshSubscriptionUsageUseCase
@@ -66,6 +69,7 @@ struct AgentDetailView: View {
                 if !agentTasks.isEmpty {
                     tasksSection
                 }
+                subagentsSection
                 if !activeProjects.isEmpty || !discoveredProjects.isEmpty {
                     projectsSection
                 }
@@ -88,6 +92,16 @@ struct AgentDetailView: View {
                 dispatchUseCase: dispatchAgentTaskUseCase
             )
         }
+        .sheet(isPresented: $showSubagentTree) {
+            NavigationStack {
+                SubagentTreeView(
+                    sessionId: nil,
+                    viewModel: Container.shared.subagentTreeViewModel()
+                )
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
         .task {
             async let usageTask: () = loadUsage()
             async let projectsTask: () = loadProjects()
@@ -96,10 +110,13 @@ struct AgentDetailView: View {
             async let skipTask: () = loadSkipPermissions()
             _ = await (usageTask, projectsTask, processesTask, tasksTask, skipTask)
             startProcessPolling()
+            startSubagentObserving()
         }
         .onDisappear {
             processPollingTask?.cancel()
             processPollingTask = nil
+            subagentObserveTask?.cancel()
+            subagentObserveTask = nil
         }
         .overlay {
             if let errorMessage {
@@ -803,6 +820,88 @@ struct AgentDetailView: View {
             .foregroundStyle(color)
             .font(.system(size: 16))
             .frame(width: 20)
+    }
+
+    // MARK: - Subagents Section (T1.7 — Doc 10 §6.3.3)
+
+    /// Claude Agent Teams subagent ozet karti.
+    /// Subagent yoksa kart gosterilmez. Aksi halde count + son aktivite +
+    /// "Detay" butonu ile SubagentTreeView sheet'ini acar.
+    @ViewBuilder
+    private var subagentsSection: some View {
+        if !subagentSnapshot.isEmpty {
+            RFCard {
+                VStack(alignment: .leading, spacing: RFSpacing.sm) {
+                    HStack {
+                        Image(systemName: "person.2.gobackward")
+                            .foregroundStyle(RFColors.fallbackPrimary)
+                        RFText(
+                            String(localized: "agent.subagents.title"),
+                            style: .headline
+                        )
+                        Spacer()
+                        RFText(
+                            "\(subagentSnapshot.count)",
+                            style: .captionBold,
+                            color: RFColors.fallbackPrimary
+                        )
+                        .padding(.horizontal, RFSpacing.sm)
+                        .padding(.vertical, RFSpacing.xxs)
+                        .background(RFColors.fallbackPrimary.opacity(0.1))
+                        .clipShape(Capsule())
+                    }
+
+                    HStack(spacing: RFSpacing.md) {
+                        subagentStatusCount(
+                            label: String(localized: "agent.subagent.status.inProgress"),
+                            count: subagentSnapshot.filter { $0.status == .inProgress || $0.status == .spawned }.count,
+                            color: RFColors.fallbackPrimary
+                        )
+                        subagentStatusCount(
+                            label: String(localized: "agent.subagent.status.completed"),
+                            count: subagentSnapshot.filter { $0.status == .completed }.count,
+                            color: RFColors.success
+                        )
+                        subagentStatusCount(
+                            label: String(localized: "agent.subagent.status.failed"),
+                            count: subagentSnapshot.filter { $0.status == .failed }.count,
+                            color: RFColors.error
+                        )
+                    }
+
+                    RFButton(
+                        String(localized: "agent.subagents.viewTree"),
+                        style: .ghost,
+                        size: .small
+                    ) {
+                        showSubagentTree = true
+                    }
+                    .accessibilityHint(String(localized: "agent.subagents.viewTree.hint"))
+                }
+            }
+        }
+    }
+
+    private func subagentStatusCount(label: String, count: Int, color: Color) -> some View {
+        VStack(spacing: RFSpacing.xxs) {
+            RFText("\(count)", style: .headline, color: color)
+            RFText(label, style: .caption, color: RFColors.fallbackTextSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func startSubagentObserving() {
+        subagentObserveTask?.cancel()
+        let repository = Container.shared.subagentRepository()
+        subagentObserveTask = Task { @MainActor in
+            let stream = await repository.observeAllSubagents()
+            for await snapshot in stream {
+                guard !Task.isCancelled else { return }
+                self.subagentSnapshot = snapshot
+            }
+        }
     }
 
     // MARK: - Data Loading

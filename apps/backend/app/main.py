@@ -27,7 +27,7 @@ from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import setup_logging
 from app.core.redis import redis_client
-from app.services.agent_registry_service import agent_registry
+from app.services.bridge_registry_service import bridge_registry
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -38,11 +38,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     setup_logging(debug=settings.debug)
     logger.info("app_starting", version=settings.app_version)
-    await agent_registry.start_stale_checker()
+    await bridge_registry.start_stale_checker()
     usage_task = asyncio.create_task(_subscription_usage_loop())
     yield
     usage_task.cancel()
-    await agent_registry.stop_stale_checker()
+    await bridge_registry.stop_stale_checker()
     await redis_client.close()
     logger.info("app_shutting_down")
 

@@ -6,7 +6,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from app.core.config import get_settings
 from app.main import app
-from app.services.agent_registry_service import agent_registry
+from app.services.bridge_registry_service import bridge_registry
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def valid_api_key() -> str:
 @pytest.fixture(autouse=True)
 def _clear_registry() -> None:
     """Clear the agent registry before each test."""
-    agent_registry._agents.clear()
+    bridge_registry._agents.clear()
 
 
 class TestAgentWebSocketConnection:

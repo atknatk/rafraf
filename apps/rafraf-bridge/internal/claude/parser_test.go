@@ -498,6 +498,208 @@ func keysOf(m map[string]protocol.ModelUsage) []string {
 }
 
 // ---------------------------------------------------------------------------
+// TestParser_SubagentLifecycle_FullFieldsPopulated — synthetic fixture that
+// walks one subagent through task_started → task_progress → task_notification
+// and asserts every SubagentState field used by the backend's DB projection
+// (T1.10) is populated correctly.
+//
+// This is the contract test that pins the bridge's StreamState shape for
+// T1.1 — when claude_code_runner.py rewrites subscribe to the bridge's
+// session.subagent_* events and call SubagentRepository.upsert_subagent,
+// they will read the same fields that this test verifies.
+// ---------------------------------------------------------------------------
+
+func TestParser_SubagentLifecycle_FullFieldsPopulated(t *testing.T) {
+	t.Parallel()
+
+	// Synthetic stream-json that exercises the full subagent lifecycle. The
+	// task_started frame includes every Doc 11 §6 field (description,
+	// subagent_type, isolation, prompt) so the SubagentState projection ends
+	// up populated end-to-end. The terminal task_notification carries the
+	// usage block consumed by SubagentRepository.upsert_subagent.
+	const sessionID = "sess-lifecycle"
+	const taskID = "task-lifecycle-1"
+	input := strings.NewReader(
+		`{"type":"system","subtype":"init","session_id":"` + sessionID + `","cwd":"/tmp","model":"claude-opus-4-7","tools":["Task","Bash"],"permissionMode":"default","apiKeySource":"env","version":"1.0.0"}` + "\n" +
+			`{"type":"system","subtype":"task_started","session_id":"` + sessionID + `","task_id":"` + taskID + `","description":"Investigate authentication bug","subagent_type":"general-purpose","isolation":"worktree","prompt":"Search the codebase for all references to JWT validation and identify any bypass paths."}` + "\n" +
+			`{"type":"system","subtype":"task_progress","session_id":"` + sessionID + `","task_id":"` + taskID + `","phase":"searching","phase_label":"Searching","current_tool":"Grep","percentage":40}` + "\n" +
+			`{"type":"system","subtype":"task_notification","session_id":"` + sessionID + `","task_id":"` + taskID + `","status":"completed","summary":"Found 2 candidate paths","usage":{"total_tokens":12345,"tool_uses":7,"duration_ms":8765,"input_tokens":4321,"output_tokens":8024,"cache_read_input_tokens":100,"cache_creation_input_tokens":200}}` + "\n",
+	)
+
+	var (
+		capturedStarted      protocol.EventSessionTaskStarted
+		capturedProgress     protocol.EventSessionTaskProgress
+		capturedNotification protocol.EventSessionTaskNotification
+	)
+	sink := &mockSink{
+		OnTaskStartedFn: func(ev protocol.EventSessionTaskStarted) error {
+			capturedStarted = ev
+			return nil
+		},
+		OnTaskProgressFn: func(ev protocol.EventSessionTaskProgress) error {
+			capturedProgress = ev
+			return nil
+		},
+		OnTaskNotificationFn: func(ev protocol.EventSessionTaskNotification) error {
+			capturedNotification = ev
+			return nil
+		},
+	}
+
+	p := NewParser(sink, discardLogger())
+	if err := p.Parse(input); err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	// ── EventSink: task_started callback should mirror the input frame
+	// (with prompt truncated for the preview field). ──
+	if capturedStarted.SessionID != sessionID {
+		t.Errorf("started.SessionID: want %q, got %q", sessionID, capturedStarted.SessionID)
+	}
+	if capturedStarted.TaskID != taskID {
+		t.Errorf("started.TaskID: want %q, got %q", taskID, capturedStarted.TaskID)
+	}
+	if capturedStarted.Description != "Investigate authentication bug" {
+		t.Errorf("started.Description: want %q, got %q",
+			"Investigate authentication bug", capturedStarted.Description)
+	}
+	if capturedStarted.SubagentType != "general-purpose" {
+		t.Errorf("started.SubagentType: want %q, got %q",
+			"general-purpose", capturedStarted.SubagentType)
+	}
+	if capturedStarted.Isolation != "worktree" {
+		t.Errorf("started.Isolation: want %q, got %q", "worktree", capturedStarted.Isolation)
+	}
+	if capturedStarted.PromptPreview == "" {
+		t.Errorf("started.PromptPreview: want non-empty truncated prompt, got empty")
+	}
+	if !strings.HasPrefix(capturedStarted.PromptPreview, "Search the codebase") {
+		t.Errorf("started.PromptPreview: want prefix %q, got %q",
+			"Search the codebase", capturedStarted.PromptPreview)
+	}
+
+	// ── EventSink: task_progress callback should be advisory; verify it
+	// fires with the right session/task and current_tool. ──
+	if capturedProgress.SessionID != sessionID {
+		t.Errorf("progress.SessionID: want %q, got %q", sessionID, capturedProgress.SessionID)
+	}
+	if capturedProgress.TaskID != taskID {
+		t.Errorf("progress.TaskID: want %q, got %q", taskID, capturedProgress.TaskID)
+	}
+	if capturedProgress.Percentage != 40 {
+		t.Errorf("progress.Percentage: want 40, got %d", capturedProgress.Percentage)
+	}
+
+	// ── EventSink: task_notification callback should carry the terminal
+	// payload consumed by SubagentRepository.update_subagent_status. ──
+	if capturedNotification.Status != "completed" {
+		t.Errorf("notification.Status: want %q, got %q", "completed", capturedNotification.Status)
+	}
+	if capturedNotification.Summary != "Found 2 candidate paths" {
+		t.Errorf("notification.Summary: want %q, got %q",
+			"Found 2 candidate paths", capturedNotification.Summary)
+	}
+	if capturedNotification.TotalTokens != 12345 {
+		t.Errorf("notification.TotalTokens: want 12345, got %d", capturedNotification.TotalTokens)
+	}
+	if capturedNotification.ToolUses != 7 {
+		t.Errorf("notification.ToolUses: want 7, got %d", capturedNotification.ToolUses)
+	}
+	if capturedNotification.DurationMs != 8765 {
+		t.Errorf("notification.DurationMs: want 8765, got %d", capturedNotification.DurationMs)
+	}
+
+	// ── StreamState projection: the subagent must have moved from active
+	// to completed with every Doc 11 §6 field intact. T1.1's runner reads
+	// from this exact shape when it persists to the subagents table. ──
+	st := p.State()
+
+	if got := len(st.SnapshotActiveSubagents()); got != 0 {
+		t.Errorf("active subagents after termination: want 0, got %d", got)
+	}
+	completed := st.SnapshotCompletedSubagents()
+	if len(completed) != 1 {
+		t.Fatalf("completed subagents: want 1, got %d", len(completed))
+	}
+	c := completed[0]
+	if c.TaskID != taskID {
+		t.Errorf("completed.TaskID: want %q, got %q", taskID, c.TaskID)
+	}
+	if c.Description != "Investigate authentication bug" {
+		t.Errorf("completed.Description: want %q, got %q",
+			"Investigate authentication bug", c.Description)
+	}
+	if c.SubagentType != "general-purpose" {
+		t.Errorf("completed.SubagentType: want %q, got %q", "general-purpose", c.SubagentType)
+	}
+	if c.Isolation != "worktree" {
+		t.Errorf("completed.Isolation: want %q, got %q", "worktree", c.Isolation)
+	}
+	if c.Prompt == "" {
+		t.Errorf("completed.Prompt: want non-empty, got empty")
+	}
+	if c.Status != "completed" {
+		t.Errorf("completed.Status: want %q, got %q", "completed", c.Status)
+	}
+	if c.CompletedAt == nil {
+		t.Errorf("completed.CompletedAt: want non-nil, got nil")
+	}
+	if c.Usage == nil {
+		t.Fatalf("completed.Usage: want non-nil, got nil")
+	}
+	if c.Usage.TotalTokens != 12345 {
+		t.Errorf("completed.Usage.TotalTokens: want 12345, got %d", c.Usage.TotalTokens)
+	}
+	if c.Usage.ToolUses != 7 {
+		t.Errorf("completed.Usage.ToolUses: want 7, got %d", c.Usage.ToolUses)
+	}
+	if c.Usage.DurationMs != 8765 {
+		t.Errorf("completed.Usage.DurationMs: want 8765, got %d", c.Usage.DurationMs)
+	}
+	if c.Usage.InputTokens != 4321 {
+		t.Errorf("completed.Usage.InputTokens: want 4321, got %d", c.Usage.InputTokens)
+	}
+	if c.Usage.OutputTokens != 8024 {
+		t.Errorf("completed.Usage.OutputTokens: want 8024, got %d", c.Usage.OutputTokens)
+	}
+	if c.Usage.CacheRead != 100 {
+		t.Errorf("completed.Usage.CacheRead: want 100, got %d", c.Usage.CacheRead)
+	}
+	if c.Usage.CacheWrite != 200 {
+		t.Errorf("completed.Usage.CacheWrite: want 200, got %d", c.Usage.CacheWrite)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestParser_SubagentLifecycle_FailedStatusPreserved — terminal status
+// strings other than "completed" (failed, cancelled) must round-trip into
+// CompletedSubagents.Status verbatim so the backend can map them onto the
+// subagents.status DB column without bridge-side translation.
+// ---------------------------------------------------------------------------
+
+func TestParser_SubagentLifecycle_FailedStatusPreserved(t *testing.T) {
+	t.Parallel()
+
+	input := strings.NewReader(
+		`{"type":"system","subtype":"task_started","session_id":"s","task_id":"t-fail","description":"d","subagent_type":"general-purpose","prompt":"p"}` + "\n" +
+			`{"type":"system","subtype":"task_notification","session_id":"s","task_id":"t-fail","status":"failed","summary":"timed out","usage":{"total_tokens":0,"tool_uses":0,"duration_ms":60000}}` + "\n",
+	)
+
+	p := NewParser(&mockSink{}, discardLogger())
+	if err := p.Parse(input); err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	completed := p.State().SnapshotCompletedSubagents()
+	if len(completed) != 1 {
+		t.Fatalf("completed subagents: want 1, got %d", len(completed))
+	}
+	if completed[0].Status != "failed" {
+		t.Errorf("completed.Status: want %q, got %q", "failed", completed[0].Status)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // TestStreamState_ConcurrentSafe — exercise the StreamState mutex from
 // many goroutines. Must run clean under -race; any data race surfaces as
 // a t.Fatal because the race detector aborts the test process.

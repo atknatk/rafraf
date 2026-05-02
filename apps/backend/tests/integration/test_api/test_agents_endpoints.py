@@ -9,7 +9,7 @@ from app.schemas.agent import (
     AgentRegisterPayload,
     AgentStatus,
 )
-from app.services.agent_registry_service import agent_registry
+from app.services.bridge_registry_service import bridge_registry
 
 
 @pytest.fixture
@@ -21,7 +21,7 @@ def client() -> TestClient:
 @pytest.fixture(autouse=True)
 def _clear_registry() -> None:
     """Clear the agent registry before each test."""
-    agent_registry._agents.clear()
+    bridge_registry._agents.clear()
 
 
 async def _register_agent(
@@ -35,7 +35,7 @@ async def _register_agent(
         os_info="macOS 15.0",
         version="1.0.0",
     )
-    await agent_registry.register_agent(payload, f"conn-{host_id}")
+    await bridge_registry.register_agent(payload, f"conn-{host_id}")
 
 
 class TestListAgentsEndpoint:
@@ -67,7 +67,7 @@ class TestListAgentsEndpoint:
         """Filtering by status=online should only return online agents."""
         await _register_agent("online-agent")
         await _register_agent("offline-agent")
-        await agent_registry.mark_disconnected("offline-agent")
+        await bridge_registry.mark_disconnected("offline-agent")
 
         response = client.get("/api/v1/agents?status=online")
         assert response.status_code == 200
@@ -79,7 +79,7 @@ class TestListAgentsEndpoint:
         """Filtering by status=offline should only return offline agents."""
         await _register_agent("agent-1")
         await _register_agent("agent-2")
-        await agent_registry.mark_disconnected("agent-2")
+        await bridge_registry.mark_disconnected("agent-2")
 
         response = client.get("/api/v1/agents?status=offline")
         assert response.status_code == 200
@@ -129,7 +129,7 @@ class TestGetAgentEndpoint:
     async def test_get_agent_status_reflects_disconnect(self, client: TestClient) -> None:
         """Agent detail should reflect offline status after disconnect."""
         await _register_agent("test-dc")
-        await agent_registry.mark_disconnected("test-dc")
+        await bridge_registry.mark_disconnected("test-dc")
 
         response = client.get("/api/v1/agents/test-dc")
         assert response.status_code == 200

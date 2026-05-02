@@ -61,17 +61,13 @@ class OrchestratorAgent:
     def __init__(self, tool_registry: ToolRegistry) -> None:
         self._registry = tool_registry
         settings = get_settings()
-        self._client: anthropic.AsyncAnthropic | anthropic.AsyncAnthropicBedrock
-        if settings.use_bedrock:
-            self._client = anthropic.AsyncAnthropicBedrock(
-                aws_access_key=settings.aws_access_key_id,
-                aws_secret_key=settings.aws_secret_access_key,
-                aws_region=settings.aws_region,
-            )
-        else:
-            self._client = anthropic.AsyncAnthropic(
-                api_key=settings.anthropic_api_key,
-            )
+        # T1.1: Bedrock branch removed; the bridge owns claude routing now.
+        # Backend's API client only handles the legacy fallback path
+        # (process_message / process_message_streaming) which calls the
+        # Anthropic API directly with the configured API key.
+        self._client: anthropic.AsyncAnthropic = anthropic.AsyncAnthropic(
+            api_key=settings.anthropic_api_key,
+        )
         # Session-based conversation history
         self._conversations: dict[str, list[anthropic.types.MessageParam]] = {}
 

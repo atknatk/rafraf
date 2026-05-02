@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.task import TERMINAL_STATES, VALID_TRANSITIONS, Task, TaskStatus
-from app.services.agent_registry_service import AgentRegistryService
+from app.services.bridge_registry_service import BridgeRegistryService
 from app.services.live_activity_push_service import APNsGoneError, LiveActivityPushService
 
 
@@ -61,7 +61,7 @@ class TaskOrchestratorService:
     def __init__(
         self,
         db: AsyncSession,
-        agent_registry: AgentRegistryService | None = None,
+        agent_registry: BridgeRegistryService | None = None,
         push_service: LiveActivityPushService | None = None,
         ws_manager: TaskWSManager | None = None,
     ) -> None:

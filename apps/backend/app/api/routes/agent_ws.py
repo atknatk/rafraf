@@ -21,7 +21,7 @@ from app.schemas.agent import (
     ClaudeProcessInfo,
 )
 from app.services.agent_project_service import AgentProjectService
-from app.services.agent_registry_service import agent_registry
+from app.services.bridge_registry_service import bridge_registry
 from app.services.claude_stream_manager import ClaudeStreamManager
 from app.services.project_service import ProjectService
 from app.services.task_manager_service import TaskManager
@@ -33,6 +33,10 @@ router = APIRouter()
 # Dedicated connection manager for agent connections (separate from iOS clients)
 agent_manager = ConnectionManager(heartbeat_interval=30, heartbeat_timeout=10)
 
+# Wire the bridge-side ConnectionManager into the registry singleton so
+# ClaudeCodeRunner can route ``command.claude.run`` envelopes (T1.1).
+bridge_registry.set_agent_manager(agent_manager)
+
 # Task manager singleton (initialized lazily to avoid circular imports)
 _task_manager: TaskManager | None = None
 
@@ -42,7 +46,7 @@ def get_task_manager() -> TaskManager:
     global _task_manager  # noqa: PLW0603
     if _task_manager is None:
         _task_manager = TaskManager(
-            agent_registry=agent_registry,
+            agent_registry=bridge_registry,
             agent_manager=agent_manager,
         )
     return _task_manager
@@ -53,12 +57,22 @@ _claude_stream_manager: ClaudeStreamManager | None = None
 
 
 def get_claude_stream_manager() -> ClaudeStreamManager:
-    """Get or create the global claude stream manager."""
+    """Get or create the global claude stream manager.
+
+    Imports the iOS-side ConnectionManager singleton lazily so the
+    ``forward_*`` methods (T1.2 Agent Teams) can push to iOS sessions
+    without requiring the import at module load time (which would create
+    a cycle through ``websocket.py``).
+    """
     global _claude_stream_manager  # noqa: PLW0603
     if _claude_stream_manager is None:
+        # Lazy import to avoid a cycle through websocket.py at startup.
+        from app.api.routes.websocket import manager as ios_manager  # noqa: PLC0415
+
         _claude_stream_manager = ClaudeStreamManager(
-            agent_registry=agent_registry,
+            agent_registry=bridge_registry,
             agent_manager=agent_manager,
+            ios_manager=ios_manager,
         )
     return _claude_stream_manager
 
@@ -92,10 +106,21 @@ async def agent_websocket_endpoint(
     settings = get_settings()
 
     # --- API key authentication ---
+    # TODO(T1.x bridge pairing): replace agent_api_key shared-secret auth with
+    # the per-bridge ``pairing_token`` lookup (see ``bridges.pairing_token``
+    # column added in alembic 014). The ``agent_api_key`` setting is
+    # deprecated but kept as the only auth mechanism until T1.x lands.
     if api_key != settings.agent_api_key:
         await logger.awarning("agent_ws_auth_failed", reason="invalid_api_key")
         await websocket.close(code=4008, reason="Invalid API key")
         return
+    await logger.awarning(
+        "agent_api_key_auth_deprecated",
+        message=(
+            "agent_api_key shared-secret auth is deprecated; bridge "
+            "pairing_token mechanism lands in T1.x"
+        ),
+    )
 
     # --- Connection setup (use a placeholder user_id / session_id) ---
     connection_id = await agent_manager.connect(
@@ -139,6 +164,32 @@ async def agent_websocket_endpoint(
                 await _handle_claude_stream_end(raw_data, connection_id)
             elif msg_type == "claude_stream_error":
                 await _handle_claude_stream_error(raw_data, connection_id)
+            elif msg_type == "event.usage.report":
+                # Statusline-driven, broadcast event (no RPC correlation).
+                # Forwarded to every connected iOS session as a typed
+                # ``usage.report`` message (T1.2). MUST be matched before
+                # the generic ``event.*`` branch because dispatch_event
+                # drops correlation-less envelopes.
+                await _handle_usage_report(raw_data)
+            elif msg_type == "event.session.title":
+                # Storage-watcher-driven, broadcast event (no RPC
+                # correlation). Resolves session→user via SessionRepository
+                # and forwards a typed ``session.title`` message to that
+                # owner's iOS connections (T1.2-fix H-1). MUST be matched
+                # before the generic ``event.*`` branch.
+                await _handle_session_title(raw_data)
+            elif msg_type == "event.session.pr_opened":
+                # Storage-watcher-driven, broadcast event (no RPC
+                # correlation). Resolves session→user via SessionRepository
+                # and forwards a typed ``session.pr_opened`` message
+                # (T1.2-fix H-1). MUST be matched before the generic
+                # ``event.*`` branch.
+                await _handle_session_pr_opened(raw_data)
+            elif isinstance(msg_type, str) and msg_type.startswith("event."):
+                # Bridge → backend RPC events (T1.1). Routed to the
+                # ClaudeCodeRunner subscriber that owns the matching
+                # correlation_id.
+                await bridge_registry.dispatch_event(raw_data)
             elif msg_type == "pong":
                 await logger.adebug(
                     "agent_pong_received",
@@ -171,9 +222,9 @@ async def agent_websocket_endpoint(
         )
     finally:
         if registered_host_id is not None:
-            await agent_registry.mark_disconnected(registered_host_id)
+            await bridge_registry.mark_disconnected(registered_host_id)
         else:
-            await agent_registry.unregister_by_connection(connection_id)
+            await bridge_registry.unregister_by_connection(connection_id)
         await agent_manager.disconnect(connection_id)
 
 
@@ -194,7 +245,7 @@ async def _handle_register(
         version=str(content.get("version", "")),
     )
 
-    await agent_registry.register_agent(payload, connection_id)
+    await bridge_registry.register_agent(payload, connection_id)
 
     ack = AgentRegisterAckPayload(
         host_id=payload.host_id,
@@ -260,7 +311,7 @@ async def _handle_heartbeat(
         claude_processes=claude_processes,
     )
 
-    found = await agent_registry.process_heartbeat(payload)
+    found = await bridge_registry.process_heartbeat(payload)
     if not found:
         await logger.awarning(
             "agent_heartbeat_unknown",
@@ -354,7 +405,7 @@ async def _handle_resource_report(
         "disk_free_gb": float(metrics_raw.get("disk_free_gb", 0)),
     }
 
-    found = await agent_registry.update_resources(host_id, resources)
+    found = await bridge_registry.update_resources(host_id, resources)
     if found:
         await logger.adebug(
             "agent_resource_report_processed",
@@ -548,4 +599,306 @@ async def _handle_claude_stream_error(
         task_id=task_id,
         error=str(content.get("error", "Bilinmeyen hata")),
         returncode=int(content.get("returncode", -1)),
+    )
+
+
+# ------------------------------------------------------------------
+# Bridge broadcast events (no RPC correlation) — T1.2.
+# ------------------------------------------------------------------
+
+
+async def _handle_usage_report(raw_data: dict[str, object]) -> None:
+    """Forward an ``event.usage.report`` envelope to all iOS users.
+
+    The bridge's statusline watcher emits this whenever the local
+    ``~/.claude/usage.json`` mod-time advances (see docs/10 §2.11). The
+    payload reflects the *current Mac's* claude subscription window and is
+    not tied to any particular RPC, so we fan it out to every iOS session
+    of every active user.
+
+    Payload field discovery is defensive — the bridge wraps the typed
+    ``EventUsageReport`` struct under ``payload`` (preferred) but legacy
+    callers may have placed the fields under ``content``.
+    """
+    body = raw_data.get("payload")
+    if not isinstance(body, dict):
+        body = raw_data.get("content")
+    if not isinstance(body, dict):
+        await logger.awarning(
+            "usage_report_missing_payload",
+            keys=list(raw_data.keys()),
+        )
+        return
+
+    try:
+        five_hour_pct = int(body.get("five_hour_pct", 0))
+        seven_day_pct = int(body.get("seven_day_pct", 0))
+        five_hour_resets_at = int(body.get("five_hour_resets_at", 0))
+        seven_day_resets_at = int(body.get("seven_day_resets_at", 0))
+        reported_at = int(body.get("reported_at", 0))
+    except (TypeError, ValueError):
+        await logger.awarning(
+            "usage_report_invalid_payload",
+            payload_keys=list(body.keys()),
+        )
+        return
+
+    # Lazy import — same cycle-avoidance as get_claude_stream_manager.
+    from app.api.routes.websocket import manager as ios_manager  # noqa: PLC0415
+
+    csm = get_claude_stream_manager()
+    user_ids = ios_manager.get_active_user_ids()
+    if not user_ids:
+        await logger.adebug("usage_report_no_active_ios_users")
+        return
+
+    delivered = 0
+    for user_id in user_ids:
+        sent = await csm.forward_usage_report(
+            user_id=user_id,
+            five_hour_pct=five_hour_pct,
+            seven_day_pct=seven_day_pct,
+            five_hour_resets_at=five_hour_resets_at,
+            seven_day_resets_at=seven_day_resets_at,
+            reported_at=reported_at,
+        )
+        delivered += sent
+
+    await logger.ainfo(
+        "usage_report_broadcast",
+        users=len(user_ids),
+        sessions_reached=delivered,
+        five_hour_pct=five_hour_pct,
+        seven_day_pct=seven_day_pct,
+    )
+
+
+def _extract_event_body(
+    raw_data: dict[str, object],
+) -> dict[str, object] | None:
+    """Return the typed payload of a bridge envelope or ``None``.
+
+    The bridge wraps ``EventStorage*`` structs under ``payload`` (preferred);
+    legacy callers may have placed the fields directly under ``content``.
+    """
+    body = raw_data.get("payload")
+    if isinstance(body, dict):
+        return body
+    body = raw_data.get("content")
+    if isinstance(body, dict):
+        return body
+    return None
+
+
+async def _resolve_session_owner(session_id: uuid.UUID) -> str | None:
+    """Look up the ``user_id`` of the user who owns ``session_id``.
+
+    Returns the stringified UUID (matches the iOS-side ``user_id`` keying
+    used by ``ClaudeStreamManager.forward_*``) or ``None`` if the row is
+    missing — that case is logged at the call site so orphan events stay
+    visible to ops.
+    """
+    from app.repositories.session_repo import SessionRepository  # noqa: PLC0415
+
+    async with async_session_factory() as session:
+        repo = SessionRepository(session)
+        record = await repo.get_by_id(session_id)
+        if record is None:
+            return None
+        return str(record.user_id)
+
+
+async def _handle_session_title(raw_data: dict[str, object]) -> None:
+    """Forward an ``event.session.title`` envelope to the session owner.
+
+    The bridge's storage watcher emits this whenever an ``ai-title`` row
+    appears in ``~/.claude/projects/<project>/<session>.json`` (see
+    docs/10 §6.2). The payload carries a session UUID (per T1.5 contract)
+    that we resolve to its owning ``user_id`` via :class:`SessionRepository`,
+    then push as a typed ``session.title`` message to all of that user's
+    iOS connections.
+
+    Server-side ``generated_at`` injection is delegated to
+    :meth:`ClaudeStreamManager.forward_session_title` (T1.5 reviewer M3).
+    """
+    body = _extract_event_body(raw_data)
+    if body is None:
+        await logger.awarning(
+            "session_title_missing_payload",
+            keys=list(raw_data.keys()),
+        )
+        return
+
+    session_id_raw = body.get("session_id")
+    ai_title_raw = body.get("ai_title")
+    if not isinstance(session_id_raw, str) or not session_id_raw:
+        await logger.awarning(
+            "session_title_missing_session_id",
+            payload_keys=list(body.keys()),
+        )
+        return
+    if not isinstance(ai_title_raw, str) or not ai_title_raw:
+        await logger.awarning(
+            "session_title_missing_ai_title",
+            session_id=session_id_raw,
+        )
+        return
+
+    try:
+        session_uuid = uuid.UUID(session_id_raw)
+    except ValueError:
+        await logger.awarning(
+            "session_title_invalid_session_id",
+            session_id=session_id_raw,
+        )
+        return
+
+    generated_at_raw = body.get("generated_at")
+    generated_at: datetime | None = None
+    if isinstance(generated_at_raw, str) and generated_at_raw:
+        try:
+            generated_at = datetime.fromisoformat(generated_at_raw)
+        except ValueError:
+            await logger.awarning(
+                "session_title_invalid_generated_at",
+                session_id=session_id_raw,
+                generated_at=generated_at_raw,
+            )
+            generated_at = None
+
+    user_id = await _resolve_session_owner(session_uuid)
+    if user_id is None:
+        await logger.awarning(
+            "session_title_orphan_session",
+            session_id=session_id_raw,
+        )
+        return
+
+    csm = get_claude_stream_manager()
+    sent = await csm.forward_session_title(
+        user_id=user_id,
+        session_id=session_uuid,
+        ai_title=ai_title_raw,
+        generated_at=generated_at,
+    )
+    await logger.ainfo(
+        "session_title_forwarded",
+        session_id=session_id_raw,
+        user_id=user_id,
+        sessions_reached=sent,
+    )
+
+
+async def _handle_session_pr_opened(raw_data: dict[str, object]) -> None:
+    """Forward an ``event.session.pr_opened`` envelope to the session owner.
+
+    The bridge's storage watcher emits this whenever a ``pr-link`` row
+    appears in the session jsonl (typically after ``gh pr create``; see
+    docs/10 §6.2). The payload's session UUID is resolved to its owning
+    ``user_id`` via :class:`SessionRepository`, then pushed as a typed
+    ``session.pr_opened`` message to all of that user's iOS connections.
+
+    Server-side ``opened_at`` injection is delegated to
+    :meth:`ClaudeStreamManager.forward_session_pr_opened` (T1.5 reviewer M3).
+    """
+    body = _extract_event_body(raw_data)
+    if body is None:
+        await logger.awarning(
+            "session_pr_opened_missing_payload",
+            keys=list(raw_data.keys()),
+        )
+        return
+
+    session_id_raw = body.get("session_id")
+    pr_url_raw = body.get("pr_url")
+    pr_repository_raw = body.get("pr_repository")
+    if not isinstance(session_id_raw, str) or not session_id_raw:
+        await logger.awarning(
+            "session_pr_opened_missing_session_id",
+            payload_keys=list(body.keys()),
+        )
+        return
+    if not isinstance(pr_url_raw, str) or not pr_url_raw:
+        await logger.awarning(
+            "session_pr_opened_missing_pr_url",
+            session_id=session_id_raw,
+        )
+        return
+    if not isinstance(pr_repository_raw, str) or not pr_repository_raw:
+        await logger.awarning(
+            "session_pr_opened_missing_pr_repository",
+            session_id=session_id_raw,
+        )
+        return
+
+    pr_number_raw = body.get("pr_number")
+    if not isinstance(pr_number_raw, (int, str)):
+        await logger.awarning(
+            "session_pr_opened_invalid_pr_number",
+            session_id=session_id_raw,
+            pr_number_type=type(pr_number_raw).__name__,
+        )
+        return
+    try:
+        pr_number = int(pr_number_raw)
+    except (TypeError, ValueError):
+        await logger.awarning(
+            "session_pr_opened_invalid_pr_number",
+            session_id=session_id_raw,
+            pr_number_raw=pr_number_raw,
+        )
+        return
+    if pr_number <= 0:
+        await logger.awarning(
+            "session_pr_opened_invalid_pr_number",
+            session_id=session_id_raw,
+            pr_number=pr_number,
+        )
+        return
+
+    try:
+        session_uuid = uuid.UUID(session_id_raw)
+    except ValueError:
+        await logger.awarning(
+            "session_pr_opened_invalid_session_id",
+            session_id=session_id_raw,
+        )
+        return
+
+    opened_at_raw = body.get("opened_at")
+    opened_at: datetime | None = None
+    if isinstance(opened_at_raw, str) and opened_at_raw:
+        try:
+            opened_at = datetime.fromisoformat(opened_at_raw)
+        except ValueError:
+            await logger.awarning(
+                "session_pr_opened_invalid_opened_at",
+                session_id=session_id_raw,
+                opened_at=opened_at_raw,
+            )
+            opened_at = None
+
+    user_id = await _resolve_session_owner(session_uuid)
+    if user_id is None:
+        await logger.awarning(
+            "session_pr_opened_orphan_session",
+            session_id=session_id_raw,
+        )
+        return
+
+    csm = get_claude_stream_manager()
+    sent = await csm.forward_session_pr_opened(
+        user_id=user_id,
+        session_id=session_uuid,
+        pr_number=pr_number,
+        pr_url=pr_url_raw,
+        pr_repository=pr_repository_raw,
+        opened_at=opened_at,
+    )
+    await logger.ainfo(
+        "session_pr_opened_forwarded",
+        session_id=session_id_raw,
+        user_id=user_id,
+        pr_number=pr_number,
+        sessions_reached=sent,
     )

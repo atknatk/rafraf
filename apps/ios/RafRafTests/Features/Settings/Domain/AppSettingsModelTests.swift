@@ -12,9 +12,6 @@ struct AppSettingsModelTests {
     func defaults() {
         let settings = AppSettings.defaults
 
-        #expect(settings.ttsSpeed == 1.0)
-        #expect(settings.ttsAutoPlay == false)
-        #expect(settings.ttsLanguage == .turkish)
         #expect(settings.pushNotificationsEnabled == true)
         #expect(settings.enabledNotificationTypes == Set(NotificationType.allCases))
         #expect(settings.appearance == .system)
@@ -35,7 +32,7 @@ struct AppSettingsModelTests {
     func notEqual() {
         let settings1 = AppSettings.defaults
         var settings2 = AppSettings.defaults
-        settings2.ttsSpeed = 1.5
+        settings2.appearance = .dark
 
         #expect(settings1 != settings2)
     }
@@ -97,29 +94,6 @@ struct AppSettingsModelTests {
         }
     }
 
-    // MARK: - TTSLanguage
-
-    @Test("TTSLanguage tum case'leri dogru olmali")
-    func ttsLanguageCases() {
-        let allCases = TTSLanguage.allCases
-        #expect(allCases.count == 2)
-        #expect(allCases.contains(.turkish))
-        #expect(allCases.contains(.english))
-    }
-
-    @Test("TTSLanguage rawValue dogru olmali")
-    func ttsLanguageRawValues() {
-        #expect(TTSLanguage.turkish.rawValue == "tr-TR")
-        #expect(TTSLanguage.english.rawValue == "en-US")
-    }
-
-    @Test("TTSLanguage localizedTitle bos olmamali")
-    func ttsLanguageLocalizedTitles() {
-        for language in TTSLanguage.allCases {
-            #expect(!language.localizedTitle.isEmpty)
-        }
-    }
-
     // MARK: - NotificationType
 
     @Test("NotificationType tum case'leri dogru olmali")
@@ -150,17 +124,11 @@ struct AppSettingsModelTests {
     @Test("AppSettings mutable olmali")
     func settingsMutable() {
         var settings = AppSettings.defaults
-        settings.ttsSpeed = 2.0
-        settings.ttsAutoPlay = true
-        settings.ttsLanguage = .english
         settings.pushNotificationsEnabled = false
         settings.enabledNotificationTypes = [.taskUpdates]
         settings.appearance = .dark
         settings.fontSize = .large
 
-        #expect(settings.ttsSpeed == 2.0)
-        #expect(settings.ttsAutoPlay == true)
-        #expect(settings.ttsLanguage == .english)
         #expect(settings.pushNotificationsEnabled == false)
         #expect(settings.enabledNotificationTypes == [.taskUpdates])
         #expect(settings.appearance == .dark)

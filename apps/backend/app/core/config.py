@@ -54,9 +54,6 @@ class Settings(BaseSettings):
     aws_s3_bucket: str = ""
     aws_region: str = "eu-central-1"
 
-    # Bedrock
-    use_bedrock: bool = True
-
     # WebSocket
     ws_heartbeat_interval: int = 30
     ws_heartbeat_timeout: int = 10
@@ -66,6 +63,10 @@ class Settings(BaseSettings):
     github_webhook_secret: str = ""
 
     # Agent
+    # DEPRECATED (T1.3): shared-secret auth for the legacy Python host agent /
+    # the current Go bridge transition. Will be removed in T1.x in favour of
+    # per-bridge ``pairing_token`` (alembic 014). Keep populated until then or
+    # the WebSocket endpoint at ``/ws/agent`` will reject all bridges.
     agent_api_key: str = ""
 
     # Claude AI Orchestrator

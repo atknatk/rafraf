@@ -48,11 +48,9 @@ struct WebSocketMessageTests {
         )
 
         let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
         let data = try encoder.encode(original)
 
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let decoded = try decoder.decode(WebSocketBaseMessage.self, from: data)
 
         #expect(decoded.id == "msg-1")
@@ -82,7 +80,6 @@ struct WebSocketMessageTests {
         """
 
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let data = json.data(using: .utf8)!
         let message = try decoder.decode(WebSocketBaseMessage.self, from: data)
 
@@ -116,7 +113,6 @@ struct WebSocketMessageTests {
         """
 
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let data = json.data(using: .utf8)!
         let message = try decoder.decode(WebSocketBaseMessage.self, from: data)
 
@@ -146,7 +142,6 @@ struct WebSocketMessageTests {
         """
 
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let data = json.data(using: .utf8)!
         let message = try decoder.decode(WebSocketBaseMessage.self, from: data)
 
@@ -179,7 +174,6 @@ struct WebSocketMessageTests {
         """
 
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let data = json.data(using: .utf8)!
         let message = try decoder.decode(WebSocketBaseMessage.self, from: data)
 
@@ -206,11 +200,9 @@ struct WebSocketMessageTests {
         )
 
         let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
         let data = try encoder.encode(original)
 
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let decoded = try decoder.decode(WebSocketBaseMessage.self, from: data)
 
         if case .heartbeat(let hb) = decoded.content {
@@ -233,11 +225,9 @@ struct WebSocketMessageTests {
         )
 
         let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
         let data = try encoder.encode(metadata)
 
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let decoded = try decoder.decode(WebSocketMessageMetadata.self, from: data)
 
         #expect(decoded.timestamp == "2026-03-03T10:00:00Z")
@@ -257,7 +247,6 @@ struct WebSocketMessageTests {
         """
 
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let data = json.data(using: .utf8)!
         let decoded = try decoder.decode(WebSocketMessageMetadata.self, from: data)
 
@@ -282,7 +271,6 @@ struct WebSocketMessageTests {
         """
 
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let data = json.data(using: .utf8)!
         let decoded = try decoder.decode(WebSocketMessageAttachment.self, from: data)
 
@@ -434,7 +422,6 @@ struct WebSocketMessageTests {
         let data = try #require(json.data(using: .utf8))
 
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let message = try decoder.decode(WebSocketBaseMessage.self, from: data)
 
         #expect(message.type == "task_status")

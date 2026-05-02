@@ -4,9 +4,27 @@ import SwiftUI
 /// Ana sayfa ekrani.
 /// Kullanicinin projelerini ve son aktivitelerini goruntuledigü ekran.
 /// Gradient arkaplan, hero karti ve hizli aksiyon kartlari ile modern dashboard.
+///
+/// T1.8 ile birlikte session listesindeki baslik alani Claude tarafindan
+/// uretilen `ai-title` event'i geldikce canli olarak guncellenir
+/// (`session.title` WebSocket mesaji → `HomeViewModel.applyTitleUpdate(_:)`).
 struct HomeView: View {
-    @State private var viewModel = HomeViewModel()
+    @State private var viewModel: HomeViewModel
     @State private var isAppeared = false
+
+    @Injected(\.webSocketConnectionManager) private var webSocketManager
+    @Injected(\.sessionTitleMessageHandler) private var sessionTitleMessageHandler
+
+    /// Production init — DI tarafindan view model enjekte edilir.
+    init() {
+        let container = Container.shared
+        _viewModel = State(initialValue: container.homeViewModel())
+    }
+
+    /// Test/Preview init — hazir bir view model ile renderlanir.
+    init(viewModel: HomeViewModel) {
+        _viewModel = State(initialValue: viewModel)
+    }
 
     var body: some View {
         NavigationStack {
@@ -22,6 +40,10 @@ struct HomeView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .task {
+                await registerSessionTitleHandler()
+                await viewModel.loadData()
+            }
         }
     }
 
@@ -52,14 +74,19 @@ struct HomeView: View {
                 quickActionsSection
                     .rfEntrance(isAppeared: isAppeared, delay: 0.15)
 
-                RFEmptyStateView(
-                    systemImage: "folder",
-                    title: String(localized: "home.empty.title"),
-                    message: String(localized: "home.empty.message"),
-                    actionTitle: nil,
-                    action: nil
-                )
-                .rfEntrance(isAppeared: isAppeared, delay: 0.25)
+                if viewModel.sessions.isEmpty {
+                    RFEmptyStateView(
+                        systemImage: "folder",
+                        title: String(localized: "home.empty.title"),
+                        message: String(localized: "home.empty.message"),
+                        actionTitle: nil,
+                        action: nil
+                    )
+                    .rfEntrance(isAppeared: isAppeared, delay: 0.25)
+                } else {
+                    sessionsSection
+                        .rfEntrance(isAppeared: isAppeared, delay: 0.25)
+                }
             }
             .padding(.horizontal, RFSpacing.md)
             .padding(.top, RFSpacing.xl)
@@ -151,8 +178,53 @@ struct HomeView: View {
             }
         }
     }
+
+    // MARK: - Sessions Section
+
+    private var sessionsSection: some View {
+        VStack(alignment: .leading, spacing: RFSpacing.sm) {
+            RFText(
+                String(localized: "home.sessions.title"),
+                style: .headline,
+                color: .white
+            )
+
+            VStack(spacing: RFSpacing.sm) {
+                ForEach(viewModel.sessions) { session in
+                    HomeSessionRow(session: session)
+                        .animation(RFAnimation.springResponsive, value: session.aiTitle)
+                }
+            }
+        }
+    }
+
+    // MARK: - WebSocket handler registration
+
+    private func registerSessionTitleHandler() async {
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.sessionTitle.rawValue,
+            handler: sessionTitleMessageHandler
+        )
+    }
 }
 
-#Preview {
-    HomeView()
+#Preview("with sessions") {
+    let viewModel = HomeViewModel()
+    viewModel.seedSessions([
+        HomeSession(
+            id: "00000000-0000-0000-0000-000000000001",
+            title: "Backend testleri",
+            aiTitle: "Backend test sonuclarinin incelenmesi"
+        ),
+        HomeSession(
+            id: "00000000-0000-0000-0000-000000000002",
+            title: "Yeni session",
+            aiTitle: nil
+        )
+    ])
+    return HomeView(viewModel: viewModel)
+}
+
+#Preview("empty") {
+    HomeView(viewModel: HomeViewModel())
 }
