@@ -322,25 +322,33 @@ func runMetricsPrinter(ctx context.Context, wg *sync.WaitGroup, logger *slog.Log
 	}
 }
 
-// runInboundDispatcher drains ws.Client.Inbound and routes command.* frames
-// to the runner. The ws.Client today exposes no inbound channel — the
-// reader goroutine inside connectAndPump silently discards frames so the
-// connection stays alive — so this loop selects only on ctx.Done(). The
-// dispatchCommand closure below is fully wired to the runner so the moment
-// ws.Client gains an Inbound channel (T0.5.14+) the switch in dispatchCommand
-// will already be the canonical entry point.
+// runInboundDispatcher drains ws.Client.Inbound and routes command.*
+// frames to the runner via dispatchCommand. The ws.Client reader
+// goroutine decodes each WSS frame into a protocol.Envelope and fans
+// it through the bounded Inbound channel; this loop is the single
+// consumer.
 //
-// We allocate the dispatch closure here rather than a free function so the
-// linter sees both wsEventSink and dispatchCommand as live (the goroutine
-// itself never invokes them today, but the closure captures the references).
+// V1.1 wires the plumbing for command.claude.run / command.claude.abort
+// (already supported by dispatchCommand) and is the foundation for the
+// permission RPCs added in V1.3 (command.claude.permission.allow|deny).
+// Until V1.3 lands those RPC types fall through dispatchCommand's
+// default branch which logs at debug level — that is the safe
+// degradation behaviour spelled out in the design doc §4.4.
 func runInboundDispatcher(ctx context.Context, runner *claude.Runner, wsClient *ws.Client, logger *slog.Logger) {
-	dispatch := func(env protocol.Envelope) {
-		dispatchCommand(ctx, runner, wsClient, logger, env)
-	}
-	logger.Debug("inbound dispatcher started — ws.Client.Inbound channel deferred to T0.5.14+",
-		"dispatch_ready", dispatch != nil,
+	logger.Debug("inbound dispatcher started",
+		"inbound_capacity", cap(wsClient.Inbound),
 	)
-	<-ctx.Done()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case env, ok := <-wsClient.Inbound:
+			if !ok {
+				return
+			}
+			dispatchCommand(ctx, runner, wsClient, logger, env)
+		}
+	}
 }
 
 // dispatchCommand routes a parsed command.* envelope to the runner. It is

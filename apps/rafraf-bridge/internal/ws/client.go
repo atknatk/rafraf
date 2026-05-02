@@ -7,6 +7,7 @@ package ws
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -26,13 +27,29 @@ const (
 	initialBackoff    = 500 * time.Millisecond
 	maxBackoff        = 30 * time.Second
 	outboxCapacity    = 256
+	// inboxCapacity is the buffer for inbound envelopes routed to the
+	// dispatcher. Per-bridge inbound traffic is sparse (rate-limited by
+	// user decisions on permission requests + an occasional
+	// command.claude.abort), so 64 is comfortably above the steady-state
+	// arrival rate. On overflow we drop and log: the upstream sender
+	// (control plane) will time out and surface a deny — that is the
+	// right failure mode (see docs/design/v1-permission-blockers.md §6
+	// open question #6).
+	inboxCapacity = 64
 )
 
 // Client is the spike's WSClient promoted to a package-level type.
 type Client struct {
-	URL  string
-	Out  chan protocol.Envelope // app → ws
-	Done chan struct{}          // signal shutdown
+	URL string
+	Out chan protocol.Envelope // app → ws (outbound)
+	// Inbound carries every envelope decoded from the control plane back
+	// to the bridge's dispatcher loop in cmd/bridge/main.go. Capacity is
+	// inboxCapacity (64); see the inboxCapacity doc comment for the
+	// backpressure rationale. The reader goroutine never blocks on this
+	// channel — overflows are dropped + counted in WSEventsDroppedInbound
+	// so a slow consumer cannot wedge the WSS read loop.
+	Inbound chan protocol.Envelope // ws → app (inbound)
+	Done    chan struct{}          // signal shutdown
 
 	logTag string
 
@@ -43,10 +60,11 @@ type Client struct {
 // NewClient constructs a Client ready to be Run.
 func NewClient(url string) *Client {
 	return &Client{
-		URL:    url,
-		Out:    make(chan protocol.Envelope, outboxCapacity),
-		Done:   make(chan struct{}),
-		logTag: "[ws]",
+		URL:     url,
+		Out:     make(chan protocol.Envelope, outboxCapacity),
+		Inbound: make(chan protocol.Envelope, inboxCapacity),
+		Done:    make(chan struct{}),
+		logTag:  "[ws]",
 	}
 }
 
@@ -114,14 +132,42 @@ func (c *Client) connectAndPump(ctx context.Context) error {
 	pumpCtx, cancelPump := context.WithCancel(ctx)
 	defer cancelPump()
 
-	// reader: drain incoming frames; spike does not act on them.
+	// reader: decode every inbound frame into a protocol.Envelope and
+	// fan it into c.Inbound for the dispatcher to consume. The
+	// goroutine MUST NOT die on JSON decode errors — a single
+	// malformed frame from a misbehaving control plane (or a future
+	// envelope type this bridge hasn't been updated to know about) must
+	// not knock the WSS reader offline. Only an actual conn.Read error
+	// (i.e. connection close / I/O error / context cancel) propagates
+	// to readerErr and triggers reconnect.
 	readerErr := make(chan error, 1)
 	go func() {
 		for {
-			_, _, err := conn.Read(pumpCtx)
+			_, data, err := conn.Read(pumpCtx)
 			if err != nil {
 				readerErr <- err
 				return
+			}
+			var env protocol.Envelope
+			if uerr := json.Unmarshal(data, &env); uerr != nil {
+				// Logged but non-fatal. The frame counter intentionally
+				// stays unbumped because we never produced an envelope
+				// the dispatcher could route.
+				fmt.Fprintf(os.Stderr, "%s inbound decode error: %v (drop %d bytes)\n",
+					c.logTag, uerr, len(data))
+				continue
+			}
+			select {
+			case c.Inbound <- env:
+			default:
+				// Backpressure: dispatcher has not drained the channel
+				// fast enough. Drop + log + bump the same counter the
+				// outbox uses (V1.4 will introduce a dedicated
+				// bridge_inbound_dropped_total counter; T0.5.13 telemetry
+				// surface stays untouched in V1.1).
+				telemetry.WSEventsDropped.Add(1)
+				fmt.Fprintf(os.Stderr, "%s inbound channel full, drop %s id=%s\n",
+					c.logTag, env.Type, env.ID)
 			}
 		}
 	}()

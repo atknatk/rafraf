@@ -47,6 +47,25 @@ func NewCommandClaudeAbort(target, correlationID string, payload CommandClaudeAb
 	return newEvent(TypeCommandClaudeAbort, target, correlationID, payload)
 }
 
+// NewCommandClaudePermissionAllow builds a
+// `command.claude.permission.allow` envelope. The bridge's inbound
+// dispatcher routes these to the permission Broker, which resolves the
+// matching in-flight PreToolUse hook with an Allow decision. The
+// correlation_id should mirror the originating command.claude.run rpc
+// id so future audit tooling can stitch the round-trip back together;
+// the broker itself routes by the payload's RequestID.
+func NewCommandClaudePermissionAllow(target, correlationID string, payload CommandClaudePermissionDecision) (Envelope, error) {
+	return newEvent(TypeCommandClaudePermissionAllow, target, correlationID, payload)
+}
+
+// NewCommandClaudePermissionDeny builds a
+// `command.claude.permission.deny` envelope. Symmetric to
+// NewCommandClaudePermissionAllow — fired when the iOS user taps
+// "Reddet" or the iOS countdown expires (auto-deny).
+func NewCommandClaudePermissionDeny(target, correlationID string, payload CommandClaudePermissionDecision) (Envelope, error) {
+	return newEvent(TypeCommandClaudePermissionDeny, target, correlationID, payload)
+}
+
 // ---------------------------------------------------------------------------
 // Outbound — Session events.
 // ---------------------------------------------------------------------------
@@ -105,6 +124,17 @@ func NewEventSessionHookStarted(target, correlationID string, payload EventSessi
 // NewEventSessionHookResponse builds an `event.session.hook_response` envelope.
 func NewEventSessionHookResponse(target, correlationID string, payload EventSessionHookResponse) (Envelope, error) {
 	return newEvent(TypeEventSessionHookResponse, target, correlationID, payload)
+}
+
+// NewEventSessionPermissionRequest builds an
+// `event.session.permission_request` envelope — the outbound side of
+// the V1 PreToolUse permission flow. The correlation_id MUST be the
+// originating command.claude.run rpc id so the backend orchestrator can
+// route the question into the correct per-session subscriber queue;
+// the payload's RequestID is the decision-correlation token reused by
+// the inbound command.claude.permission.allow|deny RPC.
+func NewEventSessionPermissionRequest(target, correlationID string, payload EventSessionPermissionRequest) (Envelope, error) {
+	return newEvent(TypeEventSessionPermissionRequest, target, correlationID, payload)
 }
 
 // ---------------------------------------------------------------------------
