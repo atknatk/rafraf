@@ -43,6 +43,7 @@ from app.core import metrics as _metrics
 from app.core.telemetry import get_tracer
 
 if TYPE_CHECKING:
+    from app.repositories.session_repo import SessionRepository
     from app.repositories.subagent_repo import SubagentRepository
     from app.services.bridge_registry_service import BridgeRegistryService
 
@@ -118,7 +119,11 @@ class ClaudeCodeResult:
     """Result from a claude RPC run.
 
     ``response_text`` is populated from ``event.session.result.result``;
-    other terminal fields originate from the same envelope.
+    other terminal fields originate from the same envelope. Cache token
+    fields are surfaced in addition to the legacy input/output buckets so
+    callers (T2.5 cost summary) can reason about Anthropic prompt caching
+    separately — cache READ is an order of magnitude cheaper than fresh
+    INPUT, so collapsing them would inflate the projected spend.
     """
 
     session_id: str
@@ -128,6 +133,8 @@ class ClaudeCodeResult:
     is_error: bool
     tokens_input: int = 0
     tokens_output: int = 0
+    tokens_cache_creation: int = 0
+    tokens_cache_read: int = 0
     total_cost_usd: float = 0.0
     permission_denials: list[dict[str, object]] = field(default_factory=list)
 
@@ -162,6 +169,8 @@ class _RunState:
     duration_ms: int = 0
     tokens_input: int = 0
     tokens_output: int = 0
+    tokens_cache_creation: int = 0
+    tokens_cache_read: int = 0
     cost_usd: float = 0.0
     permission_denials: list[dict[str, object]] = field(default_factory=list)
     delta_index: int = 0
@@ -192,6 +201,7 @@ class ClaudeCodeRunner:
         self,
         bridge_registry: BridgeRegistryService | None = None,
         subagent_repo: SubagentRepository | None = None,
+        session_repo: SessionRepository | None = None,
     ) -> None:
         # Resolve registry lazily so the legacy zero-arg constructor still
         # works for code paths that don't yet pass it explicitly.
@@ -201,6 +211,11 @@ class ClaudeCodeRunner:
             bridge_registry = _default
         self._bridges = bridge_registry
         self._subagents = subagent_repo
+        # T2.5: optional. When provided, the runner persists the per-result
+        # cost+tokens onto the WebSocket session row identified by
+        # ``db_session_id`` (passed to ``run()``). Left None for unit tests
+        # and code paths that haven't migrated yet.
+        self._sessions = session_repo
 
     async def run(
         self,
@@ -210,6 +225,7 @@ class ClaudeCodeRunner:
         project_dir: str | None = None,
         bridge_id: str | None = None,
         user_id: str | None = None,
+        db_session_id: uuid.UUID | None = None,
         on_text_delta: TextDeltaCallback | None = None,
         on_tool_progress: ToolProgressCallback | None = None,
         on_question: QuestionCallback | None = None,
@@ -409,6 +425,7 @@ class ClaudeCodeRunner:
                         state=state,
                         callbacks=callbacks,
                         bridge_host_id=target_host_id,
+                        db_session_id=db_session_id,
                     )
                     if terminal:
                         break
@@ -444,6 +461,8 @@ class ClaudeCodeRunner:
             is_error=False,
             tokens_input=state.tokens_input,
             tokens_output=state.tokens_output,
+            tokens_cache_creation=state.tokens_cache_creation,
+            tokens_cache_read=state.tokens_cache_read,
             total_cost_usd=state.cost_usd,
             permission_denials=list(state.permission_denials),
         )
@@ -480,6 +499,7 @@ class ClaudeCodeRunner:
         state: _RunState,
         callbacks: _Callbacks,
         bridge_host_id: str,
+        db_session_id: uuid.UUID | None = None,
     ) -> bool:
         """Route one bridge event to the right callback + state slot.
 
@@ -670,22 +690,63 @@ class ClaudeCodeRunner:
             denials = payload.get("permission_denials")
             if isinstance(denials, list):
                 state.permission_denials = [d for d in denials if isinstance(d, dict)]
-            # Aggregate token usage from per-model breakdown.
+            # Aggregate token usage from per-model breakdown. T2.5 also
+            # tracks the two prompt-cache buckets so the cost-summary
+            # endpoint can report them separately.
             usage = payload.get("model_usage")
+            cache_creation_delta = 0
+            cache_read_delta = 0
+            input_delta = 0
+            output_from_usage = 0
             if isinstance(usage, dict):
                 for entry in usage.values():
                     if isinstance(entry, dict):
-                        state.tokens_input += int(entry.get("input_tokens", 0) or 0)
-                        # Don't double-count output_tokens that the
-                        # assistant events already reported; prefer the
-                        # final usage breakdown when assistant events
-                        # didn't surface counts.
-                        if state.tokens_output == 0:
-                            state.tokens_output += int(entry.get("output_tokens", 0) or 0)
+                        input_delta += int(entry.get("input_tokens", 0) or 0)
+                        cache_creation_delta += int(
+                            entry.get("cache_creation_input_tokens", 0) or 0
+                        )
+                        cache_read_delta += int(
+                            entry.get("cache_read_input_tokens", 0) or 0
+                        )
+                        output_from_usage += int(
+                            entry.get("output_tokens", 0) or 0
+                        )
+
+            state.tokens_input += input_delta
+            state.tokens_cache_creation += cache_creation_delta
+            state.tokens_cache_read += cache_read_delta
+            # Don't double-count output_tokens that the assistant events
+            # already reported; prefer the final usage breakdown when
+            # assistant events didn't surface counts.
+            output_delta = output_from_usage if state.tokens_output == 0 else 0
+            state.tokens_output += output_delta
 
             state.phase = "completed"
             if callbacks.on_tool_progress is not None:
                 await callbacks.on_tool_progress(_build_progress_event(state))
+
+            # T2.5 — persist per-result cost+tokens. Best-effort: if no
+            # ``session_repo`` was injected (legacy code path) or no
+            # ``db_session_id`` was supplied (caller doesn't yet wire it),
+            # we silently skip — this is purely additive to the existing
+            # claude_total_cost_usd_total Prometheus counter (T2.2).
+            if self._sessions is not None and db_session_id is not None:
+                try:
+                    from decimal import Decimal
+
+                    await self._sessions.update_session_cost(
+                        db_session_id,
+                        total_cost_usd=Decimal(str(state.cost_usd)),
+                        total_input_tokens=input_delta,
+                        total_output_tokens=output_delta,
+                        total_cache_creation_tokens=cache_creation_delta,
+                        total_cache_read_tokens=cache_read_delta,
+                    )
+                except Exception:
+                    await logger.aexception(
+                        "session_cost_persist_failed",
+                        session_id=str(db_session_id),
+                    )
             return True
 
         if event_type in {"event.bridge.auth_expired"}:

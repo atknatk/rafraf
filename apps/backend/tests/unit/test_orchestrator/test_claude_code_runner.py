@@ -1106,3 +1106,116 @@ async def test_register_subscriber_overwrite_logged() -> None:
     q2 = svc.register_subscriber(bridge_id="m", rpc_id="r")
     assert q1 is not q2
     svc.unregister_subscriber(bridge_id="m", rpc_id="r")
+
+
+# ---------------------------------------------------------------------------
+# T2.5 — per-result session cost persistence.
+# ---------------------------------------------------------------------------
+
+
+class _FakeSessionRepo:
+    """Records ``update_session_cost`` calls in memory; no DB roundtrip."""
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    async def update_session_cost(
+        self,
+        session_id: uuid.UUID,
+        *,
+        total_cost_usd: Any,
+        total_input_tokens: int = 0,
+        total_output_tokens: int = 0,
+        total_cache_creation_tokens: int = 0,
+        total_cache_read_tokens: int = 0,
+    ) -> bool:
+        self.calls.append(
+            {
+                "session_id": session_id,
+                "total_cost_usd": total_cost_usd,
+                "total_input_tokens": total_input_tokens,
+                "total_output_tokens": total_output_tokens,
+                "total_cache_creation_tokens": total_cache_creation_tokens,
+                "total_cache_read_tokens": total_cache_read_tokens,
+            }
+        )
+        return True
+
+
+@pytest.mark.asyncio
+async def test_t25_runner_persists_cost_on_result() -> None:
+    """When session_repo + db_session_id are wired, result triggers an UPDATE."""
+    from decimal import Decimal
+
+    registry = _FakeRegistry(events=_load_sample_events())
+    repo = _FakeSessionRepo()
+    runner = ClaudeCodeRunner(
+        bridge_registry=registry,  # type: ignore[arg-type]
+        session_repo=repo,  # type: ignore[arg-type]
+    )
+
+    db_sid = uuid.uuid4()
+    result = await runner.run(prompt="x", db_session_id=db_sid)
+
+    assert len(repo.calls) == 1
+    call = repo.calls[0]
+    assert call["session_id"] == db_sid
+    # Fixture cost = 0.0234.
+    assert Decimal(call["total_cost_usd"]) == Decimal("0.0234")
+    # Fixture model_usage: input=2000, output=150, cache_creation=10000,
+    # cache_read=15000. The runner's "don't double-count output_tokens
+    # already reported by assistant events" rule means output_delta == 150
+    # because there are no assistant events in this fixture.
+    assert call["total_input_tokens"] == 2000
+    assert call["total_output_tokens"] == 150
+    assert call["total_cache_creation_tokens"] == 10000
+    assert call["total_cache_read_tokens"] == 15000
+    # The result struct must surface all four buckets too.
+    assert result.tokens_input == 2000
+    assert result.tokens_output == 150
+    assert result.tokens_cache_creation == 10000
+    assert result.tokens_cache_read == 15000
+
+
+@pytest.mark.asyncio
+async def test_t25_runner_skips_persistence_without_db_session_id() -> None:
+    """A wired session_repo + missing db_session_id MUST skip the UPDATE."""
+    registry = _FakeRegistry(events=_load_sample_events())
+    repo = _FakeSessionRepo()
+    runner = ClaudeCodeRunner(
+        bridge_registry=registry,  # type: ignore[arg-type]
+        session_repo=repo,  # type: ignore[arg-type]
+    )
+
+    await runner.run(prompt="x")  # no db_session_id
+
+    assert repo.calls == []
+
+
+@pytest.mark.asyncio
+async def test_t25_runner_skips_persistence_without_session_repo() -> None:
+    """A wired db_session_id + missing session_repo MUST skip the UPDATE."""
+    registry = _FakeRegistry(events=_load_sample_events())
+    runner = ClaudeCodeRunner(bridge_registry=registry)  # type: ignore[arg-type]
+
+    # Should not raise — runner falls through silently.
+    await runner.run(prompt="x", db_session_id=uuid.uuid4())
+
+
+@pytest.mark.asyncio
+async def test_t25_runner_swallows_persistence_errors() -> None:
+    """A repo failure during cost persistence MUST be logged + swallowed."""
+
+    class _BoomRepo:
+        async def update_session_cost(self, *_a: Any, **_k: Any) -> bool:
+            raise RuntimeError("db down")
+
+    registry = _FakeRegistry(events=_load_sample_events())
+    runner = ClaudeCodeRunner(
+        bridge_registry=registry,  # type: ignore[arg-type]
+        session_repo=_BoomRepo(),  # type: ignore[arg-type]
+    )
+
+    # Run completes successfully despite the repo blowup.
+    result = await runner.run(prompt="x", db_session_id=uuid.uuid4())
+    assert result.session_id == "sess-abc"

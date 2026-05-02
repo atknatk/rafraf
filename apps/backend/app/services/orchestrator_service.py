@@ -381,8 +381,11 @@ class OrchestratorService:
         try:
             import asyncio
 
+            from sqlalchemy.ext.asyncio import AsyncSession
+
             from app.api.routes.agent_ws import get_claude_stream_manager
             from app.orchestrator.claude_code_runner import ClaudeCodeRunner
+            from app.repositories.session_repo import SessionRepository
             from app.services.bridge_registry_service import bridge_registry
 
             # Resolve agent: prefer project-linked agent, fallback to any online
@@ -481,7 +484,28 @@ class OrchestratorService:
                 except Exception:
                     await logger.aexception("forward_rate_limit_info_failed")
 
-            runner = ClaudeCodeRunner(bridge_registry=bridge_registry)
+            # T2.5 — inject the SessionRepository so the runner can persist
+            # per-result cost/token deltas into ``sessions.total_cost_usd``
+            # etc. Best-effort: if ``db_session`` is not an AsyncSession
+            # (e.g. unit tests passing a sentinel) we leave session_repo
+            # ``None`` and the runner falls back to legacy behaviour.
+            session_repo: SessionRepository | None = None
+            db_session_uuid: uuid.UUID | None = None
+            if isinstance(db_session, AsyncSession):
+                session_repo = SessionRepository(db_session)
+                try:
+                    db_session_uuid = uuid.UUID(session_id)
+                except (TypeError, ValueError):
+                    # session_id is the WebSocket UUID4 string; if a caller
+                    # ever passes a non-UUID we silently disable persistence
+                    # rather than raise — the cost summary endpoint just
+                    # won't see this run.
+                    db_session_uuid = None
+
+            runner = ClaudeCodeRunner(
+                bridge_registry=bridge_registry,
+                session_repo=session_repo,
+            )
             try:
                 ccr_result = await asyncio.wait_for(
                     runner.run(
@@ -490,6 +514,7 @@ class OrchestratorService:
                         project_dir=project_local_path,
                         bridge_id=host_id,
                         user_id=user_id,
+                        db_session_id=db_session_uuid,
                         append_system_prompt=append_prompt,
                         # Existing callbacks (unchanged behaviour).
                         on_text_delta=on_text_delta,

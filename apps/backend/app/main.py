@@ -22,6 +22,7 @@ from app.api.routes.health import router as health_router
 from app.api.routes.notifications import router as notifications_router
 from app.api.routes.proactive_notifications import router as proactive_notifications_router
 from app.api.routes.projects import router as projects_router
+from app.api.routes.sessions import router as sessions_router
 from app.api.routes.tasks import router as tasks_router
 from app.api.routes.webhooks import router as webhooks_router
 from app.api.routes.websocket import router as websocket_router
@@ -128,6 +129,7 @@ def create_app() -> FastAPI:
     application.include_router(proactive_notifications_router)
     application.include_router(backups_router)
     application.include_router(tasks_router)
+    application.include_router(sessions_router)
 
     # FastAPI auto-instrumentation — emits a server span per request,
     # propagating W3C tracecontext headers so the bridge (T2.1 Part B)
