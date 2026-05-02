@@ -118,6 +118,12 @@ Detayli sistem spesifikasyonlari `docs/` dizininde bulunur:
 7. [Guvenlik ve Maliyet](docs/07_Security_Permissions_Cost_Analysis.md)
 8. [Host Agent](docs/08_Host_Agent_Specification.md)
 
+### Runbook'lar
+
+Operasyonel akislar `docs/runbooks/` altinda yer alir:
+
+- [Permission Flow](docs/runbooks/permission-flow.md) — Bridge -> backend -> iOS approval cycle (Spike #5 fallback agaci, V1 default `acceptEdits`)
+
 ## Lisans
 
 Bu proje ozel bir projedir. Tum haklari saklidir.
