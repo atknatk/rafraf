@@ -380,10 +380,10 @@ class TestPostGraceWarningGate:
         )
 
     @pytest.mark.usefixtures("_restore_settings")
-    def test_real_hs256_token_post_grace_does_warn(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_real_hs256_token_post_grace_does_warn(self) -> None:
         """An actual HS256 token post-grace WITH legacy secret set MUST warn."""
+        import structlog.testing
+
         settings = get_settings()
         settings.jwt_legacy_grace_until = datetime.now(tz=UTC) - timedelta(seconds=1)
         settings.jwt_legacy_hs256_secret = "explicit-legacy-secret"
@@ -393,12 +393,12 @@ class TestPostGraceWarningGate:
             subject="real-hs256-user",
         )
 
-        capsys.readouterr()  # clear prior output
-        with pytest.raises(SecurityError):
-            verify_access_token(token)
+        with structlog.testing.capture_logs() as captured:
+            with pytest.raises(SecurityError):
+                verify_access_token(token)
 
-        captured = capsys.readouterr()
-        assert "legacy_hs256_token_rejected_post_grace" in captured.out, (
+        events = [c.get("event") for c in captured]
+        assert "legacy_hs256_token_rejected_post_grace" in events, (
             "Real HS256 token rejected post-grace MUST emit warning"
         )
 
@@ -461,19 +461,19 @@ class TestStartupWarning:
         _reset_jwt_warning_flag_for_tests()
 
     @pytest.mark.usefixtures("_restore_settings")
-    def test_warns_when_deprecated_set_and_legacy_unset(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_warns_when_deprecated_set_and_legacy_unset(self) -> None:
         """Operator left JWT_SECRET_KEY set without JWT_LEGACY_HS256_SECRET."""
+        import structlog.testing
+
         settings = get_settings()
         settings.jwt_secret_key = "explicit-deprecated-secret"
         settings.jwt_legacy_hs256_secret = None
 
-        capsys.readouterr()  # clear prior output
-        warn_if_deprecated_jwt_secret_only()
-        captured = capsys.readouterr()
+        with structlog.testing.capture_logs() as captured:
+            warn_if_deprecated_jwt_secret_only()
 
-        assert captured.out.count("jwt_secret_key_set_but_legacy_unset") == 1
+        events = [c.get("event") for c in captured]
+        assert events.count("jwt_secret_key_set_but_legacy_unset") == 1
 
     @pytest.mark.usefixtures("_restore_settings")
     def test_does_not_warn_when_default_value(
@@ -506,20 +506,20 @@ class TestStartupWarning:
         assert "jwt_secret_key_set_but_legacy_unset" not in captured.out
 
     @pytest.mark.usefixtures("_restore_settings")
-    def test_warning_fires_only_once(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_warning_fires_only_once(self) -> None:
         """One-shot: subsequent calls must not re-emit the warning."""
+        import structlog.testing
+
         settings = get_settings()
         settings.jwt_secret_key = "explicit-deprecated-secret"
         settings.jwt_legacy_hs256_secret = None
 
-        capsys.readouterr()
-        warn_if_deprecated_jwt_secret_only()
-        warn_if_deprecated_jwt_secret_only()
-        warn_if_deprecated_jwt_secret_only()
-        captured = capsys.readouterr()
+        with structlog.testing.capture_logs() as captured:
+            warn_if_deprecated_jwt_secret_only()
+            warn_if_deprecated_jwt_secret_only()
+            warn_if_deprecated_jwt_secret_only()
 
-        assert captured.out.count("jwt_secret_key_set_but_legacy_unset") == 1, (
+        events = [c.get("event") for c in captured]
+        assert events.count("jwt_secret_key_set_but_legacy_unset") == 1, (
             "Startup warning must be one-shot to avoid log spam"
         )
