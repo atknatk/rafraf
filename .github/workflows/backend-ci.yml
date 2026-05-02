@@ -10,6 +10,11 @@ on:
     branches: [develop, main]
     paths:
       - "apps/backend/**"
+      - ".github/workflows/backend-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   lint-and-test:
@@ -46,14 +51,14 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
+          cache-dependency-path: apps/backend/pyproject.toml
 
       - name: Install dependencies
         working-directory: apps/backend
         run: |
           python -m venv .venv
           .venv/bin/pip install --upgrade pip
-          .venv/bin/pip install -e .
-          .venv/bin/pip install ruff mypy pytest pytest-asyncio pytest-cov pytest-timeout
+          .venv/bin/pip install -e ".[dev]"
 
       - name: ruff check
         working-directory: apps/backend
@@ -61,7 +66,7 @@ jobs:
 
       - name: ruff format check
         working-directory: apps/backend
-        run: .venv/bin/ruff format --check app/
+        run: .venv/bin/ruff format --check app/ tests/
 
       - name: mypy strict
         working-directory: apps/backend
@@ -79,14 +84,13 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://rafraf:rafraf@localhost:5432/rafraf
           REDIS_URL: redis://localhost:6379/0
-          JWT_PRIVATE_KEY_PATH: ./test_secrets/jwt_private.pem
-          JWT_PUBLIC_KEY_PATH: ./test_secrets/jwt_public.pem
-        run: |
-          # Generate test JWT keypair (T2.9)
-          mkdir -p test_secrets
-          openssl genpkey -algorithm RSA -out test_secrets/jwt_private.pem -pkeyopt rsa_keygen_bits:2048 2>/dev/null
-          openssl rsa -in test_secrets/jwt_private.pem -pubout -out test_secrets/jwt_public.pem 2>/dev/null
-          .venv/bin/python -m pytest -q --cov=app --cov-report=term
+          # Note: JWT keypair env vars intentionally omitted. The autouse
+          # fixture in tests/conftest.py (_jwt_rs256_test_keys, added in
+          # T2.9) generates a fresh RSA keypair via the cryptography lib
+          # and patches the Settings singleton to point at it, overriding
+          # any env-provided paths. The previous openssl-generated keypair
+          # was dead code on the CI runner.
+        run: .venv/bin/python -m pytest -q --cov=app --cov-report=term
 
   docker-build:
     needs: lint-and-test
@@ -97,6 +101,12 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: Compute safe image tag
+        id: tag
+        run: |
+          # Replace slashes with dashes so release/x.y -> release-x.y (Docker tag rules)
+          echo "ref_safe=${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -116,6 +126,6 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/backend:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/backend:${{ steps.tag.outputs.ref_safe }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
