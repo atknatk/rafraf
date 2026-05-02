@@ -143,16 +143,37 @@ S3 lifecycle policy snippet:
 | Step | Command / action | Est. time |
 |---|---|---|
 | 1. Declare incident | Open PagerDuty incident, post in `#rafraf-incidents` | 2 min |
-| 2. Stop writers | `kubectl scale deploy/rafraf-backend -n rafraf --replicas=0` | 1 min |
-| 3. Identify snapshot | `aws rds describe-db-snapshots --db-instance-identifier rafraf-prod --snapshot-type automated --query 'DBSnapshots[?Status==\`available\`] \| sort_by(@, &SnapshotCreateTime) \| [-1].DBSnapshotIdentifier'` | 2 min |
+| 2. Stop writers (capture prior replica count first) | See replica-capture snippet beneath this table; then `kubectl scale deploy/rafraf-backend -n rafraf --replicas=0` | 1 min |
+| 3. Identify snapshot | Run the snapshot-lookup command shown immediately beneath this table | 2 min |
 | 4. Restore snapshot to new instance | `aws rds restore-db-instance-from-db-snapshot --db-instance-identifier rafraf-prod-restore --db-snapshot-identifier <snapshot-id> --db-instance-class db.t4g.small --vpc-security-group-ids <sg-id> --db-subnet-group-name rafraf-prod` | 15-25 min (RDS provision) |
 | 5. Wait for `available` | `aws rds wait db-instance-available --db-instance-identifier rafraf-prod-restore` | included above |
 | 6. Sanity check | `psql "$RESTORE_URL" -c "SELECT version_num FROM alembic_version;"` and row counts (see §8) | 2 min |
 | 7. Swap connection | Update `DATABASE_URL` in `Secret` to point at restored endpoint; force ESO refresh: `kubectl annotate externalsecret rafraf-secrets force-sync=$(date +%s) -n rafraf --overwrite` | 3 min |
-| 8. Resume backend | `kubectl scale deploy/rafraf-backend -n rafraf --replicas=2` | 1 min |
+| 8. Resume backend | `kubectl scale deploy/rafraf-backend -n rafraf --replicas=$PRIOR_REPLICAS` (use value captured in step 2; falls back to `2` if unset) | 1 min |
 | 9. Verify | `curl https://backend.rafraf.app/ready` returns 200; smoke test login + send-message | 5 min |
 | 10. Close incident | Update PagerDuty + statuspage; schedule post-mortem within 48h | 2 min |
 | **Total** | | **~55 min** |
+
+**Step 2 — capture prior replica count before scaling to 0** (so step 8 restores the deployment to its original size, not a hard-coded `2`):
+
+```bash
+PRIOR_REPLICAS=$(kubectl get deploy/rafraf-backend -n rafraf -o jsonpath='{.spec.replicas}')
+echo "Prior replicas: ${PRIOR_REPLICAS:-unset}"   # sanity-print before scaling
+kubectl scale deploy/rafraf-backend -n rafraf --replicas=0
+
+# ... after restore complete, in step 8:
+kubectl scale deploy/rafraf-backend -n rafraf --replicas=${PRIOR_REPLICAS:-2}
+```
+
+**Step 3 — identify the latest available automated snapshot** (JMESPath query lifted out of the table because escaped pipes in markdown cells render poorly):
+
+```bash
+aws rds describe-db-snapshots \
+  --db-instance-identifier rafraf-prod \
+  --snapshot-type automated \
+  --query 'DBSnapshots[?Status==`available`] | sort_by(@, &SnapshotCreateTime) | [-1].DBSnapshotIdentifier' \
+  --output text
+```
 
 If step 4 takes longer than 30 min, escalate to AWS support (Premium plan) — restore is critical-path.
 
@@ -180,6 +201,8 @@ aws rds wait db-instance-available --db-instance-identifier rafraf-prod-pitr
 
 PITR window is 7 days. If the incident is older than 7 days, fall back to §3.1 with the closest snapshot.
 
+> **For incidents older than 7 days**, restore from the S3 `pg_dump` archive — see §3.3 with files retrieved from `s3://${AWS_S3_BUCKET}/postgres-backups/` or its **Glacier Deep Archive** tier (24-48 h restore lead time per §2.1). Initiate the Glacier restore request **immediately** if you suspect you may need it; you can always cancel later if the snapshot path resolves the incident first.
+
 ### 3.3 Postgres restore from `pg_dump` (self-hosted / dev)
 
 **Use when:** running on VPS/Mac without RDS, or restoring local dev DB before re-running an integration test.
@@ -194,8 +217,16 @@ kubectl scale deploy/rafraf-backend -n rafraf --replicas=0
 docker compose -f infra/docker/docker-compose.dev.yml stop backend
 
 # 2. Drop & recreate DB (DESTRUCTIVE — confirm twice)
-psql -h "$DB_HOST" -U postgres -c "DROP DATABASE IF EXISTS rafraf;"
-psql -h "$DB_HOST" -U postgres -c "CREATE DATABASE rafraf OWNER rafraf;"
+#    Override POSTGRES_SUPERUSER if your dev/test cluster doesn't have a separate
+#    `postgres` role (default in some Docker images — including the
+#    `pgvector/pgvector:pg16` image used by docker-compose.dev.yml — is to make
+#    the bootstrap user the cluster superuser, so `rafraf` IS the superuser
+#    and there is no `postgres` role to connect as).
+#    `infra/scripts/restore-dev-db.sh` already handles this via
+#    `POSTGRES_SUPERUSER=${POSTGRES_USER:-postgres}` default.
+: "${POSTGRES_SUPERUSER:=postgres}"
+psql -h "$DB_HOST" -U "$POSTGRES_SUPERUSER" -c "DROP DATABASE IF EXISTS rafraf;"
+psql -h "$DB_HOST" -U "$POSTGRES_SUPERUSER" -c "CREATE DATABASE rafraf OWNER rafraf;"
 
 # 3a. Restore from gzipped plain SQL (the format produced by backup-dev-db.sh)
 gunzip -c <backup>.sql.gz | psql -h "$DB_HOST" -U rafraf -d rafraf
@@ -228,16 +259,21 @@ curl https://backend.rafraf.app/ready   # expect 200 with {"db":"ok","redis":"ok
 See [`docs/runbooks/jwt-key-rotation.md`](./jwt-key-rotation.md) (T2.9) for the full standard rotation procedure. **DR-specific differences:**
 
 1. Treat as a P0 — page on-call, post in `#rafraf-incidents` immediately. Time matters: every minute is forged-token risk.
-2. **Rotate immediately** — do not wait for the scheduled rotation window. Generate a new RSA-4096 keypair locally:
+2. **Rotate immediately** — do not wait for the scheduled rotation window. Generate a new RSA keypair using the canonical generator (2048-bit, matches `infra/scripts/generate-jwt-keys.sh:26` and `docs/runbooks/jwt-key-rotation.md` §2):
    ```bash
-   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out jwt-private.pem
-   openssl rsa -in jwt-private.pem -pubout -out jwt-public.pem
+   bash infra/scripts/generate-jwt-keys.sh ./secrets-emergency
    ```
+   > **Note:** If you want to upgrade to RSA-4096 as part of this incident response, **first** update both `infra/scripts/generate-jwt-keys.sh` (`rsa_keygen_bits:2048` → `4096`) and `docs/runbooks/jwt-key-rotation.md` §2 in the same change so the canonical procedure stays consistent. Do **not** silently inline a one-off `openssl genpkey ... rsa_keygen_bits:4096` here — that drift is exactly the kind of thing that bites the next operator.
 3. Push new keys into AWS Secrets Manager:
    ```bash
    aws secretsmanager update-secret --secret-id rafraf/jwt-keys --secret-string "$(jq -n --arg priv "$(cat jwt-private.pem)" --arg pub "$(cat jwt-public.pem)" '{private:$priv,public:$pub}')"
    ```
-4. **Invalidate all existing access tokens** by setting `JWT_LEGACY_GRACE_UNTIL=0` in the same secret (normal rotation gives a grace window; compromise must not). Force ESO sync:
+4. **Invalidate all existing HS256 grace-window tokens** by **unsetting** `JWT_LEGACY_HS256_SECRET` (delete the env var or set it to an empty string). The decoder (`_hs256_secret()` in `apps/backend/app/core/security.py`) returns `None` when this is unset, immediately rejecting all HS256 tokens regardless of `JWT_LEGACY_GRACE_UNTIL` value.
+   > **DO NOT** set `JWT_LEGACY_GRACE_UNTIL=0`. That field is typed `datetime | None` in Pydantic settings — a literal `"0"` fails validation and **crashes backend boot mid-incident**. Use the unset mechanism above instead.
+   >
+   > **If your deployment is fully on RS256 (no HS256 grace window open)** — i.e. the cutover from `docs/runbooks/jwt-key-rotation.md` §3 has already retired HS256 — step 4 is a no-op. The RSA key rotation in steps 2-3 already invalidates everything in flight: post-T2.9 both **access tokens AND refresh tokens** are RS256, so the new public key alone refuses every legacy signature.
+
+   Force ESO sync after secret change:
    ```bash
    kubectl annotate externalsecret rafraf-secrets force-sync=$(date +%s) -n rafraf --overwrite
    kubectl rollout restart deploy/rafraf-backend -n rafraf
@@ -272,18 +308,20 @@ curl https://backend.rafraf.app/ready
 
 All metrics defined in T2.2 (Prometheus). Alerting rules live in `infra/k8s/monitoring/alert-rules.yaml`.
 
+> **Note on coverage:** Some alerts depend on metric exporters or signals not yet emitted by the V1 codebase (marked **_planned_** below). The table is the **north-star design**; T2.6 (drill execution) surfaces concrete gaps and the T3.x exporter sidecars (`postgres_exporter`, `redis_exporter`, custom backend collectors for backup-age and bridge-connected) close them. Triggers without a `_planned_` tag are wired today via T2.2/T2.3/T2.5 emitters.
+
 | Trigger | Threshold | Channel | Owner |
 |---|---|---|---|
-| Postgres unreachable | `pg_up == 0` for > 1 min | PagerDuty (P1) | on-call |
+| Postgres unreachable _(planned — needs `postgres_exporter` sidecar)_ | `pg_up == 0` for > 1 min | PagerDuty (P1) | on-call |
 | `/ready` returns 503 | > 5 min sustained | PagerDuty (P1) + Slack `#rafraf-incidents` | on-call |
 | `/ready` returns 503 | > 30 sec | Slack `#rafraf-ops` (warn) | on-call |
-| Redis unreachable | `redis_up == 0` for > 2 min | Slack `#rafraf-ops` | on-call |
+| Redis unreachable _(planned — needs `redis_exporter` sidecar)_ | `redis_up == 0` for > 2 min | Slack `#rafraf-ops` | on-call |
 | Backend pod CrashLoopBackOff | Any in `rafraf` namespace | PagerDuty (P2) | on-call |
 | Cost spike (Anthropic API) | `claude_total_cost_usd_total` rate > $50/h | Slack `#rafraf-ops` | finance + on-call |
 | Subscription overage warning | `claude_5h_usage_pct > 90` for > 5 min | Slack `#rafraf-ops` | on-call |
-| JWT verification failure spike | `jwt_verify_errors_total` rate > 50/min | Slack `#rafraf-incidents` (possible compromise) | on-call + security |
-| Bridge unavailable | `bridge_connected{instance=...} == 0` for > 2 min | Slack `#rafraf-ops` | on-call (notify bridge owner) |
-| Backup job failed | `postgres_backup_last_success_seconds > 86400` (no success in 24h) | PagerDuty (P2) | on-call |
+| JWT verification failure spike _(planned — `jwt_verify_errors_total` counter not yet emitted by `security.py`)_ | `jwt_verify_errors_total` rate > 50/min | Slack `#rafraf-incidents` (possible compromise) | on-call + security |
+| Bridge unavailable _(planned — `bridge_connected{instance=...}` gauge not yet emitted by agent_ws)_ | `bridge_connected{instance=...} == 0` for > 2 min | Slack `#rafraf-ops` | on-call (notify bridge owner) |
+| Backup job failed _(planned — `postgres_backup_last_success_seconds` gauge not yet emitted; needs CronJob → Pushgateway or sidecar)_ | `postgres_backup_last_success_seconds > 86400` (no success in 24h) | PagerDuty (P2) | on-call |
 
 **Detection latency target**: < 2 min from incident to first page; achieved by 1-min Prometheus scrape + 30-sec evaluation interval.
 
@@ -300,6 +338,11 @@ All metrics defined in T2.2 (Prometheus). Alerting rules live in `infra/k8s/moni
 **Pass criteria (monthly):** RTO actual ≤ 1h, no data integrity errors, `/ready` returns 200 within RTO. **Deviation > 25%** from RTO target → reassess procedure within 1 week, update this runbook.
 
 **Owner of this runbook**: SRE lead (TBD per org); on-call rotation runs the drills.
+
+### Recorded drills
+
+- [`docs/runbooks/drills/2026-05-02-faz2-restore-drill.md`](./drills/2026-05-02-faz2-restore-drill.md) — Faz 2 first restore (T2.6), variant §3.3a, **PASS** at 2.456 s wall-clock vs 60-min target. Surfaced the `POSTGRES_SUPERUSER` runbook gap (now fixed in §3.3 by this T2.8-fix).
+- See [`docs/runbooks/disaster-recovery-drill-log.md`](./disaster-recovery-drill-log.md) for the chronological per-drill index + template for new entries.
 
 ---
 

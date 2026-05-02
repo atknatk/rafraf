@@ -8,7 +8,8 @@ Each runbook should be self-contained, dated, and reviewed quarterly.
 | Runbook | Purpose | Owner | Last reviewed |
 |---|---|---|---|
 | [`disaster-recovery.md`](./disaster-recovery.md) | RPO/RTO targets, backup strategy, restore procedures, drill schedule, comms plan, post-incident template (T2.8 / Faz 2) | SRE lead | 2026-05-02 |
-| [`jwt-key-rotation.md`](./jwt-key-rotation.md) | JWT signing keypair rotation procedure (RS256, T2.9 / Faz 2) — _planned_ | SRE lead | _pending_ |
+| [`disaster-recovery-drill-log.md`](./disaster-recovery-drill-log.md) | Chronological per-drill log + template (companion to `disaster-recovery.md` §5; T2.8-fix / Faz 2) | SRE lead | 2026-05-02 |
+| [`jwt-key-rotation.md`](./jwt-key-rotation.md) | JWT signing keypair rotation procedure (RS256, T2.9 / Faz 2) — covers HS256 → RS256 cutover and routine RS256 rotation | SRE lead | 2026-05-02 |
 
 ## Conventions
 
