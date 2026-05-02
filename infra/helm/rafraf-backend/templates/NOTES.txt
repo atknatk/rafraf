@@ -39,3 +39,34 @@ serviceAccount.annotations."eks.amazonaws.com/role-arn" in values-{env}.yaml so
 the pod can pull secrets from AWS Secrets Manager and write to S3.
 {{- end }}
 {{- end }}
+
+------------------------------------------------------------------------
+## Ingress / ALB requirement
+
+ingress.host is REQUIRED when ingress.enabled=true. The chart fails the
+render with a helpful message if it is empty — this prevents a silent
+ALB Controller misconfiguration where `host: ""` provisions a broken
+load balancer. Per-env values files MUST set ingress.host:
+
+  values-staging.yaml -> ingress.host: staging-api.rafraf.app
+  values-prod.yaml    -> ingress.host: api.rafraf.app
+
+------------------------------------------------------------------------
+## Secret rotation post-deploy
+
+The ExternalSecret refreshes the underlying Kubernetes Secret on the
+configured interval ({{ .Values.externalSecrets.refreshInterval }}), but
+running pods do NOT restart automatically when the Secret changes.
+JWT_PRIVATE_KEY / JWT_PUBLIC_KEY / APNS_KEY / database creds rotated
+in AWS Secrets Manager will only take effect after a manual rollout:
+
+  kubectl -n {{ .Release.Namespace }} rollout restart deploy/{{ include "rafraf-backend.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} rollout status  deploy/{{ include "rafraf-backend.fullname" . }}
+
+Cross-references:
+  - docs/runbooks/jwt-key-rotation.md  (T2.9)  — RS256 key rotation flow
+  - docs/runbooks/secret-rotation.md   (T3.8)  — generic AWS SM rotation
+
+Future infra option: deploy stakater/Reloader controller (annotation-driven
+auto-restart on Secret/ConfigMap change). Out of scope for T3.5; track as a
+separate infra task.

@@ -16,7 +16,8 @@ env:
   OTEL_DEPLOYMENT_ENV: "production"
   READY_REQUIRES_BRIDGE: "true"
   # Adjust grace expiry as old HS256 tokens fully drain.
-  JWT_LEGACY_GRACE_UNTIL: "2026-08-01T00:00:00Z"
+  # ISO-8601 with "+00:00" offset for unambiguous Pydantic parsing.
+  JWT_LEGACY_GRACE_UNTIL: "2026-08-01T00:00:00+00:00"
 
 externalSecrets:
   # Production AWS Secrets Manager paths (already wired in values.yaml — copied

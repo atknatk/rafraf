@@ -87,16 +87,24 @@ env:
   LOG_LEVEL: INFO
   JWT_ALGORITHM: RS256
   # Legacy HS256 fallback grace period — adjust per JWT-key rotation cadence.
-  JWT_LEGACY_GRACE_UNTIL: "2026-08-01T00:00:00Z"
+  # ISO-8601 with explicit "+00:00" offset (rather than "Z") for unambiguous
+  # parsing across all Python tz-aware datetime parsers.
+  JWT_LEGACY_GRACE_UNTIL: "2026-08-01T00:00:00+00:00"
   # Production gates /ready on a registered bridge (Faz 3 hardening)
   READY_REQUIRES_BRIDGE: "true"
   # OpenTelemetry — set OTEL_SERVICE_VERSION via ArgoCD per release (image SHA).
-  OTEL_SERVICE_NAME: "rafraf-backend"
+  # NOTE: OTEL_SERVICE_NAME is intentionally NOT set here. Backend hardcodes
+  # the service name via setup_tracing("rafraf-backend") in app/main.py and
+  # _build_resource() in app/core/telemetry.py ignores the env var. Setting it
+  # would create dead config that misleads operators. If the backend ever wires
+  # the env var, re-add it here.
   OTEL_SERVICE_VERSION: ""
   OTEL_DEPLOYMENT_ENV: "production"
-  # OTLP gRPC endpoint (Grafana Cloud Tempo / Honeycomb / etc.). TODO per env.
+  # OTLP HTTP endpoint (Grafana Cloud Tempo / Honeycomb / etc.). TODO per env.
+  # Backend imports OTLPSpanExporter from
+  # opentelemetry.exporter.otlp.proto.http.trace_exporter — port 4318, NOT 4317.
   OTEL_EXPORTER_OTLP_ENDPOINT: ""
-  OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+  OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
   # File paths exposed by the projected secret volume (see deployment.yaml).
   JWT_PRIVATE_KEY_PATH: "/etc/rafraf/jwt/private.pem"
   JWT_PUBLIC_KEY_PATH: "/etc/rafraf/jwt/public.pem"
