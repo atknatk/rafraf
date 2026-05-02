@@ -8,8 +8,9 @@ Create Date: 2026-03-05
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects.postgresql import JSON, UUID
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "008_add_pulse_reports_table"

@@ -65,6 +65,7 @@ def _coerce_int(value: object, default: int = 0) -> int:
             return default
     return default
 
+
 # Module-level tool registry singleton
 _tool_registry: ToolRegistry | None = None
 
@@ -460,8 +461,8 @@ class OrchestratorService:
                 try:
                     sid_raw = p.get("session_id")
                     sid = str(sid_raw) if sid_raw is not None else None
-                    name = (
-                        str(p.get("name") or p.get("description") or "subagent")
+                    name = str(
+                        p.get("name") or p.get("description") or "subagent"
                     )  # T1.5 M4: bridge "description" → schema "name"
                     await csm.forward_subagent_spawned(
                         user_id=user_id,

@@ -7,14 +7,14 @@ All tests should FAIL until implementation is written (TDD red phase).
 
 import uuid
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.models.task import Task as TaskModel, TaskStatus
+from app.models.task import Task as TaskModel
+from app.models.task import TaskStatus
 from app.services.live_activity_push_service import LiveActivityPushService
 from app.services.task_orchestrator_service import TaskOrchestratorService
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -193,7 +193,10 @@ class TestPushOnStepChangeOnly:
 
     @pytest.mark.asyncio
     async def test_push_on_step_change_only(self) -> None:
-        """Multiple progress updates for the same step should all trigger pushes (no throttle in current impl)."""
+        """Multiple progress updates for the same step should all trigger pushes.
+
+        (No throttle in current impl.)
+        """
         mock_session = AsyncMock()
         mock_push_service = AsyncMock(spec=LiveActivityPushService)
         mock_push_service.send_live_activity_update = AsyncMock(return_value=True)

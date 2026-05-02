@@ -171,13 +171,16 @@ async def test_handle_stream_end_resolves_future(csm: ClaudeStreamManager) -> No
     future = csm.get_completion_future(task_id)
     assert not future.done()
 
-    await csm.handle_stream_end(task_id, {
-        "session_id": "sess-123",
-        "full_text": "Hello world!",
-        "model_used": "claude-sonnet-4-6",
-        "tokens_input": 100,
-        "tokens_output": 50,
-    })
+    await csm.handle_stream_end(
+        task_id,
+        {
+            "session_id": "sess-123",
+            "full_text": "Hello world!",
+            "model_used": "claude-sonnet-4-6",
+            "tokens_input": 100,
+            "tokens_output": 50,
+        },
+    )
 
     assert future.done()
     result = future.result()
@@ -360,9 +363,7 @@ async def test_forward_session_init_uses_provided_timestamp(
     # to an aware datetime to compare semantically (avoids string-format
     # coupling).
     assert isinstance(content["initialized_at"], str)
-    parsed = datetime.fromisoformat(
-        content["initialized_at"].replace("Z", "+00:00")
-    )
+    parsed = datetime.fromisoformat(content["initialized_at"].replace("Z", "+00:00"))
     assert parsed == explicit
 
 

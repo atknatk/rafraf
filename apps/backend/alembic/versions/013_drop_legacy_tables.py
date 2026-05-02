@@ -25,8 +25,9 @@ inside the dropped tables is **not** preserved by ``alembic downgrade``.
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects.postgresql import JSON, JSONB, UUID
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "013_drop_legacy_tables"

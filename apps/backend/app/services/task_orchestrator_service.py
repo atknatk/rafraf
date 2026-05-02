@@ -23,6 +23,7 @@ class TaskWSManager(Protocol):
         self, user_id: str | uuid.UUID, message: dict[str, object]
     ) -> int: ...
 
+
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 # Step-to-phase-icon mapping for Live Activity content state

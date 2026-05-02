@@ -9,7 +9,10 @@ from pathlib import Path
 
 import pytest
 
-CONTRACT_FILE = Path(__file__).resolve().parents[4] / "shared/api-contracts/rest/v1/proactive-notifications.json"
+CONTRACT_FILE = (
+    Path(__file__).resolve().parents[4]
+    / "shared/api-contracts/rest/v1/proactive-notifications.json"
+)
 
 
 @pytest.fixture
@@ -42,7 +45,11 @@ class TestProactiveNotificationContracts:
     ) -> None:
         """GET /api/v1/proactive-notifications should be defined."""
         endpoint = next(
-            (e for e in contract_endpoints if e.get("method") == "GET" and e.get("path") == "/api/v1/proactive-notifications"),
+            (
+                e
+                for e in contract_endpoints
+                if e.get("method") == "GET" and e.get("path") == "/api/v1/proactive-notifications"
+            ),
             None,
         )
         assert endpoint is not None, "GET /api/v1/proactive-notifications not found"
@@ -60,7 +67,11 @@ class TestProactiveNotificationContracts:
     ) -> None:
         """PATCH /api/v1/proactive-notifications/{notification_id}/read should be defined."""
         endpoint = next(
-            (e for e in contract_endpoints if e.get("method") == "PATCH" and "read" in str(e.get("path", ""))),
+            (
+                e
+                for e in contract_endpoints
+                if e.get("method") == "PATCH" and "read" in str(e.get("path", ""))
+            ),
             None,
         )
         assert endpoint is not None, "PATCH read endpoint not found"
@@ -71,7 +82,11 @@ class TestProactiveNotificationContracts:
     ) -> None:
         """POST /api/v1/proactive-notifications/read-all should be defined."""
         endpoint = next(
-            (e for e in contract_endpoints if e.get("method") == "POST" and "read-all" in str(e.get("path", ""))),
+            (
+                e
+                for e in contract_endpoints
+                if e.get("method") == "POST" and "read-all" in str(e.get("path", ""))
+            ),
             None,
         )
         assert endpoint is not None, "POST read-all endpoint not found"
@@ -96,7 +111,11 @@ class TestProactiveNotificationContracts:
     ) -> None:
         """GET /api/v1/proactive-notifications/unread-count should be defined."""
         endpoint = next(
-            (e for e in contract_endpoints if e.get("method") == "GET" and "unread-count" in str(e.get("path", ""))),
+            (
+                e
+                for e in contract_endpoints
+                if e.get("method") == "GET" and "unread-count" in str(e.get("path", ""))
+            ),
             None,
         )
         assert endpoint is not None, "GET unread-count endpoint not found"
@@ -110,7 +129,11 @@ class TestProactiveNotificationContracts:
     ) -> None:
         """List endpoint should define expected query parameters."""
         endpoint = next(
-            (e for e in contract_endpoints if e.get("method") == "GET" and e.get("path") == "/api/v1/proactive-notifications"),
+            (
+                e
+                for e in contract_endpoints
+                if e.get("method") == "GET" and e.get("path") == "/api/v1/proactive-notifications"
+            ),
             None,
         )
         assert endpoint is not None
@@ -123,10 +146,7 @@ class TestProactiveNotificationContracts:
         assert "is_read" in props
         assert "type" in props
 
-    def test_notification_response_fields(
-        self,
-        contract_endpoints: list[dict[str, object]],
-    ) -> None:
+    def test_notification_response_fields(self) -> None:
         """Notification response should have required fields per contract."""
         # Load the $defs section
         with open(CONTRACT_FILE) as f:

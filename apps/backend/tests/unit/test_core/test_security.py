@@ -299,9 +299,7 @@ class TestKeyLoadingEdgeCases:
             create_access_token(subject="user-x")
 
     @pytest.mark.usefixtures("_restore_settings")
-    def test_missing_private_key_file_raises_security_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_missing_private_key_file_raises_security_error(self, tmp_path: Path) -> None:
         """A non-existent private key file should raise SecurityError, not crash."""
         settings = get_settings()
         settings.jwt_private_key_path = str(tmp_path / "does_not_exist.pem")
@@ -375,8 +373,7 @@ class TestPostGraceWarningGate:
 
         captured = capsys.readouterr()
         assert "legacy_hs256_token_rejected_post_grace" not in captured.out, (
-            "RS256 expiry must not trigger the HS256 post-grace warning "
-            "(false-positive M1)"
+            "RS256 expiry must not trigger the HS256 post-grace warning (false-positive M1)"
         )
 
     @pytest.mark.usefixtures("_restore_settings")
@@ -393,9 +390,8 @@ class TestPostGraceWarningGate:
             subject="real-hs256-user",
         )
 
-        with structlog.testing.capture_logs() as captured:
-            with pytest.raises(SecurityError):
-                verify_access_token(token)
+        with structlog.testing.capture_logs() as captured, pytest.raises(SecurityError):
+            verify_access_token(token)
 
         events = [c.get("event") for c in captured]
         assert "legacy_hs256_token_rejected_post_grace" in events, (
@@ -426,8 +422,7 @@ class TestPostGraceWarningGate:
 
         captured = capsys.readouterr()
         assert "legacy_hs256_token_rejected_post_grace" not in captured.out, (
-            "Without an explicit legacy secret operator never opted in — "
-            "no warning should fire"
+            "Without an explicit legacy secret operator never opted in — no warning should fire"
         )
 
 
@@ -476,9 +471,7 @@ class TestStartupWarning:
         assert events.count("jwt_secret_key_set_but_legacy_unset") == 1
 
     @pytest.mark.usefixtures("_restore_settings")
-    def test_does_not_warn_when_default_value(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_does_not_warn_when_default_value(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Default jwt_secret_key value should not trigger the warning."""
         settings = get_settings()
         settings.jwt_secret_key = "dev-secret-change-in-production"

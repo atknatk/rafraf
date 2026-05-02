@@ -887,9 +887,7 @@ class ClaudeCodeRunner:
         input_preview_raw = payload.get("input_preview")
         input_preview = str(input_preview_raw) if input_preview_raw is not None else ""
         timeout_ms_raw = payload.get("timeout_ms", 30_000)
-        timeout_ms = (
-            int(timeout_ms_raw) if isinstance(timeout_ms_raw, (int, float)) else 30_000
-        )
+        timeout_ms = int(timeout_ms_raw) if isinstance(timeout_ms_raw, (int, float)) else 30_000
         # V1.4-fix LOW: cap at 600s so a malicious or buggy bridge envelope
         # cannot persist arbitrarily large bridge_timeout_seconds. The
         # backend's per-category max is 300s; 600s gives 2x headroom.

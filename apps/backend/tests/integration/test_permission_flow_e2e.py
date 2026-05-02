@@ -123,9 +123,7 @@ def _load_envelope_schema(filename: str, envelope_type: str) -> dict[str, Any]:
     for entry in messages:
         if entry["type"] == envelope_type:
             return dict(entry["payload"])
-    raise AssertionError(
-        f"envelope type {envelope_type!r} not found in {filename}"
-    )
+    raise AssertionError(f"envelope type {envelope_type!r} not found in {filename}")
 
 
 # Cached at module load so the test stays fast (no per-test disk IO).
@@ -524,9 +522,7 @@ async def _drive_runner(
 
     original_send = bridge_registry.send_to_bridge
 
-    async def _capture_send(
-        host_id: str, env: dict[str, object]
-    ) -> bool:
+    async def _capture_send(host_id: str, env: dict[str, object]) -> bool:
         envelope_type = str(env.get("type", ""))
         # The first send is the command.claude.run envelope from the
         # runner — capture its correlation_id (= the runner's rpc_id)
@@ -603,12 +599,8 @@ async def test_e2e_permission_request_happy_path_deny(
     request_id = str(uuid.uuid4())  # bridge-generated UUIDv4
 
     # 1. Connect both fake WSs.
-    bridge_conn_id, bridge_ws = await _register_bridge_ws(
-        bridge_registry, agent_manager
-    )
-    ios_conn_id, ios_session_id, ios_ws = await _connect_ios_ws(
-        ios_manager, user_id=user_id
-    )
+    bridge_conn_id, bridge_ws = await _register_bridge_ws(bridge_registry, agent_manager)
+    ios_conn_id, ios_session_id, ios_ws = await _connect_ios_ws(ios_manager, user_id=user_id)
 
     # Stub the bridge UUID resolver so the runner's persist-side DB hop
     # short-circuits; we don't need the bridge row in this test.
@@ -680,7 +672,8 @@ async def test_e2e_permission_request_happy_path_deny(
         for _ in range(200):
             await asyncio.sleep(0.005)
             qs = [
-                e for e in _captured_envelopes(ios_ws)
+                e
+                for e in _captured_envelopes(ios_ws)
                 if e.get("type") == MessageType.QUESTION.value
             ]
             if qs:
@@ -742,15 +735,13 @@ async def test_e2e_permission_request_happy_path_deny(
 
     # ---- Wall-clock budget ------------------------------------------------
     assert elapsed < 5.0, (
-        f"V1.7 budget breached — full round-trip took {elapsed:.2f}s "
-        f"(budget: 5.0s)"
+        f"V1.7 budget breached — full round-trip took {elapsed:.2f}s (budget: 5.0s)"
     )
 
     # ---- Bridge WS captured the decision RPC ------------------------------
     bridge_envelopes = _captured_envelopes(bridge_ws)
     deny_envelopes = [
-        e for e in bridge_envelopes
-        if e.get("type") == "command.claude.permission.deny"
+        e for e in bridge_envelopes if e.get("type") == "command.claude.permission.deny"
     ]
     assert len(deny_envelopes) == 1, (
         f"expected exactly 1 deny envelope on the bridge WS, got "
@@ -758,8 +749,7 @@ async def test_e2e_permission_request_happy_path_deny(
     )
     deny_envelope = deny_envelopes[0]
     assert deny_envelope["correlation_id"] == rpc_id, (
-        "decision RPC correlation_id MUST equal the originating "
-        "command.claude.run rpc_id"
+        "decision RPC correlation_id MUST equal the originating command.claude.run rpc_id"
     )
     assert deny_envelope["payload"]["request_id"] == request_id, (
         "decision RPC request_id MUST echo the bridge-generated UUID"
@@ -772,12 +762,9 @@ async def test_e2e_permission_request_happy_path_deny(
 
     # ---- iOS WS captured a well-formed QUESTION ---------------------------
     ios_envelopes = _captured_envelopes(ios_ws)
-    question_envelopes = [
-        e for e in ios_envelopes if e.get("type") == MessageType.QUESTION.value
-    ]
+    question_envelopes = [e for e in ios_envelopes if e.get("type") == MessageType.QUESTION.value]
     assert len(question_envelopes) == 1, (
-        f"expected exactly 1 QUESTION envelope on iOS WS, got "
-        f"{len(question_envelopes)}"
+        f"expected exactly 1 QUESTION envelope on iOS WS, got {len(question_envelopes)}"
     )
     _validate_payload(
         question_envelopes[0]["content"],
@@ -801,8 +788,7 @@ async def test_e2e_permission_request_happy_path_deny(
     assert emitted_after - emitted_before == pytest.approx(1.0)
     assert decided_after - decided_before == pytest.approx(1.0)
     assert timeout_after - timeout_before == pytest.approx(0.0), (
-        "timeout counter MUST NOT increment on the happy-path deny — the "
-        "user actively replied"
+        "timeout counter MUST NOT increment on the happy-path deny — the user actively replied"
     )
 
     # ---- Runner sanity ---------------------------------------------------
@@ -842,12 +828,8 @@ async def test_e2e_permission_request_timeout_auto_denies(
     bridge_session_id = str(uuid.uuid4())
     request_id = str(uuid.uuid4())
 
-    bridge_conn_id, bridge_ws = await _register_bridge_ws(
-        bridge_registry, agent_manager
-    )
-    ios_conn_id, ios_session_id, ios_ws = await _connect_ios_ws(
-        ios_manager, user_id=user_id
-    )
+    bridge_conn_id, bridge_ws = await _register_bridge_ws(bridge_registry, agent_manager)
+    ios_conn_id, ios_session_id, ios_ws = await _connect_ios_ws(ios_manager, user_id=user_id)
 
     runner = ClaudeCodeRunner(bridge_registry=bridge_registry)
 
@@ -919,8 +901,7 @@ async def test_e2e_permission_request_timeout_auto_denies(
     # ---- Bridge WS captured the auto-deny envelope ------------------------
     bridge_envelopes = _captured_envelopes(bridge_ws)
     deny_envelopes = [
-        e for e in bridge_envelopes
-        if e.get("type") == "command.claude.permission.deny"
+        e for e in bridge_envelopes if e.get("type") == "command.claude.permission.deny"
     ]
     assert len(deny_envelopes) == 1, (
         "auto-deny MUST dispatch exactly one deny envelope on timeout "
@@ -949,9 +930,7 @@ async def test_e2e_permission_request_timeout_auto_denies(
 
     # ---- iOS WS still got the QUESTION (the user just never answered) ----
     ios_envelopes = _captured_envelopes(ios_ws)
-    question_envelopes = [
-        e for e in ios_envelopes if e.get("type") == MessageType.QUESTION.value
-    ]
+    question_envelopes = [e for e in ios_envelopes if e.get("type") == MessageType.QUESTION.value]
     assert len(question_envelopes) == 1
 
     await agent_manager.disconnect(bridge_conn_id)
@@ -983,12 +962,8 @@ async def test_e2e_permission_request_bridge_offline_logs_and_audits(
     bridge_session_id = str(uuid.uuid4())
     request_id = str(uuid.uuid4())
 
-    bridge_conn_id, _bridge_ws = await _register_bridge_ws(
-        bridge_registry, agent_manager
-    )
-    ios_conn_id, ios_session_id, ios_ws = await _connect_ios_ws(
-        ios_manager, user_id=user_id
-    )
+    bridge_conn_id, _bridge_ws = await _register_bridge_ws(bridge_registry, agent_manager)
+    ios_conn_id, ios_session_id, ios_ws = await _connect_ios_ws(ios_manager, user_id=user_id)
 
     runner = ClaudeCodeRunner(bridge_registry=bridge_registry)
 
@@ -1028,7 +1003,8 @@ async def test_e2e_permission_request_bridge_offline_logs_and_audits(
         for _ in range(200):
             await asyncio.sleep(0.005)
             qs = [
-                e for e in _captured_envelopes(ios_ws)
+                e
+                for e in _captured_envelopes(ios_ws)
                 if e.get("type") == MessageType.QUESTION.value
             ]
             if qs:
@@ -1086,9 +1062,7 @@ async def test_e2e_permission_request_bridge_offline_logs_and_audits(
                 ) from exc
 
     # ---- The dispatch-failed log MUST fire (graceful degradation) --------
-    dispatch_failed = [
-        e for e in captured if e.get("event") == "permission_dispatch_failed"
-    ]
+    dispatch_failed = [e for e in captured if e.get("event") == "permission_dispatch_failed"]
     assert dispatch_failed, (
         "permission_dispatch_failed log MUST fire when send_to_bridge "
         "returns False (bridge offline mid-decision)"

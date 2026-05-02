@@ -1,7 +1,7 @@
 """Unit tests for RedisClient."""
 
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 from app.core.redis import RedisClient
 

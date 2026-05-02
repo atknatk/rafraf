@@ -8,17 +8,18 @@ All tests should FAIL until implementation is written (TDD red phase).
 import asyncio
 import uuid
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.models.task import Task as TaskModel, TaskStatus
+from app.models.task import Task as TaskModel
+from app.models.task import TaskStatus
 from app.services.task_orchestrator_service import TaskOrchestratorService
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_task_model(
     status: TaskStatus = TaskStatus.QUEUED,
@@ -67,6 +68,7 @@ def _make_task_model(
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestCreateTask:
     """Tests for TaskOrchestratorService.create_task."""
@@ -338,7 +340,7 @@ class TestStateTransitionsCompleteFlow:
     """Tests for the full state transition path."""
 
     async def test_state_transitions_complete_flow(self) -> None:
-        """Should successfully traverse QUEUED -> PLANNING -> IMPLEMENTING -> TESTING -> REVIEWING -> COMPLETED."""
+        """Should traverse QUEUED -> PLANNING -> IMPLEMENTING -> TESTING -> REVIEWING -> DONE."""
         mock_session = AsyncMock()
         service = TaskOrchestratorService(mock_session)
 

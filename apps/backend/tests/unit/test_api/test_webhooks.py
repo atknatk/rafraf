@@ -6,7 +6,6 @@ import json
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -97,9 +96,7 @@ class TestGitHubWebhookSignature:
     """Tests for HMAC-SHA256 signature verification."""
 
     @patch("app.api.routes.webhooks.get_settings")
-    def test_missing_signature_returns_401(
-        self, mock_settings: MagicMock
-    ) -> None:
+    def test_missing_signature_returns_401(self, mock_settings: MagicMock) -> None:
         """Request without signature should return 401 when secret is configured."""
         mock_settings.return_value = MagicMock(
             github_webhook_secret="test-secret",
@@ -116,9 +113,7 @@ class TestGitHubWebhookSignature:
         assert response.status_code == 401
 
     @patch("app.api.routes.webhooks.get_settings")
-    def test_invalid_signature_returns_401(
-        self, mock_settings: MagicMock
-    ) -> None:
+    def test_invalid_signature_returns_401(self, mock_settings: MagicMock) -> None:
         """Request with wrong signature should return 401."""
         mock_settings.return_value = MagicMock(
             github_webhook_secret="test-secret",
@@ -136,9 +131,7 @@ class TestGitHubWebhookSignature:
         assert response.status_code == 401
 
     @patch("app.api.routes.webhooks.get_settings")
-    def test_valid_signature_accepted(
-        self, mock_settings: MagicMock
-    ) -> None:
+    def test_valid_signature_accepted(self, mock_settings: MagicMock) -> None:
         """Request with valid signature should be accepted."""
         secret = "test-secret"
         mock_settings.return_value = MagicMock(
@@ -165,18 +158,20 @@ class TestCheckRunEventHandling:
 
     def test_check_run_failure_accepted(self) -> None:
         """check_run event with conclusion=failure should be accepted."""
-        payload = json.dumps({
-            "action": "completed",
-            "check_run": {
-                "id": 12345,
-                "name": "CI / tests",
-                "status": "completed",
-                "conclusion": "failure",
-                "html_url": "https://github.com/owner/repo/runs/12345",
-            },
-            "repository": {"full_name": "owner/repo"},
-            "sender": {"login": "github-actions"},
-        }).encode()
+        payload = json.dumps(
+            {
+                "action": "completed",
+                "check_run": {
+                    "id": 12345,
+                    "name": "CI / tests",
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "html_url": "https://github.com/owner/repo/runs/12345",
+                },
+                "repository": {"full_name": "owner/repo"},
+                "sender": {"login": "github-actions"},
+            }
+        ).encode()
         response = client.post(
             "/api/v1/webhooks/github",
             content=payload,
@@ -193,18 +188,20 @@ class TestCheckRunEventHandling:
 
     def test_check_run_success_accepted(self) -> None:
         """check_run event with conclusion=success should be accepted."""
-        payload = json.dumps({
-            "action": "completed",
-            "check_run": {
-                "id": 12346,
-                "name": "CI / build",
-                "status": "completed",
-                "conclusion": "success",
-                "html_url": "https://github.com/owner/repo/runs/12346",
-            },
-            "repository": {"full_name": "owner/repo"},
-            "sender": {"login": "github-actions"},
-        }).encode()
+        payload = json.dumps(
+            {
+                "action": "completed",
+                "check_run": {
+                    "id": 12346,
+                    "name": "CI / build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "html_url": "https://github.com/owner/repo/runs/12346",
+                },
+                "repository": {"full_name": "owner/repo"},
+                "sender": {"login": "github-actions"},
+            }
+        ).encode()
         response = client.post(
             "/api/v1/webhooks/github",
             content=payload,
@@ -219,18 +216,20 @@ class TestCheckRunEventHandling:
 
     def test_check_run_timed_out_accepted(self) -> None:
         """check_run event with conclusion=timed_out should be accepted."""
-        payload = json.dumps({
-            "action": "completed",
-            "check_run": {
-                "id": 12347,
-                "name": "CI / e2e",
-                "status": "completed",
-                "conclusion": "timed_out",
-                "html_url": "https://github.com/owner/repo/runs/12347",
-            },
-            "repository": {"full_name": "owner/repo"},
-            "sender": {"login": "github-actions"},
-        }).encode()
+        payload = json.dumps(
+            {
+                "action": "completed",
+                "check_run": {
+                    "id": 12347,
+                    "name": "CI / e2e",
+                    "status": "completed",
+                    "conclusion": "timed_out",
+                    "html_url": "https://github.com/owner/repo/runs/12347",
+                },
+                "repository": {"full_name": "owner/repo"},
+                "sender": {"login": "github-actions"},
+            }
+        ).encode()
         response = client.post(
             "/api/v1/webhooks/github",
             content=payload,
@@ -274,6 +273,7 @@ class TestListGitHubEvents:
     def _authed_get(self, path: str, **kwargs: object) -> object:
         """Make an authenticated GET request by overriding auth dependency."""
         from app.api.deps import get_current_user
+
         mock_user = MagicMock()
         mock_user.id = "test-user-id"
         app.dependency_overrides[get_current_user] = lambda: mock_user

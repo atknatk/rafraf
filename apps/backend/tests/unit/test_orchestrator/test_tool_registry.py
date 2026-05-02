@@ -3,12 +3,12 @@
 from app.orchestrator.tool_registry import ToolDefinition, ToolRegistry
 
 
-async def _dummy_handler(params: dict[str, object]) -> str:
+async def _dummy_handler(_params: dict[str, object]) -> str:
     """Dummy tool handler for testing."""
     return "dummy_result"
 
 
-async def _another_handler(params: dict[str, object]) -> str:
+async def _another_handler(_params: dict[str, object]) -> str:
     """Another dummy tool handler for testing."""
     return "another_result"
 

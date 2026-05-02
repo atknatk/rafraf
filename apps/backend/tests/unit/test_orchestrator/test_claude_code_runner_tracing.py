@@ -56,18 +56,14 @@ class _FakeRegistry:
         del capability
         return self._online_host
 
-    def register_subscriber(
-        self, *, bridge_id: str, rpc_id: str
-    ) -> asyncio.Queue[dict[str, Any]]:
+    def register_subscriber(self, *, bridge_id: str, rpc_id: str) -> asyncio.Queue[dict[str, Any]]:
         del bridge_id, rpc_id
         return asyncio.Queue()
 
     def unregister_subscriber(self, *, bridge_id: str, rpc_id: str) -> None:
         del bridge_id, rpc_id
 
-    async def send_to_bridge(
-        self, host_id: str, envelope: dict[str, Any]
-    ) -> bool:
+    async def send_to_bridge(self, host_id: str, envelope: dict[str, Any]) -> bool:
         self.last_envelope = envelope
         self.last_target = host_id
         return self._send_succeeds
@@ -90,9 +86,7 @@ class _FakeRegistry:
 # Fixture loader.
 # ---------------------------------------------------------------------------
 
-_FIXTURE_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "bridge_stream_sample.jsonl"
-)
+_FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "bridge_stream_sample.jsonl"
 
 
 def _load_sample_events() -> list[dict[str, Any]]:
@@ -238,8 +232,7 @@ async def test_dispatch_event_records_subagent_lifecycle_events(
     task_done_spans = [
         s
         for s in dispatch_spans
-        if (s.attributes or {}).get("claude.event_type")
-        == "event.session.task_notification"
+        if (s.attributes or {}).get("claude.event_type") == "event.session.task_notification"
     ]
     assert len(task_started_spans) == 1
     assert len(task_done_spans) == 1

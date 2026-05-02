@@ -1,6 +1,6 @@
 """Unit tests for notification Pydantic schemas."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -78,7 +78,7 @@ class TestDeviceTokenRegisterResponse:
     def test_valid_response(self) -> None:
         """Should store id and registered_at."""
         uid = uuid4()
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         resp = DeviceTokenRegisterResponse(id=uid, registered_at=now)
         assert resp.id == uid
         assert resp.registered_at == now
@@ -86,7 +86,7 @@ class TestDeviceTokenRegisterResponse:
     def test_response_is_frozen(self) -> None:
         """Should be immutable (frozen)."""
         uid = uuid4()
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         resp = DeviceTokenRegisterResponse(id=uid, registered_at=now)
         with pytest.raises(ValidationError):
             resp.id = uuid4()  # type: ignore[misc]

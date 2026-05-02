@@ -87,18 +87,14 @@ class _FakeRegistry:
     def find_online_agent_with_capability(self, _capability: str) -> str | None:
         return self._host_id
 
-    def register_subscriber(
-        self, *, bridge_id: str, rpc_id: str
-    ) -> asyncio.Queue[dict[str, Any]]:
+    def register_subscriber(self, *, bridge_id: str, rpc_id: str) -> asyncio.Queue[dict[str, Any]]:
         del bridge_id, rpc_id
         return asyncio.Queue()
 
     def unregister_subscriber(self, *, bridge_id: str, rpc_id: str) -> None:
         del bridge_id, rpc_id
 
-    async def send_to_bridge(
-        self, host_id: str, envelope: dict[str, Any]
-    ) -> bool:
+    async def send_to_bridge(self, host_id: str, envelope: dict[str, Any]) -> bool:
         self.sent_envelopes.append((host_id, envelope))
         return self._send_succeeds
 
@@ -237,9 +233,7 @@ async def test_permission_request_happy_path_approve(
         captured_record_ref["timeout_seconds"] = timeout_seconds  # type: ignore[assignment]
 
         # Build the QUESTION envelope (mirrors websocket._on_permission_request).
-        envelope = approval_service.build_question_message(
-            record, session_id=record.session_id
-        )
+        envelope = approval_service.build_question_message(record, session_id=record.session_id)
         sent_questions.append(envelope)
 
         async def _await_and_dispatch() -> None:
@@ -451,9 +445,7 @@ async def test_permission_request_timeout_auto_denies(
     ) -> None:
         async def _await_and_dispatch() -> None:
             # Force a 1s deadline so the test finishes fast.
-            result = await approval_service.wait_for_decision(
-                record.id, timeout_override=1
-            )
+            result = await approval_service.wait_for_decision(record.id, timeout_override=1)
             envelope_type = (
                 "command.claude.permission.allow"
                 if result.approved
@@ -490,9 +482,7 @@ async def test_permission_request_timeout_auto_denies(
             labels={"bridge_id": "mac-1", "tool_name": "Bash"},
         )
 
-        await runner.run(
-            prompt="x", on_permission_request=_on_permission_request
-        )
+        await runner.run(prompt="x", on_permission_request=_on_permission_request)
 
         # Wait long enough for the awaiter to timeout-deny.
         for _ in range(50):
@@ -537,9 +527,7 @@ async def test_permission_request_bridge_offline_logs_dispatch_failed(
         _timeout_seconds: int,
     ) -> None:
         async def _await_and_dispatch() -> None:
-            result = await approval_service.wait_for_decision(
-                record.id, timeout_override=10
-            )
+            result = await approval_service.wait_for_decision(record.id, timeout_override=10)
             sent = await registry.send_to_bridge(
                 bridge_host_id,
                 {
@@ -595,9 +583,7 @@ async def test_permission_request_bridge_offline_logs_dispatch_failed(
     registry.send_to_bridge = _send_first_ok  # type: ignore[method-assign]
 
     with structlog.testing.capture_logs() as captured:
-        await runner.run(
-            prompt="x", on_permission_request=_capture_then_dispatch
-        )
+        await runner.run(prompt="x", on_permission_request=_capture_then_dispatch)
 
         for _ in range(50):
             await asyncio.sleep(0.005)
@@ -611,17 +597,11 @@ async def test_permission_request_bridge_offline_logs_dispatch_failed(
 
         for _ in range(50):
             await asyncio.sleep(0.005)
-            if any(
-                e.get("event") == "permission_dispatch_failed" for e in captured
-            ):
+            if any(e.get("event") == "permission_dispatch_failed" for e in captured):
                 break
 
-    dispatch_failed_logs = [
-        e for e in captured if e.get("event") == "permission_dispatch_failed"
-    ]
-    assert dispatch_failed_logs, (
-        "permission_dispatch_failed log MUST fire when bridge is offline"
-    )
+    dispatch_failed_logs = [e for e in captured if e.get("event") == "permission_dispatch_failed"]
+    assert dispatch_failed_logs, "permission_dispatch_failed log MUST fire when bridge is offline"
 
 
 # ---------------------------------------------------------------------------
@@ -649,9 +629,7 @@ async def test_permission_request_does_not_block_runner(
         # Spawn an awaiter that waits forever on the user — proves the
         # runner does NOT wait for it.
         async def _wait_forever() -> None:
-            await approval_service.wait_for_decision(
-                record.id, timeout_override=10
-            )
+            await approval_service.wait_for_decision(record.id, timeout_override=10)
 
         asyncio.create_task(_wait_forever())
 

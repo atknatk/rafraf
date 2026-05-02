@@ -8,8 +8,9 @@ Create Date: 2026-03-13
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 revision: str = "011_add_webhook_events"
 down_revision: str | None = "010_agent_skip_perms"

@@ -1,6 +1,6 @@
 """Unit tests for NotificationService."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -30,19 +30,15 @@ class TestRegisterToken:
     """Tests for NotificationService.register_token."""
 
     @pytest.mark.asyncio
-    async def test_register_token_returns_response(
-        self, service: NotificationService
-    ) -> None:
+    async def test_register_token_returns_response(self, service: NotificationService) -> None:
         """Should return DeviceTokenRegisterResponse on successful upsert."""
         user_id = uuid4()
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         mock_device_token = MagicMock()
         mock_device_token.id = uuid4()
         mock_device_token.created_at = now
 
-        with patch.object(
-            service._token_repo, "upsert", new_callable=AsyncMock
-        ) as mock_upsert:
+        with patch.object(service._token_repo, "upsert", new_callable=AsyncMock) as mock_upsert:
             mock_upsert.return_value = mock_device_token
             result = await service.register_token(
                 user_id=user_id,
@@ -65,9 +61,7 @@ class TestDeactivateToken:
     """Tests for NotificationService.deactivate_token."""
 
     @pytest.mark.asyncio
-    async def test_deactivate_token_calls_repo(
-        self, service: NotificationService
-    ) -> None:
+    async def test_deactivate_token_calls_repo(self, service: NotificationService) -> None:
         """Should call repository deactivate method."""
         user_id = uuid4()
 
@@ -89,9 +83,7 @@ class TestGetSettings:
     """Tests for NotificationService.get_settings."""
 
     @pytest.mark.asyncio
-    async def test_get_settings_returns_current_prefs(
-        self, service: NotificationService
-    ) -> None:
+    async def test_get_settings_returns_current_prefs(self, service: NotificationService) -> None:
         """Should return NotificationSettingsResponse with current values."""
         user_id = uuid4()
         mock_settings = MagicMock()
@@ -116,9 +108,7 @@ class TestUpdateSettings:
     """Tests for NotificationService.update_settings."""
 
     @pytest.mark.asyncio
-    async def test_update_settings_partial(
-        self, service: NotificationService
-    ) -> None:
+    async def test_update_settings_partial(self, service: NotificationService) -> None:
         """Should partially update notification settings."""
         user_id = uuid4()
         mock_settings = MagicMock()
@@ -176,9 +166,7 @@ class TestSendNotification:
         mock_tokens.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_send_notification_skips_no_tokens(
-        self, service: NotificationService
-    ) -> None:
+    async def test_send_notification_skips_no_tokens(self, service: NotificationService) -> None:
         """Should return False when user has no active tokens."""
         user_id = uuid4()
         mock_settings = MagicMock()

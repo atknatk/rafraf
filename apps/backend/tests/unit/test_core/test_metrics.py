@@ -105,15 +105,9 @@ def test_metrics_endpoint_excluded_from_openapi_schema() -> None:
 
 def test_subagent_spawned_counter_increments_with_status_label() -> None:
     """Each call to ``.labels(...).inc()`` must surface in the export."""
-    _metrics.subagent_spawned_total.labels(
-        bridge_id="mac-01", status="started"
-    ).inc()
-    _metrics.subagent_spawned_total.labels(
-        bridge_id="mac-01", status="completed"
-    ).inc()
-    _metrics.subagent_spawned_total.labels(
-        bridge_id="mac-01", status="failed"
-    ).inc(2)
+    _metrics.subagent_spawned_total.labels(bridge_id="mac-01", status="started").inc()
+    _metrics.subagent_spawned_total.labels(bridge_id="mac-01", status="completed").inc()
+    _metrics.subagent_spawned_total.labels(bridge_id="mac-01", status="failed").inc(2)
 
     body, _ = _metrics.render_metrics()
     samples = _samples_for(body.decode(), "subagent_spawned_total")
@@ -125,15 +119,9 @@ def test_subagent_spawned_counter_increments_with_status_label() -> None:
 
 def test_claude_total_cost_counter_accumulates() -> None:
     """Repeated cost increments must accumulate per (bridge, session)."""
-    _metrics.claude_total_cost_usd_total.labels(
-        bridge_id="mac-01", session_id="sess-A"
-    ).inc(0.123)
-    _metrics.claude_total_cost_usd_total.labels(
-        bridge_id="mac-01", session_id="sess-A"
-    ).inc(0.456)
-    _metrics.claude_total_cost_usd_total.labels(
-        bridge_id="mac-01", session_id="sess-B"
-    ).inc(0.001)
+    _metrics.claude_total_cost_usd_total.labels(bridge_id="mac-01", session_id="sess-A").inc(0.123)
+    _metrics.claude_total_cost_usd_total.labels(bridge_id="mac-01", session_id="sess-A").inc(0.456)
+    _metrics.claude_total_cost_usd_total.labels(bridge_id="mac-01", session_id="sess-B").inc(0.001)
 
     body, _ = _metrics.render_metrics()
     samples = _samples_for(body.decode(), "claude_total_cost_usd_total")
@@ -169,9 +157,7 @@ def test_apns_delivery_counters_track_success_and_failure() -> None:
 
 async def test_ws_connections_active_gauge_lifecycle() -> None:
     """ConnectionManager must incr/decr the ws_connections_active gauge."""
-    manager = ConnectionManager(
-        heartbeat_interval=30, heartbeat_timeout=10, kind="ios"
-    )
+    manager = ConnectionManager(heartbeat_interval=30, heartbeat_timeout=10, kind="ios")
     ws = AsyncMock()
     ws.accept = AsyncMock()
     ws.send_json = AsyncMock()
@@ -198,12 +184,8 @@ def test_claude_subprocess_count_gauge_set_from_heartbeat() -> None:
     _metrics.claude_subprocess_count.labels(bridge_id="mac-01").set(3)
     _metrics.claude_subprocess_count.labels(bridge_id="mac-02").set(0)
 
-    snap_one = _gauge_value(
-        "claude_subprocess_count", labels={"bridge_id": "mac-01"}
-    )
-    snap_two = _gauge_value(
-        "claude_subprocess_count", labels={"bridge_id": "mac-02"}
-    )
+    snap_one = _gauge_value("claude_subprocess_count", labels={"bridge_id": "mac-01"})
+    snap_two = _gauge_value("claude_subprocess_count", labels={"bridge_id": "mac-02"})
     assert snap_one == 3
     assert snap_two == 0
 
@@ -216,12 +198,10 @@ def test_usage_pct_gauges_per_user() -> None:
 
     body, _ = _metrics.render_metrics()
     five = {
-        s.labels["user_id"]: s.value
-        for s in _samples_for(body.decode(), "claude_5h_usage_pct")
+        s.labels["user_id"]: s.value for s in _samples_for(body.decode(), "claude_5h_usage_pct")
     }
     seven = {
-        s.labels["user_id"]: s.value
-        for s in _samples_for(body.decode(), "claude_7d_usage_pct")
+        s.labels["user_id"]: s.value for s in _samples_for(body.decode(), "claude_7d_usage_pct")
     }
     assert five == {"user-A": 42, "user-B": 10}
     assert seven == {"user-A": 73}
@@ -234,12 +214,8 @@ def test_usage_pct_gauges_per_user() -> None:
 
 def test_claude_subprocess_duration_histogram_records_observation() -> None:
     """observe() should bump the appropriate bucket + the _count + _sum."""
-    _metrics.claude_subprocess_duration_seconds.labels(bridge_id="mac-01").observe(
-        2.5
-    )
-    _metrics.claude_subprocess_duration_seconds.labels(bridge_id="mac-01").observe(
-        45.0
-    )
+    _metrics.claude_subprocess_duration_seconds.labels(bridge_id="mac-01").observe(2.5)
+    _metrics.claude_subprocess_duration_seconds.labels(bridge_id="mac-01").observe(45.0)
 
     body, _ = _metrics.render_metrics()
     text = body.decode()
@@ -258,13 +234,9 @@ def test_storage_watcher_lag_histogram_uses_configured_buckets() -> None:
     _metrics.storage_watcher_lag_seconds.labels(bridge_id="mac-01").observe(0.07)
 
     body, _ = _metrics.render_metrics()
-    bucket_samples = _samples_for(
-        body.decode(), "storage_watcher_lag_seconds_bucket"
-    )
+    bucket_samples = _samples_for(body.decode(), "storage_watcher_lag_seconds_bucket")
     upper_bounds = {
-        float(s.labels["le"])
-        for s in bucket_samples
-        if s.labels.get("bridge_id") == "mac-01"
+        float(s.labels["le"]) for s in bucket_samples if s.labels.get("bridge_id") == "mac-01"
     }
     # Check the canonical buckets we configured (Doc 10 §7.3 + +Inf).
     expected = {0.05, 0.1, 0.5, 1.0, 5.0}

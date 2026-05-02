@@ -5,17 +5,15 @@ agent disconnect recovery, and WebSocket broadcasting.
 All tests are expected to FAIL until implementation is complete.
 """
 
-import asyncio
 import uuid
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.models.task import Task, TaskStatus
-from app.services.task_orchestrator_service import TaskOrchestratorService
 from app.services.bridge_registry_service import BridgeRegistryService
-
+from app.services.task_orchestrator_service import TaskOrchestratorService
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -39,7 +37,7 @@ class _MockAgentInfo:
     def __init__(self, last_heartbeat_at: str | None = None) -> None:
         self.host_id = "macbook-pro"
         self.status = "online"
-        self.last_heartbeat_at = last_heartbeat_at or datetime.now(tz=timezone.utc).isoformat()
+        self.last_heartbeat_at = last_heartbeat_at or datetime.now(tz=UTC).isoformat()
 
 
 @pytest.fixture
@@ -198,7 +196,6 @@ class TestAgentDisconnectMidTask:
         self,
         orchestrator: TaskOrchestratorService,
         mock_agent_registry: AsyncMock,
-        mock_db_session: AsyncMock,
     ) -> None:
         """When an agent's heartbeat stops for 90 seconds while a task is
         running, the task should transition to FAILED with an appropriate
@@ -216,7 +213,7 @@ class TestAgentDisconnectMidTask:
         await orchestrator.start_task(task.id)
 
         # Simulate agent going offline — last heartbeat 90+ seconds ago
-        stale_time = (datetime.now(tz=timezone.utc) - timedelta(seconds=95)).isoformat()
+        stale_time = (datetime.now(tz=UTC) - timedelta(seconds=95)).isoformat()
         mock_agent_registry.get_agent.return_value = _MockAgentInfo(
             last_heartbeat_at=stale_time,
         )
@@ -226,7 +223,9 @@ class TestAgentDisconnectMidTask:
 
         assert task.status == TaskStatus.FAILED
         assert task.error_message is not None
-        assert "heartbeat" in task.error_message.lower() or "disconnect" in task.error_message.lower()
+        assert (
+            "heartbeat" in task.error_message.lower() or "disconnect" in task.error_message.lower()
+        )
         assert task.completed_at is not None
 
 
@@ -237,7 +236,6 @@ class TestMultipleUsersConcurrentTasks:
     async def test_multiple_users_concurrent_tasks(
         self,
         orchestrator: TaskOrchestratorService,
-        mock_db_session: AsyncMock,
     ) -> None:
         """Three different users create tasks concurrently. Each user should
         only see their own tasks when calling get_active_tasks."""
@@ -258,11 +256,12 @@ class TestMultipleUsersConcurrentTasks:
         # Mock DB execute to return tasks from the in-memory _tasks dict
         # filtered by user_id (simulating what the real DB query does)
         _tasks_ref = orchestrator._tasks
-        _TERMINAL = {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}
+        terminal_states = {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}
 
         def _make_execute_side_effect():
             """Return a side_effect that filters _tasks by user_id from the query."""
-            async def _execute(stmt):
+
+            async def _execute(_stmt):
                 # Extract user_id from the Where clause — we use the task_map to determine
                 # which uid was queried by checking all tasks in _tasks_ref
                 # Since we can't easily parse the SA statement, we use a simpler approach:
@@ -273,6 +272,7 @@ class TestMultipleUsersConcurrentTasks:
                 mock_scalars.all.return_value = list(_tasks_ref.values())
                 mock_result.scalars.return_value = mock_scalars
                 return mock_result
+
             return _execute
 
         # We need per-user filtering. Override get_active_tasks to filter from _tasks
@@ -280,8 +280,9 @@ class TestMultipleUsersConcurrentTasks:
 
         async def _get_active_tasks_from_memory(user_id: uuid.UUID) -> list[Task]:
             return [
-                t for t in _tasks_ref.values()
-                if t.user_id == user_id and TaskStatus(t.status) not in _TERMINAL
+                t
+                for t in _tasks_ref.values()
+                if t.user_id == user_id and TaskStatus(t.status) not in terminal_states
             ]
 
         orchestrator.get_active_tasks = _get_active_tasks_from_memory  # type: ignore[assignment]
@@ -398,5 +399,9 @@ class TestWebSocketTaskStatusBroadcast:
 
         assert completion_call is not None, "No task_status broadcast with status=completed found"
 
-        msg = completion_call[0][1] if len(completion_call[0]) > 1 else completion_call[1].get("message")
+        msg = (
+            completion_call[0][1]
+            if len(completion_call[0]) > 1
+            else completion_call[1].get("message")
+        )
         assert msg["content"]["progress_pct"] == 100

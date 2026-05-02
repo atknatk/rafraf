@@ -7,7 +7,6 @@ from app.main import app
 from app.schemas.agent import (
     AgentCapability,
     AgentRegisterPayload,
-    AgentStatus,
 )
 from app.services.bridge_registry_service import bridge_registry
 

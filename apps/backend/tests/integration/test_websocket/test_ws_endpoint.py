@@ -18,7 +18,9 @@ def _receive_until(ws: object, target_type: str, max_messages: int = 10) -> dict
         msg = ws.receive_json()  # type: ignore[attr-defined]
         if msg["type"] == target_type:
             return msg  # type: ignore[no-any-return]
-    raise AssertionError(f"Did not receive message of type '{target_type}' within {max_messages} messages")
+    raise AssertionError(
+        f"Did not receive message of type '{target_type}' within {max_messages} messages"
+    )
 
 
 @pytest.fixture
@@ -111,8 +113,9 @@ class TestWebSocketConnection:
 class TestWebSocketMessaging:
     """Integration tests for WebSocket message exchange."""
 
+    @pytest.mark.usefixtures("mock_orchestrator")
     def test_send_text_message_receives_response(
-        self, client: TestClient, valid_token: str, mock_orchestrator: AsyncMock
+        self, client: TestClient, valid_token: str
     ) -> None:
         """Sending a text message should receive a text response."""
         with client.websocket_connect(f"/ws?token={valid_token}") as ws:
@@ -132,9 +135,8 @@ class TestWebSocketMessaging:
             assert response["type"] == "chat.stream_end"
             assert "content" in response
 
-    def test_send_voice_message_rejected(
-        self, client: TestClient, valid_token: str, mock_orchestrator: AsyncMock
-    ) -> None:
+    @pytest.mark.usefixtures("mock_orchestrator")
+    def test_send_voice_message_rejected(self, client: TestClient, valid_token: str) -> None:
         """Sending a voice message should be rejected (voice fully removed in T0.9)."""
         with client.websocket_connect(f"/ws?token={valid_token}") as ws:
             ws.receive_json()  # connection_ack
@@ -222,9 +224,8 @@ class TestWebSocketPingPong:
             assert "content" in response
             assert "timestamp" in response["content"]
 
-    def test_client_pong_is_accepted(
-        self, client: TestClient, valid_token: str, mock_orchestrator: AsyncMock
-    ) -> None:
+    @pytest.mark.usefixtures("mock_orchestrator")
+    def test_client_pong_is_accepted(self, client: TestClient, valid_token: str) -> None:
         """Client-sent pong should be accepted without error."""
         with client.websocket_connect(f"/ws?token={valid_token}") as ws:
             ws.receive_json()  # connection_ack
@@ -252,9 +253,8 @@ class TestWebSocketPingPong:
 class TestWebSocketMultipleMessages:
     """Tests for sending multiple messages in sequence."""
 
-    def test_multiple_text_messages(
-        self, client: TestClient, valid_token: str, mock_orchestrator: AsyncMock
-    ) -> None:
+    @pytest.mark.usefixtures("mock_orchestrator")
+    def test_multiple_text_messages(self, client: TestClient, valid_token: str) -> None:
         """Multiple text messages should each receive a response."""
         with client.websocket_connect(f"/ws?token={valid_token}") as ws:
             ws.receive_json()  # connection_ack
@@ -270,9 +270,8 @@ class TestWebSocketMultipleMessages:
                 response = _receive_until(ws, "chat.stream_end")
                 assert response["type"] == "chat.stream_end"
 
-    def test_response_has_unique_ids(
-        self, client: TestClient, valid_token: str, mock_orchestrator: AsyncMock
-    ) -> None:
+    @pytest.mark.usefixtures("mock_orchestrator")
+    def test_response_has_unique_ids(self, client: TestClient, valid_token: str) -> None:
         """Each response should have a unique message ID."""
         with client.websocket_connect(f"/ws?token={valid_token}") as ws:
             ws.receive_json()  # connection_ack
@@ -291,9 +290,8 @@ class TestWebSocketMultipleMessages:
 
             assert len(ids) == 3
 
-    def test_response_metadata_direction(
-        self, client: TestClient, valid_token: str, mock_orchestrator: AsyncMock
-    ) -> None:
+    @pytest.mark.usefixtures("mock_orchestrator")
+    def test_response_metadata_direction(self, client: TestClient, valid_token: str) -> None:
         """Response metadata should have server_to_client direction."""
         with client.websocket_connect(f"/ws?token={valid_token}") as ws:
             ws.receive_json()  # connection_ack

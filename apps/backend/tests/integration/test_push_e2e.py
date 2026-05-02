@@ -6,16 +6,14 @@ All tests are expected to FAIL until implementation is complete.
 """
 
 import uuid
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.models.task import Task, TaskStatus
-from app.services.task_orchestrator_service import TaskOrchestratorService
+from app.models.task import TaskStatus
 from app.services.live_activity_push_service import LiveActivityPushService
-from app.services.apns_client import send_push
-
+from app.services.task_orchestrator_service import TaskOrchestratorService
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -37,11 +35,13 @@ def mock_db_session() -> AsyncMock:
 def mock_agent_registry() -> AsyncMock:
     """Provide a mock BridgeRegistryService."""
     registry = AsyncMock()
-    registry.get_agent = AsyncMock(return_value={
-        "host_id": "macbook-pro",
-        "status": "online",
-        "last_heartbeat": datetime.now(tz=timezone.utc),
-    })
+    registry.get_agent = AsyncMock(
+        return_value={
+            "host_id": "macbook-pro",
+            "status": "online",
+            "last_heartbeat": datetime.now(tz=UTC),
+        }
+    )
     return registry
 
 
@@ -141,10 +141,15 @@ class TestLiveActivityPushOnProgress:
         assert token_arg == FAKE_LIVE_ACTIVITY_TOKEN
 
         # Verify content-state fields
-        content_state = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("content_state")
+        content_state = (
+            call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("content_state")
+        )
         assert content_state["status"] == "implementing"
         assert content_state["progress"] == 0.45 or content_state["progress_pct"] == 45
-        assert content_state["currentStep"] == "developer" or content_state["current_step"] == "developer"
+        assert (
+            content_state["currentStep"] == "developer"
+            or content_state["current_step"] == "developer"
+        )
 
         # Verify event type is "update" (not "end")
         event = call_args[0][2] if len(call_args[0]) > 2 else call_args[1].get("event")
@@ -188,7 +193,6 @@ class TestVisiblePushOnCompletion:
         self,
         orchestrator: TaskOrchestratorService,
         mock_push_service: AsyncMock,
-        mock_db_session: AsyncMock,
     ) -> None:
         """When a task completes, a visible push notification should be sent
         with a human-readable title and body (not just a silent content-state)."""

@@ -273,7 +273,8 @@ async def test_forwarder_exception_swallowed(
     agent = OrchestratorAgent(
         ToolRegistry(),
         rate_limit_forwarder=cast(
-            "Awaitable[None]", _boom  # type: ignore[arg-type]
+            "Awaitable[None]",
+            _boom,  # type: ignore[arg-type]
         ),
     )
     request = OrchestratorRequest(

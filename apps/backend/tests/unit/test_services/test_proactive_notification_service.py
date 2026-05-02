@@ -18,44 +18,32 @@ class TestMapGithubEventType:
 
     def test_pr_merged(self) -> None:
         """PR merged event should map to pr_merged type."""
-        result = ProactiveNotificationService._map_github_event_type(
-            "pull_request", "merged"
-        )
+        result = ProactiveNotificationService._map_github_event_type("pull_request", "merged")
         assert result == ProactiveNotificationType.pr_merged
 
     def test_pr_closed(self) -> None:
         """PR closed event should map to task_complete type."""
-        result = ProactiveNotificationService._map_github_event_type(
-            "pull_request", "closed"
-        )
+        result = ProactiveNotificationService._map_github_event_type("pull_request", "closed")
         assert result == ProactiveNotificationType.task_complete
 
     def test_issue_opened(self) -> None:
         """Issue opened event should map to issue_detected type."""
-        result = ProactiveNotificationService._map_github_event_type(
-            "issues", "opened"
-        )
+        result = ProactiveNotificationService._map_github_event_type("issues", "opened")
         assert result == ProactiveNotificationType.issue_detected
 
     def test_workflow_failure(self) -> None:
         """Workflow failure should map to ci_failure type."""
-        result = ProactiveNotificationService._map_github_event_type(
-            "workflow_run", "failure"
-        )
+        result = ProactiveNotificationService._map_github_event_type("workflow_run", "failure")
         assert result == ProactiveNotificationType.ci_failure
 
     def test_push_event(self) -> None:
         """Push event should map to task_complete type."""
-        result = ProactiveNotificationService._map_github_event_type(
-            "push", "push"
-        )
+        result = ProactiveNotificationService._map_github_event_type("push", "push")
         assert result == ProactiveNotificationType.task_complete
 
     def test_unknown_event(self) -> None:
         """Unknown event should default to issue_detected."""
-        result = ProactiveNotificationService._map_github_event_type(
-            "unknown", "unknown"
-        )
+        result = ProactiveNotificationService._map_github_event_type("unknown", "unknown")
         assert result == ProactiveNotificationType.issue_detected
 
 
@@ -86,9 +74,7 @@ class TestCreateNotificationDedup:
             mock_notification.read_at = None
             mock_notification.created_at = MagicMock()
 
-            mock_repo.list_for_user = AsyncMock(
-                return_value=([mock_notification], 1)
-            )
+            mock_repo.list_for_user = AsyncMock(return_value=([mock_notification], 1))
 
             payload = CreateProactiveNotification(
                 user_id=uuid4(),

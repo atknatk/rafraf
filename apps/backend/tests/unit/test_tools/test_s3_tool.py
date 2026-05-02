@@ -110,9 +110,7 @@ class TestExecuteMissingParams:
     async def test_unknown_action_returns_error(self) -> None:
         """execute should return error for unknown action."""
         tool = S3Tool()
-        result = await tool.execute(
-            {"action": "unknown_action", "project_id": "proj-1"}
-        )
+        result = await tool.execute({"action": "unknown_action", "project_id": "proj-1"})
         parsed = json.loads(result)
         assert "error" in parsed
         assert "Bilinmeyen" in parsed["error"]
@@ -424,9 +422,13 @@ class TestExecutePresignedUrls:
             tool._service,
             "generate_presigned_upload_url",
             new_callable=AsyncMock,
-            return_value={"url": "https://s3.example.com", "key": "k", "method": "PUT",
-                          "content_type": "application/octet-stream",
-                          "expiration_seconds": "7200"},
+            return_value={
+                "url": "https://s3.example.com",
+                "key": "k",
+                "method": "PUT",
+                "content_type": "application/octet-stream",
+                "expiration_seconds": "7200",
+            },
         ) as mock_gen:
             await tool.execute(
                 {
@@ -458,9 +460,7 @@ class TestExecuteErrorHandling:
             new_callable=AsyncMock,
             side_effect=S3ServiceError("Bucket not found", operation="list_files"),
         ):
-            result = await tool.execute(
-                {"action": "list_files", "project_id": "proj-1"}
-            )
+            result = await tool.execute({"action": "list_files", "project_id": "proj-1"})
 
         assert "error" in result
         assert "S3 hatasi" in result
@@ -475,9 +475,7 @@ class TestExecuteErrorHandling:
             new_callable=AsyncMock,
             side_effect=RuntimeError("Unexpected"),
         ):
-            result = await tool.execute(
-                {"action": "list_files", "project_id": "proj-1"}
-            )
+            result = await tool.execute({"action": "list_files", "project_id": "proj-1"})
 
         assert "error" in result
         assert "Beklenmeyen hata" in result

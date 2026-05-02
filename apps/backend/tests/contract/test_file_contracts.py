@@ -30,22 +30,14 @@ class TestRestEndpointRegistration:
         """POST /api/v1/files/upload-url should be registered in the FastAPI app."""
         from app.main import app
 
-        routes = {
-            (r.path, ",".join(r.methods or []))
-            for r in app.routes
-            if hasattr(r, "methods")
-        }
+        routes = {(r.path, ",".join(r.methods or [])) for r in app.routes if hasattr(r, "methods")}
         assert ("/api/v1/files/upload-url", "POST") in routes
 
     def test_download_url_endpoint_registered(self) -> None:
         """POST /api/v1/files/download-url should be registered in the FastAPI app."""
         from app.main import app
 
-        routes = {
-            (r.path, ",".join(r.methods or []))
-            for r in app.routes
-            if hasattr(r, "methods")
-        }
+        routes = {(r.path, ",".join(r.methods or [])) for r in app.routes if hasattr(r, "methods")}
         assert ("/api/v1/files/download-url", "POST") in routes
 
 
@@ -56,7 +48,8 @@ class TestRestContractRequestFields:
         """FileUploadURLRequest should have all contract-required fields."""
         contract = _load_contract()
         upload_endpoint = next(
-            ep for ep in contract["endpoints"]  # type: ignore[union-attr]
+            ep
+            for ep in contract["endpoints"]  # type: ignore[union-attr]
             if ep["method"] == "POST" and ep["path"] == "/api/v1/files/upload-url"
         )
 
@@ -70,7 +63,8 @@ class TestRestContractRequestFields:
         """FileDownloadURLRequest should have all contract-required fields."""
         contract = _load_contract()
         download_endpoint = next(
-            ep for ep in contract["endpoints"]  # type: ignore[union-attr]
+            ep
+            for ep in contract["endpoints"]  # type: ignore[union-attr]
             if ep["method"] == "POST" and ep["path"] == "/api/v1/files/download-url"
         )
 
@@ -88,7 +82,8 @@ class TestRestContractResponseFields:
         """FileUploadURLResponse should have all contract-required fields."""
         contract = _load_contract()
         upload_endpoint = next(
-            ep for ep in contract["endpoints"]  # type: ignore[union-attr]
+            ep
+            for ep in contract["endpoints"]  # type: ignore[union-attr]
             if ep["method"] == "POST" and ep["path"] == "/api/v1/files/upload-url"
         )
 
@@ -102,7 +97,8 @@ class TestRestContractResponseFields:
         """FileDownloadURLResponse should have all contract-required fields."""
         contract = _load_contract()
         download_endpoint = next(
-            ep for ep in contract["endpoints"]  # type: ignore[union-attr]
+            ep
+            for ep in contract["endpoints"]  # type: ignore[union-attr]
             if ep["method"] == "POST" and ep["path"] == "/api/v1/files/download-url"
         )
 
@@ -116,7 +112,8 @@ class TestRestContractResponseFields:
         """FileUploadURLRequest fields should match contract requestBody properties."""
         contract = _load_contract()
         upload_endpoint = next(
-            ep for ep in contract["endpoints"]  # type: ignore[union-attr]
+            ep
+            for ep in contract["endpoints"]  # type: ignore[union-attr]
             if ep["method"] == "POST" and ep["path"] == "/api/v1/files/upload-url"
         )
 
@@ -131,7 +128,8 @@ class TestRestContractResponseFields:
         """FileDownloadURLRequest fields should match contract requestBody properties."""
         contract = _load_contract()
         download_endpoint = next(
-            ep for ep in contract["endpoints"]  # type: ignore[union-attr]
+            ep
+            for ep in contract["endpoints"]  # type: ignore[union-attr]
             if ep["method"] == "POST" and ep["path"] == "/api/v1/files/download-url"
         )
 

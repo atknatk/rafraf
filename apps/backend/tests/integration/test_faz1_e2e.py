@@ -772,9 +772,7 @@ async def test_e2e_three_subagent_spawn_to_ios(
     #    watcher events get a backend handler in T2.x).
     for ev in session_events:
         if ev.get("type") in {"event.session.title", "event.session.pr_opened"}:
-            await _add_session_title_and_pr_handlers(
-                claude_stream_manager, user_id, ev
-            )
+            await _add_session_title_and_pr_handlers(claude_stream_manager, user_id, ev)
 
     # 7. Broadcast the usage.report — this is the multi-user fan-out path.
     sent_users = await _broadcast_usage_report(
@@ -835,9 +833,7 @@ async def test_e2e_three_subagent_spawn_to_ios(
 
     # ---- 3. Two SUBAGENT_PROGRESS events for in-flight subagents. ----
     progress_msgs = _filter_by_type(messages, MessageType.SUBAGENT_PROGRESS)
-    assert len(progress_msgs) == 2, (
-        f"expected 2 progress events, got {len(progress_msgs)}"
-    )
+    assert len(progress_msgs) == 2, f"expected 2 progress events, got {len(progress_msgs)}"
     progress_task_ids = sorted(m["content"]["task_id"] for m in progress_msgs)
     assert progress_task_ids == ["t1", "t2"]
     for m in progress_msgs:
@@ -847,9 +843,7 @@ async def test_e2e_three_subagent_spawn_to_ios(
 
     # ---- 4. Three SUBAGENT_COMPLETED events: 2 completed + 1 failed. ----
     completed_msgs = _filter_by_type(messages, MessageType.SUBAGENT_COMPLETED)
-    assert len(completed_msgs) == 3, (
-        f"expected 3 completion events, got {len(completed_msgs)}"
-    )
+    assert len(completed_msgs) == 3, f"expected 3 completion events, got {len(completed_msgs)}"
     statuses = sorted(m["content"]["status"] for m in completed_msgs)
     assert statuses == ["completed", "completed", "failed"]
     by_task_done = {m["content"]["task_id"]: m["content"] for m in completed_msgs}
@@ -905,9 +899,7 @@ async def test_e2e_three_subagent_spawn_to_ios(
     assert usage["reported_at"] == 1777654200
 
     # ---- 9. Subagent persistence — three rows in the (mock) DB. ----
-    spawned_keys = sorted(
-        (u["session_id"], u["task_id"]) for u in subagent_repo.upserts
-    )
+    spawned_keys = sorted((u["session_id"], u["task_id"]) for u in subagent_repo.upserts)
     assert spawned_keys == [
         (bridge_session_id, "t1"),
         (bridge_session_id, "t2"),
@@ -921,9 +913,7 @@ async def test_e2e_three_subagent_spawn_to_ios(
     assert (bridge_session_id, "t2", "completed") in update_keys
     assert (bridge_session_id, "t3", "failed") in update_keys
     # Persisted token + duration data sanity-check.
-    by_task_persisted = {
-        u["task_id"]: u for u in subagent_repo.updates
-    }
+    by_task_persisted = {u["task_id"]: u for u in subagent_repo.updates}
     assert by_task_persisted["t1"]["total_tokens"] == 1234
     assert by_task_persisted["t1"]["duration_ms"] == 1800
     assert by_task_persisted["t2"]["total_tokens"] == 4567
@@ -976,9 +966,7 @@ async def test_e2e_h1_subscriber_registered_before_send(
 
     original_send = bridge_registry.send_to_bridge
 
-    async def _send_with_inline_dispatch(
-        host_id: str, env: dict[str, object]
-    ) -> bool:
+    async def _send_with_inline_dispatch(host_id: str, env: dict[str, object]) -> bool:
         # Send + immediately push the init event so it lands BEFORE the
         # runner's consumer awakens. Pre-T1.1, this would have been
         # dropped at dispatch_event because the queue didn't exist yet.
@@ -1273,12 +1261,8 @@ async def test_e2e_usage_report_multicasts_across_user_devices(
     user_id = "user-multidev"
     ws_phone = _make_ios_websocket()
     ws_ipad = _make_ios_websocket()
-    await ios_manager.connect(
-        websocket=ws_phone, user_id=user_id, session_id="phone"
-    )
-    await ios_manager.connect(
-        websocket=ws_ipad, user_id=user_id, session_id="ipad"
-    )
+    await ios_manager.connect(websocket=ws_phone, user_id=user_id, session_id="phone")
+    await ios_manager.connect(websocket=ws_ipad, user_id=user_id, session_id="ipad")
 
     envelope = {
         "type": "event.usage.report",
@@ -1298,9 +1282,7 @@ async def test_e2e_usage_report_multicasts_across_user_devices(
     # 2 devices for 1 user → forwarder reports 2 sessions reached.
     assert delivered == 2
     for ws in (ws_phone, ws_ipad):
-        usage_msgs = _filter_by_type(
-            _captured_messages(ws), MessageType.USAGE_REPORT
-        )
+        usage_msgs = _filter_by_type(_captured_messages(ws), MessageType.USAGE_REPORT)
         assert len(usage_msgs) == 1
         assert usage_msgs[0]["content"]["five_hour_pct"] == 50
 

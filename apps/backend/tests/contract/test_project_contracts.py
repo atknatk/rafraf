@@ -29,11 +29,7 @@ class TestRestEndpointRegistration:
         """GET /api/v1/projects should be registered in the FastAPI app."""
         from app.main import app
 
-        routes = {
-            (r.path, ",".join(r.methods or []))
-            for r in app.routes
-            if hasattr(r, "methods")
-        }
+        routes = {(r.path, ",".join(r.methods or [])) for r in app.routes if hasattr(r, "methods")}
         assert ("/api/v1/projects", "GET") in routes
 
     def test_get_project_endpoint_registered(self) -> None:
@@ -51,7 +47,8 @@ class TestRestContractResponseFields:
         """ProjectListResponse should have all contract-required fields."""
         contract = _load_contract()
         list_endpoint = next(
-            ep for ep in contract["endpoints"]  # type: ignore[union-attr]
+            ep
+            for ep in contract["endpoints"]  # type: ignore[union-attr]
             if ep["method"] == "GET" and ep["path"] == "/api/v1/projects"
         )
 
@@ -65,7 +62,8 @@ class TestRestContractResponseFields:
         """ProjectDetailResponse should have all contract-required fields."""
         contract = _load_contract()
         detail_endpoint = next(
-            ep for ep in contract["endpoints"]  # type: ignore[union-attr]
+            ep
+            for ep in contract["endpoints"]  # type: ignore[union-attr]
             if ep["method"] == "GET" and ep["path"] == "/api/v1/projects/{project_id}"
         )
 
@@ -89,7 +87,8 @@ class TestRestContractResponseFields:
         """Contract query params should be accepted by the endpoint."""
         contract = _load_contract()
         list_endpoint = next(
-            ep for ep in contract["endpoints"]  # type: ignore[union-attr]
+            ep
+            for ep in contract["endpoints"]  # type: ignore[union-attr]
             if ep["method"] == "GET" and ep["path"] == "/api/v1/projects"
         )
 
@@ -105,12 +104,11 @@ class TestContractStatusValues:
         """Project status values should match contract enum."""
         contract = _load_contract()
         detail_endpoint = next(
-            ep for ep in contract["endpoints"]  # type: ignore[union-attr]
+            ep
+            for ep in contract["endpoints"]  # type: ignore[union-attr]
             if ep["path"] == "/api/v1/projects/{project_id}"
         )
-        contract_statuses = set(
-            detail_endpoint["responseBody"]["properties"]["status"]["enum"]
-        )
+        contract_statuses = set(detail_endpoint["responseBody"]["properties"]["status"]["enum"])
 
         from app.schemas.projects import ProjectStatus
 

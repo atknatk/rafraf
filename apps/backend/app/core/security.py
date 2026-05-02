@@ -328,10 +328,7 @@ def _decode_token(token: str, *, expected_type: str) -> dict[str, object]:
             # log when (a) operator explicitly configured a legacy secret,
             # (b) we are past the grace deadline, and (c) the token is HS256.
             settings = get_settings()
-            if (
-                settings.jwt_legacy_hs256_secret is not None
-                and not _hs256_grace_active()
-            ):
+            if settings.jwt_legacy_hs256_secret is not None and not _hs256_grace_active():
                 try:
                     alg = jwt.get_unverified_header(token).get("alg")
                 except JWTError:

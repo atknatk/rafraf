@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import subprocess
 from pathlib import Path
-
-import pytest
 
 from app.services.git_context_service import build_git_context
 

@@ -2,8 +2,6 @@
 
 import asyncio
 
-import pytest
-
 from app.schemas.agent import (
     AgentCapability,
     AgentHeartbeatPayload,
@@ -83,9 +81,7 @@ class TestAgentHeartbeat:
     async def test_heartbeat_updates_status(self) -> None:
         service = BridgeRegistryService()
         await service.register_agent(_make_register_payload(), "conn-1")
-        found = await service.process_heartbeat(
-            _make_heartbeat_payload(status=AgentStatus.BUSY)
-        )
+        found = await service.process_heartbeat(_make_heartbeat_payload(status=AgentStatus.BUSY))
         assert found is True
         detail = await service.get_agent("macbook-pro")
         assert detail is not None

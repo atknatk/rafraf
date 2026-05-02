@@ -5,13 +5,11 @@ All tests should FAIL until implementation is written (TDD red phase).
 """
 
 import time
-import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.services.live_activity_push_service import LiveActivityPushService
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -433,12 +431,14 @@ class TestInvalidTokenHandling:
 
         # Reset mock — next call should NOT reach _send_notification
         mock_send_2 = AsyncMock(return_value=True)
-        with patch.object(service, "_send_notification", mock_send_2):
-            with patch("time.time", return_value=time.time() + 31):
-                result = await service.send_live_activity_update(
-                    push_token=SAMPLE_PUSH_TOKEN,
-                    content_state=_make_content_state(),
-                )
+        with (
+            patch.object(service, "_send_notification", mock_send_2),
+            patch("time.time", return_value=time.time() + 31),
+        ):
+            result = await service.send_live_activity_update(
+                push_token=SAMPLE_PUSH_TOKEN,
+                content_state=_make_content_state(),
+            )
 
         assert result is False
         mock_send_2.assert_not_called()

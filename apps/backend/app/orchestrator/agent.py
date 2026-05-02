@@ -49,9 +49,7 @@ ProgressCallback = Callable[[str, int, int], Coroutine[object, object, None]]
 # the contract this way keeps :class:`OrchestratorAgent` decoupled from
 # ``app.services.claude_stream_manager`` (which would create a circular
 # import).
-RateLimitForwarder = Callable[
-    [str, dict[str, object]], Coroutine[object, object, None]
-]
+RateLimitForwarder = Callable[[str, dict[str, object]], Coroutine[object, object, None]]
 
 
 class OrchestratorError(Exception):

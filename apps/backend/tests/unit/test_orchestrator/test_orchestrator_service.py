@@ -30,7 +30,7 @@ class TestOrchestratorService:
     @patch("app.services.orchestrator_service.get_tool_registry")
     async def test_process_user_message_success(
         self,
-        mock_get_registry: MagicMock,
+        _mock_get_registry: MagicMock,  # noqa: PT019
         mock_agent_cls: MagicMock,
     ) -> None:
         """Successful message processing should return a response."""
@@ -61,7 +61,7 @@ class TestOrchestratorService:
     @patch("app.services.orchestrator_service.get_tool_registry")
     async def test_process_user_message_with_project_id(
         self,
-        mock_get_registry: MagicMock,
+        _mock_get_registry: MagicMock,  # noqa: PT019
         mock_agent_cls: MagicMock,
     ) -> None:
         """Project ID should be passed to the orchestrator."""
@@ -95,7 +95,7 @@ class TestOrchestratorService:
     @patch("app.services.orchestrator_service.get_tool_registry")
     async def test_process_user_message_max_iterations_handled(
         self,
-        mock_get_registry: MagicMock,
+        _mock_get_registry: MagicMock,  # noqa: PT019
         mock_agent_cls: MagicMock,
     ) -> None:
         """MaxIterationsReachedError should be handled gracefully."""
@@ -103,9 +103,7 @@ class TestOrchestratorService:
 
         mock_agent = MagicMock()
         mock_agent_cls.return_value = mock_agent
-        mock_agent.process_message = AsyncMock(
-            side_effect=MaxIterationsReachedError()
-        )
+        mock_agent.process_message = AsyncMock(side_effect=MaxIterationsReachedError())
 
         service = OrchestratorService()
         response = await service.process_user_message(
@@ -121,7 +119,7 @@ class TestOrchestratorService:
     @patch("app.services.orchestrator_service.get_tool_registry")
     async def test_process_user_message_api_error_handled(
         self,
-        mock_get_registry: MagicMock,
+        _mock_get_registry: MagicMock,  # noqa: PT019
         mock_agent_cls: MagicMock,
     ) -> None:
         """ClaudeAPIError should be handled gracefully."""
@@ -129,9 +127,7 @@ class TestOrchestratorService:
 
         mock_agent = MagicMock()
         mock_agent_cls.return_value = mock_agent
-        mock_agent.process_message = AsyncMock(
-            side_effect=ClaudeAPIError("API down")
-        )
+        mock_agent.process_message = AsyncMock(side_effect=ClaudeAPIError("API down"))
 
         service = OrchestratorService()
         response = await service.process_user_message(
@@ -147,7 +143,7 @@ class TestOrchestratorService:
     @patch("app.services.orchestrator_service.get_tool_registry")
     async def test_clear_session(
         self,
-        mock_get_registry: MagicMock,
+        _mock_get_registry: MagicMock,  # noqa: PT019
         mock_agent_cls: MagicMock,
     ) -> None:
         """clear_session should delegate to the agent."""
@@ -163,7 +159,7 @@ class TestOrchestratorService:
     @patch("app.services.orchestrator_service.get_tool_registry")
     async def test_progress_callback_forwarded(
         self,
-        mock_get_registry: MagicMock,
+        _mock_get_registry: MagicMock,  # noqa: PT019
         mock_agent_cls: MagicMock,
     ) -> None:
         """Progress callback should be forwarded to the agent."""

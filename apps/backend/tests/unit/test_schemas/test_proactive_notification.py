@@ -1,6 +1,6 @@
 """Unit tests for proactive notification Pydantic schemas."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -49,7 +49,7 @@ class TestProactiveNotificationResponse:
     def test_valid_response(self) -> None:
         """Should accept valid notification response."""
         uid = uuid4()
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         resp = ProactiveNotificationResponse(
             id=uid,
             type=ProactiveNotificationType.pr_merged,
@@ -71,7 +71,7 @@ class TestProactiveNotificationResponse:
     def test_response_with_optional_fields(self) -> None:
         """Should accept all optional fields."""
         uid = uuid4()
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         resp = ProactiveNotificationResponse(
             id=uid,
             type=ProactiveNotificationType.ci_failure,
@@ -95,7 +95,7 @@ class TestProactiveNotificationResponse:
     def test_response_is_frozen(self) -> None:
         """Should be immutable (frozen)."""
         uid = uuid4()
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         resp = ProactiveNotificationResponse(
             id=uid,
             type=ProactiveNotificationType.suggestion,
@@ -116,7 +116,7 @@ class TestProactiveNotificationListResponse:
     def test_valid_list_response(self) -> None:
         """Should accept valid list with pagination info."""
         uid = uuid4()
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         notification = ProactiveNotificationResponse(
             id=uid,
             type=ProactiveNotificationType.task_complete,

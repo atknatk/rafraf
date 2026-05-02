@@ -16,10 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.task import TaskStatus
 
-
 # ---------------------------------------------------------------------------
 # Fixtures & helpers
 # ---------------------------------------------------------------------------
+
 
 def _fake_task(
     task_id: uuid.UUID | None = None,
@@ -61,7 +61,7 @@ def _fake_task(
     return t
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_db() -> AsyncMock:
     """Mock AsyncSession."""
     session = AsyncMock(spec=AsyncSession)
@@ -69,7 +69,7 @@ def mock_db() -> AsyncMock:
     return session
 
 
-@pytest.fixture()
+@pytest.fixture
 def auth_headers() -> dict[str, str]:
     """Return a valid JWT Authorization header for testing.
 
@@ -84,8 +84,8 @@ def _make_client(
     current_user_id: uuid.UUID | None = None,
 ) -> TestClient:
     """Create a TestClient with mocked DB and auth dependencies."""
+    from app.api.deps import get_current_user, get_db
     from app.main import app
-    from app.api.deps import get_db, get_current_user
 
     async def override_get_db():  # type: ignore[no-untyped-def]
         yield mock_db
@@ -104,12 +104,14 @@ def _make_client(
 
 def _cleanup_overrides() -> None:
     from app.main import app
+
     app.dependency_overrides.clear()
 
 
 # ---------------------------------------------------------------------------
 # POST /api/v1/tasks
 # ---------------------------------------------------------------------------
+
 
 class TestCreateTask:
     """Tests for POST /api/v1/tasks."""
@@ -120,8 +122,8 @@ class TestCreateTask:
 
         with patch(
             "app.api.routes.tasks.TaskOrchestratorService",
-        ) as MockService:
-            instance = MockService.return_value
+        ) as mock_service:
+            instance = mock_service.return_value
             instance.create_task = AsyncMock(return_value=task)
 
             client = _make_client(mock_db)
@@ -149,6 +151,7 @@ class TestCreateTask:
 # GET /api/v1/tasks/active
 # ---------------------------------------------------------------------------
 
+
 class TestGetActiveTasks:
     """Tests for GET /api/v1/tasks/active."""
 
@@ -161,8 +164,8 @@ class TestGetActiveTasks:
 
         with patch(
             "app.api.routes.tasks.TaskOrchestratorService",
-        ) as MockService:
-            instance = MockService.return_value
+        ) as mock_service:
+            instance = mock_service.return_value
             instance.get_active_tasks = AsyncMock(return_value=tasks)
 
             client = _make_client(mock_db)
@@ -184,6 +187,7 @@ class TestGetActiveTasks:
 # GET /api/v1/tasks/{id}
 # ---------------------------------------------------------------------------
 
+
 class TestGetTaskDetail:
     """Tests for GET /api/v1/tasks/{id}."""
 
@@ -196,8 +200,8 @@ class TestGetTaskDetail:
 
         with patch(
             "app.api.routes.tasks.TaskOrchestratorService",
-        ) as MockService:
-            instance = MockService.return_value
+        ) as mock_service:
+            instance = mock_service.return_value
             instance.get_task = AsyncMock(return_value=task)
 
             client = _make_client(mock_db, current_user_id=user_id)
@@ -220,8 +224,8 @@ class TestGetTaskDetail:
 
         with patch(
             "app.api.routes.tasks.TaskOrchestratorService",
-        ) as MockService:
-            instance = MockService.return_value
+        ) as mock_service:
+            instance = mock_service.return_value
             instance.get_task = AsyncMock(return_value=None)
 
             client = _make_client(mock_db)
@@ -240,6 +244,7 @@ class TestGetTaskDetail:
 # POST /api/v1/tasks/{id}/cancel
 # ---------------------------------------------------------------------------
 
+
 class TestCancelTask:
     """Tests for POST /api/v1/tasks/{id}/cancel."""
 
@@ -254,8 +259,8 @@ class TestCancelTask:
 
         with patch(
             "app.api.routes.tasks.TaskOrchestratorService",
-        ) as MockService:
-            instance = MockService.return_value
+        ) as mock_service:
+            instance = mock_service.return_value
             instance.get_task = AsyncMock(return_value=existing_task)
             instance.cancel_task = AsyncMock(return_value=cancelled_task)
 
@@ -272,7 +277,9 @@ class TestCancelTask:
         data = response.json()
         assert data["status"] == "cancelled"
 
-    def test_cancel_completed_task_409(self, mock_db: AsyncMock, auth_headers: dict[str, str]) -> None:
+    def test_cancel_completed_task_409(
+        self, mock_db: AsyncMock, auth_headers: dict[str, str]
+    ) -> None:
         """Should return 409 when trying to cancel a completed task."""
         task_id = uuid.uuid4()
         user_id = uuid.uuid4()
@@ -281,8 +288,8 @@ class TestCancelTask:
 
         with patch(
             "app.api.routes.tasks.TaskOrchestratorService",
-        ) as MockService:
-            instance = MockService.return_value
+        ) as mock_service:
+            instance = mock_service.return_value
             instance.get_task = AsyncMock(return_value=existing_task)
             instance.cancel_task = AsyncMock(
                 side_effect=ValueError("Cannot cancel a completed task"),
@@ -304,11 +311,14 @@ class TestCancelTask:
 # PATCH /api/v1/tasks/{id}/live-activity
 # ---------------------------------------------------------------------------
 
+
 class TestRegisterLiveActivityToken:
     """Tests for PATCH /api/v1/tasks/{id}/live-activity."""
 
     def test_register_live_activity_token_200(
-        self, mock_db: AsyncMock, auth_headers: dict[str, str],
+        self,
+        mock_db: AsyncMock,
+        auth_headers: dict[str, str],
     ) -> None:
         """Should save a push token and return 200."""
         task_id = uuid.uuid4()
@@ -325,8 +335,8 @@ class TestRegisterLiveActivityToken:
 
         with patch(
             "app.api.routes.tasks.TaskOrchestratorService",
-        ) as MockService:
-            instance = MockService.return_value
+        ) as mock_service:
+            instance = mock_service.return_value
             instance.get_task = AsyncMock(return_value=existing_task)
             instance.register_live_activity_token = AsyncMock(return_value=updated_task)
 
@@ -349,11 +359,14 @@ class TestRegisterLiveActivityToken:
 # GET /api/v1/tasks/history
 # ---------------------------------------------------------------------------
 
+
 class TestTaskHistory:
     """Tests for GET /api/v1/tasks/history (paginated)."""
 
     def test_task_history_paginated(
-        self, mock_db: AsyncMock, auth_headers: dict[str, str],
+        self,
+        mock_db: AsyncMock,
+        auth_headers: dict[str, str],
     ) -> None:
         """Should return paginated completed/failed/cancelled tasks."""
         tasks = [
@@ -363,8 +376,8 @@ class TestTaskHistory:
 
         with patch(
             "app.api.routes.tasks.TaskOrchestratorService",
-        ) as MockService:
-            instance = MockService.return_value
+        ) as mock_service:
+            instance = mock_service.return_value
             instance.get_task_history = AsyncMock(
                 return_value={"tasks": tasks, "total": 2, "page": 1, "page_size": 20},
             )
@@ -389,13 +402,14 @@ class TestTaskHistory:
 # Authorization
 # ---------------------------------------------------------------------------
 
+
 class TestAuthorization:
     """Tests for JWT authorization enforcement."""
 
     def test_unauthorized_401(self, mock_db: AsyncMock) -> None:
         """Should return 401 when no JWT token is provided."""
-        from app.main import app
         from app.api.deps import get_db
+        from app.main import app
 
         async def override_get_db():  # type: ignore[no-untyped-def]
             yield mock_db

@@ -3,9 +3,7 @@
 import json
 from unittest.mock import AsyncMock, patch
 
-import pytest
-
-from app.schemas.github import GitHubBranch, GitHubCommit, GitHubIssue, GitHubRepoInfo
+from app.schemas.github import GitHubCommit, GitHubIssue, GitHubRepoInfo
 from app.tools.github_tool import GitHubTool
 
 
@@ -90,9 +88,7 @@ class TestExecute:
         """execute should return error for unknown action."""
         tool = GitHubTool()
         with patch.object(tool._service, "list_issues"):
-            result = await tool.execute(
-                {"action": "unknown_action", "repo": "owner/repo"}
-            )
+            result = await tool.execute({"action": "unknown_action", "repo": "owner/repo"})
         parsed = json.loads(result)
         assert "error" in parsed
         assert "Bilinmeyen" in parsed["error"]
@@ -135,9 +131,7 @@ class TestExecute:
     async def test_list_commits_delegates_to_service(self) -> None:
         """execute list_commits should call service.list_commits."""
         tool = GitHubTool()
-        mock_commits = [
-            GitHubCommit(sha="abc", message="Fix", author="dev", date="2026-01-01")
-        ]
+        mock_commits = [GitHubCommit(sha="abc", message="Fix", author="dev", date="2026-01-01")]
 
         with patch.object(
             tool._service, "list_commits", new_callable=AsyncMock, return_value=mock_commits
@@ -166,9 +160,7 @@ class TestExecute:
         with patch.object(
             tool._service, "get_repo_info", new_callable=AsyncMock, return_value=mock_info
         ):
-            result = await tool.execute(
-                {"action": "get_repo_info", "repo": "owner/repo"}
-            )
+            result = await tool.execute({"action": "get_repo_info", "repo": "owner/repo"})
 
         parsed = json.loads(result)
         assert parsed["full_name"] == "owner/repo"
@@ -185,9 +177,7 @@ class TestExecute:
             new_callable=AsyncMock,
             side_effect=GitHubServiceError("Not found", status_code=404),
         ):
-            result = await tool.execute(
-                {"action": "list_issues", "repo": "owner/repo"}
-            )
+            result = await tool.execute({"action": "list_issues", "repo": "owner/repo"})
 
         assert "error" in result
         assert "GitHub API hatasi" in result

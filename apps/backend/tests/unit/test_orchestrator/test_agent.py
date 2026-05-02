@@ -101,9 +101,7 @@ class TestOrchestratorAgent:
         mock_settings.return_value.claude_default_model = "claude-sonnet-4-5-20250929"
         mock_client = MagicMock()
         mock_anthropic_cls.return_value = mock_client
-        mock_client.messages.create = AsyncMock(
-            return_value=_make_text_response("Merhaba!")
-        )
+        mock_client.messages.create = AsyncMock(return_value=_make_text_response("Merhaba!"))
 
         registry = ToolRegistry()
         agent = OrchestratorAgent(registry)
@@ -312,9 +310,7 @@ class TestOrchestratorAgent:
         mock_settings.return_value.claude_default_model = "claude-sonnet-4-5-20250929"
         mock_client = MagicMock()
         mock_anthropic_cls.return_value = mock_client
-        mock_client.messages.create = AsyncMock(
-            return_value=_make_text_response()
-        )
+        mock_client.messages.create = AsyncMock(return_value=_make_text_response())
 
         registry = ToolRegistry()
         agent = OrchestratorAgent(registry)
@@ -340,7 +336,7 @@ class TestOrchestratorAgent:
         self,
         mock_anthropic_cls: MagicMock,
         mock_settings: MagicMock,
-        _mock_sleep: AsyncMock,
+        _mock_sleep: AsyncMock,  # noqa: PT019
     ) -> None:
         """Rate limit errors should trigger retries."""
         import anthropic as anthropic_mod
@@ -384,7 +380,7 @@ class TestOrchestratorAgent:
         self,
         mock_anthropic_cls: MagicMock,
         mock_settings: MagicMock,
-        _mock_sleep: AsyncMock,
+        _mock_sleep: AsyncMock,  # noqa: PT019
     ) -> None:
         """Exhausting all retries should raise ClaudeAPIError."""
         import anthropic as anthropic_mod

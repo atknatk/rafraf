@@ -394,9 +394,7 @@ class TestGeneratePresignedUploadUrl:
         service = S3Service()
 
         mock_s3 = AsyncMock()
-        mock_s3.generate_presigned_url = AsyncMock(
-            return_value="https://s3.example.com/presigned"
-        )
+        mock_s3.generate_presigned_url = AsyncMock(return_value="https://s3.example.com/presigned")
         mock_s3.__aenter__ = AsyncMock(return_value=mock_s3)
         mock_s3.__aexit__ = AsyncMock(return_value=False)
 
@@ -463,9 +461,7 @@ class TestGeneratePresignedDownloadUrl:
         mock_session.client = MagicMock(return_value=mock_s3)
 
         with patch.object(service, "_get_session", return_value=mock_session):
-            result = await service.generate_presigned_download_url(
-                "proj-1", "download.pdf"
-            )
+            result = await service.generate_presigned_download_url("proj-1", "download.pdf")
 
         assert result["url"] == "https://s3.example.com/presigned-download"
         assert result["key"] == "projects/proj-1/download.pdf"
@@ -477,9 +473,7 @@ class TestGeneratePresignedDownloadUrl:
         service = S3Service()
 
         mock_s3 = AsyncMock()
-        mock_s3.generate_presigned_url = AsyncMock(
-            return_value="https://s3.example.com/presigned"
-        )
+        mock_s3.generate_presigned_url = AsyncMock(return_value="https://s3.example.com/presigned")
         mock_s3.__aenter__ = AsyncMock(return_value=mock_s3)
         mock_s3.__aexit__ = AsyncMock(return_value=False)
 

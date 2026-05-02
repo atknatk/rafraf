@@ -144,14 +144,16 @@ class TestGetProjectById:
         service = ProjectService(mock_session)
         project_id = uuid.uuid4()
 
-        with patch.object(
-            service._repo,
-            "get_by_id",
-            new_callable=AsyncMock,
-            return_value=None,
+        with (
+            patch.object(
+                service._repo,
+                "get_by_id",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            pytest.raises(NotFoundError),
         ):
-            with pytest.raises(NotFoundError):
-                await service.get_project_by_id(project_id)
+            await service.get_project_by_id(project_id)
 
     async def test_get_project_includes_all_fields(self) -> None:
         """Should include all detail fields in response."""

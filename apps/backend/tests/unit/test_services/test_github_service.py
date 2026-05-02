@@ -8,7 +8,6 @@ import httpx
 import pytest
 
 from app.services.github_service import (
-    GitHubRateLimitError,
     GitHubService,
     GitHubServiceError,
     _to_int,
@@ -237,9 +236,7 @@ class TestRateLimitHandling:
         service = GitHubService()
         with patch.object(service, "_get_client") as mock_get:
             mock_client = AsyncMock()
-            mock_client.request = AsyncMock(
-                side_effect=[error_response, success_response]
-            )
+            mock_client.request = AsyncMock(side_effect=[error_response, success_response])
             mock_get.return_value = mock_client
 
             result = await service._request("GET", "/test")

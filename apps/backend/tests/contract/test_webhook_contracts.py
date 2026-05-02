@@ -169,6 +169,7 @@ class TestWebhookContractCompliance:
 
         # Verify actual endpoint returns these fields (override auth)
         from app.api.deps import get_current_user
+
         mock_user = MagicMock()
         mock_user.id = "test-user-id"
         app.dependency_overrides[get_current_user] = lambda: mock_user

@@ -562,6 +562,7 @@ def test_session_pr_opened_message_type_is_registered() -> None:
 # ``render_metrics``) and parse it with the official Prometheus parser so
 # we exercise the same path as the scrape endpoint.
 
+
 def _samples_for(body: str, metric_name: str) -> list:  # type: ignore[type-arg]
     """Return all samples whose name matches ``metric_name``."""
     out: list = []  # type: ignore[type-arg]
@@ -612,19 +613,18 @@ async def test_session_title_emits_storage_metrics(
     await agent_ws_module._handle_session_title(raw, "mac-01")
 
     # Counter incremented exactly once with type=ai-title + bridge_id=mac-01.
-    assert _counter_value(
-        "storage_events_processed_total",
-        {"type": "ai-title", "bridge_id": "mac-01"},
-    ) == 1.0
+    assert (
+        _counter_value(
+            "storage_events_processed_total",
+            {"type": "ai-title", "bridge_id": "mac-01"},
+        )
+        == 1.0
+    )
 
     # Histogram observed at least one sample (lag clamped >= 0).
     body, _ = _metrics.render_metrics()
-    count_samples = _samples_for(
-        body.decode(), "storage_watcher_lag_seconds_count"
-    )
-    matching = [
-        s for s in count_samples if s.labels.get("bridge_id") == "mac-01"
-    ]
+    count_samples = _samples_for(body.decode(), "storage_watcher_lag_seconds_count")
+    matching = [s for s in count_samples if s.labels.get("bridge_id") == "mac-01"]
     assert matching, "expected storage_watcher_lag_seconds count for mac-01"
     assert matching[0].value == 1
 
@@ -651,19 +651,18 @@ async def test_session_title_skips_lag_when_generated_at_omitted(
     await agent_ws_module._handle_session_title(raw, "mac-01")
 
     # Counter still bumps (the event WAS processed).
-    assert _counter_value(
-        "storage_events_processed_total",
-        {"type": "ai-title", "bridge_id": "mac-01"},
-    ) == 1.0
+    assert (
+        _counter_value(
+            "storage_events_processed_total",
+            {"type": "ai-title", "bridge_id": "mac-01"},
+        )
+        == 1.0
+    )
 
     # But no histogram sample.
     body, _ = _metrics.render_metrics()
-    count_samples = _samples_for(
-        body.decode(), "storage_watcher_lag_seconds_count"
-    )
-    matching = [
-        s for s in count_samples if s.labels.get("bridge_id") == "mac-01"
-    ]
+    count_samples = _samples_for(body.decode(), "storage_watcher_lag_seconds_count")
+    matching = [s for s in count_samples if s.labels.get("bridge_id") == "mac-01"]
     assert not matching
 
 
@@ -683,10 +682,13 @@ async def test_session_title_metrics_use_unknown_when_bridge_id_none(
     }
     # Explicitly omit bridge_id (default None).
     await agent_ws_module._handle_session_title(raw)
-    assert _counter_value(
-        "storage_events_processed_total",
-        {"type": "ai-title", "bridge_id": "unknown"},
-    ) == 1.0
+    assert (
+        _counter_value(
+            "storage_events_processed_total",
+            {"type": "ai-title", "bridge_id": "unknown"},
+        )
+        == 1.0
+    )
 
 
 @pytest.mark.asyncio
@@ -706,10 +708,13 @@ async def test_session_title_orphan_does_not_emit_metrics(
         },
     }
     await agent_ws_module._handle_session_title(raw, "mac-01")
-    assert _counter_value(
-        "storage_events_processed_total",
-        {"type": "ai-title", "bridge_id": "mac-01"},
-    ) == 0.0
+    assert (
+        _counter_value(
+            "storage_events_processed_total",
+            {"type": "ai-title", "bridge_id": "mac-01"},
+        )
+        == 0.0
+    )
 
 
 @pytest.mark.asyncio
@@ -732,13 +737,17 @@ async def test_session_pr_opened_emits_storage_metrics(
     }
     await agent_ws_module._handle_session_pr_opened(raw, "mac-02")
 
-    assert _counter_value(
-        "storage_events_processed_total",
-        {"type": "pr-link", "bridge_id": "mac-02"},
-    ) == 1.0
+    assert (
+        _counter_value(
+            "storage_events_processed_total",
+            {"type": "pr-link", "bridge_id": "mac-02"},
+        )
+        == 1.0
+    )
     body, _ = _metrics.render_metrics()
     matching = [
-        s for s in _samples_for(body.decode(), "storage_watcher_lag_seconds_count")
+        s
+        for s in _samples_for(body.decode(), "storage_watcher_lag_seconds_count")
         if s.labels.get("bridge_id") == "mac-02"
     ]
     assert matching
@@ -765,13 +774,17 @@ async def test_usage_report_emits_storage_metrics(
     }
     await agent_ws_module._handle_usage_report(raw, "mac-03")
 
-    assert _counter_value(
-        "storage_events_processed_total",
-        {"type": "usage-report", "bridge_id": "mac-03"},
-    ) == 1.0
+    assert (
+        _counter_value(
+            "storage_events_processed_total",
+            {"type": "usage-report", "bridge_id": "mac-03"},
+        )
+        == 1.0
+    )
     body, _ = _metrics.render_metrics()
     matching = [
-        s for s in _samples_for(body.decode(), "storage_watcher_lag_seconds_count")
+        s
+        for s in _samples_for(body.decode(), "storage_watcher_lag_seconds_count")
         if s.labels.get("bridge_id") == "mac-03"
     ]
     assert matching
@@ -800,13 +813,17 @@ async def test_usage_report_skips_lag_when_reported_at_zero(
     }
     await agent_ws_module._handle_usage_report(raw, "mac-04")
 
-    assert _counter_value(
-        "storage_events_processed_total",
-        {"type": "usage-report", "bridge_id": "mac-04"},
-    ) == 1.0
+    assert (
+        _counter_value(
+            "storage_events_processed_total",
+            {"type": "usage-report", "bridge_id": "mac-04"},
+        )
+        == 1.0
+    )
     body, _ = _metrics.render_metrics()
     matching = [
-        s for s in _samples_for(body.decode(), "storage_watcher_lag_seconds_count")
+        s
+        for s in _samples_for(body.decode(), "storage_watcher_lag_seconds_count")
         if s.labels.get("bridge_id") == "mac-04"
     ]
     assert not matching

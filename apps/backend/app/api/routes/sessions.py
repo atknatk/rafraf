@@ -115,9 +115,7 @@ async def get_cost_summary(
                     cost_updated_at=row.cost_updated_at,
                     total_input_tokens=in_tok,
                     total_output_tokens=out_tok,
-                    total_tokens=(
-                        in_tok + out_tok + cache_create + cache_read
-                    ),
+                    total_tokens=(in_tok + out_tok + cache_create + cache_read),
                 )
             )
 

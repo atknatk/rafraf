@@ -1,7 +1,7 @@
 """Unit tests for BackupService."""
 
 import gzip
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -32,9 +32,7 @@ class TestParseDbUrl:
         """Should default to port 5432 when not specified."""
         service = BackupService()
         with patch.object(service, "_settings") as mock_settings:
-            mock_settings.database_url = (
-                "postgresql+asyncpg://user:pass@localhost/testdb"
-            )
+            mock_settings.database_url = "postgresql+asyncpg://user:pass@localhost/testdb"
             result = service._parse_db_url()
 
         assert result["host"] == "localhost"
@@ -108,13 +106,17 @@ class TestCreatePostgresBackup:
         service._tmp_dir = tmp_path
 
         with (
-            patch.object(service, "_parse_db_url", return_value={
-                "host": "localhost",
-                "port": "5432",
-                "user": "postgres",
-                "password": "secret",
-                "dbname": "testdb",
-            }),
+            patch.object(
+                service,
+                "_parse_db_url",
+                return_value={
+                    "host": "localhost",
+                    "port": "5432",
+                    "user": "postgres",
+                    "password": "secret",
+                    "dbname": "testdb",
+                },
+            ),
             patch("asyncio.create_subprocess_exec") as mock_exec,
         ):
             # Mock pg_dump process
@@ -142,20 +144,23 @@ class TestCreatePostgresBackup:
             mock_session = MagicMock()
             mock_session.client = MagicMock(return_value=mock_s3)
 
-            with patch.object(service._s3_service, "_get_session", return_value=mock_session):
+            with (
+                patch.object(service._s3_service, "_get_session", return_value=mock_session),
+                patch.object(
+                    service,
+                    "_gzip_compress",
+                    new_callable=AsyncMock,
+                ) as mock_compress,
+            ):
                 # We need to handle the fact that pg_dump creates the file
                 # Since our mock doesn't actually create it, we need to patch _gzip_compress
-                with patch.object(
-                    service, "_gzip_compress",
-                    new_callable=AsyncMock,
-                ) as mock_compress:
-                    # Create a fake gz file when compress is called
-                    async def fake_compress(source: Path, dest: Path) -> None:
-                        dest.write_bytes(gzip.compress(b"FAKE_DATA"))
+                # Create a fake gz file when compress is called
+                async def fake_compress(_source: Path, dest: Path) -> None:
+                    dest.write_bytes(gzip.compress(b"FAKE_DATA"))
 
-                    mock_compress.side_effect = fake_compress
+                mock_compress.side_effect = fake_compress
 
-                    result = await service.create_postgres_backup()
+                result = await service.create_postgres_backup()
 
         assert result["status"] == "success"
         assert result["backup_type"] == "postgres"
@@ -169,19 +174,21 @@ class TestCreatePostgresBackup:
         service._tmp_dir = tmp_path
 
         with (
-            patch.object(service, "_parse_db_url", return_value={
-                "host": "localhost",
-                "port": "5432",
-                "user": "postgres",
-                "password": "secret",
-                "dbname": "testdb",
-            }),
+            patch.object(
+                service,
+                "_parse_db_url",
+                return_value={
+                    "host": "localhost",
+                    "port": "5432",
+                    "user": "postgres",
+                    "password": "secret",
+                    "dbname": "testdb",
+                },
+            ),
             patch("asyncio.create_subprocess_exec") as mock_exec,
         ):
             mock_process = AsyncMock()
-            mock_process.communicate = AsyncMock(
-                return_value=(b"", b"pg_dump: connection refused")
-            )
+            mock_process.communicate = AsyncMock(return_value=(b"", b"pg_dump: connection refused"))
             mock_process.returncode = 1
             mock_exec.return_value = mock_process
 
@@ -200,15 +207,17 @@ class TestListBackups:
         service = BackupService()
 
         mock_s3 = AsyncMock()
-        mock_s3.list_objects_v2 = AsyncMock(return_value={
-            "Contents": [
-                {
-                    "Key": "backups/postgres/postgres_2026-03-13.dump.gz",
-                    "Size": 1024,
-                    "LastModified": datetime(2026, 3, 13, tzinfo=timezone.utc),
-                },
-            ]
-        })
+        mock_s3.list_objects_v2 = AsyncMock(
+            return_value={
+                "Contents": [
+                    {
+                        "Key": "backups/postgres/postgres_2026-03-13.dump.gz",
+                        "Size": 1024,
+                        "LastModified": datetime(2026, 3, 13, tzinfo=UTC),
+                    },
+                ]
+            }
+        )
         mock_s3.__aenter__ = AsyncMock(return_value=mock_s3)
         mock_s3.__aexit__ = AsyncMock(return_value=False)
 
@@ -246,22 +255,24 @@ class TestRotateBackups:
         """Should delete backups older than 30 days."""
         service = BackupService()
 
-        old_date = datetime(2026, 1, 1, tzinfo=timezone.utc)  # >30 days ago
-        recent_date = datetime(2026, 3, 12, tzinfo=timezone.utc)  # Recent
+        old_date = datetime(2026, 1, 1, tzinfo=UTC)  # >30 days ago
+        recent_date = datetime(2026, 3, 12, tzinfo=UTC)  # Recent
 
         mock_s3 = AsyncMock()
-        mock_s3.list_objects_v2 = AsyncMock(return_value={
-            "Contents": [
-                {
-                    "Key": "backups/postgres/old_backup.dump.gz",
-                    "LastModified": old_date,
-                },
-                {
-                    "Key": "backups/postgres/recent_backup.dump.gz",
-                    "LastModified": recent_date,
-                },
-            ]
-        })
+        mock_s3.list_objects_v2 = AsyncMock(
+            return_value={
+                "Contents": [
+                    {
+                        "Key": "backups/postgres/old_backup.dump.gz",
+                        "LastModified": old_date,
+                    },
+                    {
+                        "Key": "backups/postgres/recent_backup.dump.gz",
+                        "LastModified": recent_date,
+                    },
+                ]
+            }
+        )
         mock_s3.delete_object = AsyncMock(return_value={})
         mock_s3.__aenter__ = AsyncMock(return_value=mock_s3)
         mock_s3.__aexit__ = AsyncMock(return_value=False)
