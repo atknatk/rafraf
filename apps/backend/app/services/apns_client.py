@@ -4,6 +4,7 @@ import structlog
 from aioapns import APNs, NotificationRequest
 from aioapns import ConnectionError as APNsConnectionError
 
+from app.core import metrics as _metrics
 from app.core.config import get_settings
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -61,6 +62,12 @@ async def send_push(
     client = _get_apns()
     if client is None:
         await logger.awarning("apns_send_skipped_not_configured")
+        # T2.2: count "skipped" pushes as failures so dashboards reflect
+        # configuration drift. The label captures the environment so
+        # sandbox vs production tokens can be distinguished.
+        _metrics.apns_delivery_failure_total.labels(
+            token_type=_token_type_label(),
+        ).inc()
         return False
 
     alert: dict[str, str] = {"title": title, "body": body}
@@ -79,6 +86,7 @@ async def send_push(
         message=payload,
     )
 
+    token_type = _token_type_label()
     try:
         response = await client.send_notification(request)
         if not response.is_successful:
@@ -87,14 +95,32 @@ async def send_push(
                 token_prefix=token[:8],
                 reason=response.description,
             )
+            _metrics.apns_delivery_failure_total.labels(token_type=token_type).inc()
             return False
+        _metrics.apns_delivery_success_total.labels(token_type=token_type).inc()
         return True
     except APNsConnectionError:
         await logger.aexception("apns_connection_error", token_prefix=token[:8])
+        _metrics.apns_delivery_failure_total.labels(token_type=token_type).inc()
         return False
     except Exception:
         await logger.aexception("apns_send_error", token_prefix=token[:8])
+        _metrics.apns_delivery_failure_total.labels(token_type=token_type).inc()
         return False
+
+
+def _token_type_label() -> str:
+    """Resolve the APNs environment label for Prometheus.
+
+    Returns ``"sandbox"`` while the bridge points at the development APNs
+    cluster, ``"production"`` otherwise. The settings access is wrapped
+    in ``try`` so a missing config (e.g. unit tests that didn't override
+    settings) never raises from inside an emit site.
+    """
+    try:
+        return "sandbox" if get_settings().apns_use_sandbox else "production"
+    except Exception:  # pragma: no cover - defensive
+        return "unknown"
 
 
 def is_token_invalid_reason(reason: str | None) -> bool:

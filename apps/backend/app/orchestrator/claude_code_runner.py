@@ -29,6 +29,7 @@ Public types preserved for backwards compatibility:
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Coroutine
 from dataclasses import dataclass, field
@@ -36,12 +37,18 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import structlog
+from opentelemetry import trace
+
+from app.core import metrics as _metrics
+from app.core.telemetry import get_tracer
 
 if TYPE_CHECKING:
+    from app.repositories.session_repo import SessionRepository
     from app.repositories.subagent_repo import SubagentRepository
     from app.services.bridge_registry_service import BridgeRegistryService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+tracer = get_tracer(__name__)
 
 
 _TOOL_DISPLAY_NAMES: dict[str, str] = {
@@ -112,7 +119,11 @@ class ClaudeCodeResult:
     """Result from a claude RPC run.
 
     ``response_text`` is populated from ``event.session.result.result``;
-    other terminal fields originate from the same envelope.
+    other terminal fields originate from the same envelope. Cache token
+    fields are surfaced in addition to the legacy input/output buckets so
+    callers (T2.5 cost summary) can reason about Anthropic prompt caching
+    separately — cache READ is an order of magnitude cheaper than fresh
+    INPUT, so collapsing them would inflate the projected spend.
     """
 
     session_id: str
@@ -122,6 +133,8 @@ class ClaudeCodeResult:
     is_error: bool
     tokens_input: int = 0
     tokens_output: int = 0
+    tokens_cache_creation: int = 0
+    tokens_cache_read: int = 0
     total_cost_usd: float = 0.0
     permission_denials: list[dict[str, object]] = field(default_factory=list)
 
@@ -156,6 +169,18 @@ class _RunState:
     duration_ms: int = 0
     tokens_input: int = 0
     tokens_output: int = 0
+    tokens_cache_creation: int = 0
+    tokens_cache_read: int = 0
+    # T2.5-fix Bug 4 cursor: how many of state.tokens_input / .tokens_output
+    # we already pushed to ``update_session_cost``. The result-event
+    # persistence path computes ``state.tokens_X - state.tokens_X_persisted``
+    # so assistant-event-supplied output_tokens (already added to
+    # state.tokens_output before the result envelope arrives) are NOT
+    # double-counted, AND so the result envelope's input_tokens (which is
+    # the absolute usage rather than a delta) lands cumulatively without
+    # being lost when the cursor was previously zero.
+    tokens_input_persisted: int = 0
+    tokens_output_persisted: int = 0
     cost_usd: float = 0.0
     permission_denials: list[dict[str, object]] = field(default_factory=list)
     delta_index: int = 0
@@ -186,6 +211,7 @@ class ClaudeCodeRunner:
         self,
         bridge_registry: BridgeRegistryService | None = None,
         subagent_repo: SubagentRepository | None = None,
+        session_repo: SessionRepository | None = None,
     ) -> None:
         # Resolve registry lazily so the legacy zero-arg constructor still
         # works for code paths that don't yet pass it explicitly.
@@ -195,6 +221,11 @@ class ClaudeCodeRunner:
             bridge_registry = _default
         self._bridges = bridge_registry
         self._subagents = subagent_repo
+        # T2.5: optional. When provided, the runner persists the per-result
+        # cost+tokens onto the WebSocket session row identified by
+        # ``db_session_id`` (passed to ``run()``). Left None for unit tests
+        # and code paths that haven't migrated yet.
+        self._sessions = session_repo
 
     async def run(
         self,
@@ -204,6 +235,7 @@ class ClaudeCodeRunner:
         project_dir: str | None = None,
         bridge_id: str | None = None,
         user_id: str | None = None,
+        db_session_id: uuid.UUID | None = None,
         on_text_delta: TextDeltaCallback | None = None,
         on_tool_progress: ToolProgressCallback | None = None,
         on_question: QuestionCallback | None = None,
@@ -257,10 +289,71 @@ class ClaudeCodeRunner:
             NoBridgeAvailableError: No online bridge was available.
             ClaudeCodeError: Send failure or unexpected event-loop error.
         """
+        # OpenTelemetry span — records the high-level run lifecycle. Attrs
+        # use ``claude.*`` keys so dashboards can group cleanly. Prompt
+        # *length* is recorded but never the prompt text itself (PII).
+        with tracer.start_as_current_span(
+            "claude.run",
+            attributes={
+                "claude.session_id": session_id or "",
+                "claude.bridge_id": bridge_id or "",
+                "claude.user_id": user_id or "",
+                "claude.prompt_chars": len(prompt),
+                "claude.permission_mode": "acceptEdits",
+            },
+        ) as run_span:
+            try:
+                return await self._run_inner(
+                    prompt=prompt,
+                    session_id=session_id,
+                    project_dir=project_dir,
+                    bridge_id=bridge_id,
+                    user_id=user_id,
+                    db_session_id=db_session_id,
+                    on_text_delta=on_text_delta,
+                    on_tool_progress=on_tool_progress,
+                    on_question=on_question,
+                    on_stream_end=on_stream_end,
+                    on_session_init=on_session_init,
+                    on_subagent_spawned=on_subagent_spawned,
+                    on_subagent_progress=on_subagent_progress,
+                    on_subagent_completed=on_subagent_completed,
+                    on_rate_limit=on_rate_limit,
+                    span=run_span,
+                )
+            except ClaudeCodeError as exc:
+                run_span.record_exception(exc)
+                run_span.set_status(trace.Status(trace.StatusCode.ERROR, exc.message))
+                raise
+
+    async def _run_inner(
+        self,
+        *,
+        prompt: str,
+        session_id: str | None,
+        project_dir: str | None,
+        bridge_id: str | None,
+        user_id: str | None,
+        db_session_id: uuid.UUID | None,
+        on_text_delta: TextDeltaCallback | None,
+        on_tool_progress: ToolProgressCallback | None,
+        on_question: QuestionCallback | None,
+        on_stream_end: StreamEndCallback | None,
+        on_session_init: SessionInitCallback | None,
+        on_subagent_spawned: SubagentSpawnedCallback | None,
+        on_subagent_progress: SubagentProgressCallback | None,
+        on_subagent_completed: SubagentCompletedCallback | None,
+        on_rate_limit: RateLimitCallback | None,
+        span: trace.Span,
+    ) -> ClaudeCodeResult:
+        """Inner body of :meth:`run`, kept separate so the span context manager
+        in the caller can wrap it without growing a deeply-nested ``with``.
+        """
         # 1. Pick target bridge.
         target_host_id = self._select_bridge(bridge_id)
         if target_host_id is None:
             raise NoBridgeAvailableError()
+        span.set_attribute("claude.bridge_host_id", target_host_id)
 
         connection_id = self._bridges.get_connection_id(target_host_id)
         if connection_id is None:
@@ -274,9 +367,7 @@ class ClaudeCodeRunner:
         #    past the consumer. Folds in T1.1 reviewer H1 — see
         #    BridgeRegistryService.register_subscriber for details.
         rpc_id = uuid.uuid4().hex
-        queue = self._bridges.register_subscriber(
-            bridge_id=target_host_id, rpc_id=rpc_id
-        )
+        queue = self._bridges.register_subscriber(bridge_id=target_host_id, rpc_id=rpc_id)
 
         envelope: dict[str, object] = {
             "type": "command.claude.run",
@@ -299,13 +390,18 @@ class ClaudeCodeRunner:
 
         sent = await self._bridges.send_to_bridge(target_host_id, envelope)
         if not sent:
-            self._bridges.unregister_subscriber(
-                bridge_id=target_host_id, rpc_id=rpc_id
-            )
+            self._bridges.unregister_subscriber(bridge_id=target_host_id, rpc_id=rpc_id)
             raise ClaudeCodeError(
                 f"Bridge '{target_host_id}' RPC gönderimi başarısız",
                 returncode=-1,
             )
+
+        # T2.2: start wall-clock for the duration histogram. The
+        # ``claude_subprocess_count`` gauge is *set* from bridge
+        # heartbeats in ``bridge_registry_service.process_heartbeat`` —
+        # we don't dual-write it here to avoid racing two writers
+        # against the same labelset.
+        run_started_monotonic = time.monotonic()
 
         await logger.ainfo(
             "claude_rpc_sent",
@@ -330,24 +426,41 @@ class ClaudeCodeRunner:
         )
 
         try:
-            async for event in self._bridges.stream_events(
-                queue=queue,
-                rpc_id=rpc_id,
+            try:
+                async for event in self._bridges.stream_events(
+                    queue=queue,
+                    rpc_id=rpc_id,
+                    bridge_id=target_host_id,
+                ):
+                    terminal = await self._dispatch_event(
+                        event=event,
+                        state=state,
+                        callbacks=callbacks,
+                        bridge_host_id=target_host_id,
+                        db_session_id=db_session_id,
+                        user_id=user_id,
+                    )
+                    if terminal:
+                        break
+            except ClaudeCodeError:
+                raise
+            except Exception as exc:  # pragma: no cover - defensive
+                await logger.aexception("claude_rpc_unexpected_error", rpc_id=rpc_id)
+                raise ClaudeCodeError(f"Bridge RPC error: {exc}") from exc
+        finally:
+            # T2.2: observe wall-clock duration + accumulate cost
+            # regardless of how the run ended. Cost lives here so we
+            # accumulate even if the caller short-circuits the
+            # response_text consumer. Subprocess gauge is heartbeat-driven
+            # in :class:`BridgeRegistryService` (see process_heartbeat).
+            _metrics.claude_subprocess_duration_seconds.labels(
                 bridge_id=target_host_id,
-            ):
-                terminal = await self._dispatch_event(
-                    event=event,
-                    state=state,
-                    callbacks=callbacks,
-                    bridge_host_id=target_host_id,
-                )
-                if terminal:
-                    break
-        except ClaudeCodeError:
-            raise
-        except Exception as exc:  # pragma: no cover - defensive
-            await logger.aexception("claude_rpc_unexpected_error", rpc_id=rpc_id)
-            raise ClaudeCodeError(f"Bridge RPC error: {exc}") from exc
+            ).observe(time.monotonic() - run_started_monotonic)
+            if state.cost_usd > 0:
+                _metrics.claude_total_cost_usd_total.labels(
+                    bridge_id=target_host_id,
+                    session_id=state.session_id or "unknown",
+                ).inc(state.cost_usd)
 
         # 4. Final stream_end callback for legacy parity.
         if on_stream_end is not None:
@@ -361,6 +474,8 @@ class ClaudeCodeRunner:
             is_error=False,
             tokens_input=state.tokens_input,
             tokens_output=state.tokens_output,
+            tokens_cache_creation=state.tokens_cache_creation,
+            tokens_cache_read=state.tokens_cache_read,
             total_cost_usd=state.cost_usd,
             permission_denials=list(state.permission_denials),
         )
@@ -385,10 +500,7 @@ class ClaudeCodeRunner:
         falls through to the least-busy online bridge with the
         ``claude_code`` capability.
         """
-        if (
-            bridge_id is not None
-            and self._bridges.get_connection_id(bridge_id) is not None
-        ):
+        if bridge_id is not None and self._bridges.get_connection_id(bridge_id) is not None:
             return bridge_id
         # Either no explicit pick or it's offline — fall back to capability-based selection.
         return self._bridges.find_online_agent_with_capability("claude_code")
@@ -400,13 +512,56 @@ class ClaudeCodeRunner:
         state: _RunState,
         callbacks: _Callbacks,
         bridge_host_id: str,
+        db_session_id: uuid.UUID | None = None,
+        user_id: str | None = None,
     ) -> bool:
         """Route one bridge event to the right callback + state slot.
 
         Returns ``True`` when the event is terminal (``event.session.result``
         or an error/auth_expired event), telling the caller to break out of
         the stream loop.
+
+        Each dispatch is wrapped in a ``claude.dispatch_event`` span so
+        traces show the per-event work as children of the enclosing
+        ``claude.run`` span. Subagent lifecycle transitions are recorded
+        as span events (``subagent.spawned`` / ``subagent.completed``).
         """
+        event_type_raw = event.get("type")
+        event_type = str(event_type_raw) if event_type_raw is not None else ""
+        with tracer.start_as_current_span(
+            "claude.dispatch_event",
+            attributes={
+                "claude.event_type": event_type,
+                "claude.bridge_host_id": bridge_host_id,
+            },
+        ) as span:
+            try:
+                return await self._dispatch_event_inner(
+                    event=event,
+                    state=state,
+                    callbacks=callbacks,
+                    bridge_host_id=bridge_host_id,
+                    db_session_id=db_session_id,
+                    user_id=user_id,
+                    span=span,
+                )
+            except ClaudeCodeError as exc:
+                span.record_exception(exc)
+                span.set_status(trace.Status(trace.StatusCode.ERROR, exc.message))
+                raise
+
+    async def _dispatch_event_inner(
+        self,
+        *,
+        event: dict[str, object],
+        state: _RunState,
+        callbacks: _Callbacks,
+        bridge_host_id: str,
+        db_session_id: uuid.UUID | None,
+        user_id: str | None,
+        span: trace.Span,
+    ) -> bool:
+        """Body of :meth:`_dispatch_event`, wrapped by the OTel span."""
         event_type = event.get("type")
         payload = event.get("payload")
         if not isinstance(payload, dict):
@@ -432,6 +587,13 @@ class ClaudeCodeRunner:
 
         if event_type == "event.session.task_started":
             payload.setdefault("started_at", now_iso)
+            span.add_event(
+                "subagent.spawned",
+                attributes={
+                    "subagent.task_id": str(payload.get("task_id", "")),
+                    "subagent.session_id": str(payload.get("session_id", "")),
+                },
+            )
             if callbacks.on_subagent_spawned is not None:
                 await callbacks.on_subagent_spawned(payload)
             await self._persist_subagent_spawned(
@@ -449,15 +611,31 @@ class ClaudeCodeRunner:
             if callbacks.on_tool_progress is not None:
                 state.phase = str(payload.get("phase", "tool_calling"))
                 state.current_tool_name = (
-                    str(payload.get("current_tool"))
-                    if payload.get("current_tool")
-                    else None
+                    str(payload.get("current_tool")) if payload.get("current_tool") else None
                 )
                 await callbacks.on_tool_progress(_build_progress_event(state))
             return False
 
         if event_type == "event.session.task_notification":
             payload.setdefault("completed_at", now_iso)
+            status_str = str(payload.get("status", "completed"))
+            span.add_event(
+                "subagent.completed",
+                attributes={
+                    "subagent.task_id": str(payload.get("task_id", "")),
+                    "subagent.session_id": str(payload.get("session_id", "")),
+                    "subagent.status": status_str,
+                },
+            )
+            if status_str not in {"completed", "success", "ok"}:
+                # Mark the dispatch span as error so dashboards can filter
+                # subagent failures cheaply (without grep'ing event attrs).
+                span.set_status(
+                    trace.Status(
+                        trace.StatusCode.ERROR,
+                        f"subagent terminal status: {status_str}",
+                    )
+                )
             if callbacks.on_subagent_completed is not None:
                 await callbacks.on_subagent_completed(payload)
             await self._persist_subagent_completed(
@@ -468,6 +646,11 @@ class ClaudeCodeRunner:
             return False
 
         if event_type == "event.session.rate_limit":
+            rate_limit_type = str(payload.get("rate_limit_type") or "unknown")
+            _metrics.claude_rate_limit_hits_total.labels(
+                bridge_id=bridge_host_id,
+                rate_limit_type=rate_limit_type,
+            ).inc()
             if callbacks.on_rate_limit is not None:
                 await callbacks.on_rate_limit(payload)
             return False
@@ -524,27 +707,76 @@ class ClaudeCodeRunner:
                 state.cost_usd = float(cost)
             denials = payload.get("permission_denials")
             if isinstance(denials, list):
-                state.permission_denials = [
-                    d for d in denials if isinstance(d, dict)
-                ]
-            # Aggregate token usage from per-model breakdown.
+                state.permission_denials = [d for d in denials if isinstance(d, dict)]
+            # Aggregate token usage from per-model breakdown. T2.5 also
+            # tracks the two prompt-cache buckets so the cost-summary
+            # endpoint can report them separately.
             usage = payload.get("model_usage")
+            cache_creation_delta = 0
+            cache_read_delta = 0
+            input_delta = 0
+            output_from_usage = 0
             if isinstance(usage, dict):
                 for entry in usage.values():
                     if isinstance(entry, dict):
-                        state.tokens_input += int(entry.get("input_tokens", 0) or 0)
-                        # Don't double-count output_tokens that the
-                        # assistant events already reported; prefer the
-                        # final usage breakdown when assistant events
-                        # didn't surface counts.
-                        if state.tokens_output == 0:
-                            state.tokens_output += int(
-                                entry.get("output_tokens", 0) or 0
-                            )
+                        input_delta += int(entry.get("input_tokens", 0) or 0)
+                        cache_creation_delta += int(
+                            entry.get("cache_creation_input_tokens", 0) or 0
+                        )
+                        cache_read_delta += int(entry.get("cache_read_input_tokens", 0) or 0)
+                        output_from_usage += int(entry.get("output_tokens", 0) or 0)
+
+            state.tokens_input += input_delta
+            state.tokens_cache_creation += cache_creation_delta
+            state.tokens_cache_read += cache_read_delta
+            # Don't double-count output_tokens that the assistant events
+            # already reported; prefer the final usage breakdown when
+            # assistant events didn't surface counts.
+            output_delta = output_from_usage if state.tokens_output == 0 else 0
+            state.tokens_output += output_delta
 
             state.phase = "completed"
             if callbacks.on_tool_progress is not None:
                 await callbacks.on_tool_progress(_build_progress_event(state))
+
+            # T2.5 — persist per-result cost+tokens. Best-effort: if no
+            # ``session_repo`` was injected (legacy code path), no
+            # ``db_session_id`` was supplied, or no ``user_id`` was
+            # threaded through (the UPSERT requires it because the row
+            # may not yet exist and ``sessions.user_id`` is NOT NULL FK),
+            # we silently skip — this is purely additive to the existing
+            # claude_total_cost_usd_total Prometheus counter (T2.2).
+            #
+            # T2.5-fix Bug 4 (cursor): persist deltas measured against the
+            # already-persisted cumulative count, not the per-event
+            # increments. This handles the case where assistant events
+            # populated state.tokens_output BEFORE the result envelope
+            # arrived (otherwise the result-event "output_delta = 0 if
+            # state.tokens_output != 0" guard would push 0 to the DB,
+            # silently losing the assistant-reported counts).
+            if self._sessions is not None and db_session_id is not None and user_id:
+                try:
+                    from decimal import Decimal
+
+                    output_to_persist = state.tokens_output - state.tokens_output_persisted
+                    state.tokens_output_persisted = state.tokens_output
+                    input_to_persist = state.tokens_input - state.tokens_input_persisted
+                    state.tokens_input_persisted = state.tokens_input
+
+                    await self._sessions.update_session_cost(
+                        db_session_id,
+                        user_id=uuid.UUID(user_id),
+                        total_cost_usd=Decimal(str(state.cost_usd)),
+                        total_input_tokens=input_to_persist,
+                        total_output_tokens=output_to_persist,
+                        total_cache_creation_tokens=cache_creation_delta,
+                        total_cache_read_tokens=cache_read_delta,
+                    )
+                except Exception:
+                    await logger.aexception(
+                        "session_cost_persist_failed",
+                        session_id=str(db_session_id),
+                    )
             return True
 
         if event_type in {"event.bridge.auth_expired"}:
@@ -680,9 +912,8 @@ class ClaudeCodeRunner:
             return
 
         spawned_at = completed_at - timedelta(milliseconds=1)
-        late_description = (
-            "[late_arrival] "
-            + (_stringify_optional(payload.get("description")) or "subagent")
+        late_description = "[late_arrival] " + (
+            _stringify_optional(payload.get("description")) or "subagent"
         )
         try:
             await self._subagents.upsert_subagent(

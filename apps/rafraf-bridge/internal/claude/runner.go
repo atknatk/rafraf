@@ -31,10 +31,19 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/config"
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/protocol"
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/telemetry"
 )
+
+// claudeTracerName is the OTel instrumentation library identifier used
+// by the runner + parser; matches the convention "<module>/<package>".
+const claudeTracerName = "rafraf-bridge/claude"
 
 // abortGracePeriod is how long Abort() lingers after cancelling the run
 // context, giving the subprocess a chance to flush stdout before any
@@ -176,18 +185,47 @@ func (r *Runner) runWithExec(
 	cmd.Dir = r.resolveProjectDir(req)
 	cmd.Env = r.buildEnv(req)
 
+	// claude.subprocess.start: span around the start phase only (a few ms,
+	// covering pipe wiring through cmd.Start()). The parse phase has its own
+	// claude.parser.parse span (opened inside Parser.Parse), and the wait
+	// phase is implicit between parser.End() and cmd.Wait(). These are
+	// intentionally sibling spans — the parser additionally opens per-event
+	// child spans (see Parser.dispatchEvent) which carry the bulk of the
+	// per-event detail.
+	tracer := otel.Tracer(claudeTracerName)
+	ctxStart, startSpan := tracer.Start(runCtx, "claude.subprocess.start",
+		trace.WithAttributes(
+			attribute.String("claude.binary", r.cfg.ClaudeBinary),
+			attribute.String("claude.session_id", req.SessionID),
+			attribute.String("claude.user_id", req.UserID),
+			attribute.String("claude.permission_mode", req.PermissionMode),
+			attribute.Int("claude.args_count", len(args)),
+		),
+	)
+	_ = ctxStart // currently unused; kept so future child spans can chain off it.
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		startSpan.RecordError(err)
+		startSpan.SetStatus(codes.Error, "stdout pipe failed")
+		startSpan.End()
 		return fmt.Errorf("claude: stdout pipe: %w", err)
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
+		startSpan.RecordError(err)
+		startSpan.SetStatus(codes.Error, "stderr pipe failed")
+		startSpan.End()
 		return fmt.Errorf("claude: stderr pipe: %w", err)
 	}
 
 	if err := cmd.Start(); err != nil {
+		startSpan.RecordError(err)
+		startSpan.SetStatus(codes.Error, "subprocess start failed")
+		startSpan.End()
 		return fmt.Errorf("claude: subprocess start: %w", err)
 	}
+	startSpan.End()
 
 	r.logger.Info("claude subprocess started",
 		"session_id", req.SessionID,
@@ -206,7 +244,19 @@ func (r *Runner) runWithExec(
 	}()
 
 	parser := NewParser(sink, r.logger)
+	// Wrap parser.Parse in a span so traces clearly show the
+	// stream-json consumption phase as a sibling of subprocess.start.
+	// Per-event spans live inside Parser.dispatchEvent.
+	parseCtx, parseSpan := tracer.Start(runCtx, "claude.parser.parse",
+		trace.WithAttributes(attribute.String("claude.session_id", req.SessionID)),
+	)
+	parser.SetTraceContext(parseCtx)
 	parseErr := parser.Parse(stdout)
+	if parseErr != nil {
+		parseSpan.RecordError(parseErr)
+		parseSpan.SetStatus(codes.Error, "stream-json parse failed")
+	}
+	parseSpan.End()
 
 	waitErr := cmd.Wait()
 	<-stderrDone

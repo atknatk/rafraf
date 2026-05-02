@@ -2,6 +2,11 @@
 AuthKey_*.p8
 *.p12
 
+# JWT RS256 keypair (T2.9) — dev keys live in ./secrets/, prod keys come
+# from AWS Secrets Manager / Kubernetes Secrets. NEVER commit key material.
+secrets/
+*.pem
+
 # ─── Python ───────────────────────────────────────────
 __pycache__/
 *.py[cod]

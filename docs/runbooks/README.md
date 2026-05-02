@@ -1,0 +1,33 @@
+# RafRaf Runbooks
+
+Operational runbooks for incident response, routine procedures, and disaster recovery.
+Each runbook should be self-contained, dated, and reviewed quarterly.
+
+## Index
+
+| Runbook | Purpose | Owner | Last reviewed |
+|---|---|---|---|
+| [`disaster-recovery.md`](./disaster-recovery.md) | RPO/RTO targets, backup strategy, restore procedures, drill schedule, comms plan, post-incident template (T2.8 / Faz 2) | SRE lead | 2026-05-02 |
+| [`disaster-recovery-drill-log.md`](./disaster-recovery-drill-log.md) | Chronological per-drill log + template (companion to `disaster-recovery.md` §5; T2.8-fix / Faz 2) | SRE lead | 2026-05-02 |
+| [`jwt-key-rotation.md`](./jwt-key-rotation.md) | JWT signing keypair rotation procedure (RS256, T2.9 / Faz 2) — covers HS256 → RS256 cutover and routine RS256 rotation | SRE lead | 2026-05-02 |
+
+## Conventions
+
+- **File naming:** `kebab-case.md` describing the procedure (verb-noun preferred: `rotate-jwt`, `restore-database`).
+- **Required sections:** scope, prerequisites, step-by-step procedure with commands, verification steps, rollback, owner, last-reviewed date.
+- **Cross-link:** runbooks should link to relevant spec sections in `docs/10_Production_Pivot_Spec.md`, action items in `docs/12_Action_Plan_Tasks.md`, and any sibling runbook they depend on.
+- **No secrets in runbooks.** Reference secret names and storage locations; never paste actual values.
+- **Review cadence:** quarterly (every 90 days). Update the "Last reviewed" date and append to the change-log table at the bottom of each runbook.
+
+## Related directories
+
+- [`../postmortems/`](../postmortems/) — incident post-mortems filed within 5 business days of resolution (template in `disaster-recovery.md` §7).
+- [`../standards/`](../standards/) — platform-specific coding standards.
+- [`../pipeline/`](../pipeline/) — agent pipeline handoff docs.
+
+## Future runbooks (Faz 3 — T3.8)
+
+- `deploy.md` — production deployment procedure (Helm + ArgoCD)
+- `secret-rotation.md` — routine secret rotation cadence (non-emergency)
+- `anthropic-cli-upgrade.md` — bridge claude CLI version bump procedure
+- `manual-test-checklist.md` — pre-release manual smoke test for iOS + backend

@@ -1,6 +1,7 @@
 """Claude AI Agent - core orchestrator with tool-calling loop."""
 
 import asyncio
+import time
 from collections.abc import Callable, Coroutine, Iterable
 from uuid import uuid4
 
@@ -9,6 +10,7 @@ import anthropic.types
 import structlog
 
 from app.core.config import get_settings
+from app.core.metrics import claude_rate_limit_hits_total
 from app.orchestrator.prompt_builder import build_system_prompt
 from app.orchestrator.tool_registry import ToolRegistry
 from app.schemas.orchestrator import (
@@ -27,8 +29,29 @@ MAX_ITERATIONS: int = 10
 _MAX_RETRIES: int = 3
 _RETRY_BACKOFF_SECONDS: list[float] = [1.0, 2.0, 4.0]
 
+# Default reset window when Anthropic doesn't supply ``Retry-After`` — the
+# RateLimitInfoPayload contract demands a unix timestamp, so we synthesise a
+# conservative 5-hour reset matching the Max-plan rolling window so the iOS
+# UI degrades gracefully instead of flashing a stale value.
+_DEFAULT_RATE_LIMIT_RESET_SECONDS: int = 5 * 60 * 60
+
+# Sentinel ``bridge_id`` label used when the rate-limit hit originated on
+# the direct-Anthropic-API fallback path (no bridge involved). Keeps the
+# Prometheus counter cardinality bounded.
+_API_FALLBACK_BRIDGE_ID: str = "api"
+
 # Type alias for progress callback
 ProgressCallback = Callable[[str, int, int], Coroutine[object, object, None]]
+
+# Type alias for the optional rate-limit forwarder. Receives a fully-built
+# kwargs dict matching ``ClaudeStreamManager.forward_rate_limit_info``'s
+# signature (minus ``user_id`` which is supplied by the caller). Implementing
+# the contract this way keeps :class:`OrchestratorAgent` decoupled from
+# ``app.services.claude_stream_manager`` (which would create a circular
+# import).
+RateLimitForwarder = Callable[
+    [str, dict[str, object]], Coroutine[object, object, None]
+]
 
 
 class OrchestratorError(Exception):
@@ -58,7 +81,12 @@ class OrchestratorAgent:
     via a callback mechanism.
     """
 
-    def __init__(self, tool_registry: ToolRegistry) -> None:
+    def __init__(
+        self,
+        tool_registry: ToolRegistry,
+        *,
+        rate_limit_forwarder: RateLimitForwarder | None = None,
+    ) -> None:
         self._registry = tool_registry
         settings = get_settings()
         # T1.1: Bedrock branch removed; the bridge owns claude routing now.
@@ -70,6 +98,20 @@ class OrchestratorAgent:
         )
         # Session-based conversation history
         self._conversations: dict[str, list[anthropic.types.MessageParam]] = {}
+        # T2.4: optional forwarder so rate-limit errors raised by the
+        # direct-API fallback can still surface ``rate_limit.info`` to the
+        # iOS client. ``OrchestratorService`` injects a closure that wraps
+        # ``ClaudeStreamManager.forward_rate_limit_info``.
+        self._rate_limit_forwarder: RateLimitForwarder | None = rate_limit_forwarder
+
+    def set_rate_limit_forwarder(self, forwarder: RateLimitForwarder | None) -> None:
+        """Late-bind a rate-limit forwarder (avoids circular imports at boot).
+
+        ``OrchestratorService`` calls this once it has a
+        :class:`ClaudeStreamManager` available; before that, rate-limit hits
+        only update the Prometheus counter (no iOS push happens).
+        """
+        self._rate_limit_forwarder = forwarder
 
     async def process_message(
         self,
@@ -143,6 +185,8 @@ class OrchestratorAgent:
                 system=system_prompt,
                 messages=conversation,
                 tools=tools,
+                user_id=request.user_id,
+                session_id=request.session_id,
             )
 
             # Track token usage
@@ -227,6 +271,8 @@ class OrchestratorAgent:
                 system=system_prompt,
                 messages=conversation,
                 tools=tools,
+                user_id=request.user_id,
+                session_id=request.session_id,
             )
             total_input_tokens += response.usage.input_tokens
             total_output_tokens += response.usage.output_tokens
@@ -313,6 +359,8 @@ class OrchestratorAgent:
                 system=system_prompt,
                 messages=conversation,
                 tools=tools,
+                user_id=request.user_id,
+                session_id=request.session_id,
             )
 
             total_input_tokens += response.usage.input_tokens
@@ -453,16 +501,28 @@ class OrchestratorAgent:
         system: str,
         messages: Iterable[anthropic.types.MessageParam],
         tools: list[dict[str, object]],
+        user_id: str | None = None,
+        session_id: str | None = None,
     ) -> anthropic.types.Message:
         """Call Claude API with retry logic for transient errors.
 
-        Implements exponential backoff for 429, 500, 529 errors.
+        Implements exponential backoff for 429, 500, 529 errors. On 429
+        ``RateLimitError`` we additionally surface a ``rate_limit.info``
+        push to the iOS client (T2.4) and bump the
+        ``claude_rate_limit_hits_total`` counter so operators can graph
+        the API-fallback path separately from bridge-origin events.
 
         Args:
             model: Claude model identifier.
             system: System prompt.
             messages: Conversation messages.
             tools: Tool definitions for Claude API.
+            user_id: Authenticated user id whose iOS sessions should
+                receive the ``rate_limit.info`` push. ``None`` skips the
+                forwarder (counter still increments) — matches the legacy
+                callers that don't surface rate limits.
+            session_id: Active orchestrator session id, attached to the
+                push payload so iOS can scope the rate-limit banner.
 
         Returns:
             Claude API message response.
@@ -497,6 +557,17 @@ class OrchestratorAgent:
                     attempt=attempt + 1,
                     backoff_seconds=backoff,
                 )
+                # T2.4: bump the counter on every observed 429 (not just
+                # the terminal one) so operators can see retry pressure.
+                claude_rate_limit_hits_total.labels(
+                    bridge_id=_API_FALLBACK_BRIDGE_ID,
+                    rate_limit_type="five_hour",
+                ).inc()
+                await self._maybe_forward_rate_limit(
+                    exc=exc,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
                 await asyncio.sleep(backoff)
 
             except anthropic.InternalServerError as exc:
@@ -525,6 +596,49 @@ class OrchestratorAgent:
         if last_error is not None:
             error_msg += f": {last_error}"
         raise ClaudeAPIError(error_msg)
+
+    async def _maybe_forward_rate_limit(
+        self,
+        *,
+        exc: anthropic.RateLimitError,
+        user_id: str | None,
+        session_id: str | None,
+    ) -> None:
+        """Push ``rate_limit.info`` to iOS when a forwarder is wired.
+
+        The Anthropic SDK exposes the underlying ``httpx.Response`` on
+        ``RateLimitError.response``; we read ``Retry-After`` (seconds or
+        an HTTP-date) when present. Missing or unparseable values fall
+        back to a 5-hour reset to keep the iOS UI usable.
+
+        The forwarder is best-effort — any exception is logged and
+        swallowed so a bridge outage to the iOS connection manager never
+        masks the original API error.
+        """
+        forwarder = self._rate_limit_forwarder
+        if forwarder is None or not user_id:
+            return
+
+        retry_after_seconds = _parse_retry_after_seconds(exc)
+        resets_at = int(time.time()) + (
+            retry_after_seconds
+            if retry_after_seconds is not None
+            else _DEFAULT_RATE_LIMIT_RESET_SECONDS
+        )
+
+        payload: dict[str, object] = {
+            "session_id": session_id,
+            "status": "exceeded",
+            "rate_limit_type": "five_hour",
+            "resets_at": resets_at,
+            "overage_status": "unknown",
+            "is_using_overage": False,
+        }
+
+        try:
+            await forwarder(user_id, payload)
+        except Exception:
+            await logger.aexception("rate_limit_forwarder_failed")
 
     async def _execute_tool(self, tool_call: ToolCall) -> ToolResult:
         """Execute a tool call and return the result.
@@ -616,3 +730,42 @@ class OrchestratorAgent:
     def _generate_approval_id(self) -> str:
         """Generate a unique approval ID."""
         return str(uuid4())
+
+
+def _parse_retry_after_seconds(exc: anthropic.RateLimitError) -> int | None:
+    """Extract a non-negative seconds value from a 429's ``Retry-After`` header.
+
+    Anthropic only ever sends an integer-seconds form today, but RFC 7231
+    allows an HTTP-date — we accept either and fall back to ``None`` for
+    anything we can't parse so :meth:`OrchestratorAgent._maybe_forward_rate_limit`
+    can substitute a default reset window.
+
+    Best-effort: any unexpected attribute or parse error returns ``None``
+    (the caller treats that as "use the default 5h window").
+    """
+    response = getattr(exc, "response", None)
+    if response is None:
+        return None
+    headers = getattr(response, "headers", None)
+    if headers is None:
+        return None
+    raw = headers.get("retry-after")
+    if raw is None:
+        return None
+    raw = str(raw).strip()
+    if not raw:
+        return None
+    try:
+        seconds = int(raw)
+    except ValueError:
+        # HTTP-date form. Fall back to None — the iOS UI will still show a
+        # reasonable banner using the synthesised default.
+        try:
+            from email.utils import parsedate_to_datetime
+
+            target = parsedate_to_datetime(raw)
+            delta = int(target.timestamp() - time.time())
+        except (TypeError, ValueError):
+            return None
+        return max(delta, 0)
+    return max(seconds, 0)

@@ -142,9 +142,7 @@ class _FakeSubagentRepo:
 # ---------------------------------------------------------------------------
 
 
-_FIXTURE_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "bridge_stream_sample.jsonl"
-)
+_FIXTURE_PATH = Path(__file__).resolve().parents[2] / "fixtures" / "bridge_stream_sample.jsonl"
 
 
 def _load_sample_events() -> list[dict[str, Any]]:
@@ -997,11 +995,7 @@ async def test_h2_missed_spawn_skipped_when_bridge_uuid_unknown() -> None:
     assert len(repo.updates) >= 1
     # We still get the spawn upserts from task_started; what we MUSTN'T get
     # is a late_arrival upsert.
-    lates = [
-        u
-        for u in repo.upserts
-        if str(u.get("description", "")).startswith("[late_arrival]")
-    ]
+    lates = [u for u in repo.upserts if str(u.get("description", "")).startswith("[late_arrival]")]
     assert lates == []
 
 
@@ -1106,3 +1100,366 @@ async def test_register_subscriber_overwrite_logged() -> None:
     q2 = svc.register_subscriber(bridge_id="m", rpc_id="r")
     assert q1 is not q2
     svc.unregister_subscriber(bridge_id="m", rpc_id="r")
+
+
+# ---------------------------------------------------------------------------
+# T2.5 — per-result session cost persistence.
+# ---------------------------------------------------------------------------
+
+
+class _FakeSessionRepo:
+    """Records ``update_session_cost`` calls in memory; no DB roundtrip."""
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    async def update_session_cost(
+        self,
+        session_id: uuid.UUID,
+        *,
+        user_id: uuid.UUID,
+        total_cost_usd: Any,
+        total_input_tokens: int = 0,
+        total_output_tokens: int = 0,
+        total_cache_creation_tokens: int = 0,
+        total_cache_read_tokens: int = 0,
+    ) -> bool:
+        self.calls.append(
+            {
+                "session_id": session_id,
+                "user_id": user_id,
+                "total_cost_usd": total_cost_usd,
+                "total_input_tokens": total_input_tokens,
+                "total_output_tokens": total_output_tokens,
+                "total_cache_creation_tokens": total_cache_creation_tokens,
+                "total_cache_read_tokens": total_cache_read_tokens,
+            }
+        )
+        return True
+
+
+@pytest.mark.asyncio
+async def test_t25_runner_persists_cost_on_result() -> None:
+    """When session_repo + db_session_id + user_id are wired, result triggers an UPSERT."""
+    from decimal import Decimal
+
+    registry = _FakeRegistry(events=_load_sample_events())
+    repo = _FakeSessionRepo()
+    runner = ClaudeCodeRunner(
+        bridge_registry=registry,  # type: ignore[arg-type]
+        session_repo=repo,  # type: ignore[arg-type]
+    )
+
+    db_sid = uuid.uuid4()
+    user_uuid = uuid.uuid4()
+    result = await runner.run(
+        prompt="x",
+        db_session_id=db_sid,
+        user_id=str(user_uuid),
+    )
+
+    assert len(repo.calls) == 1
+    call = repo.calls[0]
+    assert call["session_id"] == db_sid
+    assert call["user_id"] == user_uuid
+    # Fixture cost = 0.0234.
+    assert Decimal(call["total_cost_usd"]) == Decimal("0.0234")
+    # Fixture model_usage: input=2000, output=150, cache_creation=10000,
+    # cache_read=15000. The runner's "don't double-count output_tokens
+    # already reported by assistant events" rule means output_delta == 150
+    # because there are no assistant events in this fixture; the cursor
+    # (T2.5-fix Bug 4) starts at 0 so the persisted output equals 150.
+    assert call["total_input_tokens"] == 2000
+    assert call["total_output_tokens"] == 150
+    assert call["total_cache_creation_tokens"] == 10000
+    assert call["total_cache_read_tokens"] == 15000
+    # The result struct must surface all four buckets too.
+    assert result.tokens_input == 2000
+    assert result.tokens_output == 150
+    assert result.tokens_cache_creation == 10000
+    assert result.tokens_cache_read == 15000
+
+
+@pytest.mark.asyncio
+async def test_t25_runner_skips_persistence_without_db_session_id() -> None:
+    """A wired session_repo + missing db_session_id MUST skip the UPSERT."""
+    registry = _FakeRegistry(events=_load_sample_events())
+    repo = _FakeSessionRepo()
+    runner = ClaudeCodeRunner(
+        bridge_registry=registry,  # type: ignore[arg-type]
+        session_repo=repo,  # type: ignore[arg-type]
+    )
+
+    await runner.run(prompt="x", user_id=str(uuid.uuid4()))  # no db_session_id
+
+    assert repo.calls == []
+
+
+@pytest.mark.asyncio
+async def test_t25_runner_skips_persistence_without_user_id() -> None:
+    """A wired session_repo + db_session_id but no ``user_id`` MUST skip the UPSERT.
+
+    T2.5-fix: ``user_id`` is now mandatory because the UPSERT may need to
+    INSERT a fresh row, and ``sessions.user_id`` is NOT NULL with a FK.
+    """
+    registry = _FakeRegistry(events=_load_sample_events())
+    repo = _FakeSessionRepo()
+    runner = ClaudeCodeRunner(
+        bridge_registry=registry,  # type: ignore[arg-type]
+        session_repo=repo,  # type: ignore[arg-type]
+    )
+
+    await runner.run(prompt="x", db_session_id=uuid.uuid4())  # no user_id
+
+    assert repo.calls == []
+
+
+@pytest.mark.asyncio
+async def test_t25_runner_skips_persistence_without_session_repo() -> None:
+    """A wired db_session_id + missing session_repo MUST skip the UPSERT."""
+    registry = _FakeRegistry(events=_load_sample_events())
+    runner = ClaudeCodeRunner(bridge_registry=registry)  # type: ignore[arg-type]
+
+    # Should not raise — runner falls through silently.
+    await runner.run(
+        prompt="x",
+        db_session_id=uuid.uuid4(),
+        user_id=str(uuid.uuid4()),
+    )
+
+
+@pytest.mark.asyncio
+async def test_t25_runner_swallows_persistence_errors() -> None:
+    """A repo failure during cost persistence MUST be logged + swallowed."""
+
+    class _BoomRepo:
+        async def update_session_cost(self, *_a: Any, **_k: Any) -> bool:
+            raise RuntimeError("db down")
+
+    registry = _FakeRegistry(events=_load_sample_events())
+    runner = ClaudeCodeRunner(
+        bridge_registry=registry,  # type: ignore[arg-type]
+        session_repo=_BoomRepo(),  # type: ignore[arg-type]
+    )
+
+    # Run completes successfully despite the repo blowup.
+    result = await runner.run(
+        prompt="x",
+        db_session_id=uuid.uuid4(),
+        user_id=str(uuid.uuid4()),
+    )
+    assert result.session_id == "sess-abc"
+
+
+# ---------------------------------------------------------------------------
+# T2.5-fix Bug 4 — output_token cursor: assistant events first, then result.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_t25_fix_bug4_output_cursor_persists_assistant_event_tokens() -> None:
+    """Assistant-event output_tokens MUST land in the DB even when the
+    result envelope's ``output_delta`` collapses to 0 because state was
+    already non-zero.
+
+    The legacy logic computed
+    ``output_delta = output_from_usage if state.tokens_output == 0 else 0``
+    and then PASSED ``output_delta`` to ``update_session_cost``. So when an
+    assistant event arrived with output_tokens=42 BEFORE the result event,
+    state.tokens_output became 42, output_delta became 0, and the DB write
+    got 0. The cursor fix (T2.5-fix Bug 4) computes the persisted delta as
+    ``state.tokens_output - state.tokens_output_persisted`` instead, so
+    the full 42 tokens land.
+    """
+    from decimal import Decimal
+
+    events = [
+        {
+            "type": "event.session.init",
+            "correlation_id": "RPC1",
+            "payload": {"session_id": "s1", "model": "claude-opus-4-7"},
+        },
+        # Assistant event populates state.tokens_output = 42 before result.
+        {
+            "type": "event.session.assistant",
+            "correlation_id": "RPC1",
+            "payload": {
+                "session_id": "s1",
+                "message": {
+                    "content": [{"type": "text", "text": "Hi"}],
+                    "usage": {"output_tokens": 42},
+                },
+            },
+        },
+        # Terminal result with input + cache breakdown but the per-model
+        # output_tokens MIRRORS the assistant total (not a separate
+        # increment), so the legacy ``output_delta`` would be 0.
+        {
+            "type": "event.session.result",
+            "correlation_id": "RPC1",
+            "payload": {
+                "session_id": "s1",
+                "duration_ms": 100,
+                "num_turns": 1,
+                "result": "Hi",
+                "stop_reason": "end_turn",
+                "total_cost_usd": 0.005,
+                "model_usage": {
+                    "claude-opus-4-7": {
+                        "input_tokens": 50,
+                        "output_tokens": 42,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                    }
+                },
+                "permission_denials": [],
+                "terminal_reason": "clean",
+            },
+        },
+    ]
+
+    registry = _FakeRegistry(events=events)
+    repo = _FakeSessionRepo()
+    runner = ClaudeCodeRunner(
+        bridge_registry=registry,  # type: ignore[arg-type]
+        session_repo=repo,  # type: ignore[arg-type]
+    )
+
+    db_sid = uuid.uuid4()
+    user_uuid = uuid.uuid4()
+    await runner.run(
+        prompt="x",
+        db_session_id=db_sid,
+        user_id=str(user_uuid),
+    )
+
+    # Exactly one persistence call (only the result event triggers it).
+    assert len(repo.calls) == 1
+    call = repo.calls[0]
+    # The CRITICAL assertion: the DB write got the full 42 output tokens
+    # (cursor delta = 42 - 0), NOT 0 (legacy bug-4 behaviour).
+    assert call["total_output_tokens"] == 42, (
+        "Bug 4 regression: assistant-event output_tokens dropped from DB write"
+    )
+    assert call["total_input_tokens"] == 50
+    assert Decimal(call["total_cost_usd"]) == Decimal("0.005")
+    assert call["user_id"] == user_uuid
+
+
+@pytest.mark.asyncio
+async def test_t25_fix_bug4_cursor_does_not_double_count_across_two_runs() -> None:
+    """A second run on the SAME runner+state must not re-count the prior tokens.
+
+    NB: ``_RunState`` is per-run (rebuilt inside ``_run_inner``), so a
+    second ``runner.run()`` call starts with a fresh cursor — the
+    accumulated DB row holds the cumulative state via UPSERT. We assert
+    each run reports its own per-run delta to the repo: 42 (run 1) then
+    100 (run 2), summing to 142 in DB-land but never 42 + 142 in the
+    repo-call log.
+    """
+    base_events_run1 = [
+        {
+            "type": "event.session.init",
+            "correlation_id": "RPC1",
+            "payload": {"session_id": "s1", "model": "claude-opus-4-7"},
+        },
+        {
+            "type": "event.session.assistant",
+            "correlation_id": "RPC1",
+            "payload": {
+                "session_id": "s1",
+                "message": {
+                    "content": [{"type": "text", "text": "A"}],
+                    "usage": {"output_tokens": 42},
+                },
+            },
+        },
+        {
+            "type": "event.session.result",
+            "correlation_id": "RPC1",
+            "payload": {
+                "session_id": "s1",
+                "duration_ms": 50,
+                "num_turns": 1,
+                "result": "A",
+                "stop_reason": "end_turn",
+                "total_cost_usd": 0.001,
+                "model_usage": {
+                    "claude-opus-4-7": {
+                        "input_tokens": 10,
+                        "output_tokens": 42,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                    }
+                },
+                "permission_denials": [],
+                "terminal_reason": "clean",
+            },
+        },
+    ]
+    base_events_run2 = [
+        {
+            "type": "event.session.init",
+            "correlation_id": "RPC2",
+            "payload": {"session_id": "s1", "model": "claude-opus-4-7"},
+        },
+        {
+            "type": "event.session.assistant",
+            "correlation_id": "RPC2",
+            "payload": {
+                "session_id": "s1",
+                "message": {
+                    "content": [{"type": "text", "text": "B"}],
+                    "usage": {"output_tokens": 100},
+                },
+            },
+        },
+        {
+            "type": "event.session.result",
+            "correlation_id": "RPC2",
+            "payload": {
+                "session_id": "s1",
+                "duration_ms": 50,
+                "num_turns": 1,
+                "result": "B",
+                "stop_reason": "end_turn",
+                "total_cost_usd": 0.002,
+                "model_usage": {
+                    "claude-opus-4-7": {
+                        "input_tokens": 20,
+                        "output_tokens": 100,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                    }
+                },
+                "permission_denials": [],
+                "terminal_reason": "clean",
+            },
+        },
+    ]
+    repo = _FakeSessionRepo()
+    db_sid = uuid.uuid4()
+    user_uuid = uuid.uuid4()
+
+    # Run 1.
+    runner1 = ClaudeCodeRunner(
+        bridge_registry=_FakeRegistry(events=base_events_run1),  # type: ignore[arg-type]
+        session_repo=repo,  # type: ignore[arg-type]
+    )
+    await runner1.run(prompt="r1", db_session_id=db_sid, user_id=str(user_uuid))
+
+    # Run 2 (fresh runner, fresh _RunState — DB is what aggregates).
+    runner2 = ClaudeCodeRunner(
+        bridge_registry=_FakeRegistry(events=base_events_run2),  # type: ignore[arg-type]
+        session_repo=repo,  # type: ignore[arg-type]
+    )
+    await runner2.run(prompt="r2", db_session_id=db_sid, user_id=str(user_uuid))
+
+    assert len(repo.calls) == 2
+    assert repo.calls[0]["total_output_tokens"] == 42
+    assert repo.calls[0]["total_input_tokens"] == 10
+    assert repo.calls[1]["total_output_tokens"] == 100
+    assert repo.calls[1]["total_input_tokens"] == 20
+    # Per-run input/output deltas — DB-side aggregation (UPSERT ADD) is
+    # exercised by the integration test in
+    # tests/integration/test_sessions_cost_summary.py.

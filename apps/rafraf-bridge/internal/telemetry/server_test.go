@@ -2,6 +2,8 @@ package telemetry_test
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -103,7 +105,18 @@ func TestStartMetricsServer_DebugVarsExposesCounters(t *testing.T) {
 }
 
 func TestStartMetricsServer_HealthzReturnsJSON(t *testing.T) {
-	t.Parallel()
+	// NOT t.Parallel(): SetClaudeBinaryLookup mutates package-level state
+	// and TestStartMetricsServer_HealthzClaudeBinaryAbsent flips it the
+	// other way. Running them in parallel would race the lookup func and
+	// give one test a non-deterministic claude_binary_present value.
+
+	// Force a deterministic "claude is installed" result so this test is
+	// hermetic — without the override the result depends on the runner's
+	// PATH (CI runners do not have claude installed).
+	telemetry.SetClaudeBinaryLookup(func(_ string) (string, error) {
+		return "/usr/local/bin/claude", nil
+	})
+	t.Cleanup(func() { telemetry.SetClaudeBinaryLookup(nil) })
 
 	server, err := telemetry.StartMetricsServer("127.0.0.1:0", silentLogger())
 	if err != nil {
@@ -122,6 +135,61 @@ func TestStartMetricsServer_HealthzReturnsJSON(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	if !strings.Contains(string(body), `"status":"ok"`) {
 		t.Errorf("healthz body missing status:ok marker: %q", string(body))
+	}
+
+	// Decode + assert the documented schema so a future drift in field
+	// names breaks the test loudly rather than silently.
+	var payload struct {
+		Status              string `json:"status"`
+		Service             string `json:"service"`
+		Version             string `json:"version"`
+		ClaudeBinaryPresent bool   `json:"claude_binary_present"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("decode healthz body: %v\nbody=%q", err, string(body))
+	}
+	if payload.Status != "ok" {
+		t.Errorf("status = %q, want %q", payload.Status, "ok")
+	}
+	if payload.Service != "rafraf-bridge" {
+		t.Errorf("service = %q, want %q", payload.Service, "rafraf-bridge")
+	}
+	if !payload.ClaudeBinaryPresent {
+		t.Errorf("claude_binary_present = false, want true (lookup stub returned a path)")
+	}
+}
+
+// TestStartMetricsServer_HealthzClaudeBinaryAbsent verifies the field
+// flips to false when exec.LookPath cannot resolve the binary. We swap the
+// lookup with a stub returning ErrNotFound so the test does not depend on
+// the runner's PATH.
+func TestStartMetricsServer_HealthzClaudeBinaryAbsent(t *testing.T) {
+	// See sibling test for why this is NOT parallel.
+	telemetry.SetClaudeBinaryLookup(func(_ string) (string, error) {
+		return "", errors.New("not found")
+	})
+	t.Cleanup(func() { telemetry.SetClaudeBinaryLookup(nil) })
+
+	server, err := telemetry.StartMetricsServer("127.0.0.1:0", silentLogger())
+	if err != nil {
+		t.Fatalf("StartMetricsServer: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = telemetry.ShutdownMetricsServer(context.Background(), server)
+	})
+
+	resp := waitForHTTP(t, "http://"+server.Addr+"/healthz")
+	defer func() { _ = resp.Body.Close() }()
+
+	body, _ := io.ReadAll(resp.Body)
+	var payload struct {
+		ClaudeBinaryPresent bool `json:"claude_binary_present"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("decode healthz body: %v", err)
+	}
+	if payload.ClaudeBinaryPresent {
+		t.Errorf("claude_binary_present = true, want false (lookup stub returned error)")
 	}
 }
 

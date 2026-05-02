@@ -86,6 +86,16 @@ func run(args []string) int {
 
 	logger := telemetry.NewLogger(cfg.Telemetry.LogLevel)
 	telemetry.SetBridgeVersion(Version)
+	// T2.2: stamp the Prometheus collector with (bridge_version, host_id)
+	// so multi-bridge scrapes attribute samples without relabel rules.
+	// Hostname is the canonical bridge identity today; if os.Hostname()
+	// fails we fall through to the "unknown" sentinel set inside the
+	// telemetry package so /metrics still serves a usable body.
+	hostName, hostErr := os.Hostname()
+	if hostErr != nil || hostName == "" {
+		hostName = "unknown"
+	}
+	telemetry.SetPromIdentity(Version, hostName)
 
 	logger.Info("rafraf-bridge starting",
 		"version", Version,
@@ -95,6 +105,23 @@ func run(args []string) int {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// OpenTelemetry tracing (T2.1). A failure to wire the OTLP exporter
+	// is non-fatal — tracing is optional and the bridge must keep
+	// running so claude RPCs remain serviceable. If
+	// OTEL_EXPORTER_OTLP_ENDPOINT is unset the returned shutdown
+	// function is a noop.
+	tracingShutdown, tracingErr := telemetry.SetupTracing(ctx, "rafraf-bridge", Version)
+	if tracingErr != nil {
+		logger.Warn("opentelemetry tracing setup failed", "err", tracingErr)
+	}
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), telemetryShutdownGrace)
+		defer shutdownCancel()
+		if err := tracingShutdown(shutdownCtx); err != nil {
+			logger.Warn("opentelemetry tracing shutdown error", "err", err)
+		}
+	}()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)

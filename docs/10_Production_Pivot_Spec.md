@@ -1215,22 +1215,33 @@ Mevcut `.github/workflows/`:
 
 **Önemli metric'ler** (spike'tan):
 
-Backend:
+Backend (canonical, per-session/per-rate_limit_type detayı ile):
 - `claude_subprocess_count` (gauge)
 - `claude_subprocess_duration_seconds` (histogram)
-- `claude_rate_limit_hits_total` (counter)
-- `claude_total_cost_usd_total` (counter)
-- `subagent_spawned_total` (counter)
+- `claude_rate_limit_hits_total` (counter, label: `rate_limit_type`)
+- `claude_total_cost_usd_total` (counter, label: `session_id`)
+- `subagent_spawned_total` (counter, label: `status`)
 - `ws_connections_active` (gauge)
 - `apns_delivery_success_total` / `apns_delivery_failure_total`
 
-Storage watcher:
-- `storage_events_processed_total{type}` (counter)
-- `storage_watcher_lag_seconds` (gauge)
+Storage watcher (backend, agent_ws handler emit):
+- `storage_events_processed_total{type}` (counter) — `type ∈ {ai-title, pr-link, usage-report}`, label: `bridge_id`
+- `storage_watcher_lag_seconds` (**histogram**) — backend gözleminin `event.session.title.generated_at` / `event.session.pr_opened.opened_at` / `event.usage.report.reported_at`'a göre saniye cinsinden lag'ı; SLO p50/p99 için bucket'lı (`0.05, 0.1, 0.5, 1.0, 5.0`).
 - `claude_5h_usage_pct` (gauge) — son rapor edilen 5-saatlik kullanım %
 - `claude_7d_usage_pct` (gauge) — son rapor edilen 7-günlük kullanım %
 - `claude_usage_report_age_seconds` (gauge) — usage.json son güncellenmesinden bu yana geçen süre (stale detection için)
 - `claude_usage_report_total` (counter) — backend'in iOS'a forward ettiği usage.report sayısı
+
+Bridge (Mac Go, fleet-level coarse aggregate; her zaman `(bridge_version, host_id)` label'lı):
+- `bridge_uptime_seconds`, `ws_connected`, `ws_reconnects_total`, `ws_disconnects_total`, `ws_events_forwarded_total`, `ws_events_dropped_total`
+- `claude_subprocess_active` / `claude_subprocess_total`, `claude_stream_lines_read_total`, `claude_rate_limit_warnings_total`, `claude_rate_limit_exceeded_total`, `claude_auth_expired_total`, `subagent_completed_total`, `subagent_failed_total`
+- `bridge_claude_total_cost_usd_total` (counter) — backend'in `claude_total_cost_usd_total`'sının fleet-toplamı; isim çakışmasını önlemek için `bridge_` prefix'li (T2.2-fix M3).
+- `bridge_claude_rate_limit_hits_total` (counter) — backend canonical `claude_rate_limit_hits_total` ile çakışmamak için `bridge_` prefix'li.
+- `bridge_subagent_spawned_total` (counter) — backend canonical `subagent_spawned_total` ile çakışmamak için `bridge_` prefix'li.
+- `bridge_storage_watcher_lag_seconds` (**gauge**) — son gözlemlenen lag (anlık snapshot). Backend'in histogram'ından farklı tip + farklı isim olduğu için `bridge_` prefix'li (T2.2-fix M2/M3); SLO için backend histogram'ı kullanılır, fleet-level alert için bu gauge.
+- `statusline_last_report_age_seconds`, `statusline_five_hour_pct`, `statusline_seven_day_pct`
+
+> **Cross-target naming convention** (T2.2-fix M3): Backend ve bridge aynı Prometheus instance'ı tarafından scrape edildiğinde, aynı isimli + farklı `(label-set, type)` tuple'a sahip metric ailesi storage layer'da hard error üretir. Backend canonical (per-session) family'leri taşır; bridge aynı sinyalin coarse aggregate'ini `bridge_` prefix ile yayınlar.
 
 ### 7.4 Security
 

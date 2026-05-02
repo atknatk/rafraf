@@ -36,11 +36,16 @@ package claude
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/protocol"
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/telemetry"
@@ -50,9 +55,10 @@ import (
 // across the lifetime of a single `claude -p` invocation. Construct one
 // per Runner.Run call; Parsers are not safe for reuse across runs.
 type Parser struct {
-	sink   EventSink
-	logger *slog.Logger
-	state  *StreamState
+	sink     EventSink
+	logger   *slog.Logger
+	state    *StreamState
+	traceCtx context.Context
 }
 
 // NewParser constructs a Parser bound to the given sink. A nil logger is
@@ -65,10 +71,23 @@ func NewParser(sink EventSink, logger *slog.Logger) *Parser {
 		logger = slog.Default()
 	}
 	return &Parser{
-		sink:   sink,
-		logger: logger,
-		state:  NewStreamState(),
+		sink:     sink,
+		logger:   logger,
+		state:    NewStreamState(),
+		traceCtx: context.Background(),
 	}
+}
+
+// SetTraceContext attaches the parent OTel context that per-event spans
+// should chain off. Called by the Runner so dispatch_event spans appear
+// as children of the surrounding claude.parser.parse span. Defaults to
+// context.Background when unset (no parent span — spans still emit but
+// won't roll up under the parser parent).
+func (p *Parser) SetTraceContext(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	p.traceCtx = ctx
 }
 
 // State exposes the parser's accumulated StreamState. Useful for tests
@@ -101,6 +120,11 @@ func (p *Parser) Parse(stdout io.Reader) error {
 // on the top-level `type` discriminator (and `subtype` for system frames).
 // Returns an error only when the line cannot be decoded as JSON; per-event
 // payload mismatches are handled inside the dedicated handlers.
+//
+// Per-line work is wrapped in a “claude.parser.dispatch_event“ span so
+// traces show one child per stream-json frame (and per-subagent
+// transitions surface as span events emitted from the system/* handlers
+// below).
 func (p *Parser) handleLine(line []byte) error {
 	var head struct {
 		Type    string `json:"type"`
@@ -110,9 +134,19 @@ func (p *Parser) handleLine(line []byte) error {
 		return fmt.Errorf("decode head: %w", err)
 	}
 
+	tracer := otel.Tracer(claudeTracerName)
+	eventType := head.Type
+	if head.Subtype != "" {
+		eventType = head.Type + "/" + head.Subtype
+	}
+	_, span := tracer.Start(p.traceCtx, "claude.parser.dispatch_event",
+		trace.WithAttributes(attribute.String("claude.event_type", eventType)),
+	)
+	defer span.End()
+
 	switch head.Type {
 	case "system":
-		return p.handleSystem(head.Subtype, line)
+		return p.handleSystem(head.Subtype, line, span)
 	case "assistant":
 		return p.handleAssistant(line)
 	case "user":
@@ -139,16 +173,20 @@ func (p *Parser) handleLine(line []byte) error {
 // handleSystem dispatches on subtype. The catalogue is intentionally
 // closed — unknown subtypes log at debug and return nil so the stream
 // keeps moving.
-func (p *Parser) handleSystem(subtype string, line []byte) error {
+//
+// span is the active claude.parser.dispatch_event span; subagent
+// lifecycle handlers attach span events to it so dashboards can surface
+// transitions without inventing extra spans.
+func (p *Parser) handleSystem(subtype string, line []byte, span trace.Span) error {
 	switch subtype {
 	case "init":
 		return p.handleSystemInit(line)
 	case "task_started":
-		return p.handleSystemTaskStarted(line)
+		return p.handleSystemTaskStarted(line, span)
 	case "task_progress":
 		return p.handleSystemTaskProgress(line)
 	case "task_notification":
-		return p.handleSystemTaskNotification(line)
+		return p.handleSystemTaskNotification(line, span)
 	case "hook_started":
 		return p.handleSystemHookStarted(line)
 	case "hook_response":
@@ -212,7 +250,11 @@ func (p *Parser) handleSystemInit(line []byte) error {
 // (no description, no subagent_type). The protocol type accepts the
 // richer Doc 11 §6 shape; missing fields fall through as their zero
 // values which the iOS client tolerates.
-func (p *Parser) handleSystemTaskStarted(line []byte) error {
+//
+// Emits a “subagent.spawned“ span event on the dispatch span so
+// observability dashboards can correlate subagent lifecycles to the
+// parent claude.parser.parse span.
+func (p *Parser) handleSystemTaskStarted(line []byte, span trace.Span) error {
 	var raw struct {
 		SessionID    string `json:"session_id"`
 		TaskID       string `json:"task_id"`
@@ -245,6 +287,12 @@ func (p *Parser) handleSystemTaskStarted(line []byte) error {
 		Status:       "active",
 	}
 	p.state.RegisterSubagent(sub)
+
+	span.AddEvent("subagent.spawned", trace.WithAttributes(
+		attribute.String("subagent.session_id", raw.SessionID),
+		attribute.String("subagent.task_id", raw.TaskID),
+		attribute.String("subagent.type", subagentType),
+	))
 
 	ev := protocol.EventSessionTaskStarted{
 		SessionID:     raw.SessionID,
@@ -309,7 +357,10 @@ func (p *Parser) handleSystemTaskProgress(line []byte) error {
 // handleSystemTaskNotification decodes the sub-agent terminal frame,
 // finalises the SubagentState on the StreamState, and forwards a typed
 // EventSessionTaskNotification to the sink.
-func (p *Parser) handleSystemTaskNotification(line []byte) error {
+//
+// Emits a “subagent.completed“ span event on the dispatch span so
+// dashboards see the terminal status alongside the spawn event.
+func (p *Parser) handleSystemTaskNotification(line []byte, span trace.Span) error {
 	var raw struct {
 		SessionID string `json:"session_id"`
 		TaskID    string `json:"task_id"`
@@ -340,6 +391,14 @@ func (p *Parser) handleSystemTaskNotification(line []byte) error {
 		DurationMs:   raw.Usage.DurationMs,
 	}
 	p.state.CompleteSubagent(raw.TaskID, raw.Status, usage)
+
+	span.AddEvent("subagent.completed", trace.WithAttributes(
+		attribute.String("subagent.session_id", raw.SessionID),
+		attribute.String("subagent.task_id", raw.TaskID),
+		attribute.String("subagent.status", raw.Status),
+		attribute.Int("subagent.total_tokens", raw.Usage.TotalTokens),
+		attribute.Int("subagent.duration_ms", raw.Usage.DurationMs),
+	))
 
 	ev := protocol.EventSessionTaskNotification{
 		SessionID:   raw.SessionID,

@@ -1,0 +1,7 @@
+# Post-Incident Reports (post-mortems)
+#
+# Filed within 5 business days of any P1/P2 incident resolution.
+# Naming convention: <YYYY-MM-DD>-<slug>.md  (e.g., 2026-06-12-postgres-pitr-restore.md)
+# Template: see docs/runbooks/disaster-recovery.md §7
+#
+# This .gitkeep ensures the directory exists in git even when no post-mortems are filed yet.
