@@ -1,0 +1,326 @@
+# Default values for rafraf-backend.
+# This is a YAML-formatted file.
+# Sensible production defaults — environment overrides live in
+# values-staging.yaml / values-prod.yaml.
+
+# -----------------------------------------------------------------------------
+# Image
+# -----------------------------------------------------------------------------
+image:
+  # ECR registry path matches .github/workflows/backend-deploy.yml output
+  repository: 827604626727.dkr.ecr.eu-central-1.amazonaws.com/rafraf/backend
+  # MUST be set per-environment to an immutable SHA tag (8-char git SHA from CI).
+  # Empty string falls back to .Chart.AppVersion (NOT recommended for prod).
+  tag: ""
+  pullPolicy: IfNotPresent
+  # Name of dockerconfigjson Secret (only required if pulling from a private
+  # registry that the node IAM role cannot reach). Leave empty for ECR + IRSA.
+  pullSecret: ""
+
+# -----------------------------------------------------------------------------
+# Replication
+# -----------------------------------------------------------------------------
+# IMPORTANT (V1 ARCHITECTURE DECISION):
+# RafRaf backend uses an in-memory bridge_registry singleton. Each pod owns
+# its own registry — multiple replicas WILL drift and break bridge dispatch.
+# Keep replicaCount=1 until the registry is moved to Redis (post-V1).
+replicaCount: 1
+
+# -----------------------------------------------------------------------------
+# Service / Networking
+# -----------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 8000
+  targetPort: http  # named port on Deployment container
+  annotations: {}
+
+# -----------------------------------------------------------------------------
+# Resources (Doc 10 — small footprint cost target)
+# -----------------------------------------------------------------------------
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# -----------------------------------------------------------------------------
+# Probes
+# -----------------------------------------------------------------------------
+# /health   -> liveness  (no IO, returns 200 if process up)
+# /ready    -> readiness (DB + Redis ping; optional bridge presence gate)
+probes:
+  liveness:
+    enabled: true
+    path: /health
+    port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /ready
+    port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    # /ready performs DB + Redis I/O — give it room
+    timeoutSeconds: 5
+    failureThreshold: 3
+  startup:
+    enabled: true
+    path: /health
+    port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    # 5s * 24 = 120s grace for slow cold starts (Claude CLI + npm in image)
+    failureThreshold: 24
+
+# -----------------------------------------------------------------------------
+# Plain (non-secret) environment variables
+# -----------------------------------------------------------------------------
+# Mounted as ConfigMap and projected into the container as env vars.
+env:
+  LOG_LEVEL: INFO
+  JWT_ALGORITHM: RS256
+  # Legacy HS256 fallback grace period — adjust per JWT-key rotation cadence.
+  JWT_LEGACY_GRACE_UNTIL: "2026-08-01T00:00:00Z"
+  # Production gates /ready on a registered bridge (Faz 3 hardening)
+  READY_REQUIRES_BRIDGE: "true"
+  # OpenTelemetry — set OTEL_SERVICE_VERSION via ArgoCD per release (image SHA).
+  OTEL_SERVICE_NAME: "rafraf-backend"
+  OTEL_SERVICE_VERSION: ""
+  OTEL_DEPLOYMENT_ENV: "production"
+  # OTLP gRPC endpoint (Grafana Cloud Tempo / Honeycomb / etc.). TODO per env.
+  OTEL_EXPORTER_OTLP_ENDPOINT: ""
+  OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+  # File paths exposed by the projected secret volume (see deployment.yaml).
+  JWT_PRIVATE_KEY_PATH: "/etc/rafraf/jwt/private.pem"
+  JWT_PUBLIC_KEY_PATH: "/etc/rafraf/jwt/public.pem"
+  APNS_KEY_PATH: "/etc/rafraf/apns/AuthKey.p8"
+
+# Extra env vars (raw list of {name, value} or {name, valueFrom}). Optional.
+extraEnv: []
+
+# -----------------------------------------------------------------------------
+# ExternalSecrets (External Secrets Operator → AWS Secrets Manager)
+# -----------------------------------------------------------------------------
+externalSecrets:
+  enabled: true
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  # The k8s Secret created by ESO — referenced by Deployment env + projected vol.
+  targetSecretName: rafraf-backend-secrets
+  # Map of k8s Secret keys → AWS Secrets Manager paths.
+  # Each entry becomes a `data:` block in the ExternalSecret manifest.
+  remoteRefs:
+    - secretKey: DATABASE_URL
+      remoteKey: rafraf/prod/db-url
+    - secretKey: REDIS_URL
+      remoteKey: rafraf/prod/redis-url
+    - secretKey: JWT_PRIVATE_KEY
+      remoteKey: rafraf/prod/jwt-private-key
+    - secretKey: JWT_PUBLIC_KEY
+      remoteKey: rafraf/prod/jwt-public-key
+    - secretKey: JWT_SECRET_KEY  # legacy HS256 — drop after grace expiry
+      remoteKey: rafraf/prod/jwt-secret-key
+    - secretKey: ANTHROPIC_API_KEY
+      remoteKey: rafraf/prod/anthropic-api-key
+    - secretKey: AGENT_API_KEY
+      remoteKey: rafraf/prod/agent-api-key
+    - secretKey: AWS_ACCESS_KEY_ID
+      remoteKey: rafraf/prod/aws-access-key-id
+    - secretKey: AWS_SECRET_ACCESS_KEY
+      remoteKey: rafraf/prod/aws-secret-access-key
+    - secretKey: AWS_S3_BUCKET
+      remoteKey: rafraf/prod/aws-s3-bucket
+    - secretKey: APNS_KEY        # raw .p8 PEM contents
+      remoteKey: rafraf/prod/apns-key-p8
+    - secretKey: APNS_KEY_ID
+      remoteKey: rafraf/prod/apns-key-id
+    - secretKey: APNS_TEAM_ID
+      remoteKey: rafraf/prod/apns-team-id
+    - secretKey: GITHUB_TOKEN
+      remoteKey: rafraf/prod/github-token
+    - secretKey: GITHUB_WEBHOOK_SECRET
+      remoteKey: rafraf/prod/github-webhook-secret
+
+# -----------------------------------------------------------------------------
+# ServiceAccount (IRSA — IAM Roles for Service Accounts)
+# -----------------------------------------------------------------------------
+serviceAccount:
+  create: true
+  name: rafraf-backend
+  annotations:
+    # TODO: per-environment IRSA role ARN (S3 + Secrets Manager + CloudWatch)
+    eks.amazonaws.com/role-arn: ""
+
+# -----------------------------------------------------------------------------
+# Prometheus Operator ServiceMonitor
+# -----------------------------------------------------------------------------
+serviceMonitor:
+  enabled: true
+  # Namespace where Prometheus Operator scrapes from. Empty = release namespace.
+  namespace: ""
+  interval: 30s
+  scrapeTimeout: 10s
+  path: /metrics
+  # Extra labels for Prometheus selector matching (cluster Prometheus convention)
+  labels:
+    release: kube-prometheus-stack
+
+# -----------------------------------------------------------------------------
+# Ingress (AWS Load Balancer Controller — ALB)
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    # WebSocket support — ALB upgrades HTTP→WS on the same listener
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=3600
+    # TODO: ACM cert ARN per environment
+    alb.ingress.kubernetes.io/certificate-arn: ""
+  # TODO: hostname per env (e.g. api.rafraf.app, staging-api.rafraf.app)
+  host: ""
+  # Paths under host. WebSocket endpoints (/ws/*) and REST share the same backend.
+  paths:
+    - path: /
+      pathType: Prefix
+  # TLS via ACM (no Secret required when certificate-arn annotation is set);
+  # left empty to defer to ALB Controller.
+  tls: []
+
+# -----------------------------------------------------------------------------
+# alembic upgrade head (Helm pre-install / pre-upgrade Job)
+# -----------------------------------------------------------------------------
+migration:
+  enabled: true
+  # Reuses the same image as the Deployment; only the entrypoint differs.
+  command: ["alembic", "upgrade", "head"]
+  # Job-level overrides (resources are intentionally smaller than the API pod).
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+
+# -----------------------------------------------------------------------------
+# HorizontalPodAutoscaler
+# -----------------------------------------------------------------------------
+# CRITICAL: maxReplicas is intentionally capped at 1 because the in-memory
+# bridge_registry is a process-local singleton. Setting maxReplicas > 1 will
+# silently break agent dispatch — DO NOT raise without a Redis-backed registry.
+hpa:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 1
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# -----------------------------------------------------------------------------
+# PodDisruptionBudget
+# -----------------------------------------------------------------------------
+pdb:
+  enabled: true
+  # With replicaCount=1 + maxReplicas=1, minAvailable=1 means voluntary
+  # disruptions (node drains) will respect the single pod. Cluster admins
+  # may need to use --disable-eviction or scale up first during maintenance.
+  minAvailable: 1
+
+# -----------------------------------------------------------------------------
+# NetworkPolicy
+# -----------------------------------------------------------------------------
+networkPolicy:
+  enabled: true
+  # Allowed egress targets — adjust per VPC topology.
+  egress:
+    # RDS (PostgreSQL)
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/8  # TODO: tighten to RDS subnet CIDR per env
+      ports:
+        - protocol: TCP
+          port: 5432
+    # ElastiCache Redis
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/8  # TODO: tighten to Redis subnet CIDR per env
+      ports:
+        - protocol: TCP
+          port: 6379
+    # DNS (cluster-internal CoreDNS)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # External HTTPS (Anthropic API, AWS Secrets Manager, OTLP, GitHub, APNs)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 169.254.169.254/32  # block IMDS (force IRSA path)
+      ports:
+        - protocol: TCP
+          port: 443
+  ingress:
+    # ALB Controller pods send traffic from the ingress controller namespace.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 8000
+    # Prometheus scrape
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8000
+
+# -----------------------------------------------------------------------------
+# Pod scheduling
+# -----------------------------------------------------------------------------
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 999  # matches Dockerfile `rafraf` UID
+  fsGroup: 999
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false  # Claude CLI writes to /home/rafraf/.claude
+  runAsNonRoot: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Termination grace period — long enough to drain in-flight WebSocket sessions.
+terminationGracePeriodSeconds: 60

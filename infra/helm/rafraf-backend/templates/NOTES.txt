@@ -1,0 +1,41 @@
+{{- /* Helm post-install / post-upgrade hints. */ -}}
+RafRaf Backend chart {{ .Chart.Version }} (app {{ .Chart.AppVersion }}) deployed
+to namespace "{{ .Release.Namespace }}" as release "{{ .Release.Name }}".
+
+  Image:        {{ include "rafraf-backend.image" . }}
+  Replicas:     {{ .Values.replicaCount }}  (V1 architecture: in-memory bridge_registry — DO NOT scale)
+  Service:      {{ include "rafraf-backend.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+{{- if .Values.ingress.enabled }}
+  Public URL:   https://{{ .Values.ingress.host }}
+{{- end }}
+
+------------------------------------------------------------------------
+Verify rollout:
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "rafraf-backend.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Tail logs:
+  kubectl -n {{ .Release.Namespace }} logs -f deploy/{{ include "rafraf-backend.fullname" . }}
+
+Probe inside the cluster:
+  kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "rafraf-backend.fullname" . }} -- curl -s http://localhost:{{ .Values.service.port }}/health
+  kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "rafraf-backend.fullname" . }} -- curl -s http://localhost:{{ .Values.service.port }}/ready
+
+Run the chart's smoke test (curls /health from a freshly scheduled pod):
+  helm -n {{ .Release.Namespace }} test {{ .Release.Name }}
+
+{{- if eq .Values.image.tag "" }}
+
+WARNING: image.tag is empty — falling back to .Chart.AppVersion ({{ .Chart.AppVersion }}).
+For production, ALWAYS set image.tag to the immutable 8-char git SHA from the
+backend-deploy.yml workflow output.
+{{- end }}
+{{- if .Values.serviceAccount.create }}
+{{- $arn := index .Values.serviceAccount.annotations "eks.amazonaws.com/role-arn" }}
+{{- if or (eq $arn nil) (eq $arn "") }}
+
+NOTE: ServiceAccount has no IRSA role ARN annotation. Set
+serviceAccount.annotations."eks.amazonaws.com/role-arn" in values-{env}.yaml so
+the pod can pull secrets from AWS Secrets Manager and write to S3.
+{{- end }}
+{{- end }}

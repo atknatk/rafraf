@@ -1,0 +1,165 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rafraf-backend.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rafraf-backend.labels" . | nindent 4 }}
+spec:
+  # IMPORTANT: V1 architecture uses an in-memory bridge_registry singleton.
+  # Always 1 replica unless the registry is moved to Redis. See values.yaml.
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    # Single replica + RollingUpdate with maxSurge=1, maxUnavailable=0 means
+    # the new pod is fully Ready before the old pod is terminated, preserving
+    # the bridge connection long enough for it to reconnect to the new pod.
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "rafraf-backend.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "rafraf-backend.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        # Roll the pod when the ConfigMap changes (env-only change otherwise
+        # would not trigger a restart).
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: {{ .Values.serviceMonitor.path | quote }}
+        prometheus.io/port: {{ .Values.service.port | quote }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "rafraf-backend.serviceAccountName" . }}
+      {{- with .Values.image.pullSecret }}
+      imagePullSecrets:
+        - name: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: backend
+          image: {{ include "rafraf-backend.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          envFrom:
+            # Plain config from ConfigMap
+            - configMapRef:
+                name: {{ include "rafraf-backend.fullname" . }}-config
+            # Secret values (DATABASE_URL, REDIS_URL, ANTHROPIC_API_KEY, etc.)
+            {{- if .Values.externalSecrets.enabled }}
+            - secretRef:
+                name: {{ include "rafraf-backend.secretName" . }}
+            {{- end }}
+          {{- with .Values.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            # JWT keys + APNs .p8 mounted as files (paths exposed via env vars
+            # JWT_PRIVATE_KEY_PATH / JWT_PUBLIC_KEY_PATH / APNS_KEY_PATH).
+            {{- if .Values.externalSecrets.enabled }}
+            - name: jwt-keys
+              mountPath: /etc/rafraf/jwt
+              readOnly: true
+            - name: apns-key
+              mountPath: /etc/rafraf/apns
+              readOnly: true
+            {{- end }}
+            # Claude CLI scratch dir (matches Dockerfile: USER rafraf, HOME=/home/rafraf)
+            - name: claude-home
+              mountPath: /home/rafraf/.claude
+            - name: tmp
+              mountPath: /tmp
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.probes.startup.path }}
+              port: {{ .Values.probes.startup.port }}
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: {{ .Values.probes.liveness.port }}
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: {{ .Values.probes.readiness.port }}
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          lifecycle:
+            preStop:
+              exec:
+                # Give in-flight WebSocket sessions a chance to drain before SIGTERM.
+                command: ["sh", "-c", "sleep 15"]
+      volumes:
+        {{- if .Values.externalSecrets.enabled }}
+        - name: jwt-keys
+          secret:
+            secretName: {{ include "rafraf-backend.secretName" . }}
+            defaultMode: 0400
+            items:
+              - key: JWT_PRIVATE_KEY
+                path: private.pem
+              - key: JWT_PUBLIC_KEY
+                path: public.pem
+        - name: apns-key
+          secret:
+            secretName: {{ include "rafraf-backend.secretName" . }}
+            defaultMode: 0400
+            items:
+              - key: APNS_KEY
+                path: AuthKey.p8
+        {{- end }}
+        - name: claude-home
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 128Mi
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

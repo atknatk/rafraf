@@ -1,0 +1,64 @@
+# ArgoCD Application — rafraf-backend (STAGING)
+# Tracks `develop` branch and auto-syncs to the staging EKS cluster.
+# Apply with: kubectl apply -n argocd -f infra/argocd/rafraf-backend-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rafraf-backend-staging
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: rafraf
+    environment: staging
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/atknatk/rafraf.git
+    targetRevision: develop
+    path: infra/helm/rafraf-backend
+    helm:
+      releaseName: rafraf-backend
+      valueFiles:
+        - values.yaml
+        - values-staging.yaml
+      # Per-release image tag injected via ArgoCD CLI (`argocd app set …`)
+      # or the ArgoCD Image Updater. Left empty here.
+      # parameters:
+      #   - name: image.tag
+      #     value: "abcd1234"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: rafraf
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+      # Helm hooks (alembic migration Job) need explicit sync wave coordination
+      - PrunePropagationPolicy=foreground
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+  revisionHistoryLimit: 10
+  ignoreDifferences:
+    # ESO mutates the Secret resource version after each refresh — ignore it
+    # so ArgoCD doesn't churn on selfHeal.
+    - group: ""
+      kind: Secret
+      name: rafraf-backend-secrets
+      jsonPointers:
+        - /data
+    # HPA mutates replicas + status — owned by the controller, not Git.
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+      jsonPointers:
+        - /spec/minReplicas
+        - /spec/maxReplicas

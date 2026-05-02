@@ -1,0 +1,111 @@
+# Production environment overrides — merged on top of values.yaml
+# Usage: helm upgrade --install rafraf-backend ./infra/helm/rafraf-backend \
+#        --namespace rafraf --create-namespace \
+#        -f infra/helm/rafraf-backend/values.yaml \
+#        -f infra/helm/rafraf-backend/values-prod.yaml
+#
+# REVIEW BEFORE FIRST DEPLOY — placeholders marked TODO must be filled in.
+
+image:
+  # Set by ArgoCD to the immutable 8-char git SHA on each release.
+  # Manual override: --set image.tag=<sha>
+  tag: "TODO-SET-PER-RELEASE"
+
+env:
+  LOG_LEVEL: INFO
+  OTEL_DEPLOYMENT_ENV: "production"
+  READY_REQUIRES_BRIDGE: "true"
+  # Adjust grace expiry as old HS256 tokens fully drain.
+  JWT_LEGACY_GRACE_UNTIL: "2026-08-01T00:00:00Z"
+
+externalSecrets:
+  # Production AWS Secrets Manager paths (already wired in values.yaml — copied
+  # here for explicitness when reviewing prod manifest renders).
+  remoteRefs:
+    - secretKey: DATABASE_URL
+      remoteKey: rafraf/prod/db-url
+    - secretKey: REDIS_URL
+      remoteKey: rafraf/prod/redis-url
+    - secretKey: JWT_PRIVATE_KEY
+      remoteKey: rafraf/prod/jwt-private-key
+    - secretKey: JWT_PUBLIC_KEY
+      remoteKey: rafraf/prod/jwt-public-key
+    - secretKey: JWT_SECRET_KEY
+      remoteKey: rafraf/prod/jwt-secret-key
+    - secretKey: ANTHROPIC_API_KEY
+      remoteKey: rafraf/prod/anthropic-api-key
+    - secretKey: AGENT_API_KEY
+      remoteKey: rafraf/prod/agent-api-key
+    - secretKey: AWS_ACCESS_KEY_ID
+      remoteKey: rafraf/prod/aws-access-key-id
+    - secretKey: AWS_SECRET_ACCESS_KEY
+      remoteKey: rafraf/prod/aws-secret-access-key
+    - secretKey: AWS_S3_BUCKET
+      remoteKey: rafraf/prod/aws-s3-bucket
+    - secretKey: APNS_KEY
+      remoteKey: rafraf/prod/apns-key-p8
+    - secretKey: APNS_KEY_ID
+      remoteKey: rafraf/prod/apns-key-id
+    - secretKey: APNS_TEAM_ID
+      remoteKey: rafraf/prod/apns-team-id
+    - secretKey: GITHUB_TOKEN
+      remoteKey: rafraf/prod/github-token
+    - secretKey: GITHUB_WEBHOOK_SECRET
+      remoteKey: rafraf/prod/github-webhook-secret
+
+serviceAccount:
+  annotations:
+    # TODO: confirm production IRSA role ARN
+    eks.amazonaws.com/role-arn: "arn:aws:iam::827604626727:role/rafraf-backend-prod"
+
+ingress:
+  annotations:
+    # TODO: production ACM cert ARN
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:eu-central-1:827604626727:certificate/PROD-CERT-ID"
+  host: "api.rafraf.app"
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 768Mi
+  limits:
+    cpu: 1500m
+    memory: 1.5Gi
+
+hpa:
+  enabled: true
+  minReplicas: 1
+  # CRITICAL: keep at 1 — see comment in values.yaml about bridge_registry.
+  maxReplicas: 1
+  targetCPUUtilizationPercentage: 70
+
+# Tighten egress CIDRs to the actual VPC subnets in production.
+networkPolicy:
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.10.0.0/16  # TODO: prod VPC CIDR
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - ipBlock:
+            cidr: 10.10.0.0/16  # TODO: prod VPC CIDR
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 169.254.169.254/32
+      ports:
+        - protocol: TCP
+          port: 443
