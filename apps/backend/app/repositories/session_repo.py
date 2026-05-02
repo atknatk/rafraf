@@ -9,6 +9,7 @@ from typing import Literal
 
 import structlog
 from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.session import Session
@@ -91,6 +92,7 @@ class SessionRepository:
         self,
         session_id: uuid.UUID,
         *,
+        user_id: uuid.UUID,
         total_cost_usd: Decimal | float,
         total_input_tokens: int = 0,
         total_output_tokens: int = 0,
@@ -105,8 +107,21 @@ class SessionRepository:
         replaces — so a multi-turn session correctly aggregates across
         many ``claude -p`` invocations.
 
+        T2.5-fix (UPSERT): No prior row is created at WS-connect for the
+        runtime ``session_id`` (the WS session UUID4 is generated in
+        ``websocket.py`` without an INSERT to ``sessions``), so the
+        legacy plain-UPDATE matched zero rows in production and cost data
+        was silently dropped. We now use PostgreSQL
+        ``INSERT ... ON CONFLICT DO UPDATE`` so the first call seeds the
+        row (with a valid ``user_id`` FK) and subsequent calls accumulate
+        cumulatively. ``user_id`` is therefore mandatory — without it a
+        fresh INSERT would violate the NOT NULL FK on ``sessions.user_id``.
+
         Args:
             session_id: WebSocket session UUID (``sessions.id``).
+            user_id: Owner of the WS session — required because the row
+                may not exist yet and ``user_id`` is NOT NULL with FK
+                ``sessions.user_id -> users.id``.
             total_cost_usd: ``result.total_cost_usd`` from the envelope.
                 Negative values are rejected (no refund semantics).
             total_input_tokens: Sum of per-model ``input_tokens``.
@@ -115,47 +130,55 @@ class SessionRepository:
             total_cache_read_tokens: Anthropic prompt-cache READ.
 
         Returns:
-            ``True`` when a row was updated; ``False`` when ``session_id``
-            does not exist (the runner logs and continues).
+            Always ``True`` — UPSERT either inserts a fresh row or
+            updates the existing one. Kept as ``bool`` for API parity
+            with the legacy signature (callers may discard the value).
         """
         cost = Decimal(str(total_cost_usd))
         if cost < 0:
             cost = Decimal("0")
 
-        now = datetime.now(tz=UTC)
-        stmt = (
-            update(Session)
-            .where(Session.id == session_id)
-            .values(
-                total_cost_usd=func.coalesce(Session.total_cost_usd, Decimal("0")) + cost,
-                total_input_tokens=(
+        # PostgreSQL UPSERT — first call seeds the row, subsequent calls
+        # accumulate via ON CONFLICT DO UPDATE. The conflict target is the
+        # primary key (``id``); the SET clause uses qualified column refs
+        # against the live row (``Session.<col>``) so the addition reads
+        # the existing value, not the INSERT-time value.
+        insert_stmt = pg_insert(Session).values(
+            id=session_id,
+            user_id=user_id,
+            total_cost_usd=cost,
+            total_input_tokens=total_input_tokens,
+            total_output_tokens=total_output_tokens,
+            total_cache_creation_tokens=total_cache_creation_tokens,
+            total_cache_read_tokens=total_cache_read_tokens,
+            cost_updated_at=func.now(),
+        )
+        upsert_stmt = insert_stmt.on_conflict_do_update(
+            index_elements=["id"],
+            set_={
+                "total_cost_usd": (func.coalesce(Session.total_cost_usd, Decimal("0")) + cost),
+                "total_input_tokens": (
                     func.coalesce(Session.total_input_tokens, 0) + total_input_tokens
                 ),
-                total_output_tokens=(
+                "total_output_tokens": (
                     func.coalesce(Session.total_output_tokens, 0) + total_output_tokens
                 ),
-                total_cache_creation_tokens=(
+                "total_cache_creation_tokens": (
                     func.coalesce(Session.total_cache_creation_tokens, 0)
                     + total_cache_creation_tokens
                 ),
-                total_cache_read_tokens=(
+                "total_cache_read_tokens": (
                     func.coalesce(Session.total_cache_read_tokens, 0) + total_cache_read_tokens
                 ),
-                cost_updated_at=now,
-                updated_at=now,
-            )
+                "cost_updated_at": func.now(),
+                "updated_at": func.now(),
+            },
         )
-        result = await self._session.execute(stmt)
-        rowcount = int(getattr(result, "rowcount", 0) or 0)
-        if rowcount == 0:
-            await logger.awarning(
-                "session_cost_update_skipped_unknown_session",
-                session_id=str(session_id),
-            )
-            return False
+        await self._session.execute(upsert_stmt)
         await logger.adebug(
-            "session_cost_updated",
+            "session_cost_upserted",
             session_id=str(session_id),
+            user_id=str(user_id),
             cost_increment=str(cost),
         )
         return True
@@ -211,14 +234,10 @@ def resolve_period_window(
         start = current.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         return start, None, f"{start.year:04d}-{start.month:02d}"
     if period == "last_month":
-        first_of_current = current.replace(
-            day=1, hour=0, minute=0, second=0, microsecond=0
-        )
+        first_of_current = current.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         # Step back one second into the previous month, then snap to its 1st.
         last_month_anchor = first_of_current - timedelta(seconds=1)
-        start = last_month_anchor.replace(
-            day=1, hour=0, minute=0, second=0, microsecond=0
-        )
+        start = last_month_anchor.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         return start, first_of_current, f"{start.year:04d}-{start.month:02d}"
     if period == "current_week":
         # ISO week — Monday as start of week.

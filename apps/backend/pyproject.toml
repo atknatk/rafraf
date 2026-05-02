@@ -28,6 +28,7 @@ dependencies = [
     "opentelemetry-instrumentation-asyncpg>=0.51b0",
     "opentelemetry-instrumentation-httpx>=0.51b0",
     "opentelemetry-exporter-otlp-proto-http>=1.30.0",
+    "prometheus-client>=0.20.0",
 ]
 
 [project.optional-dependencies]

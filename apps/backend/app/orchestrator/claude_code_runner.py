@@ -42,8 +42,6 @@ from opentelemetry import trace
 from app.core import metrics as _metrics
 from app.core.telemetry import get_tracer
 
-from app.core.metrics import claude_rate_limit_hits_total
-
 if TYPE_CHECKING:
     from app.repositories.session_repo import SessionRepository
     from app.repositories.subagent_repo import SubagentRepository
@@ -173,6 +171,16 @@ class _RunState:
     tokens_output: int = 0
     tokens_cache_creation: int = 0
     tokens_cache_read: int = 0
+    # T2.5-fix Bug 4 cursor: how many of state.tokens_input / .tokens_output
+    # we already pushed to ``update_session_cost``. The result-event
+    # persistence path computes ``state.tokens_X - state.tokens_X_persisted``
+    # so assistant-event-supplied output_tokens (already added to
+    # state.tokens_output before the result envelope arrives) are NOT
+    # double-counted, AND so the result envelope's input_tokens (which is
+    # the absolute usage rather than a delta) lands cumulatively without
+    # being lost when the cursor was previously zero.
+    tokens_input_persisted: int = 0
+    tokens_output_persisted: int = 0
     cost_usd: float = 0.0
     permission_denials: list[dict[str, object]] = field(default_factory=list)
     delta_index: int = 0
@@ -430,6 +438,7 @@ class ClaudeCodeRunner:
                         callbacks=callbacks,
                         bridge_host_id=target_host_id,
                         db_session_id=db_session_id,
+                        user_id=user_id,
                     )
                     if terminal:
                         break
@@ -504,6 +513,7 @@ class ClaudeCodeRunner:
         callbacks: _Callbacks,
         bridge_host_id: str,
         db_session_id: uuid.UUID | None = None,
+        user_id: str | None = None,
     ) -> bool:
         """Route one bridge event to the right callback + state slot.
 
@@ -532,6 +542,7 @@ class ClaudeCodeRunner:
                     callbacks=callbacks,
                     bridge_host_id=bridge_host_id,
                     db_session_id=db_session_id,
+                    user_id=user_id,
                     span=span,
                 )
             except ClaudeCodeError as exc:
@@ -547,6 +558,7 @@ class ClaudeCodeRunner:
         callbacks: _Callbacks,
         bridge_host_id: str,
         db_session_id: uuid.UUID | None,
+        user_id: str | None,
         span: trace.Span,
     ) -> bool:
         """Body of :meth:`_dispatch_event`, wrapped by the OTel span."""
@@ -711,12 +723,8 @@ class ClaudeCodeRunner:
                         cache_creation_delta += int(
                             entry.get("cache_creation_input_tokens", 0) or 0
                         )
-                        cache_read_delta += int(
-                            entry.get("cache_read_input_tokens", 0) or 0
-                        )
-                        output_from_usage += int(
-                            entry.get("output_tokens", 0) or 0
-                        )
+                        cache_read_delta += int(entry.get("cache_read_input_tokens", 0) or 0)
+                        output_from_usage += int(entry.get("output_tokens", 0) or 0)
 
             state.tokens_input += input_delta
             state.tokens_cache_creation += cache_creation_delta
@@ -732,19 +740,35 @@ class ClaudeCodeRunner:
                 await callbacks.on_tool_progress(_build_progress_event(state))
 
             # T2.5 — persist per-result cost+tokens. Best-effort: if no
-            # ``session_repo`` was injected (legacy code path) or no
-            # ``db_session_id`` was supplied (caller doesn't yet wire it),
+            # ``session_repo`` was injected (legacy code path), no
+            # ``db_session_id`` was supplied, or no ``user_id`` was
+            # threaded through (the UPSERT requires it because the row
+            # may not yet exist and ``sessions.user_id`` is NOT NULL FK),
             # we silently skip — this is purely additive to the existing
             # claude_total_cost_usd_total Prometheus counter (T2.2).
-            if self._sessions is not None and db_session_id is not None:
+            #
+            # T2.5-fix Bug 4 (cursor): persist deltas measured against the
+            # already-persisted cumulative count, not the per-event
+            # increments. This handles the case where assistant events
+            # populated state.tokens_output BEFORE the result envelope
+            # arrived (otherwise the result-event "output_delta = 0 if
+            # state.tokens_output != 0" guard would push 0 to the DB,
+            # silently losing the assistant-reported counts).
+            if self._sessions is not None and db_session_id is not None and user_id:
                 try:
                     from decimal import Decimal
 
+                    output_to_persist = state.tokens_output - state.tokens_output_persisted
+                    state.tokens_output_persisted = state.tokens_output
+                    input_to_persist = state.tokens_input - state.tokens_input_persisted
+                    state.tokens_input_persisted = state.tokens_input
+
                     await self._sessions.update_session_cost(
                         db_session_id,
+                        user_id=uuid.UUID(user_id),
                         total_cost_usd=Decimal(str(state.cost_usd)),
-                        total_input_tokens=input_delta,
-                        total_output_tokens=output_delta,
+                        total_input_tokens=input_to_persist,
+                        total_output_tokens=output_to_persist,
                         total_cache_creation_tokens=cache_creation_delta,
                         total_cache_read_tokens=cache_read_delta,
                     )

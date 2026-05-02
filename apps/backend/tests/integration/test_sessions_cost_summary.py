@@ -217,3 +217,182 @@ class TestCostSummaryEndpoint:
         data = resp.json()
         assert data["session_count"] == 0
         assert Decimal(data["total_cost_usd"]) == Decimal("0")
+
+
+# ---------------------------------------------------------------------------
+# T2.5-fix end-to-end: runner.run() result event → SessionRepository UPSERT →
+# cost-summary endpoint reads back non-zero. Validates that the UPSERT
+# correctly seeds a fresh ``sessions`` row for a WS session_id that was
+# never previously INSERTed (the legacy plain-UPDATE path silently dropped
+# the write because ``rowcount == 0``).
+# ---------------------------------------------------------------------------
+
+
+class TestT25FixUpsertEndToEnd:
+    """End-to-end: runner cost persistence reaches the cost-summary endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_runner_upsert_then_summary_returns_nonzero(self) -> None:
+        """Drive ``ClaudeCodeRunner.run()`` with a result event, capture the
+        repo write, then ask the cost-summary endpoint and assert it sees
+        the persisted cost (not zero like the pre-fix code path).
+
+        We use the same in-memory ``_FakeSessionRepo`` pattern as the
+        runner unit tests, plus a parallel fake registry that emits a
+        single ``event.session.result`` envelope. After the runner
+        completes we project the captured UPSERT call as a Session-shaped
+        stub, install it via the cost-summary endpoint dep-overrides, and
+        assert the response carries the persisted cost — proving the wire
+        from result-event → DB → summary is unbroken.
+        """
+        import asyncio
+        import uuid as _uuid
+        from collections.abc import AsyncIterator
+
+        from app.orchestrator.claude_code_runner import ClaudeCodeRunner
+
+        # --- Fake bridge registry replaying a single result event. -------
+        class _FakeRegistry:
+            def __init__(self, events: list[dict[str, object]]) -> None:
+                self._events = events
+
+            def get_connection_id(self, host_id: str) -> str | None:
+                return f"conn-{host_id}" if host_id == "mac-1" else None
+
+            def find_online_agent_with_capability(self, capability: str) -> str | None:
+                del capability
+                return "mac-1"
+
+            def register_subscriber(
+                self, *, bridge_id: str, rpc_id: str
+            ) -> asyncio.Queue[dict[str, object]]:
+                del bridge_id, rpc_id
+                return asyncio.Queue()
+
+            def unregister_subscriber(self, *, bridge_id: str, rpc_id: str) -> None:
+                del bridge_id, rpc_id
+
+            async def send_to_bridge(self, host_id: str, envelope: dict[str, object]) -> bool:
+                del host_id, envelope
+                return True
+
+            async def stream_events(
+                self,
+                *,
+                rpc_id: str,
+                bridge_id: str | None = None,
+                queue: asyncio.Queue[dict[str, object]] | None = None,
+            ) -> AsyncIterator[dict[str, object]]:
+                del bridge_id, queue
+                for raw in self._events:
+                    event = dict(raw)
+                    event["correlation_id"] = rpc_id
+                    yield event
+
+        # --- Fake repo capturing the UPSERT call. -----------------------
+        class _UpsertingRepo:
+            def __init__(self) -> None:
+                self.upserted: list[dict[str, object]] = []
+
+            async def update_session_cost(
+                self,
+                session_id: _uuid.UUID,
+                *,
+                user_id: _uuid.UUID,
+                total_cost_usd: object,
+                total_input_tokens: int = 0,
+                total_output_tokens: int = 0,
+                total_cache_creation_tokens: int = 0,
+                total_cache_read_tokens: int = 0,
+            ) -> bool:
+                self.upserted.append(
+                    {
+                        "session_id": session_id,
+                        "user_id": user_id,
+                        "total_cost_usd": Decimal(str(total_cost_usd)),
+                        "total_input_tokens": total_input_tokens,
+                        "total_output_tokens": total_output_tokens,
+                        "total_cache_creation_tokens": total_cache_creation_tokens,
+                        "total_cache_read_tokens": total_cache_read_tokens,
+                    }
+                )
+                return True
+
+        result_event = {
+            "type": "event.session.result",
+            "payload": {
+                "session_id": "sess-e2e",
+                "duration_ms": 200,
+                "num_turns": 1,
+                "result": "ok",
+                "stop_reason": "end_turn",
+                "total_cost_usd": 0.123,
+                "model_usage": {
+                    "claude-opus-4-7": {
+                        "input_tokens": 500,
+                        "output_tokens": 250,
+                        "cache_creation_input_tokens": 0,
+                        "cache_read_input_tokens": 0,
+                    }
+                },
+                "permission_denials": [],
+                "terminal_reason": "clean",
+            },
+        }
+        registry = _FakeRegistry(events=[result_event])
+        repo = _UpsertingRepo()
+        runner = ClaudeCodeRunner(
+            bridge_registry=registry,  # type: ignore[arg-type]
+            session_repo=repo,  # type: ignore[arg-type]
+        )
+
+        ws_session_id = _uuid.uuid4()  # brand-new UUID — no row pre-exists.
+        owner_user_id = _uuid.uuid4()
+
+        await runner.run(
+            prompt="hello",
+            db_session_id=ws_session_id,
+            user_id=str(owner_user_id),
+        )
+
+        # --- Confirm UPSERT was called with the supplied user_id. -------
+        assert len(repo.upserted) == 1
+        write = repo.upserted[0]
+        assert write["session_id"] == ws_session_id
+        assert write["user_id"] == owner_user_id
+        assert write["total_cost_usd"] == Decimal("0.123")
+        assert write["total_input_tokens"] == 500
+        assert write["total_output_tokens"] == 250
+
+        # --- Now project that write as a Session row + install the
+        #     dep-override and verify the cost-summary endpoint returns
+        #     the non-zero cost. This is the "DB persists → summary
+        #     endpoint reads it back" leg of the end-to-end flow.
+        user_for_endpoint = _make_user_stub(user_id=owner_user_id)
+        now = datetime.now(tz=UTC)
+        seeded_row = _make_session_row(
+            user_id=owner_user_id,
+            cost=Decimal(str(write["total_cost_usd"])),
+            started_at=now - timedelta(minutes=5),
+            cost_updated_at=now,
+            input_tokens=int(write["total_input_tokens"]),  # type: ignore[arg-type]
+            output_tokens=int(write["total_output_tokens"]),  # type: ignore[arg-type]
+        )
+        seeded_row.id = ws_session_id
+        _install_overrides(
+            user_for_endpoint,
+            rows_by_user={owner_user_id: [seeded_row]},
+        )
+
+        client = TestClient(app)
+        resp = client.get("/api/v1/sessions/cost-summary")
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["session_count"] == 1
+        # CRITICAL: NOT zero — pre-fix this would have been Decimal('0')
+        # because the runner's plain-UPDATE never matched a row.
+        assert Decimal(data["total_cost_usd"]) == Decimal("0.123")
+        assert data["total_input_tokens"] == 500
+        assert data["total_output_tokens"] == 250
+        assert len(data["by_session"]) == 1
+        assert data["by_session"][0]["session_id"] == str(ws_session_id)

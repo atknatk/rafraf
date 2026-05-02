@@ -35,29 +35,50 @@ async def _make_user(db_session: AsyncSession) -> User:
 
 
 class TestUpdateSessionCost:
-    """update_session_cost — cumulative ADD via COALESCE semantics."""
+    """update_session_cost — cumulative ADD via PostgreSQL UPSERT.
+
+    T2.5-fix: switched from plain UPDATE (which silently dropped writes
+    when no prior row existed for the WS session_id) to
+    ``INSERT ... ON CONFLICT DO UPDATE`` so the first call seeds a row
+    with a valid ``user_id`` FK and subsequent calls accumulate.
+    """
 
     @pytest.mark.asyncio
-    async def test_returns_false_for_unknown_session(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_unknown_session_inserts_fresh_row(self, db_session: AsyncSession) -> None:
+        """T2.5-fix: previously returned False; now UPSERTs a brand-new row."""
+        user = await _make_user(db_session)
         repo = SessionRepository(db_session)
+        new_id = uuid.uuid4()
+
         ok = await repo.update_session_cost(
-            uuid.uuid4(),
+            new_id,
+            user_id=user.id,
             total_cost_usd=Decimal("0.01"),
+            total_input_tokens=11,
+            total_output_tokens=22,
         )
-        assert ok is False
+        assert ok is True
+
+        # Round-trip through the DB to confirm INSERT happened with FK.
+        from sqlalchemy import select
+
+        result = await db_session.execute(select(Session).where(Session.id == new_id))
+        row = result.scalar_one()
+        assert row.user_id == user.id
+        assert row.total_cost_usd == Decimal("0.010000")
+        assert row.total_input_tokens == 11
+        assert row.total_output_tokens == 22
+        assert row.cost_updated_at is not None
 
     @pytest.mark.asyncio
-    async def test_first_increment_initialises_columns(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_first_increment_initialises_columns(self, db_session: AsyncSession) -> None:
         user = await _make_user(db_session)
         repo = SessionRepository(db_session)
         record = await repo.create(user_id=user.id)
 
         ok = await repo.update_session_cost(
             record.id,
+            user_id=user.id,
             total_cost_usd=Decimal("0.123456"),
             total_input_tokens=10,
             total_output_tokens=20,
@@ -67,6 +88,8 @@ class TestUpdateSessionCost:
         assert ok is True
 
         await db_session.refresh(record)
+        # Pre-existing row → ON CONFLICT DO UPDATE branch — values added on
+        # top of the zero defaults.
         assert record.total_cost_usd == Decimal("0.123456")
         assert record.total_input_tokens == 10
         assert record.total_output_tokens == 20
@@ -75,15 +98,14 @@ class TestUpdateSessionCost:
         assert record.cost_updated_at is not None
 
     @pytest.mark.asyncio
-    async def test_second_increment_adds_cumulatively(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_second_increment_adds_cumulatively(self, db_session: AsyncSession) -> None:
         user = await _make_user(db_session)
         repo = SessionRepository(db_session)
         record = await repo.create(user_id=user.id)
 
         await repo.update_session_cost(
             record.id,
+            user_id=user.id,
             total_cost_usd=Decimal("0.10"),
             total_input_tokens=5,
             total_output_tokens=7,
@@ -92,6 +114,7 @@ class TestUpdateSessionCost:
         )
         await repo.update_session_cost(
             record.id,
+            user_id=user.id,
             total_cost_usd=Decimal("0.05"),
             total_input_tokens=3,
             total_output_tokens=4,
@@ -108,29 +131,55 @@ class TestUpdateSessionCost:
         assert record.total_cache_read_tokens == 10
 
     @pytest.mark.asyncio
-    async def test_negative_cost_clamped_to_zero(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_negative_cost_clamped_to_zero(self, db_session: AsyncSession) -> None:
         user = await _make_user(db_session)
         repo = SessionRepository(db_session)
         record = await repo.create(user_id=user.id)
 
         await repo.update_session_cost(
             record.id,
+            user_id=user.id,
             total_cost_usd=Decimal("-0.50"),
         )
         await db_session.refresh(record)
         # Default 0 + clamped 0 == 0.
         assert record.total_cost_usd == Decimal("0.000000")
 
+    @pytest.mark.asyncio
+    async def test_upsert_end_to_end_then_summary_reads_nonzero(
+        self, db_session: AsyncSession
+    ) -> None:
+        """T2.5-fix e2e: a brand-new session_id (no prior row) gets persisted
+        by the UPSERT path, and the cost-summary listing then sees it."""
+        user = await _make_user(db_session)
+        repo = SessionRepository(db_session)
+
+        fresh_session_id = uuid.uuid4()
+        await repo.update_session_cost(
+            fresh_session_id,
+            user_id=user.id,
+            total_cost_usd=Decimal("0.07"),
+            total_input_tokens=100,
+            total_output_tokens=200,
+        )
+
+        # Window: anything since 1 hour ago — should include the fresh row.
+        rows = await repo.list_costs_for_user_in_period(
+            user_id=user.id,
+            period_start=datetime.now(tz=UTC) - timedelta(hours=1),
+        )
+        assert len(rows) == 1
+        assert rows[0].id == fresh_session_id
+        assert rows[0].total_cost_usd == Decimal("0.070000")
+        assert rows[0].total_input_tokens == 100
+        assert rows[0].total_output_tokens == 200
+
 
 class TestListCostsForUserInPeriod:
     """list_costs_for_user_in_period — window filter + ordering."""
 
     @pytest.mark.asyncio
-    async def test_returns_empty_when_no_sessions_in_window(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_returns_empty_when_no_sessions_in_window(self, db_session: AsyncSession) -> None:
         user = await _make_user(db_session)
         repo = SessionRepository(db_session)
         rows = await repo.list_costs_for_user_in_period(
@@ -140,19 +189,17 @@ class TestListCostsForUserInPeriod:
         assert rows == []
 
     @pytest.mark.asyncio
-    async def test_filters_outside_window_and_orders_desc(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_filters_outside_window_and_orders_desc(self, db_session: AsyncSession) -> None:
         user = await _make_user(db_session)
         repo = SessionRepository(db_session)
 
         old_session = await repo.create(user_id=user.id)
         recent_session = await repo.create(user_id=user.id)
         await repo.update_session_cost(
-            old_session.id, total_cost_usd=Decimal("0.01")
+            old_session.id, user_id=user.id, total_cost_usd=Decimal("0.01")
         )
         await repo.update_session_cost(
-            recent_session.id, total_cost_usd=Decimal("0.02")
+            recent_session.id, user_id=user.id, total_cost_usd=Decimal("0.02")
         )
         # Manually backdate the older session to outside the window.
         await db_session.refresh(old_session)
@@ -168,17 +215,13 @@ class TestListCostsForUserInPeriod:
         assert rows[0].id == recent_session.id
 
     @pytest.mark.asyncio
-    async def test_does_not_leak_other_users(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_does_not_leak_other_users(self, db_session: AsyncSession) -> None:
         user_a = await _make_user(db_session)
         user_b = await _make_user(db_session)
         repo = SessionRepository(db_session)
 
         sess_b = await repo.create(user_id=user_b.id)
-        await repo.update_session_cost(
-            sess_b.id, total_cost_usd=Decimal("0.99")
-        )
+        await repo.update_session_cost(sess_b.id, user_id=user_b.id, total_cost_usd=Decimal("0.99"))
 
         rows = await repo.list_costs_for_user_in_period(
             user_id=user_a.id,
@@ -234,9 +277,7 @@ class TestEndSessionStillWorks:
     """Sanity check: pre-T2.5 methods are not broken by the new columns."""
 
     @pytest.mark.asyncio
-    async def test_end_session_marks_ended_at(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_end_session_marks_ended_at(self, db_session: AsyncSession) -> None:
         user = await _make_user(db_session)
         repo = SessionRepository(db_session)
         record = await repo.create(user_id=user.id)
@@ -244,8 +285,6 @@ class TestEndSessionStillWorks:
         # Force a fresh fetch (refresh works against the same row).
         from sqlalchemy import select
 
-        result = await db_session.execute(
-            select(Session).where(Session.id == record.id)
-        )
+        result = await db_session.execute(select(Session).where(Session.id == record.id))
         fetched = result.scalar_one()
         assert fetched.ended_at is not None
