@@ -142,6 +142,7 @@ class LiveActivityPushService:
             "send_visible_push_not_implemented",
             user_id=str(user_id),
             title=title,
+            body_length=len(body),
         )
 
     # ------------------------------------------------------------------
