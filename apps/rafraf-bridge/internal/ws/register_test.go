@@ -351,10 +351,7 @@ func TestLegacyRegisterAckTimeoutTriggersReconnect(t *testing.T) {
 	// register-ack timeout caused connectAndPump to return with an
 	// error and the reconnect path advanced the counter.
 	deadline := time.After(registerAckTimeout + 3*time.Second)
-	for {
-		if telemetry.WSDisconnects.Load()-disconnectsBefore >= 1 {
-			break
-		}
+	for telemetry.WSDisconnects.Load()-disconnectsBefore < 1 {
 		select {
 		case <-deadline:
 			t.Fatalf("ack timeout did not trigger reconnect: disconnects_delta=%d, upgrades=%d",

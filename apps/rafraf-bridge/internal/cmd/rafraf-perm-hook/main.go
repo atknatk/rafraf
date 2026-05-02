@@ -8,11 +8,11 @@
 //
 //   - stdin  → JSON envelope from claude CLI (PreToolUse hook
 //     contract). Required fields:
-//       hook_event_name: "PreToolUse"
-//       tool_name:       string
-//       tool_input:      object (verbatim claude payload)
-//       session_id:      string (claude session UUID)
-//       tool_use_id:     string (opaque PreToolUse ID)
+//     hook_event_name: "PreToolUse"
+//     tool_name:       string
+//     tool_input:      object (verbatim claude payload)
+//     session_id:      string (claude session UUID)
+//     tool_use_id:     string (opaque PreToolUse ID)
 //
 //   - $RAFRAF_BRIDGE_PERM_SOCK → Unix-domain socket path the bridge
 //     created at startup. The hook dials it once.
@@ -23,7 +23,7 @@
 //   - bridge → {decision: "allow"|"block", reason?}
 //     (one JSON object). Hook prints this verbatim to stdout, exits 0.
 //
-// FAIL-SAFE
+// # FAIL-SAFE
 //
 // Every error path resolves to a deny print on stdout. The exit
 // code is 0 in EVERY case — claude CLI relies on the JSON, not the
@@ -40,7 +40,7 @@
 // scoop up hook-internal failures (claude tees hook stderr into its
 // own stream-json output as system/hook_response frames).
 //
-// V1.2 LIMITATION
+// # V1.2 LIMITATION
 //
 // updated_input is not yet implemented. The CommandClaudePermissionDecision
 // schema reserves the field for V2 MCP-style edits but the hook
@@ -116,7 +116,7 @@ func main() {
 	// exits 0; the JSON on stdout is the decision channel.
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Fprintf(os.Stderr, "rafraf-perm-hook: panic recovered: %v\n", r)
+			_, _ = fmt.Fprintf(os.Stderr, "rafraf-perm-hook: panic recovered: %v\n", r)
 			emitDeny("hook panic")
 		}
 	}()
@@ -129,20 +129,20 @@ func main() {
 // touching real environment variables.
 func run(stdin io.Reader, stdout, stderr io.Writer, sock string) {
 	if sock == "" {
-		fmt.Fprintln(stderr, "rafraf-perm-hook: $RAFRAF_BRIDGE_PERM_SOCK unset; denying")
+		_, _ = fmt.Fprintln(stderr, "rafraf-perm-hook: $RAFRAF_BRIDGE_PERM_SOCK unset; denying")
 		writeOutput(stdout, hookOutput{Decision: "block", Reason: "bridge unavailable"})
 		return
 	}
 
 	body, err := io.ReadAll(stdin)
 	if err != nil {
-		fmt.Fprintf(stderr, "rafraf-perm-hook: read stdin: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "rafraf-perm-hook: read stdin: %v\n", err)
 		writeOutput(stdout, hookOutput{Decision: "block", Reason: "stdin read failed"})
 		return
 	}
 	var inbound claudeStdin
 	if err := json.Unmarshal(body, &inbound); err != nil {
-		fmt.Fprintf(stderr, "rafraf-perm-hook: parse stdin: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "rafraf-perm-hook: parse stdin: %v\n", err)
 		writeOutput(stdout, hookOutput{Decision: "block", Reason: "malformed hook payload"})
 		return
 	}
@@ -151,14 +151,14 @@ func run(stdin io.Reader, stdout, stderr io.Writer, sock string) {
 	// different event class we must not silently block tool _output_.
 	// Bail with deny only on PreToolUse; otherwise the hook is a no-op.
 	if inbound.HookEventName != "" && inbound.HookEventName != "PreToolUse" {
-		fmt.Fprintf(stderr, "rafraf-perm-hook: unexpected hook_event_name %q; deferring to claude\n", inbound.HookEventName)
+		_, _ = fmt.Fprintf(stderr, "rafraf-perm-hook: unexpected hook_event_name %q; deferring to claude\n", inbound.HookEventName)
 		writeOutput(stdout, hookOutput{Decision: "allow", Reason: "non-PreToolUse event passthrough"})
 		return
 	}
 
 	conn, err := net.DialTimeout("unix", sock, dialTimeout)
 	if err != nil {
-		fmt.Fprintf(stderr, "rafraf-perm-hook: dial %s: %v\n", sock, err)
+		_, _ = fmt.Fprintf(stderr, "rafraf-perm-hook: dial %s: %v\n", sock, err)
 		writeOutput(stdout, hookOutput{Decision: "block", Reason: "bridge dial failed"})
 		return
 	}
@@ -168,7 +168,7 @@ func run(stdin io.Reader, stdout, stderr io.Writer, sock string) {
 		// Non-fatal — proceed but the read may stall on a wedged
 		// broker. We accept the risk because the broker has its
 		// own per-request timer.
-		fmt.Fprintf(stderr, "rafraf-perm-hook: set deadline: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "rafraf-perm-hook: set deadline: %v\n", err)
 	}
 
 	req := brokerRequest{
@@ -179,29 +179,29 @@ func run(stdin io.Reader, stdout, stderr io.Writer, sock string) {
 	}
 	reqBody, err := json.Marshal(req)
 	if err != nil {
-		fmt.Fprintf(stderr, "rafraf-perm-hook: marshal request: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "rafraf-perm-hook: marshal request: %v\n", err)
 		writeOutput(stdout, hookOutput{Decision: "block", Reason: "internal marshal error"})
 		return
 	}
 	reqBody = append(reqBody, '\n')
 	if _, err := conn.Write(reqBody); err != nil {
-		fmt.Fprintf(stderr, "rafraf-perm-hook: write request: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "rafraf-perm-hook: write request: %v\n", err)
 		writeOutput(stdout, hookOutput{Decision: "block", Reason: "bridge write failed"})
 		return
 	}
 
 	var reply brokerReply
 	if err := json.NewDecoder(conn).Decode(&reply); err != nil {
-		fmt.Fprintf(stderr, "rafraf-perm-hook: decode reply: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "rafraf-perm-hook: decode reply: %v\n", err)
 		writeOutput(stdout, hookOutput{Decision: "block", Reason: "bridge reply failed"})
 		return
 	}
 
 	// Pass through verbatim — broker decided.
-	out := hookOutput{Decision: reply.Decision, Reason: reply.Reason}
+	out := hookOutput(reply)
 	if out.Decision != "allow" && out.Decision != "block" {
 		// Defensive: if broker emits anything else, fail safe.
-		fmt.Fprintf(stderr, "rafraf-perm-hook: unknown decision %q; denying\n", out.Decision)
+		_, _ = fmt.Fprintf(stderr, "rafraf-perm-hook: unknown decision %q; denying\n", out.Decision)
 		writeOutput(stdout, hookOutput{Decision: "block", Reason: "broker invalid decision"})
 		return
 	}

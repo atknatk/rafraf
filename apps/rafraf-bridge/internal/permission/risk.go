@@ -92,9 +92,9 @@ var readOnlyTools = map[string]struct{}{
 // writeTools is the set whose risk depends on whether the target path
 // is inside the bridge's cwd.
 var writeTools = map[string]struct{}{
-	"Edit":      {},
-	"Write":     {},
-	"MultiEdit": {},
+	"Edit":               {},
+	"Write":              {},
+	"MultiEdit":          {},
 	"NotebookEdit_Write": {}, // defensive — claude variants may add this
 }
 

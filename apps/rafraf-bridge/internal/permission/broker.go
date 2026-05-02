@@ -41,7 +41,7 @@
 //     (internal/cmd/rafraf-perm-hook) enforces this on the producer
 //     side; the broker enforces it here on the consumer side.
 //
-// V1.2 SCOPE
+// # V1.2 SCOPE
 //
 // V1.2 ships the broker + UDS listener + hook binary + risk classifier
 // + runner --settings overlay. SetRequestHandler is left nil at
@@ -305,7 +305,7 @@ func (b *Broker) handleConn(ctx context.Context, conn net.Conn) {
 	}
 
 	decision := b.RequestDecision(ctx, envPayload)
-	reply := hookReply{Decision: "allow"}
+	var reply hookReply
 	switch decision {
 	case DecisionAllow:
 		reply = hookReply{Decision: "allow"}

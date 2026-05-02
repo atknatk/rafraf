@@ -435,12 +435,12 @@ type legacyHeartbeatMessage struct {
 }
 
 type legacyHeartbeatContent struct {
-	HostID         string                 `json:"host_id"`
-	Status         string                 `json:"status"`
-	UptimeSeconds  int64                  `json:"uptime_seconds"`
-	ActiveTasks    int                    `json:"active_tasks"`
-	Resources      legacyHeartbeatResrc   `json:"resources"`
-	ClaudeProcess  []legacyClaudeProcInfo `json:"claude_processes"`
+	HostID        string                 `json:"host_id"`
+	Status        string                 `json:"status"`
+	UptimeSeconds int64                  `json:"uptime_seconds"`
+	ActiveTasks   int                    `json:"active_tasks"`
+	Resources     legacyHeartbeatResrc   `json:"resources"`
+	ClaudeProcess []legacyClaudeProcInfo `json:"claude_processes"`
 }
 
 type legacyHeartbeatResrc struct {
