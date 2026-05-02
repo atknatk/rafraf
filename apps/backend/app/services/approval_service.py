@@ -69,6 +69,15 @@ class ApprovalService:
     ) -> ApprovalRequestRecord:
         """Create a new approval request.
 
+        V1.4: when ``request.timeout_seconds`` is supplied AND no
+        ``CATEGORY_TIMEOUTS`` override exists for this category, the
+        caller-provided value wins. The bridge ``permission_request``
+        envelope passes ``timeout_ms`` (default 30 s) which the runner
+        rounds up to ``timeout_seconds``; honouring it keeps the four
+        layers (iOS RFApprovalSheet countdown, backend
+        ``ApprovalService`` timer, bridge UDS broker, claude CLI hook
+        timeout) aligned. See design doc §4.3 timeout cascade table.
+
         Args:
             request: Approval request creation data.
 
@@ -92,6 +101,12 @@ class ApprovalService:
             timeout_seconds=timeout,
             timeout_at=now + timedelta(seconds=timeout),
             created_at=now,
+            request_id=request.request_id,
+            bridge_host_id=request.bridge_host_id,
+            rpc_id=request.rpc_id,
+            bridge_timeout_seconds=(
+                request.timeout_seconds if request.request_id is not None else None
+            ),
         )
 
         self._pending[record.id] = record
@@ -116,6 +131,10 @@ class ApprovalService:
                     timeout_seconds=timeout,
                     timeout_at=record.timeout_at,
                     params=record.params,
+                    request_id=record.request_id,
+                    bridge_host_id=record.bridge_host_id,
+                    rpc_id=record.rpc_id,
+                    bridge_timeout_seconds=record.bridge_timeout_seconds,
                 )
                 await db.commit()
         except Exception:
@@ -135,13 +154,25 @@ class ApprovalService:
     async def wait_for_decision(
         self,
         approval_id: str,
+        *,
+        timeout_override: int | None = None,
     ) -> ApprovalResult:
         """Wait for a user decision on an approval request.
 
         Blocks until the user responds or the timeout expires.
 
+        V1.4: ``timeout_override`` lets the bridge ``permission_request``
+        awaiter use the bridge-suggested deadline (default 30 s) rather
+        than the per-category default (180–300 s). When provided AND
+        positive AND less than the record's ``timeout_seconds``, the
+        override wins; otherwise the record's timer applies. We never
+        let the override extend beyond the record's deadline because
+        that would let a malicious bridge envelope pin a request open
+        forever.
+
         Args:
             approval_id: ID of the approval request.
+            timeout_override: Optional shorter deadline (seconds).
 
         Returns:
             ApprovalResult with the decision.
@@ -155,6 +186,10 @@ class ApprovalService:
                 note="Approval request not found",
             )
 
+        effective_timeout = float(record.timeout_seconds)
+        if timeout_override is not None and timeout_override > 0:
+            effective_timeout = min(effective_timeout, float(timeout_override))
+
         # Create a future for this approval
         loop = asyncio.get_running_loop()
         future: asyncio.Future[ApprovalDecision] = loop.create_future()
@@ -163,7 +198,7 @@ class ApprovalService:
         try:
             decision = await asyncio.wait_for(
                 future,
-                timeout=float(record.timeout_seconds),
+                timeout=effective_timeout,
             )
 
             # Process the decision
@@ -246,6 +281,10 @@ class ApprovalService:
             timeout_at=record.timeout_at,
             created_at=record.created_at,
             responded_at=now,
+            request_id=record.request_id,
+            bridge_host_id=record.bridge_host_id,
+            rpc_id=record.rpc_id,
+            bridge_timeout_seconds=record.bridge_timeout_seconds,
         )
 
         self._history.append(updated)
@@ -306,6 +345,10 @@ class ApprovalService:
                 timeout_seconds=record.timeout_seconds,
                 timeout_at=record.timeout_at,
                 created_at=record.created_at,
+                request_id=record.request_id,
+                bridge_host_id=record.bridge_host_id,
+                rpc_id=record.rpc_id,
+                bridge_timeout_seconds=record.bridge_timeout_seconds,
             )
             self._history.append(expired)
 

@@ -12,6 +12,7 @@ import structlog
 from app.orchestrator.agent import ClaudeAPIError, MaxIterationsReachedError, OrchestratorAgent
 from app.orchestrator.claude_code_runner import (
     ClaudeCodeError,
+    PermissionRequestCallback,
     ToolProgressCallback,
 )
 from app.orchestrator.tool_registry import ToolRegistry
@@ -329,6 +330,7 @@ class OrchestratorService:
         on_question: (
             Callable[[dict[str, object]], Coroutine[object, object, str | None]] | None
         ) = None,
+        on_permission_request: PermissionRequestCallback | None = None,
     ) -> OrchestratorResponse:
         """Process a user message via claude -p subprocess.
 
@@ -565,6 +567,8 @@ class OrchestratorService:
                         on_subagent_progress=_on_subagent_progress,
                         on_subagent_completed=_on_subagent_completed,
                         on_rate_limit=_on_rate_limit,
+                        # V1.4 — bridge permission_request handler.
+                        on_permission_request=on_permission_request,
                     ),
                     timeout=settings.claude_code_timeout_seconds,
                 )

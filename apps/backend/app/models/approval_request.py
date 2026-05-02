@@ -66,3 +66,27 @@ class ApprovalRequest(Base, UUIDMixin):
         nullable=False,
         server_default=func.now(),
     )
+    # V1.4 — bridge ``permission_request`` correlation. NULL for the
+    # legacy orchestrator-mediated path (in-app approvals); populated
+    # when the row originates from a bridge envelope so the
+    # ``_await_and_dispatch_decision`` helper can route the reply
+    # ``command.claude.permission.{allow,deny}`` envelope back.
+    request_id: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+    )
+    bridge_host_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    rpc_id: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+    )
+    # Bridge-suggested deadline, distinct from ``timeout_seconds`` (which
+    # is the per-category default ApprovalService applies); persisted so
+    # operators can correlate per-request UX latency with policy.
+    bridge_timeout_seconds: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
