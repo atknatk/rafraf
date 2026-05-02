@@ -146,6 +146,15 @@ func run(stdin io.Reader, stdout, stderr io.Writer, sock string) {
 		writeOutput(stdout, hookOutput{Decision: "block", Reason: "malformed hook payload"})
 		return
 	}
+	// V1.2-fix L5: settings overlay only registers PreToolUse, but if the
+	// operator (or future claude version) reuses this binary for a
+	// different event class we must not silently block tool _output_.
+	// Bail with deny only on PreToolUse; otherwise the hook is a no-op.
+	if inbound.HookEventName != "" && inbound.HookEventName != "PreToolUse" {
+		fmt.Fprintf(stderr, "rafraf-perm-hook: unexpected hook_event_name %q; deferring to claude\n", inbound.HookEventName)
+		writeOutput(stdout, hookOutput{Decision: "allow", Reason: "non-PreToolUse event passthrough"})
+		return
+	}
 
 	conn, err := net.DialTimeout("unix", sock, dialTimeout)
 	if err != nil {

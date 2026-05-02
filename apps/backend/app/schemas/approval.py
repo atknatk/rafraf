@@ -50,6 +50,11 @@ class ApprovalRequestCreate(BaseModel):
     request_id: str | None = None
     bridge_host_id: str | None = None
     rpc_id: str | None = None
+    # V1.4-fix MEDIUM #1: explicit bridge-suggested timeout. Was previously
+    # synthesised from request_id presence — brittle when callers passed
+    # request_id for non-bridge purposes. Now passed explicitly by the
+    # runner's _handle_permission_request; legacy callers leave it None.
+    bridge_timeout_seconds: int | None = None
 
 
 class ApprovalRequestRecord(BaseModel):

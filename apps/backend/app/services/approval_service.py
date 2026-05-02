@@ -104,9 +104,10 @@ class ApprovalService:
             request_id=request.request_id,
             bridge_host_id=request.bridge_host_id,
             rpc_id=request.rpc_id,
-            bridge_timeout_seconds=(
-                request.timeout_seconds if request.request_id is not None else None
-            ),
+            # V1.4-fix MEDIUM #1: persist the bridge-suggested timeout
+            # exactly as supplied by the caller; no longer derived from
+            # request_id presence.
+            bridge_timeout_seconds=request.bridge_timeout_seconds,
         )
 
         self._pending[record.id] = record
@@ -433,6 +434,17 @@ class ApprovalService:
         Returns:
             Dict formatted as a WebSocket question message.
         """
+        # V1.4-fix HIGH: bridge-originated approvals carry a tighter
+        # bridge_timeout_seconds (typically 30s) than the per-category
+        # default (180-300s). _await_and_dispatch_decision clamps to the
+        # smaller value, so the iOS countdown MUST reflect the effective
+        # cutoff or the user watches the sheet collapse mid-tap. Prefer
+        # bridge timeout when present; fall back to category default.
+        effective_timeout = (
+            record.bridge_timeout_seconds
+            if record.bridge_timeout_seconds is not None
+            else record.timeout_seconds
+        )
         question_payload = QuestionPayload(
             approval_id=record.id,
             question=record.description,
@@ -441,7 +453,7 @@ class ApprovalService:
                 QuestionOptionPayload(id="approve", label="Onayla", style="primary"),
                 QuestionOptionPayload(id="reject", label="Reddet", style="danger"),
             ],
-            timeout_seconds=record.timeout_seconds,
+            timeout_seconds=effective_timeout,
             category=record.category.value,
         )
 

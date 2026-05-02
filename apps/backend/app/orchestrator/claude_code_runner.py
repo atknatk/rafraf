@@ -738,9 +738,6 @@ class ClaudeCodeRunner:
             )
             return False
 
-        if event_type == "event.session.task_started":  # pragma: no cover - duplicate
-            return False
-
         if event_type == "event.session.result":
             state.duration_ms = int(payload.get("duration_ms", 0) or 0)
             result_text = payload.get("result")
@@ -893,7 +890,22 @@ class ClaudeCodeRunner:
         timeout_ms = (
             int(timeout_ms_raw) if isinstance(timeout_ms_raw, (int, float)) else 30_000
         )
-        timeout_seconds = max(1, (timeout_ms + 999) // 1000)
+        # V1.4-fix LOW: cap at 600s so a malicious or buggy bridge envelope
+        # cannot persist arbitrarily large bridge_timeout_seconds. The
+        # backend's per-category max is 300s; 600s gives 2x headroom.
+        timeout_seconds = min(600, max(1, (timeout_ms + 999) // 1000))
+
+        # V1.4-fix LOW: bridge protocol REQUIRES request_id (design §2.1.4).
+        # Empty value is a protocol violation; record will fall back to its
+        # backend-side approval UUID for the dispatched envelope, which the
+        # bridge broker will not match → hook denies on its own timeout.
+        # Log so SREs can see it.
+        if not request_id:
+            await logger.awarning(
+                "bridge_envelope_missing_request_id",
+                bridge_host_id=bridge_host_id,
+                tool_name=tool_name,
+            )
 
         risk_to_category: dict[str, ApprovalCategory] = {
             "high": ApprovalCategory.DESTRUCTIVE,
@@ -929,6 +941,9 @@ class ClaudeCodeRunner:
             request_id=request_id or None,
             bridge_host_id=bridge_host_id,
             rpc_id=rpc_id or None,
+            # V1.4-fix MEDIUM #1: pass bridge timeout explicitly so
+            # build_question_message can render the correct iOS countdown.
+            bridge_timeout_seconds=timeout_seconds,
         )
         record = await approval_service.create_approval(request)
 

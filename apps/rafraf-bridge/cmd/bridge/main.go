@@ -584,6 +584,18 @@ func resolvePermissionHookPath(logger *slog.Logger) string {
 		)
 		return ""
 	}
+	// V1.2-fix M1: os.Executable() may return a symlink target on
+	// macOS Mach-O. Brew/launchd installs that symlink the bridge
+	// binary would otherwise probe the wrong sibling directory and
+	// silently disable the PreToolUse hook. EvalSymlinks resolves
+	// to the real binary's directory before the sibling lookup.
+	if resolved, evalErr := filepath.EvalSymlinks(exe); evalErr == nil {
+		exe = resolved
+	} else {
+		logger.Debug("permission hook resolve: EvalSymlinks failed; using raw path",
+			"err", evalErr,
+		)
+	}
 	exeDir := filepath.Dir(exe)
 	candidate := filepath.Join(exeDir, permissionHookSibling)
 	if _, statErr := os.Stat(candidate); statErr == nil {

@@ -8,10 +8,13 @@
 build: build-bridge build-hook
 
 build-bridge:
-	go build -o rafraf-bridge ./cmd/bridge
+	go build -ldflags="-s -w" -o rafraf-bridge ./cmd/bridge
 
+# V1.2-fix L3: -s -w strips DWARF + symbol tables (~33% size reduction).
+# Hook is fork+exec'd many times per session; smaller image = better
+# disk page-cache footprint + faster cold start.
 build-hook:
-	go build -o rafraf-perm-hook ./internal/cmd/rafraf-perm-hook
+	go build -ldflags="-s -w" -o rafraf-perm-hook ./internal/cmd/rafraf-perm-hook
 
 test:
 	go test -race -count=1 ./...
