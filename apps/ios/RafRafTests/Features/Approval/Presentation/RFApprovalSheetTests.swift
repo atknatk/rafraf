@@ -92,4 +92,61 @@ struct RFApprovalSheetTests {
         #expect(all.contains(.medium))
         #expect(all.contains(.high))
     }
+
+    // MARK: - Auto-deny timer (M2 deferral)
+
+    /// 30s auto-deny timer'inin pure logic'i — kullanici cevap vermezse
+    /// `onTimeout` (production'da `handleDecision(.deny)`) tetiklenmeli.
+    /// Determinizm icin tickInterval 5ms ve timeoutSeconds 3 (toplam ~15ms).
+    @Test("Auto-deny timer kullanici cevap vermezse onTimeout cagirir")
+    @MainActor
+    func autoDenyCountdown_firesTimeout() async {
+        let onTimeoutCounter = AutoDenyCounter()
+        let ticks = AutoDenyTickRecorder()
+
+        await RFApprovalSheet.runAutoDenyCountdown(
+            timeoutSeconds: 3,
+            tickInterval: .milliseconds(5),
+            tick: { remaining in ticks.append(remaining) },
+            isCancelled: { false },
+            onTimeout: { onTimeoutCounter.fire() }
+        )
+
+        #expect(onTimeoutCounter.value == 1)
+        // 3s -> 0 boyunca 3 tick beklenir.
+        #expect(ticks.values == [2, 1, 0])
+    }
+
+    /// Kullanici karar verdiginde (isCancelled = true) onTimeout cagrilmamali.
+    @Test("Auto-deny timer kullanici karar verirse onTimeout cagirmaz")
+    @MainActor
+    func autoDenyCountdown_skippedOnDecision() async {
+        let onTimeoutCounter = AutoDenyCounter()
+
+        await RFApprovalSheet.runAutoDenyCountdown(
+            timeoutSeconds: 3,
+            tickInterval: .milliseconds(5),
+            tick: { _ in },
+            isCancelled: { true },  // Kullanici hemen karar verdi.
+            onTimeout: { onTimeoutCounter.fire() }
+        )
+
+        #expect(onTimeoutCounter.value == 0)
+    }
+}
+
+// MARK: - Test Helpers (M2)
+
+/// Counter helper — Swift 6 strict concurrency icin @MainActor isolation.
+@MainActor
+private final class AutoDenyCounter {
+    private(set) var value = 0
+    func fire() { value += 1 }
+}
+
+/// Tick recorder helper.
+@MainActor
+private final class AutoDenyTickRecorder {
+    private(set) var values: [Int] = []
+    func append(_ v: Int) { values.append(v) }
 }

@@ -177,7 +177,7 @@ final class SubagentLiveActivityCoordinator {
         await manager.updateTask(
             taskId: taskId,
             status: Self.statusKey(for: status),
-            currentStep: stepText(activeCount: count, status: status),
+            currentStep: stepText(activeCount: count),
             progress: 0.0,
             completedSteps: 0,
             totalSteps: max(count, 1),
@@ -196,7 +196,7 @@ final class SubagentLiveActivityCoordinator {
         await manager.updateTask(
             taskId: taskId,
             status: Self.statusKey(for: status),
-            currentStep: stepText(activeCount: count, status: status),
+            currentStep: stepText(activeCount: count),
             progress: Self.progress(active: count, completed: completed),
             completedSteps: completed,
             totalSteps: max(totalCount, 1),
@@ -227,7 +227,13 @@ final class SubagentLiveActivityCoordinator {
         lastDominantStatus = nil
     }
 
-    private func stepText(activeCount: Int, status: SubagentStatus?) -> String {
+    /// Live Activity'nin "current step" satirini uretir.
+    ///
+    /// Not: T3.1 polish — fonksiyon imzasi `status: SubagentStatus?` parametresi
+    /// alirdi ama metin yalnizca `activeCount`'a bagliydi (status hicbir zaman
+    /// kullanilmiyordu). Status bilgisi `phaseIcon` + `statusKey` uzerinden
+    /// Live Activity'ye zaten gidiyor, bu nedenle parametre kaldirildi.
+    private func stepText(activeCount: Int) -> String {
         if activeCount == 0 {
             return String(localized: "liveactivity.subagent.allComplete")
         }

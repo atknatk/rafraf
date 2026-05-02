@@ -31,9 +31,25 @@ enum ApprovalRiskLevel: String, Sendable, Equatable, CaseIterable {
 /// Tool ismi -> politika cozumleyici. Sadece pure functions.
 enum ApprovalToolPolicy {
 
-    /// Bash icin "guvenli" oldugu kabul edilen alt komutlar (docs/08 ile
-    /// uyumlu). Bu listenin disinda kalan herhangi bir bash komutu prompt'a
-    /// dusurulur.
+    /// Bash icin "guvenli" oldugu kabul edilen alt komutlar.
+    ///
+    /// Bu set iOS tarafinin V1 fallback policy'sidir — Mac bridge backend'e
+    /// ulasamadiginda (offline veya bridge down) iOS bu listeyi kullanarak
+    /// tek basina karar verir. Onay sheet'i gostermez, otomatik allow eder.
+    ///
+    /// Liste **bilincli olarak** `docs/08_Host_Agent_Specification.md §5.5`
+    /// (Shell Runner — Guvenlikli) icindeki host agent whitelist'inden
+    /// dar tutulmustur. Doc 8 host agent komut argumanlarini regex tabanli
+    /// dogrulayabilir (or. `^git\s+(status|log|diff|branch|show|remote|tag)`),
+    /// ancak iOS `bash` tool'unun `command` parametresi serbest metindir;
+    /// uygulama katmaninda guvenli bir sekilde args parsing yapamayiz. Bu
+    /// nedenle iOS tarafi sadece **arguman almayan** veya yan etkisi
+    /// olmayan komutlari (ls/pwd/cat/which/echo/head/tail/wc/date) auto-allow
+    /// eder; geri kalan tum bash komutlari kullanici prompt'una (high risk)
+    /// duser.
+    ///
+    /// Kanonik whitelist hala backend + host agent katmanindadir; iOS sadece
+    /// degraded-mode "minimum hasar" varsayilanidir.
     static let safeBashCommands: Set<String> = [
         "ls", "pwd", "cat", "which", "echo", "head", "tail", "wc", "date"
     ]

@@ -313,6 +313,44 @@ struct RFApprovalSheet: View {
         }
     }
 
+    // MARK: - Test Hooks
+
+    /// Pure auto-deny countdown logic — testable via Swift Testing without
+    /// SwiftUI rendering.
+    ///
+    /// Aynı sayma + tick semantiği `startCountdown` ile birebir aynı. Sadece
+    /// `tickInterval` parametre alır ki testler 30s yerine ms ölçeğinde
+    /// çalışabilsin. Production kodu bu yardımcıyı çağırmaz; yalnızca
+    /// `RFApprovalSheetTests` kullanır.
+    /// - Parameters:
+    ///   - timeoutSeconds: Toplam süre — 0'a düşene kadar `tick` çağrılır.
+    ///   - tickInterval: Her saniye yerine bekleme süresi (test için kısaltılır).
+    ///   - tick: Her tick'te `remainingSeconds` decrement gibi davranır.
+    ///   - isCancelled: Erken çıkış için kontrol (örn. kullanıcı karar verdi).
+    ///   - onTimeout: Geri sayım sıfıra ulaşınca tek sefer çağrılır
+    ///     (production tarafında `handleDecision(.deny)` ile eşdeğer).
+    static func runAutoDenyCountdown(
+        timeoutSeconds: Int,
+        tickInterval: Duration,
+        tick: @MainActor @Sendable (Int) -> Void,
+        isCancelled: @MainActor @Sendable () -> Bool,
+        onTimeout: @MainActor @Sendable () -> Void
+    ) async {
+        var remaining = timeoutSeconds
+        while remaining > 0 {
+            try? await Task.sleep(for: tickInterval)
+            if await MainActor.run(body: isCancelled) {
+                return
+            }
+            remaining = max(remaining - 1, 0)
+            await MainActor.run { tick(remaining) }
+        }
+        if await MainActor.run(body: isCancelled) {
+            return
+        }
+        await MainActor.run(body: onTimeout)
+    }
+
     // MARK: - Helpers
 
     private var toolIconName: String {

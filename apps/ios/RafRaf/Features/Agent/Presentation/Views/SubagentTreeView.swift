@@ -196,134 +196,58 @@ struct SubagentTreeView: View {
 
 // MARK: - Row
 
-/// Tek bir subagent satiri — durum ikonu, isim, prompt onizleme ve
-/// genisletilebilir detay.
+/// Tek bir subagent satiri — durum ikonu, isim, prompt onizleme.
+///
+/// T3.1 polish: Inline genisletilebilir "expandedDetails" bloku kaldirildi —
+/// tap artik `SubagentDetailSheet` acar (bkz. `SubagentTreeView.handleRowTap`).
+/// Detay state'i artik sheet uzerinde tasinir, satir tamamen pasif sunum.
 private struct SubagentRowView: View {
     let node: SubagentNode
     let onTap: () -> Void
-    @State private var isExpanded = false
 
     private var subagent: Subagent { node.subagent }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: RFSpacing.xs) {
-            HStack(spacing: RFSpacing.sm) {
-                SubagentStatusIcon(status: subagent.status)
-                    .frame(width: 24, height: 24)
+        HStack(spacing: RFSpacing.sm) {
+            SubagentStatusIcon(status: subagent.status)
+                .frame(width: 24, height: 24)
 
-                VStack(alignment: .leading, spacing: RFSpacing.xxs) {
-                    HStack(spacing: RFSpacing.xs) {
-                        RFText(subagent.name, style: .bodyBold)
-                            .lineLimit(1)
-                        if let isolation = subagent.isolation, isolation == "worktree" {
-                            isolationBadge
-                        }
-                        Spacer(minLength: 0)
-                        Image(systemName: "chevron.right")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(RFColors.fallbackTextTertiary)
+            VStack(alignment: .leading, spacing: RFSpacing.xxs) {
+                HStack(spacing: RFSpacing.xs) {
+                    RFText(subagent.name, style: .bodyBold)
+                        .lineLimit(1)
+                    if let isolation = subagent.isolation, isolation == "worktree" {
+                        isolationBadge
                     }
-                    if !subagent.promptPreview.isEmpty {
-                        RFText(
-                            subagent.promptPreview,
-                            style: .caption,
-                            color: RFColors.fallbackTextSecondary
-                        )
-                        .lineLimit(2)
-                    }
-                    RFText(
-                        statusLabel(for: subagent.status),
-                        style: .caption,
-                        color: statusColor(for: subagent.status)
-                    )
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(RFColors.fallbackTextTertiary)
                 }
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                onTap()
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(accessibilityLabel)
-            .accessibilityHint(String(localized: "agent.subagent.row.hint"))
-            .accessibilityAddTraits(.isButton)
-
-            if isExpanded {
-                expandedDetails
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                if !subagent.promptPreview.isEmpty {
+                    RFText(
+                        subagent.promptPreview,
+                        style: .caption,
+                        color: RFColors.fallbackTextSecondary
+                    )
+                    .lineLimit(2)
+                }
+                RFText(
+                    statusLabel(for: subagent.status),
+                    style: .caption,
+                    color: statusColor(for: subagent.status)
+                )
             }
         }
         .padding(.vertical, RFSpacing.xxs)
-    }
-
-    // MARK: - Expanded Detail
-
-    @ViewBuilder
-    private var expandedDetails: some View {
-        VStack(alignment: .leading, spacing: RFSpacing.xs) {
-            if let description = subagent.description, !description.isEmpty {
-                detailRow(
-                    icon: "text.alignleft",
-                    label: String(localized: "agent.subagent.description"),
-                    value: description
-                )
-            }
-            if let type = subagent.subagentType, !type.isEmpty {
-                detailRow(
-                    icon: "person.crop.circle",
-                    label: String(localized: "agent.subagent.type"),
-                    value: type
-                )
-            }
-            if let activity = subagent.activity, !activity.isEmpty {
-                detailRow(
-                    icon: "waveform.path.ecg",
-                    label: String(localized: "agent.subagent.activity"),
-                    value: activity
-                )
-            }
-            if let summary = subagent.summary, !summary.isEmpty {
-                detailRow(
-                    icon: "doc.text",
-                    label: String(localized: "agent.subagent.summary"),
-                    value: summary
-                )
-            }
-            if let totalTokens = subagent.totalTokens {
-                detailRow(
-                    icon: "circle.hexagonpath",
-                    label: String(localized: "agent.subagent.tokens"),
-                    value: "\(totalTokens)"
-                )
-            }
-            if let toolUses = subagent.toolUses {
-                detailRow(
-                    icon: "wrench.and.screwdriver",
-                    label: String(localized: "agent.subagent.toolUses"),
-                    value: "\(toolUses)"
-                )
-            }
-            if let durationMs = subagent.durationMs {
-                detailRow(
-                    icon: "clock",
-                    label: String(localized: "agent.subagent.duration"),
-                    value: formatDuration(ms: durationMs)
-                )
-            }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onTap()
         }
-        .padding(.leading, 32)
-    }
-
-    private func detailRow(icon: String, label: String, value: String) -> some View {
-        HStack(alignment: .top, spacing: RFSpacing.xs) {
-            Image(systemName: icon)
-                .font(.caption)
-                .foregroundStyle(RFColors.fallbackTextTertiary)
-                .frame(width: 16)
-            VStack(alignment: .leading, spacing: 1) {
-                RFText(label, style: .caption, color: RFColors.fallbackTextTertiary)
-                RFText(value, style: .caption, color: RFColors.fallbackTextSecondary)
-            }
-        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(String(localized: "agent.subagent.row.hint"))
+        .accessibilityAddTraits(.isButton)
     }
 
     private var isolationBadge: some View {
@@ -370,21 +294,6 @@ private struct SubagentRowView: View {
         case .completed: return RFColors.success
         case .failed: return RFColors.error
         }
-    }
-
-    private func formatDuration(ms: Int) -> String {
-        if ms < 1_000 {
-            return "\(ms)\(String(localized: "agent.subagent.duration.unit.ms"))"
-        }
-        let seconds = Double(ms) / 1_000.0
-        if seconds < 60 {
-            return String(format: "%.1f%@", seconds, String(localized: "agent.subagent.duration.unit.seconds"))
-        }
-        let minutes = Int(seconds) / 60
-        let remaining = Int(seconds) % 60
-        let minLabel = String(localized: "agent.subagent.duration.unit.minutes")
-        let secLabel = String(localized: "agent.subagent.duration.unit.seconds")
-        return "\(minutes)\(minLabel) \(remaining)\(secLabel)"
     }
 }
 
