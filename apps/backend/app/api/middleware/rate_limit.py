@@ -9,8 +9,14 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from app.core.config import get_settings
+from app.core.metrics import backend_rate_limit_hits_total
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
+
+# Source label for the Prometheus counter — keeps the cardinality bounded
+# while leaving room for future per-source variants (e.g. a Redis-backed
+# throttler).
+_MIDDLEWARE_SOURCE: str = "api_middleware"
 
 
 class RateLimitStore:
@@ -91,9 +97,37 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 client_ip=client_ip,
                 path=path,
             )
+            # T2.4: emit a separate counter for backend-throttler 429s so
+            # operators can graph them independently from the upstream
+            # ``claude_rate_limit_hits_total`` (different operational
+            # signal entirely). Endpoint label is coarse-grained to avoid
+            # cardinality explosion from dynamic path params.
+            endpoint = _classify_endpoint(path)
+            backend_rate_limit_hits_total.labels(
+                endpoint=endpoint,
+                source=_MIDDLEWARE_SOURCE,
+            ).inc()
+            # iOS expects a `rate_limit.info`-shaped JSON body so the
+            # client decoder doesn't fork between bridge-origin events
+            # and backend-origin throttling responses. ``resets_at`` is
+            # an integer unix timestamp in seconds, matching
+            # ``RateLimitInfoPayload``.
+            retry_after_seconds = 60
+            resets_at = int(time.time()) + retry_after_seconds
+            body: dict[str, object] = {
+                "detail": "Too many requests. Please try again later.",
+                "rate_limit": {
+                    "status": "exceeded",
+                    "rate_limit_type": "backend_per_ip",
+                    "resets_at": resets_at,
+                    "retry_after_seconds": retry_after_seconds,
+                    "source": _MIDDLEWARE_SOURCE,
+                },
+            }
             return JSONResponse(
                 status_code=429,
-                content={"detail": "Too many requests. Please try again later."},
+                content=body,
+                headers={"Retry-After": str(retry_after_seconds)},
             )
 
         return await call_next(request)
@@ -107,3 +141,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if client is not None:
             return client.host
         return "unknown"
+
+
+def _classify_endpoint(path: str) -> str:
+    """Reduce a request path to a low-cardinality Prometheus label.
+
+    Returns the first three segments (e.g. ``/api/v1/auth``) so dynamic
+    suffixes like ``/login`` or ``/refresh`` collapse together. Anything
+    not matching ``/api/v1/...`` falls back to ``"unknown"``.
+    """
+    parts = [seg for seg in path.split("/") if seg]
+    if len(parts) >= 3 and parts[0] == "api" and parts[1].startswith("v"):
+        return "/" + "/".join(parts[:3])
+    if parts:
+        return "/" + parts[0]
+    return "unknown"

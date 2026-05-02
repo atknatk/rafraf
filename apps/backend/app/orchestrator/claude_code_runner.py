@@ -42,6 +42,8 @@ from opentelemetry import trace
 from app.core import metrics as _metrics
 from app.core.telemetry import get_tracer
 
+from app.core.metrics import claude_rate_limit_hits_total
+
 if TYPE_CHECKING:
     from app.repositories.session_repo import SessionRepository
     from app.repositories.subagent_repo import SubagentRepository

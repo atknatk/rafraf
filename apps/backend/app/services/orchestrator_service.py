@@ -109,6 +109,44 @@ class OrchestratorService:
     ) -> None:
         registry = tool_registry or get_tool_registry()
         self._agent = OrchestratorAgent(registry)
+        # T2.4: wire the API-fallback rate-limit forwarder so any 429 raised
+        # by the direct Anthropic call path still surfaces ``rate_limit.info``
+        # to the iOS client. Resolved lazily so the import doesn't pull
+        # ``app.api.routes.agent_ws`` at module-load time (would create a
+        # FastAPI route registration cycle).
+        self._agent.set_rate_limit_forwarder(self._forward_api_rate_limit)
+
+    async def _forward_api_rate_limit(
+        self,
+        user_id: str,
+        payload: dict[str, object],
+    ) -> None:
+        """Push a synthesised ``rate_limit.info`` to the iOS client.
+
+        Bound to :class:`OrchestratorAgent` via
+        :meth:`OrchestratorAgent.set_rate_limit_forwarder`. Best-effort —
+        a missing :class:`ClaudeStreamManager` (e.g. unit tests) silently
+        no-ops; any forwarder exception is logged + swallowed so the
+        caller's retry loop keeps progressing.
+        """
+        try:
+            from app.api.routes.agent_ws import get_claude_stream_manager
+
+            csm = get_claude_stream_manager()
+        except Exception:
+            await logger.adebug("api_rate_limit_forwarder_unavailable")
+            return
+
+        sid = payload.get("session_id")
+        await csm.forward_rate_limit_info(
+            user_id=user_id,
+            session_id=str(sid) if sid is not None else None,
+            status=str(payload.get("status", "exceeded")),
+            rate_limit_type=str(payload.get("rate_limit_type", "five_hour")),
+            resets_at=_coerce_int(payload.get("resets_at")),
+            overage_status=str(payload.get("overage_status", "unknown")),
+            is_using_overage=bool(payload.get("is_using_overage", False)),
+        )
 
     async def process_user_message(
         self,
