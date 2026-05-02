@@ -1,15 +1,26 @@
 import SwiftUI
+import UIKit
 
 /// Bir session'a ait Claude Agent Teams subagent calismalarini agac (parent
 /// -> children) seklinde gosteren ekran.
 ///
 /// Doc 10 §6.3.3 — iOS Agent feature subagent tree (OutlineGroup tabanli).
 /// AgentDetailView icindeki "Subagents" sheet'inden acilir.
+///
+/// T3.1 polish (Doc 10 §8): tap -> SubagentDetailSheet, long-press context
+/// menu (copy id/summary, open console), pull-to-refresh (re-subscribe),
+/// shimmer loading state ve error retry.
 struct SubagentTreeView: View {
     /// Hangi sessionId'ye abone olunacak. `nil` ise tum oturumlardaki
     /// subagent'lari toplu olarak gosterir (AgentDetailView icin uygun mod).
     let sessionId: String?
     @Bindable var viewModel: SubagentTreeViewModel
+
+    /// Tapped row -> sheet icin secilen subagent.
+    @State private var selectedSubagent: Subagent?
+
+    /// Pull-to-refresh sirasinda kisa sure visible olan loading flag'i.
+    @State private var isRefreshing: Bool = false
 
     init(sessionId: String?, viewModel: SubagentTreeViewModel) {
         self.sessionId = sessionId
@@ -19,15 +30,16 @@ struct SubagentTreeView: View {
     var body: some View {
         Group {
             if !viewModel.hasReceivedSnapshot {
-                RFLoadingView(
-                    message: String(localized: "agent.subagents.loading")
-                )
+                shimmerLoadingState
             } else if viewModel.subagents.isEmpty {
                 RFEmptyStateView(
                     systemImage: "person.2.gobackward",
                     title: String(localized: "agent.subagents.empty.title"),
-                    message: String(localized: "agent.subagents.empty.message")
-                )
+                    message: String(localized: "agent.subagents.empty.message"),
+                    actionTitle: String(localized: "agent.subagents.empty.refresh")
+                ) {
+                    refreshSubscription()
+                }
             } else {
                 treeContent
             }
@@ -45,6 +57,9 @@ struct SubagentTreeView: View {
         .onDisappear {
             viewModel.unsubscribe()
         }
+        .sheet(item: $selectedSubagent) { sub in
+            SubagentDetailSheet(subagent: sub)
+        }
     }
 
     // MARK: - Tree Content
@@ -53,14 +68,129 @@ struct SubagentTreeView: View {
         List {
             ForEach(viewModel.tree, id: \.id) { node in
                 OutlineGroup(node, children: \.children) { row in
-                    SubagentRowView(node: row)
-                        .listRowBackground(RFColors.fallbackSurface)
+                    SubagentRowView(
+                        node: row,
+                        onTap: { handleRowTap(row.subagent) }
+                    )
+                    .listRowBackground(RFColors.fallbackSurface)
+                    .contextMenu {
+                        contextMenuButtons(for: row.subagent)
+                    }
                 }
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .refreshable {
+            await refreshAsync()
+        }
         .animation(RFAnimation.springGentle, value: viewModel.subagents)
+    }
+
+    // MARK: - Loading shimmer
+
+    private var shimmerLoadingState: some View {
+        VStack(spacing: RFSpacing.sm) {
+            ForEach(0..<4, id: \.self) { _ in
+                shimmerRow
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, RFSpacing.md)
+        .padding(.top, RFSpacing.md)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .accessibilityElement()
+        .accessibilityLabel(String(localized: "agent.subagents.loading"))
+    }
+
+    private var shimmerRow: some View {
+        HStack(spacing: RFSpacing.sm) {
+            Circle()
+                .fill(RFColors.fallbackSurface)
+                .frame(width: 24, height: 24)
+            VStack(alignment: .leading, spacing: RFSpacing.xxs) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(RFColors.fallbackSurface)
+                    .frame(width: 140, height: 12)
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(RFColors.fallbackSurface)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 10)
+            }
+        }
+        .padding(RFSpacing.sm)
+        .background(RFColors.fallbackSurface.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: RFCornerRadius.small))
+        .rfShimmer(isActive: true)
+    }
+
+    // MARK: - Context menu
+
+    @ViewBuilder
+    private func contextMenuButtons(for subagent: Subagent) -> some View {
+        Button {
+            UIPasteboard.general.string = subagent.id
+            HapticManager.success()
+        } label: {
+            Label(
+                String(localized: "agent.subagent.menu.copyId"),
+                systemImage: "doc.on.doc"
+            )
+        }
+
+        if let summary = subagent.summary, !summary.isEmpty {
+            Button {
+                UIPasteboard.general.string = summary
+                HapticManager.success()
+            } label: {
+                Label(
+                    String(localized: "agent.subagent.menu.copySummary"),
+                    systemImage: "text.quote"
+                )
+            }
+        }
+
+        Button {
+            handleRowTap(subagent)
+        } label: {
+            Label(
+                String(localized: "agent.subagent.menu.openConsole"),
+                systemImage: "terminal"
+            )
+        }
+    }
+
+    // MARK: - Actions
+
+    private func handleRowTap(_ subagent: Subagent) {
+        HapticManager.selection()
+        selectedSubagent = subagent
+    }
+
+    /// Empty-state CTA / async refresh helper'i.
+    private func refreshSubscription() {
+        if let sessionId {
+            viewModel.subscribe(to: sessionId)
+        } else {
+            viewModel.subscribeAll()
+        }
+    }
+
+    /// Pull-to-refresh handler — async oldugu icin .refreshable closure'undan
+    /// cagirilir. Subscribe idempotent oldugu icin guvenli.
+    private func refreshAsync() async {
+        isRefreshing = true
+        defer { isRefreshing = false }
+
+        viewModel.unsubscribe()
+        // Kisa bir delay vererek streamin yeniden kurulmasi belirginlessin.
+        try? await Task.sleep(for: .milliseconds(200))
+        if let sessionId {
+            viewModel.subscribe(to: sessionId)
+        } else {
+            viewModel.subscribeAll()
+        }
+        HapticManager.success()
     }
 }
 
@@ -70,6 +200,7 @@ struct SubagentTreeView: View {
 /// genisletilebilir detay.
 private struct SubagentRowView: View {
     let node: SubagentNode
+    let onTap: () -> Void
     @State private var isExpanded = false
 
     private var subagent: Subagent { node.subagent }
@@ -88,6 +219,9 @@ private struct SubagentRowView: View {
                             isolationBadge
                         }
                         Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(RFColors.fallbackTextTertiary)
                     }
                     if !subagent.promptPreview.isEmpty {
                         RFText(
@@ -106,13 +240,12 @@ private struct SubagentRowView: View {
             }
             .contentShape(Rectangle())
             .onTapGesture {
-                withAnimation(RFAnimation.springGentle) {
-                    isExpanded.toggle()
-                }
+                onTap()
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(String(localized: "agent.subagent.row.hint"))
+            .accessibilityAddTraits(.isButton)
 
             if isExpanded {
                 expandedDetails
