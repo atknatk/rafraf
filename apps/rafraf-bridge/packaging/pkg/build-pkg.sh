@@ -70,8 +70,8 @@ PACKAGING_DIR="${BRIDGE_DIR}/packaging"
 cd "${BRIDGE_DIR}"
 
 TEAM_ID="VT3X56P4ZL"
-DEV_APP_CERT="Developer ID Application: The Abi (${TEAM_ID})"
-DEV_INST_CERT="Developer ID Installer: The Abi (${TEAM_ID})"
+DEV_APP_CERT="Developer ID Application: Atakan Atik (${TEAM_ID})"
+DEV_INST_CERT="Developer ID Installer: Atakan Atik (${TEAM_ID})"
 PKG_IDENT="app.rafraf.bridge"
 
 BUILD_DIR="${BRIDGE_DIR}/build"
