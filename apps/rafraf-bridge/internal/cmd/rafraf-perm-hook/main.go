@@ -55,6 +55,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -64,15 +65,47 @@ const (
 	// bridge isn't running OR the socket path is stale.
 	dialTimeout = 5 * time.Second
 
-	// readTimeout caps the wait on the bridge's reply. The bridge's
-	// own broker times out at TimeoutMs (default 30s) and replies
-	// with a deny — so a 60s ceiling here is purely a safety net
-	// for a wedged broker.
-	readTimeout = 60 * time.Second
+	// defaultReadTimeout caps the wait on the bridge's reply when
+	// the bridge does NOT inject RAFRAF_BRIDGE_PERM_TIMEOUT_MS
+	// (older bridge build OR test scenarios). Bumped from 60s →
+	// 190s in V1.4-followup so the hook never EOFs before the
+	// broker's own per-request ceiling fires.
+	//
+	// 190s = broker's defaultRequestTimeout (180s,
+	// permission.defaultRequestTimeout) + 10s grace for the
+	// decision-relay round trip (broker timer fire → JSON marshal
+	// → UDS write). The matching upper bound on the broker's
+	// permission_timeout config is 600s (config.MaxPermissionTimeout);
+	// when ops dial the broker above 190s the
+	// RAFRAF_BRIDGE_PERM_TIMEOUT_MS env var below carries the
+	// effective ceiling so this default never bottlenecks the
+	// runtime path.
+	defaultReadTimeout = 190 * time.Second
 
 	// sockEnvVar is the env var the bridge runner injects before
 	// spawning claude. Unset → bridge isn't supervising us → fail safe.
 	sockEnvVar = "RAFRAF_BRIDGE_PERM_SOCK"
+
+	// timeoutEnvVar is the optional env var the bridge runner
+	// injects (alongside sockEnvVar) so the hook's read deadline
+	// tracks the broker's effective permission_timeout config in
+	// lockstep. Value is the broker's per-request ceiling expressed
+	// as milliseconds (e.g. "180000"); the hook adds timeoutGrace
+	// on top before applying it as a deadline. Unset / unparseable
+	// / non-positive → defaultReadTimeout.
+	//
+	// Wiring: cfg.PermissionTimeout (apps/rafraf-bridge/internal/config)
+	// → runner.buildEnv → here. A single TOML knob therefore controls
+	// the broker timer, the hook deadline, and the claude CLI's
+	// PreToolUse hook timeout (also plumbed via the settings
+	// overlay) in lockstep.
+	timeoutEnvVar = "RAFRAF_BRIDGE_PERM_TIMEOUT_MS"
+
+	// timeoutGrace is the slack added on top of the env-var-supplied
+	// broker timeout when computing the hook's read deadline. Same
+	// 10s rationale as defaultReadTimeout: covers the broker's
+	// own decision-relay latency without spuriously denying.
+	timeoutGrace = 10 * time.Second
 )
 
 // claudeStdin is the shape claude CLI writes to a PreToolUse hook's
@@ -120,14 +153,40 @@ func main() {
 			emitDeny("hook panic")
 		}
 	}()
-	run(os.Stdin, os.Stdout, os.Stderr, os.Getenv(sockEnvVar))
+	run(os.Stdin, os.Stdout, os.Stderr, os.Getenv(sockEnvVar), resolveReadTimeout(os.Getenv(timeoutEnvVar)))
 	os.Exit(0)
 }
 
-// run is the testable entrypoint — accepts injected I/O and the
-// socket path so unit tests can exercise every branch without
-// touching real environment variables.
-func run(stdin io.Reader, stdout, stderr io.Writer, sock string) {
+// resolveReadTimeout returns the hook's UDS read deadline. The raw
+// argument is the value of RAFRAF_BRIDGE_PERM_TIMEOUT_MS expressed
+// as milliseconds (string-encoded so env-var plumbing is trivial).
+// Empty / unparseable / non-positive falls back to defaultReadTimeout.
+// A positive value adds timeoutGrace on top so the hook always
+// outlives the broker's own per-request ceiling by the same 10s
+// slack the static default carries.
+//
+// Exported as a free function for direct unit testing — every branch
+// is covered in main_test.go::TestResolveReadTimeout.
+func resolveReadTimeout(raw string) time.Duration {
+	if raw == "" {
+		return defaultReadTimeout
+	}
+	ms, err := strconv.Atoi(raw)
+	if err != nil || ms <= 0 {
+		return defaultReadTimeout
+	}
+	return time.Duration(ms)*time.Millisecond + timeoutGrace
+}
+
+// run is the testable entrypoint — accepts injected I/O, the
+// socket path, AND the resolved read deadline so unit tests can
+// exercise every branch without touching real environment variables.
+//
+// The deadline argument is consumed verbatim (no extra grace added
+// here) — resolveReadTimeout is responsible for computing the
+// effective value, including applying timeoutGrace on top of any
+// broker-supplied ceiling.
+func run(stdin io.Reader, stdout, stderr io.Writer, sock string, readDeadline time.Duration) {
 	if sock == "" {
 		_, _ = fmt.Fprintln(stderr, "rafraf-perm-hook: $RAFRAF_BRIDGE_PERM_SOCK unset; denying")
 		writeOutput(stdout, hookOutput{Decision: "block", Reason: "bridge unavailable"})
@@ -164,7 +223,16 @@ func run(stdin io.Reader, stdout, stderr io.Writer, sock string) {
 	}
 	defer func() { _ = conn.Close() }()
 
-	if err := conn.SetDeadline(time.Now().Add(readTimeout)); err != nil {
+	// Belt-and-braces: a zero/negative deadline arg from a future
+	// caller would translate to time.Now() (immediate timeout) on
+	// SetDeadline, which would deny every request. Fall back to the
+	// static default so the hook stays useful even if the wiring
+	// regresses.
+	effectiveDeadline := readDeadline
+	if effectiveDeadline <= 0 {
+		effectiveDeadline = defaultReadTimeout
+	}
+	if err := conn.SetDeadline(time.Now().Add(effectiveDeadline)); err != nil {
 		// Non-fatal — proceed but the read may stall on a wedged
 		// broker. We accept the risk because the broker has its
 		// own per-request timer.

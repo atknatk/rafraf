@@ -12,6 +12,13 @@ heartbeat_interval = "15s"
 reconnect_initial = "500ms"
 reconnect_max = "30s"
 
+# permission_timeout caps how long the PreToolUse broker waits on the
+# iOS user's approval. The same value is stamped onto the outbound
+# permission_request envelope so the iOS countdown + backend
+# ApprovalService timeout track it end-to-end. Default 180s mirrors the
+# backend's per-category default; valid range (0, 600s].
+permission_timeout = "180s"
+
 [storage_watcher]
 enabled = true
 projects_root = "~/.claude/projects"

@@ -102,7 +102,7 @@ func TestHook_HappyPathAllow(t *testing.T) {
 
 	stdin := bytes.NewReader(mustStdin(t, "Read"))
 	var stdout, stderr bytes.Buffer
-	run(stdin, &stdout, &stderr, sock)
+	run(stdin, &stdout, &stderr, sock, defaultReadTimeout)
 
 	got := decodeOut(t, stdout.Bytes())
 	if got.Decision != "allow" {
@@ -118,7 +118,7 @@ func TestHook_BrokerBlock(t *testing.T) {
 
 	stdin := bytes.NewReader(mustStdin(t, "Bash"))
 	var stdout, stderr bytes.Buffer
-	run(stdin, &stdout, &stderr, sock)
+	run(stdin, &stdout, &stderr, sock, defaultReadTimeout)
 
 	got := decodeOut(t, stdout.Bytes())
 	if got.Decision != "block" {
@@ -134,7 +134,7 @@ func TestHook_BrokerBlock(t *testing.T) {
 func TestHook_NoSockEnvVarDenies(t *testing.T) {
 	stdin := bytes.NewReader(mustStdin(t, "Read"))
 	var stdout, stderr bytes.Buffer
-	run(stdin, &stdout, &stderr, "")
+	run(stdin, &stdout, &stderr, "", defaultReadTimeout)
 	got := decodeOut(t, stdout.Bytes())
 	if got.Decision != "block" {
 		t.Fatalf("decision = %q, want block", got.Decision)
@@ -147,7 +147,7 @@ func TestHook_DialFailsDenies(t *testing.T) {
 	stdin := bytes.NewReader(mustStdin(t, "Read"))
 	var stdout, stderr bytes.Buffer
 	// Path that doesn't exist anywhere.
-	run(stdin, &stdout, &stderr, "/tmp/this-path-does-not-exist-zzz.sock")
+	run(stdin, &stdout, &stderr, "/tmp/this-path-does-not-exist-zzz.sock", defaultReadTimeout)
 	got := decodeOut(t, stdout.Bytes())
 	if got.Decision != "block" {
 		t.Fatalf("decision = %q, want block", got.Decision)
@@ -161,7 +161,7 @@ func TestHook_BadStdinDenies(t *testing.T) {
 	defer stop()
 	stdin := bytes.NewReader([]byte("{not json"))
 	var stdout, stderr bytes.Buffer
-	run(stdin, &stdout, &stderr, sock)
+	run(stdin, &stdout, &stderr, sock, defaultReadTimeout)
 	got := decodeOut(t, stdout.Bytes())
 	if got.Decision != "block" {
 		t.Fatalf("decision = %q, want block", got.Decision)
@@ -189,7 +189,7 @@ func TestHook_BrokerEOFDenies(t *testing.T) {
 	}()
 	stdin := bytes.NewReader(mustStdin(t, "Edit"))
 	var stdout, stderr bytes.Buffer
-	run(stdin, &stdout, &stderr, sock)
+	run(stdin, &stdout, &stderr, sock, defaultReadTimeout)
 	got := decodeOut(t, stdout.Bytes())
 	if got.Decision != "block" {
 		t.Fatalf("decision = %q, want block", got.Decision)
@@ -203,7 +203,7 @@ func TestHook_UnknownDecisionDenies(t *testing.T) {
 	defer stop()
 	stdin := bytes.NewReader(mustStdin(t, "Read"))
 	var stdout, stderr bytes.Buffer
-	run(stdin, &stdout, &stderr, sock)
+	run(stdin, &stdout, &stderr, sock, defaultReadTimeout)
 	got := decodeOut(t, stdout.Bytes())
 	if got.Decision != "block" {
 		t.Fatalf("decision = %q, want block", got.Decision)
@@ -218,9 +218,142 @@ func TestHook_LatencyBudget(t *testing.T) {
 	stdin := bytes.NewReader(mustStdin(t, "Read"))
 	var stdout, stderr bytes.Buffer
 	start := time.Now()
-	run(stdin, &stdout, &stderr, sock)
+	run(stdin, &stdout, &stderr, sock, defaultReadTimeout)
 	elapsed := time.Since(start)
 	if elapsed > 200*time.Millisecond {
 		t.Fatalf("hook took %v over loopback; expected <200ms", elapsed)
+	}
+}
+
+// ----- 9. Default read deadline value ------------------------------------
+
+// TestHook_DefaultReadTimeoutValue locks the static fallback at 190s
+// (broker's 180s default + 10s grace). Bumping this without an
+// audit invites the same race the V1.4-followup bump fixed — tracked
+// here so a stray edit fails CI loudly.
+func TestHook_DefaultReadTimeoutValue(t *testing.T) {
+	if defaultReadTimeout != 190*time.Second {
+		t.Fatalf("defaultReadTimeout = %s, want 190s", defaultReadTimeout)
+	}
+}
+
+// ----- 10. Env-var-driven read timeout resolver --------------------------
+
+// TestResolveReadTimeout exercises every branch of the
+// RAFRAF_BRIDGE_PERM_TIMEOUT_MS resolver. The bridge writes this env
+// var alongside the UDS path so the hook's deadline tracks the
+// broker's effective permission_timeout config in lockstep — every
+// failure mode below would otherwise fall through to the static
+// default and break that lockstep.
+func TestResolveReadTimeout(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want time.Duration
+	}{
+		{"empty", "", defaultReadTimeout},
+		{"zero", "0", defaultReadTimeout},
+		{"negative", "-1000", defaultReadTimeout},
+		{"unparseable", "abc", defaultReadTimeout},
+		{"trailing_garbage", "1000foo", defaultReadTimeout},
+		{
+			"valid_180s",
+			"180000",
+			180*time.Second + timeoutGrace,
+		},
+		{
+			"valid_60s_dev_override",
+			"60000",
+			60*time.Second + timeoutGrace,
+		},
+		{
+			"valid_max_600s",
+			"600000",
+			600*time.Second + timeoutGrace,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := resolveReadTimeout(tc.raw)
+			if got != tc.want {
+				t.Fatalf("resolveReadTimeout(%q) = %s, want %s",
+					tc.raw, got, tc.want)
+			}
+		})
+	}
+}
+
+// ----- 11. Hook honours an explicit short deadline -----------------------
+
+// TestHook_HonoursExplicitShortDeadline verifies that the deadline
+// argument propagates all the way to conn.SetDeadline — i.e. when
+// the bridge dials the timeout down (low-risk dev environment) the
+// hook actually denies faster instead of waiting for the static
+// default.
+//
+// The test stands up a UDS listener that accepts but never replies,
+// passes a 100ms deadline, and asserts the hook denies in well
+// under the static default.
+func TestHook_HonoursExplicitShortDeadline(t *testing.T) {
+	sock := shortSock(t)
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer func() { _ = ln.Close() }()
+	go func() {
+		// Accept and hold — never reply. The hook's read deadline
+		// must fire and produce a deny.
+		for {
+			conn, aerr := ln.Accept()
+			if aerr != nil {
+				return
+			}
+			// Hold the connection open so the hook's Decode blocks
+			// on the kernel until SetDeadline expires.
+			go func(c net.Conn) {
+				time.Sleep(2 * time.Second)
+				_ = c.Close()
+			}(conn)
+		}
+	}()
+
+	stdin := bytes.NewReader(mustStdin(t, "Read"))
+	var stdout, stderr bytes.Buffer
+	start := time.Now()
+	run(stdin, &stdout, &stderr, sock, 100*time.Millisecond)
+	elapsed := time.Since(start)
+
+	got := decodeOut(t, stdout.Bytes())
+	if got.Decision != "block" {
+		t.Fatalf("decision = %q, want block", got.Decision)
+	}
+	// Generous upper bound: we want to catch a regression where
+	// the hook ignored our deadline arg and fell back to the 190s
+	// default. 1s is plenty of slack for scheduler jitter.
+	if elapsed > time.Second {
+		t.Fatalf("elapsed = %v, want <= 1s (deadline arg ignored?)", elapsed)
+	}
+}
+
+// ----- 12. Zero/negative deadline arg falls back to default -------------
+
+// TestHook_ZeroDeadlineFallsBackToDefault belt-and-braces test: a
+// future caller passing 0 / negative as the deadline arg must NOT
+// translate to an immediate timeout (which would deny every request).
+// The hook's run() guards against this by snapping back to
+// defaultReadTimeout. We only assert the hook didn't deny on a
+// happy path — full deadline bound is impractical to assert without
+// waiting 190s.
+func TestHook_ZeroDeadlineFallsBackToDefault(t *testing.T) {
+	sock, stop := fakeBroker(t, brokerReply{Decision: "allow"})
+	defer stop()
+	stdin := bytes.NewReader(mustStdin(t, "Read"))
+	var stdout, stderr bytes.Buffer
+	run(stdin, &stdout, &stderr, sock, 0)
+	got := decodeOut(t, stdout.Bytes())
+	if got.Decision != "allow" {
+		t.Fatalf("decision = %q, want allow (zero deadline must NOT fast-deny)",
+			got.Decision)
 	}
 }

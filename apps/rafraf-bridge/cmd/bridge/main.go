@@ -181,7 +181,13 @@ func run(args []string) int {
 	// previously crashed bridge before we bind our own socket. Failures
 	// are non-fatal: the broker also reclaims a stale socket on bind.
 	permission.SweepStaleArtifacts(logger, "", staleArtifactMaxAge)
-	broker, brokerErr := permission.NewBroker("", logger)
+	// V1.4-followup HIGH (2026-05-02): plumb the operator-configured
+	// PermissionTimeout into the broker. Defaults to 180s per
+	// config.DefaultPermissionTimeout — see config.go for the
+	// rationale (race against real-world claude cold-start + user
+	// deliberation). Validation already rejects values outside
+	// (0, 600s] so passing the value through verbatim is safe.
+	broker, brokerErr := permission.NewBrokerWithTimeout("", cfg.PermissionTimeout, logger)
 	if brokerErr != nil {
 		// Broker startup failure is degraded-mode but not fatal —
 		// without it tool calls flow without approval prompts (the

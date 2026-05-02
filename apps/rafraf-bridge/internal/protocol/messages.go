@@ -232,9 +232,12 @@ type EventSessionHookResponse struct {
 // display on iOS without leaking large file diffs. Risk is "low",
 // "medium", or "high" — classification authority lives in the bridge
 // (it has direct access to cwd + path comparisons + the bash whitelist).
-// TimeoutMs is the bridge-suggested ceiling (default 30000); iOS sets
-// its countdown to this value and the bridge's broker times out at
-// TimeoutMs + grace. ParentTaskID is set when the PreToolUse hook fires
+// TimeoutMs is the bridge-suggested ceiling (default 180000 as of
+// V1.4-followup; previously 30000); iOS sets its countdown to this
+// value and the bridge's broker times out at TimeoutMs + grace.
+// Operators can override the bridge default via the
+// `permission_timeout` TOML key (config.PermissionTimeout, validated
+// to (0, 600s]). ParentTaskID is set when the PreToolUse hook fires
 // from inside a sub-agent task so the backend can attribute the question
 // to the lead session.
 type EventSessionPermissionRequest struct {

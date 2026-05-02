@@ -23,6 +23,11 @@ func writeTempConfig(t *testing.T, body string) string {
 
 // validTOML is a minimally-complete TOML body that passes validation;
 // individual cases override fields via string substitution.
+//
+// permission_timeout is intentionally OMITTED so the happy-path test
+// also exercises the applyDefaults() fallback to
+// DefaultPermissionTimeout (180s). Cases that need to assert override
+// behaviour use validTOMLWithPermissionTimeout below.
 const validTOML = `
 backend_url = "wss://api.rafraf.app/api/v1/agent/ws"
 pairing_token = ""
@@ -175,6 +180,73 @@ func TestLoad(t *testing.T) {
 				}
 			},
 		},
+		// V1.4-followup HIGH: when permission_timeout is omitted from
+		// the TOML, applyDefaults must populate it with the 180s
+		// production default. Locks the broker race-fix in at the
+		// config layer.
+		{
+			name: "permission_timeout_default",
+			body: validTOML,
+			assertOnCfg: func(t *testing.T, cfg *Config) {
+				if cfg.PermissionTimeout != DefaultPermissionTimeout {
+					t.Errorf("PermissionTimeout = %s want %s",
+						cfg.PermissionTimeout, DefaultPermissionTimeout)
+				}
+				if cfg.PermissionTimeout != 180*time.Second {
+					t.Errorf("PermissionTimeout = %s want 180s",
+						cfg.PermissionTimeout)
+				}
+			},
+		},
+		// Operator override: 60s is well inside (0, 590s] and a
+		// realistic value for low-risk dev environments where the
+		// developer wants the broker to deny faster. The override
+		// must be inserted at the ROOT level of the TOML — appending
+		// after [telemetry] would land it inside that table — so we
+		// splice it in before the first table header.
+		{
+			name: "permission_timeout_override_valid",
+			body: strings.Replace(
+				validTOML,
+				"[storage_watcher]",
+				"permission_timeout = \"60s\"\n\n[storage_watcher]",
+				1,
+			),
+			assertOnCfg: func(t *testing.T, cfg *Config) {
+				if cfg.PermissionTimeout != 60*time.Second {
+					t.Errorf("PermissionTimeout = %s want 60s",
+						cfg.PermissionTimeout)
+				}
+			},
+		},
+		// Negative values must be rejected — a zero/negative timer
+		// would wedge the broker's select loop and silently deny on
+		// every request.
+		{
+			name: "permission_timeout_negative_rejected",
+			body: strings.Replace(
+				validTOML,
+				"[storage_watcher]",
+				"permission_timeout = \"-1s\"\n\n[storage_watcher]",
+				1,
+			),
+			wantErr:    true,
+			errSubstrs: []string{"permission_timeout must be > 0"},
+		},
+		// Above the 590s ceiling — guards against typos like "1h"
+		// that would push the runner-stamped overlay timeout
+		// (cfg + 10s grace) past claude CLI's 600s hard cap.
+		{
+			name: "permission_timeout_above_max_rejected",
+			body: strings.Replace(
+				validTOML,
+				"[storage_watcher]",
+				"permission_timeout = \"1h\"\n\n[storage_watcher]",
+				1,
+			),
+			wantErr:    true,
+			errSubstrs: []string{"permission_timeout must be <="},
+		},
 	}
 
 	for _, tc := range cases {
@@ -244,6 +316,20 @@ func TestLoadDefault(t *testing.T) {
 	}
 	if cfg.StorageWatcher.MaxFileAgeDays != 30 {
 		t.Errorf("StorageWatcher.MaxFileAgeDays = %d want 30", cfg.StorageWatcher.MaxFileAgeDays)
+	}
+	// V1.4-followup HIGH: the embedded default_config.toml carries
+	// permission_timeout = "180s" verbatim; this assertion guards
+	// against a future edit that drops the key (which would silently
+	// regress the broker race-fix back to the 30s pre-bump default
+	// via applyDefaults's fallback). Both equalities check the same
+	// thing — the literal duration AND the package constant — so the
+	// test fails loudly whether the file or the constant drifts.
+	if cfg.PermissionTimeout != 180*time.Second {
+		t.Errorf("PermissionTimeout = %s want 180s", cfg.PermissionTimeout)
+	}
+	if cfg.PermissionTimeout != DefaultPermissionTimeout {
+		t.Errorf("PermissionTimeout = %s want DefaultPermissionTimeout (%s)",
+			cfg.PermissionTimeout, DefaultPermissionTimeout)
 	}
 }
 

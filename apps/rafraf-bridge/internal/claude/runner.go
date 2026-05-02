@@ -497,6 +497,20 @@ func (r *Runner) buildEnv(req RunRequest) []string {
 	if sock != "" {
 		env = filterEnv(env, "RAFRAF_BRIDGE_PERM_SOCK")
 		env = append(env, "RAFRAF_BRIDGE_PERM_SOCK="+sock)
+		// V1.4-followup: pipe the operator-configured
+		// permission_timeout (broker's per-request ceiling) into
+		// the hook so the hook's UDS deadline tracks the broker
+		// in lockstep. The hook adds its own +10s grace on top so
+		// it never EOFs before the broker decides; we only emit
+		// the env var when cfg.PermissionTimeout is positive (zero
+		// → omit, hook falls back to its own 190s default —
+		// backwards-compatible with V1.0/V1.1 callers passing a
+		// zero-value cfg).
+		if r.cfg.PermissionTimeout > 0 {
+			env = filterEnv(env, "RAFRAF_BRIDGE_PERM_TIMEOUT_MS")
+			ms := strconv.FormatInt(int64(r.cfg.PermissionTimeout/time.Millisecond), 10)
+			env = append(env, "RAFRAF_BRIDGE_PERM_TIMEOUT_MS="+ms)
+		}
 	}
 	return env
 }
@@ -511,6 +525,14 @@ func (r *Runner) buildEnv(req RunRequest) []string {
 // configured OR when the hook binary is missing on disk. In the
 // latter case we log a warning so the dev workflow surfaces the
 // issue instead of silently shipping an unprotected session.
+//
+// The overlay's hook entry stamps the claude CLI's PreToolUse
+// `timeout` field at cfg.PermissionTimeout + 10s grace (same grace
+// the rafraf-perm-hook applies to its own UDS deadline) so claude
+// doesn't kill the hook before the broker decides. When cfg is nil
+// (test scaffolding) OR cfg.PermissionTimeout is zero, the field is
+// omitted and claude CLI applies its own 60s default — backwards-
+// compatible with V1.0/V1.1 tests.
 func (r *Runner) preparePermissionOverlay(req RunRequest) (string, func()) {
 	noop := func() {}
 	r.mu.Lock()
@@ -537,7 +559,7 @@ func (r *Runner) preparePermissionOverlay(req RunRequest) (string, func()) {
 	}
 	path := filepath.Join(os.TempDir(), "rafraf-bridge-settings-"+name+".json")
 
-	body := buildSettingsOverlay(hook)
+	body := buildSettingsOverlay(hook, r.claudeHookTimeout())
 	if err := os.WriteFile(path, body, 0o600); err != nil {
 		r.logger.Warn("permission overlay: write failed; skipping --settings injection",
 			"err", err,
@@ -556,15 +578,61 @@ func (r *Runner) preparePermissionOverlay(req RunRequest) (string, func()) {
 	return path, cleanup
 }
 
+// claudeHookTimeoutGrace is the slack added on top of
+// cfg.PermissionTimeout when stamping the claude CLI's PreToolUse
+// `timeout` field. Mirrors rafraf-perm-hook's own timeoutGrace (10s)
+// so the three-layer hierarchy (broker timer < hook UDS deadline <
+// claude CLI hook timeout) stays consistent end-to-end without any
+// of the layers racing each other.
+const claudeHookTimeoutGrace = 10 * time.Second
+
+// claudeHookTimeout returns the duration to stamp onto the claude
+// CLI's PreToolUse hook `timeout` field. Returns 0 (→ omit from the
+// overlay) when no PermissionTimeout is configured so test scaffolding
+// that builds a Runner with a zero-value cfg keeps working.
+//
+// Centralised so buildEnv (env-var injection) and
+// buildSettingsOverlay (settings overlay) share the same source of
+// truth — drift between the two would mean either claude kills the
+// hook early OR the hook's own UDS deadline expires before claude's
+// kill timer, both of which would re-introduce the V1.4-fix race
+// from the other side.
+func (r *Runner) claudeHookTimeout() time.Duration {
+	if r.cfg == nil || r.cfg.PermissionTimeout <= 0 {
+		return 0
+	}
+	return r.cfg.PermissionTimeout + claudeHookTimeoutGrace
+}
+
 // buildSettingsOverlay produces the JSON body for the per-session
 // settings file. Only the hooks.PreToolUse block is populated so the
 // overlay does not clobber any user-installed defaults at merge time
 // (claude CLI deep-merges --settings on top of the regular settings
 // hierarchy).
-func buildSettingsOverlay(hookPath string) []byte {
+//
+// hookTimeout, when > 0, is stamped onto the hook entry as
+// `timeout` (claude CLI takes seconds, integer). The CLI's own
+// PreToolUse hook timeout defaults to 60s; we raise it to match the
+// broker's effective ceiling + grace so claude doesn't kill the
+// hook before the broker decides. Zero / negative values omit the
+// field entirely (claude CLI then applies its own default), which
+// preserves backwards compatibility for tests and dev workflows that
+// don't care about the long-tail timing.
+//
+// The grace addition mirrors the rafraf-perm-hook's own
+// timeoutGrace (10s) so the layering stays consistent end-to-end:
+// broker (T) < hook UDS deadline (T + 10s) < claude CLI hook
+// timeout (T + 10s ceiling here too).
+func buildSettingsOverlay(hookPath string, hookTimeout time.Duration) []byte {
 	type hookCmd struct {
 		Type    string `json:"type"`
 		Command string `json:"command"`
+		// Timeout is integer seconds per the claude CLI hooks
+		// documentation. omitempty so the wire format stays
+		// minimal when the runner has no timeout context (e.g.
+		// older tests that call buildSettingsOverlay directly with
+		// a zero duration).
+		Timeout int `json:"timeout,omitempty"`
 	}
 	type matcher struct {
 		Matcher string    `json:"matcher"`
@@ -576,14 +644,24 @@ func buildSettingsOverlay(hookPath string) []byte {
 	type root struct {
 		Hooks hooks `json:"hooks"`
 	}
+	cmd := hookCmd{
+		Type:    "command",
+		Command: hookPath,
+	}
+	if hookTimeout > 0 {
+		// Round up to the next whole second so a sub-second config
+		// (vanishingly unlikely in practice but possible from a
+		// dev-mode override) doesn't accidentally produce 0.
+		secs := int((hookTimeout + time.Second - 1) / time.Second)
+		if secs > 0 {
+			cmd.Timeout = secs
+		}
+	}
 	body, _ := json.Marshal(root{
 		Hooks: hooks{
 			PreToolUse: []matcher{{
 				Matcher: ".*",
-				Hooks: []hookCmd{{
-					Type:    "command",
-					Command: hookPath,
-				}},
+				Hooks:   []hookCmd{cmd},
 			}},
 		},
 	})

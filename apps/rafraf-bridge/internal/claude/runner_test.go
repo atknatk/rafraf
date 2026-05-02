@@ -180,6 +180,51 @@ func TestRunner_BuildEnv_OmitsBrokerSockByDefault(t *testing.T) {
 	}
 }
 
+// V1.4-followup: buildEnv must inject RAFRAF_BRIDGE_PERM_TIMEOUT_MS
+// (broker timeout in milliseconds) so the hook's UDS deadline tracks
+// the broker's effective ceiling in lockstep. Three branches matter:
+//   1. timeout configured + sock configured → emit env var.
+//   2. timeout configured but sock NOT configured → omit (env var is
+//      meaningless without a sock to dial).
+//   3. timeout zero/unset → omit (hook falls back to its own 190s
+//      default — backwards-compat with V1.0/V1.1 callers).
+func TestRunner_BuildEnv_InjectsBrokerTimeoutMsWhenSet(t *testing.T) {
+	t.Parallel()
+	r := NewRunner(&config.Config{PermissionTimeout: 180 * time.Second}, silentLogger())
+	r.SetPermissionContext(nil, "/tmp/broker.sock", "/usr/local/bin/rafraf-perm-hook")
+	env := r.buildEnv(RunRequest{})
+	want := "RAFRAF_BRIDGE_PERM_TIMEOUT_MS=180000"
+	if !slices.Contains(env, want) {
+		t.Fatalf("buildEnv: expected %q in env, got %#v", want, env)
+	}
+}
+
+func TestRunner_BuildEnv_OmitsBrokerTimeoutMsWithoutSock(t *testing.T) {
+	t.Parallel()
+	r := NewRunner(&config.Config{PermissionTimeout: 180 * time.Second}, silentLogger())
+	// Note: no SetPermissionContext — the env var is gated on sock
+	// being non-empty so the hook never sees a stale timeout pointing
+	// at a non-existent broker.
+	env := r.buildEnv(RunRequest{})
+	for _, e := range env {
+		if strings.HasPrefix(e, "RAFRAF_BRIDGE_PERM_TIMEOUT_MS=") {
+			t.Fatalf("buildEnv: must not inject RAFRAF_BRIDGE_PERM_TIMEOUT_MS without sock context, got %q", e)
+		}
+	}
+}
+
+func TestRunner_BuildEnv_OmitsBrokerTimeoutMsWhenUnset(t *testing.T) {
+	t.Parallel()
+	r := NewRunner(&config.Config{}, silentLogger()) // no PermissionTimeout
+	r.SetPermissionContext(nil, "/tmp/broker.sock", "/usr/local/bin/rafraf-perm-hook")
+	env := r.buildEnv(RunRequest{})
+	for _, e := range env {
+		if strings.HasPrefix(e, "RAFRAF_BRIDGE_PERM_TIMEOUT_MS=") {
+			t.Fatalf("buildEnv: must not inject RAFRAF_BRIDGE_PERM_TIMEOUT_MS when cfg.PermissionTimeout is zero, got %q", e)
+		}
+	}
+}
+
 func TestRunner_PreparePermissionOverlay_NoContextSkips(t *testing.T) {
 	t.Parallel()
 	r := NewRunner(&config.Config{}, silentLogger())
@@ -227,6 +272,156 @@ func TestRunner_PreparePermissionOverlay_WritesAndCleans(t *testing.T) {
 	cleanup()
 	if _, err := os.Stat(path); err == nil {
 		t.Fatalf("overlay still present after cleanup: %s", path)
+	}
+}
+
+// V1.4-followup: the overlay's hook entry must carry a `timeout`
+// field (claude CLI seconds) when cfg.PermissionTimeout is positive,
+// AND must omit it when cfg.PermissionTimeout is zero (backwards
+// compat — claude CLI then applies its own 60s default).
+func TestRunner_PreparePermissionOverlay_StampsClaudeHookTimeout(t *testing.T) {
+	t.Parallel()
+	hook := "/bin/sh"
+	if _, err := os.Stat(hook); err != nil {
+		t.Skipf("/bin/sh not present, skipping: %v", err)
+	}
+	// 180s broker default + 10s grace = 190s claude CLI hook timeout.
+	r := NewRunner(&config.Config{PermissionTimeout: 180 * time.Second}, silentLogger())
+	r.SetPermissionContext(nil, "/tmp/sock", hook)
+
+	path, cleanup := r.preparePermissionOverlay(RunRequest{SessionID: "tmout-stamp"})
+	defer cleanup()
+	if path == "" {
+		t.Fatalf("preparePermissionOverlay: expected non-empty path")
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read overlay: %v", err)
+	}
+	// Must include the timeout field at the +grace value (190s).
+	if !strings.Contains(string(body), `"timeout":190`) {
+		t.Fatalf("overlay missing claude CLI timeout=190: %s", body)
+	}
+}
+
+func TestRunner_PreparePermissionOverlay_OmitsTimeoutWhenUnset(t *testing.T) {
+	t.Parallel()
+	hook := "/bin/sh"
+	if _, err := os.Stat(hook); err != nil {
+		t.Skipf("/bin/sh not present, skipping: %v", err)
+	}
+	// PermissionTimeout left at zero — overlay must NOT carry timeout
+	// so claude CLI's default applies. Backwards-compat path.
+	r := NewRunner(&config.Config{}, silentLogger())
+	r.SetPermissionContext(nil, "/tmp/sock", hook)
+
+	path, cleanup := r.preparePermissionOverlay(RunRequest{SessionID: "tmout-omit"})
+	defer cleanup()
+	if path == "" {
+		t.Fatalf("preparePermissionOverlay: expected non-empty path")
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read overlay: %v", err)
+	}
+	if strings.Contains(string(body), `"timeout"`) {
+		t.Fatalf("overlay must omit timeout field when unconfigured: %s", body)
+	}
+}
+
+// TestBuildSettingsOverlay_TimeoutMatrix exercises buildSettingsOverlay
+// directly to lock the timeout-field marshal contract: positive
+// durations stamp seconds (rounded up), zero/negative omit, sub-second
+// values are bumped to >= 1s so the omitempty round-trip never
+// silently zero-outs.
+func TestBuildSettingsOverlay_TimeoutMatrix(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		hookTimeout time.Duration
+		wantContain string  // empty -> assert NOT present
+		wantAbsent  string  // empty -> no extra absence check
+	}{
+		{
+			name:        "zero_omits",
+			hookTimeout: 0,
+			wantAbsent:  `"timeout"`,
+		},
+		{
+			name:        "negative_omits",
+			hookTimeout: -5 * time.Second,
+			wantAbsent:  `"timeout"`,
+		},
+		{
+			name:        "exact_seconds",
+			hookTimeout: 190 * time.Second,
+			wantContain: `"timeout":190`,
+		},
+		{
+			name:        "rounds_up_subsecond",
+			hookTimeout: 500 * time.Millisecond,
+			wantContain: `"timeout":1`,
+		},
+		{
+			name:        "rounds_up_fractional",
+			hookTimeout: 190*time.Second + 250*time.Millisecond,
+			wantContain: `"timeout":191`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := string(buildSettingsOverlay("/usr/local/bin/rafraf-perm-hook", tc.hookTimeout))
+			if tc.wantContain != "" && !strings.Contains(body, tc.wantContain) {
+				t.Fatalf("body %q missing %q", body, tc.wantContain)
+			}
+			if tc.wantAbsent != "" && strings.Contains(body, tc.wantAbsent) {
+				t.Fatalf("body %q must NOT contain %q", body, tc.wantAbsent)
+			}
+			// Hook command + matcher invariants always hold.
+			if !strings.Contains(body, "PreToolUse") {
+				t.Fatalf("body %q missing PreToolUse", body)
+			}
+			if !strings.Contains(body, "/usr/local/bin/rafraf-perm-hook") {
+				t.Fatalf("body %q missing hook path", body)
+			}
+		})
+	}
+}
+
+// TestRunner_ClaudeHookTimeout exercises the helper that picks the
+// timeout value used by both buildEnv (env-var injection) and
+// buildSettingsOverlay (settings file). The two MUST stay in
+// lockstep — drift means either claude kills the hook early OR the
+// hook's UDS deadline expires before claude's own kill timer, both
+// of which re-introduce the V1.4-fix race from the other side.
+func TestRunner_ClaudeHookTimeout(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		cfg  *config.Config
+		want time.Duration
+	}{
+		{"nil_cfg", nil, 0},
+		{"zero_cfg", &config.Config{}, 0},
+		{"negative_cfg", &config.Config{PermissionTimeout: -1 * time.Second}, 0},
+		{
+			"180s_cfg",
+			&config.Config{PermissionTimeout: 180 * time.Second},
+			180*time.Second + claudeHookTimeoutGrace,
+		},
+		{
+			"60s_dev_override",
+			&config.Config{PermissionTimeout: 60 * time.Second},
+			60*time.Second + claudeHookTimeoutGrace,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := NewRunner(tc.cfg, silentLogger())
+			if got := r.claudeHookTimeout(); got != tc.want {
+				t.Fatalf("claudeHookTimeout() = %s, want %s", got, tc.want)
+			}
+		})
 	}
 }
 

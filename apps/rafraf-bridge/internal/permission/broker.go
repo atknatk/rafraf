@@ -110,10 +110,38 @@ type hookReply struct {
 }
 
 // defaultRequestTimeout is the broker's per-request ceiling when the
-// hook envelope omits TimeoutMs (or the V1.3 wiring leaves it zero).
-// Mirrors the iOS RFApprovalSheet countdown documented in
-// design doc §4.3.
-const defaultRequestTimeout = 30 * time.Second
+// hook envelope omits TimeoutMs (or the V1.3 wiring leaves it zero) AND
+// no explicit timeout was supplied to the broker constructor.
+//
+// Bumped from 30s → 180s in V1.4-followup after the live test on
+// 2026-05-02 surfaced a race: real-world claude cold-start (~5–10s) +
+// network RTT (~2s) + iOS sheet display + user deliberation routinely
+// exceeded 30s, causing the broker to deny on its own timer ~3s
+// before the user's "Allow once" tap reached the backend. The new
+// 180s value matches the backend's per-category default
+// (apps/backend/app/services/approval_service.py — see the
+// `_evaluate_request_timeout_seconds` helper / record.timeout_seconds
+// defaults of 180–300s) so the iOS countdown driven by the envelope's
+// timeout_ms field also auto-extends end-to-end.
+//
+// Operators can override via the `permission_timeout` TOML key on the
+// bridge config; the override is bounded to (0, 590s] in
+// apps/rafraf-bridge/internal/config/config.go::Validate (capped at
+// claude CLI's 600s hook-execution limit minus the 10s grace the
+// runner stamps onto the overlay).
+//
+// End-to-end lockstep — a single `permission_timeout` knob propagates
+// to all three downstream layers in one shot:
+//   - rafraf-perm-hook UDS read deadline ← RAFRAF_BRIDGE_PERM_TIMEOUT_MS
+//     env var (broker timeout + 10s grace; default 190s).
+//   - claude CLI PreToolUse hook `timeout` overlay field ←
+//     Runner.claudeHookTimeout() (broker timeout + 10s grace; default
+//     190s, written into the per-session --settings JSON).
+//   - Backend ApprovalService awaiter ← bridge_timeout_seconds in the
+//     event.session.permission_request envelope (driven by
+//     effectiveTimeout(); backend already clamps the iOS countdown
+//     against this).
+const defaultRequestTimeout = 180 * time.Second
 
 // brokerCWD is captured once at New() so risk classification can
 // compare paths against it without re-stat'ing on every request.
@@ -138,6 +166,12 @@ type Broker struct {
 	logger   *slog.Logger
 	cwd      string
 
+	// timeout is the per-request ceiling applied when the inbound
+	// envelope's TimeoutMs is zero. Initialised from the constructor
+	// argument; values <= 0 fall back to defaultRequestTimeout at
+	// request time.
+	timeout time.Duration
+
 	// onRequest is the V1.3-supplied callback that converts a
 	// hook-side request into an EventSessionPermissionRequest envelope
 	// and pushes it through the WS sink. May be nil in V1.2.
@@ -159,7 +193,27 @@ type Broker struct {
 // broker reclaims it (best-effort os.Remove + retry). When the holder
 // IS a live PID NewBroker returns an error so a duplicate bridge
 // startup fails loudly rather than silently stealing requests.
+//
+// The per-request timeout defaults to defaultRequestTimeout (180s).
+// Callers that need a different ceiling — typically the bridge daemon
+// reading the operator's `permission_timeout` TOML override — should
+// use NewBrokerWithTimeout instead.
 func NewBroker(sockPath string, logger *slog.Logger) (*Broker, error) {
+	return NewBrokerWithTimeout(sockPath, 0, logger)
+}
+
+// NewBrokerWithTimeout is the explicit constructor that lets the
+// daemon main wire an operator-configured per-request ceiling
+// (config.PermissionTimeout) into the broker. A timeout <= 0 falls
+// through to defaultRequestTimeout, so the bridge keeps booting in a
+// safe mode even if config validation is bypassed.
+//
+// The validation contract for the operator-supplied value lives in
+// internal/config/config.go::Validate (currently bounded to
+// (0, 600s]); the broker accepts anything here so unit tests can
+// exercise short timeouts (e.g. 100ms) without rerouting through the
+// config layer.
+func NewBrokerWithTimeout(sockPath string, timeout time.Duration, logger *slog.Logger) (*Broker, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -194,11 +248,27 @@ func NewBroker(sockPath string, logger *slog.Logger) (*Broker, error) {
 		listener: ln,
 		logger:   logger,
 		cwd:      cwd,
+		timeout:  timeout,
 		pending:  make(map[string]chan Decision),
 		done:     make(chan struct{}),
 	}
-	logger.Info("permission broker listening", "sock", sockPath, "cwd", cwd)
+	logger.Info("permission broker listening",
+		"sock", sockPath,
+		"cwd", cwd,
+		"timeout", b.effectiveTimeout().String(),
+	)
 	return b, nil
+}
+
+// effectiveTimeout returns the broker's per-request ceiling, falling
+// back to defaultRequestTimeout when the constructor was given a
+// non-positive value. Centralised so the log line at startup and the
+// outbound envelope's TimeoutMs derivation cannot drift.
+func (b *Broker) effectiveTimeout() time.Duration {
+	if b.timeout > 0 {
+		return b.timeout
+	}
+	return defaultRequestTimeout
 }
 
 // Sock returns the active socket path.
@@ -301,7 +371,11 @@ func (b *Broker) handleConn(ctx context.Context, conn net.Conn) {
 		InputPreview: preview,
 		Risk:         risk,
 		Reason:       reason,
-		TimeoutMs:    int(defaultRequestTimeout / time.Millisecond),
+		// effectiveTimeout honours the operator-supplied
+		// PermissionTimeout config (or defaultRequestTimeout when
+		// unset). Plumbed into the envelope so the iOS countdown +
+		// backend ApprovalService timeout track this exact value.
+		TimeoutMs: int(b.effectiveTimeout() / time.Millisecond),
 	}
 
 	decision := b.RequestDecision(ctx, envPayload)
@@ -336,7 +410,10 @@ func (b *Broker) handleConn(ctx context.Context, conn net.Conn) {
 func (b *Broker) RequestDecision(ctx context.Context, ev protocol.EventSessionPermissionRequest) Decision {
 	timeout := time.Duration(ev.TimeoutMs) * time.Millisecond
 	if timeout <= 0 {
-		timeout = defaultRequestTimeout
+		// envelope didn't carry an explicit ceiling — fall back to
+		// the broker's effective timeout (operator-configured or
+		// defaultRequestTimeout).
+		timeout = b.effectiveTimeout()
 	}
 
 	ch := make(chan Decision, 1)

@@ -73,13 +73,27 @@ func shortSockPath(t *testing.T, name string) string {
 
 // newTestBroker spins up a broker on a fresh socket inside a short
 // temp dir with a verbose discard logger. Caller MUST defer cleanup().
+//
+// Uses NewBroker (not NewBrokerWithTimeout) so the legacy default-path
+// constructor stays exercised on every test run; tests that need a
+// custom ceiling should call newTestBrokerWithTimeout instead.
 func newTestBroker(t *testing.T) (*Broker, func()) {
+	t.Helper()
+	return newTestBrokerWithTimeout(t, 0)
+}
+
+// newTestBrokerWithTimeout is the explicit-timeout sibling of
+// newTestBroker. timeout <= 0 selects the broker's built-in default
+// (defaultRequestTimeout); positive values are passed through.
+// Used by tests that want fast (e.g. 100ms) ceilings without sleeping
+// for the production default.
+func newTestBrokerWithTimeout(t *testing.T, timeout time.Duration) (*Broker, func()) {
 	t.Helper()
 	sock := shortSockPath(t, "b.sock")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	b, err := NewBroker(sock, logger)
+	b, err := NewBrokerWithTimeout(sock, timeout, logger)
 	if err != nil {
-		t.Fatalf("NewBroker: %v", err)
+		t.Fatalf("NewBrokerWithTimeout: %v", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	if err := b.Start(ctx); err != nil {
@@ -208,7 +222,10 @@ func TestBroker_TimeoutDeny(t *testing.T) {
 	// Override the per-request timeout via a custom RequestDecision
 	// driven directly. We bypass UDS for this test because the
 	// broker derives TimeoutMs from the ENVELOPE we build, not from
-	// the hookRequest. The UDS path uses defaultRequestTimeout.
+	// the hookRequest. The UDS path stamps the broker's
+	// effectiveTimeout (180s default in V1.4-followup) onto the
+	// envelope; the explicit TimeoutMs:50 below short-circuits that
+	// to keep the test fast.
 	ev := protocol.EventSessionPermissionRequest{
 		SessionID: "sess-1",
 		RequestID: "req-timeout",
@@ -223,6 +240,157 @@ func TestBroker_TimeoutDeny(t *testing.T) {
 	}
 	if elapsed < 40*time.Millisecond || elapsed > 500*time.Millisecond {
 		t.Fatalf("elapsed = %v, want ~50ms", elapsed)
+	}
+}
+
+// ----- 2b. Default-timeout sanity ---------------------------------------
+
+// TestBroker_DefaultTimeoutValue locks the broker's package-level
+// default to 180s. The constant doubles as the V1.4-followup-HIGH
+// floor (race fix vs. 30s) AND as the value plumbed onto every
+// outbound permission_request envelope when no explicit ceiling is
+// configured — bumping it without a follow-up review is risky, so the
+// test pins it.
+func TestBroker_DefaultTimeoutValue(t *testing.T) {
+	if defaultRequestTimeout != 180*time.Second {
+		t.Fatalf("defaultRequestTimeout = %s, want 180s", defaultRequestTimeout)
+	}
+}
+
+// TestBroker_EnvelopeTimeoutMs_FromBrokerDefault verifies that when
+// the operator does NOT set permission_timeout, the broker stamps the
+// outbound permission_request envelope's TimeoutMs with
+// defaultRequestTimeout (180s). The iOS countdown + backend clamp
+// both depend on this value being present and accurate.
+func TestBroker_EnvelopeTimeoutMs_FromBrokerDefault(t *testing.T) {
+	b, cleanup := newTestBroker(t)
+	defer cleanup()
+
+	cap := captureRequest(b)
+	cap.onRequest(func(ev protocol.EventSessionPermissionRequest) {
+		go b.Resolve(ev.RequestID, DecisionAllow)
+	})
+
+	if _, err := dialAndSend(t, b.Sock(), hookRequest{
+		ToolUseID: "tu-default",
+		ToolName:  "Read",
+		ToolInput: json.RawMessage(`{"file_path":"/tmp/x"}`),
+		SessionID: "sess-default",
+	}); err != nil {
+		t.Fatalf("dialAndSend: %v", err)
+	}
+	events := cap.snapshot()
+	if len(events) != 1 {
+		t.Fatalf("len(events) = %d, want 1", len(events))
+	}
+	wantMs := int(180 * time.Second / time.Millisecond)
+	if events[0].TimeoutMs != wantMs {
+		t.Fatalf("envelope.TimeoutMs = %d, want %d", events[0].TimeoutMs, wantMs)
+	}
+}
+
+// TestBroker_EnvelopeTimeoutMs_FromConstructor verifies that an
+// operator-supplied ceiling (NewBrokerWithTimeout) is propagated all
+// the way into the outbound permission_request envelope. Without
+// this, dialing down the broker for low-risk environments would not
+// also dial down the iOS countdown — leaving the user staring at a
+// 3-minute timer while the broker has already decided.
+func TestBroker_EnvelopeTimeoutMs_FromConstructor(t *testing.T) {
+	const customTimeout = 250 * time.Millisecond
+	b, cleanup := newTestBrokerWithTimeout(t, customTimeout)
+	defer cleanup()
+
+	cap := captureRequest(b)
+	cap.onRequest(func(ev protocol.EventSessionPermissionRequest) {
+		go b.Resolve(ev.RequestID, DecisionAllow)
+	})
+
+	if _, err := dialAndSend(t, b.Sock(), hookRequest{
+		ToolUseID: "tu-custom",
+		ToolName:  "Read",
+		ToolInput: json.RawMessage(`{"file_path":"/tmp/x"}`),
+		SessionID: "sess-custom",
+	}); err != nil {
+		t.Fatalf("dialAndSend: %v", err)
+	}
+	events := cap.snapshot()
+	if len(events) != 1 {
+		t.Fatalf("len(events) = %d, want 1", len(events))
+	}
+	wantMs := int(customTimeout / time.Millisecond)
+	if events[0].TimeoutMs != wantMs {
+		t.Fatalf("envelope.TimeoutMs = %d, want %d", events[0].TimeoutMs, wantMs)
+	}
+}
+
+// TestBroker_CustomTimeoutHonoured drives RequestDecision directly
+// with an envelope whose TimeoutMs is zero — i.e. the broker MUST
+// fall back to the constructor-supplied timeout, not to
+// defaultRequestTimeout. This is the contract that lets ops dial the
+// broker down per environment.
+//
+// We use a 100ms ceiling so the test stays fast; the elapsed-time
+// assertion provides a generous +400ms upper bound to absorb
+// scheduler jitter on overloaded CI runners while still catching a
+// regression that accidentally re-pointed the fallback at the
+// 180s package default.
+func TestBroker_CustomTimeoutHonoured(t *testing.T) {
+	const customTimeout = 100 * time.Millisecond
+	b, cleanup := newTestBrokerWithTimeout(t, customTimeout)
+	defer cleanup()
+
+	// Handler that intentionally never resolves so the broker has to
+	// fire its own timer.
+	b.SetRequestHandler(func(ev protocol.EventSessionPermissionRequest) {
+		_ = ev
+	})
+
+	ev := protocol.EventSessionPermissionRequest{
+		SessionID: "sess-custom-timer",
+		RequestID: "req-custom-timer",
+		ToolName:  "Read",
+		// TimeoutMs left at zero on purpose — exercises the
+		// effectiveTimeout fallback path inside RequestDecision.
+	}
+	start := time.Now()
+	dec := b.RequestDecision(context.Background(), ev)
+	elapsed := time.Since(start)
+
+	if dec != DecisionExpired {
+		t.Fatalf("decision = %q, want expired", dec)
+	}
+	if elapsed < customTimeout-20*time.Millisecond {
+		t.Fatalf("elapsed = %v, want >= ~%s (broker exited too early)", elapsed, customTimeout)
+	}
+	if elapsed > customTimeout+500*time.Millisecond {
+		t.Fatalf("elapsed = %v, want <= ~%s (broker likely fell back to 180s default)",
+			elapsed, customTimeout+500*time.Millisecond)
+	}
+}
+
+// TestBroker_EffectiveTimeoutFallback verifies the
+// (b.timeout <= 0) → defaultRequestTimeout branch. The legacy
+// NewBroker constructor passes 0 through, so this guards against a
+// regression that accidentally drops the fallback and ships a
+// zero-timeout broker (which would deny on the first request).
+func TestBroker_EffectiveTimeoutFallback(t *testing.T) {
+	b, cleanup := newTestBroker(t)
+	defer cleanup()
+	if got := b.effectiveTimeout(); got != defaultRequestTimeout {
+		t.Fatalf("effectiveTimeout() = %s, want %s (default)", got, defaultRequestTimeout)
+	}
+
+	b2, cleanup2 := newTestBrokerWithTimeout(t, -5*time.Second)
+	defer cleanup2()
+	if got := b2.effectiveTimeout(); got != defaultRequestTimeout {
+		t.Fatalf("effectiveTimeout() with negative ctor = %s, want %s (default)",
+			got, defaultRequestTimeout)
+	}
+
+	b3, cleanup3 := newTestBrokerWithTimeout(t, 42*time.Second)
+	defer cleanup3()
+	if got := b3.effectiveTimeout(); got != 42*time.Second {
+		t.Fatalf("effectiveTimeout() with positive ctor = %s, want 42s", got)
 	}
 }
 

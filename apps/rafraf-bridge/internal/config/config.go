@@ -45,10 +45,42 @@ type Config struct {
 	ReconnectInitial  time.Duration `toml:"reconnect_initial"`
 	ReconnectMax      time.Duration `toml:"reconnect_max"`
 
+	// PermissionTimeout caps how long the bridge's PreToolUse broker
+	// waits on the iOS user's approval before the broker self-denies
+	// (DecisionExpired → hook reply "block"). The same value is
+	// stamped onto the outbound permission_request envelope's
+	// timeout_ms field so iOS RFApprovalSheet's countdown + backend
+	// ApprovalService's clamp track it end-to-end.
+	//
+	// Default: 180s (mirrors the backend's per-category default in
+	// apps/backend/app/services/approval_service.py). Validation
+	// rejects values <= 0 or > 600s.
+	PermissionTimeout time.Duration `toml:"permission_timeout"`
+
 	StorageWatcher StorageWatcherConfig `toml:"storage_watcher"`
 	Statusline     StatuslineConfig     `toml:"statusline"`
 	Telemetry      TelemetryConfig      `toml:"telemetry"`
 }
+
+// DefaultPermissionTimeout is the broker's per-request approval
+// ceiling when the operator does not set permission_timeout in
+// config.toml. Mirrors permission.defaultRequestTimeout in the
+// broker package and is duplicated here so the config layer has a
+// stable, importable default without taking a dep on the permission
+// package (avoids an import cycle).
+const DefaultPermissionTimeout = 180 * time.Second
+
+// MaxPermissionTimeout is the upper bound enforced by Validate. The
+// 590s ceiling is calibrated against claude CLI's 600s tool-hook
+// execution cap (per ~/.claude/cache/changelog.md "Changed tool hook
+// execution timeout from 60 seconds to 10 minutes"): the runner
+// stamps `cfg.PermissionTimeout + 10s grace` into the per-session
+// settings overlay's `timeout` field, so capping config at 590s keeps
+// the overlay value at-or-under claude's hard 600s limit. Without
+// this margin a `permission_timeout = "600s"` would silently produce
+// an overlay timeout of 610s that claude CLI would clamp at 600s,
+// drifting the layer out of lockstep.
+const MaxPermissionTimeout = 590 * time.Second
 
 // StorageWatcherConfig configures the ~/.claude/projects/ JSONL watcher.
 type StorageWatcherConfig struct {
@@ -164,6 +196,9 @@ func (c *Config) applyDefaults() error {
 	if c.ReconnectMax == 0 {
 		c.ReconnectMax = 30 * time.Second
 	}
+	if c.PermissionTimeout == 0 {
+		c.PermissionTimeout = DefaultPermissionTimeout
+	}
 
 	if c.StorageWatcher.MaxFileAgeDays == 0 {
 		c.StorageWatcher.MaxFileAgeDays = 30
@@ -241,6 +276,19 @@ func (c *Config) Validate() error {
 		errs = append(errs, fmt.Errorf(
 			"config: reconnect_max must be >= reconnect_initial (max=%s initial=%s)",
 			c.ReconnectMax, c.ReconnectInitial,
+		))
+	}
+
+	if c.PermissionTimeout <= 0 {
+		errs = append(errs, fmt.Errorf(
+			"config: permission_timeout must be > 0 (got %s)",
+			c.PermissionTimeout,
+		))
+	}
+	if c.PermissionTimeout > MaxPermissionTimeout {
+		errs = append(errs, fmt.Errorf(
+			"config: permission_timeout must be <= %s (got %s)",
+			MaxPermissionTimeout, c.PermissionTimeout,
 		))
 	}
 

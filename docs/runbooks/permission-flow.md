@@ -442,23 +442,48 @@ can size alerts without bouncing between docs).
 | Hook subprocess fork + UDS connect                   | ≤ 50 ms                      |
 | Bridge → backend WS frame                            | ≤ 30 ms (LAN) / ≤ 200 ms (cross-region) |
 | Backend forward to iOS                               | ≤ 50 ms                      |
-| **User decision (RFApprovalSheet auto-timeout)**     | up to 30 s                   |
+| **User decision (RFApprovalSheet auto-timeout)**     | up to 180 s (V1.4-followup)  |
 | iOS → backend WS frame                               | ≤ 200 ms                     |
 | Backend → bridge WS frame                            | ≤ 30 ms                      |
 | Bridge → hook UDS write + hook stdout flush          | ≤ 50 ms                      |
-| **Total worst case**                                 | **~30.6 s**                  |
+| **Total worst case**                                 | **~180.6 s**                 |
 
-Claude CLI's PreToolUse hook timeout is 60 s by default, so the V1
-budget leaves a 2× safety margin. The bridge-suggested `timeout_ms`
-field on `event.session.permission_request` (default `30000`) is the
-hard ceiling propagated to all layers:
+The V1.4-followup bump (2026-05-02) raised the broker default from 30 s
+→ 180 s after a real-world test surfaced a race between claude
+cold-start + user deliberation and the previous 30 s ceiling. The new
+default mirrors the backend's per-category timeout in
+`apps/backend/app/services/approval_service.py`. Operators can dial it
+back down via the `permission_timeout` TOML key on the bridge config
+(validated to `(0, 600s]`).
 
-| Layer                              | Effective ceiling                         |
-|------------------------------------|-------------------------------------------|
-| iOS RFApprovalSheet countdown      | `request.timeoutSeconds` (= 30 s)         |
-| Backend ApprovalService awaiter    | `bridge_timeout_seconds + 2 s` grace      |
-| Bridge UDS broker timeout          | `timeout_ms + 4 s` grace                  |
-| Claude CLI hook timeout (CLI)      | 60 s default — left untouched             |
+The follow-up patch (same day) extended the bump downstream so the
+broker's longer ceiling is observable end-to-end:
+
+  - `rafraf-perm-hook`'s UDS read deadline now defaults to 190 s
+    (broker's 180 s + 10 s grace) and the bridge runner injects
+    `RAFRAF_BRIDGE_PERM_TIMEOUT_MS` so the hook tracks the operator's
+    `permission_timeout` config in lockstep.
+  - The per-session settings overlay built by
+    `internal/claude/runner.go::buildSettingsOverlay` now stamps
+    claude CLI's PreToolUse hook `timeout` field at
+    `permission_timeout + 10 s` so claude itself does not kill the
+    hook before the broker decides.
+
+A single TOML knob (`permission_timeout`) therefore controls the
+broker timer, the hook UDS deadline, AND claude CLI's own hook
+timeout in lockstep.
+
+The bridge-suggested `timeout_ms` field on
+`event.session.permission_request` (default `180000` after V1.4-followup;
+was `30000`) is the hard ceiling propagated to all layers:
+
+| Layer                              | Effective ceiling                                            |
+|------------------------------------|--------------------------------------------------------------|
+| iOS RFApprovalSheet countdown      | `request.timeoutSeconds` (= 180 s default)                   |
+| Backend ApprovalService awaiter    | `min(bridge_timeout_seconds, category_default)`              |
+| Bridge UDS broker timeout          | `permission_timeout` config (180 s default)                  |
+| rafraf-perm-hook UDS read deadline | `permission_timeout + 10 s` grace via `RAFRAF_BRIDGE_PERM_TIMEOUT_MS` (fallback 190 s) |
+| Claude CLI hook timeout (overlay)  | `permission_timeout + 10 s` grace stamped on `--settings` overlay |
 
 Operators alerting on `permission_request_round_trip_seconds` should
 fire warning at p95 > 5 s and page at p95 > 25 s (= within budget but
