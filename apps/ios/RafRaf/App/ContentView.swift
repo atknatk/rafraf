@@ -75,6 +75,12 @@ struct ContentView: View {
                     await webSocketManager.connect()
                 } else if newState == .unauthenticated {
                     await webSocketManager.disconnect()
+                    // V1.5 reviewer M2 fix: coordinator is a Factory
+                    // singleton — without explicit reset, a residual
+                    // approval sheet from the prior session would
+                    // persist for the next user. Drop the active
+                    // request + queue on auth transition.
+                    await approvalCoordinator.reset()
                 }
             }
         }

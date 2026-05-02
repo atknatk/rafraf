@@ -469,6 +469,12 @@ func dispatchCommand(ctx context.Context, runner *claude.Runner, wsClient *ws.Cl
 			}
 		}()
 	case protocol.TypeCommandClaudePermissionAllow:
+		// Note (V1.3 reviewer M1): unhappy-path logger.Warn calls below
+		// are formally synchronous stderr writes. In practice slog's
+		// JSON handler is fast (<10us) and stderr is rarely the
+		// bottleneck. Healthy-path is broker.Resolve which IS non-
+		// blocking by contract (broker.go CRITICAL CONTRACTS).
+		// Acceptable deviation from V1.1 reviewer M1 strict reading.
 		if broker == nil {
 			logger.Warn("dispatch: permission.allow received but broker is nil (degraded V1.2 path)",
 				"id", env.ID,

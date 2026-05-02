@@ -33,9 +33,13 @@ enum ApprovalMapper {
     /// ApprovalSheetRequest'e donusturur.
     ///
     /// Risk siniflandirmasi backend kategorisi -> RFApprovalSheet policy
-    /// (design v1-permission-blockers §2.1.3 risk tablosuna uygun):
-    /// - destructive / deploy -> high risk prompt (user MUST tap)
-    /// - infrastructure / writeRemote -> medium risk prompt
+    /// (design v1-permission-blockers §2.1.3 risk tablosuna uygun;
+    /// V1.5 reviewer M1 fix: bridge `low → INFRASTRUCTURE` artik dogru
+    /// sekilde `.low` badge'ine map'lendi, daha once yanlislikla `.medium`'a
+    /// donusuyordu):
+    /// - destructive / deploy -> high risk prompt (user MUST tap; kirmizi)
+    /// - writeRemote -> medium risk prompt (sari)
+    /// - infrastructure -> low risk prompt (mavi/yesil — Read/Glob/Grep)
     ///
     /// `toolName` ApprovalQuestion.context icindeki "Tool: <name>, Action: ..."
     /// pattern'den parse edilir (build_question_message backend formatina uygun).
@@ -47,8 +51,10 @@ enum ApprovalMapper {
             switch question.category {
             case .destructive, .deploy:
                 return .prompt(risk: .high)
-            case .infrastructure, .writeRemote:
+            case .writeRemote:
                 return .prompt(risk: .medium)
+            case .infrastructure:
+                return .prompt(risk: .low)
             }
         }()
 

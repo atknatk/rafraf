@@ -33,6 +33,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -48,6 +49,14 @@ import (
 // claudeTracerName is the OTel instrumentation library identifier used
 // by the runner + parser; matches the convention "<module>/<package>".
 const claudeTracerName = "rafraf-bridge/claude"
+
+// ErrRunnerBusy is returned by Run() when a permission broker is wired
+// AND another concurrent Run is already holding the broker's
+// SetRequestHandler slot. V1.3 reviewer H1 fix: rather than silently
+// overwriting the predecessor's closure (which would misroute
+// permission_request envelopes with the wrong correlation_id), we fail
+// loud so the caller can observe and retry.
+var ErrRunnerBusy = errors.New("claude: runner busy (permission broker handler held by another run)")
 
 // abortGracePeriod is how long Abort() lingers after cancelling the run
 // context, giving the subprocess a chance to flush stdout before any
@@ -120,6 +129,12 @@ type Runner struct {
 	mu         sync.Mutex
 	activeRuns map[string]activeRun // sessionID → cancel + generation
 	nextGen    uint64               // monotonic, advanced under mu
+	// permHandlerOwner is the sessionID currently owning the broker's
+	// SetRequestHandler slot, or "" when no Run holds it. CAS-guarded
+	// so a second concurrent Run with a non-nil broker fails loud
+	// (ErrRunnerBusy) instead of silently overwriting the first run's
+	// closure — V1.3 reviewer H1 fix.
+	permHandlerOwner atomic.Pointer[string]
 }
 
 // RunRequest is the per-invocation control surface. Empty fields fall
@@ -196,7 +211,7 @@ type ExecCommandFn func(ctx context.Context, name string, args ...string) *exec.
 // NewRunner constructs a Runner. logger may be nil; a no-op default is
 // substituted in that case so call sites need not check.
 //
-// V1.2 callers should follow up with SetPermissionContext(sock, hook)
+// V1.3 callers should follow up with SetPermissionContext(broker, sock, hook)
 // to enable the PreToolUse hook injection. NewRunner alone preserves
 // the V1.0/V1.1 behaviour (no hook, no settings overlay).
 func NewRunner(cfg *config.Config, logger *slog.Logger) *Runner {
@@ -288,18 +303,40 @@ func (r *Runner) runWithExec(
 	broker := r.permissionBroker
 	r.mu.Unlock()
 	if broker != nil {
-		correlation := req.SessionID
+		// V1.3 reviewer H1 fix: CAS-claim the broker's handler slot.
+		// Two concurrent Runs (different SessionIDs OR a same-SessionID
+		// retry during the cancel→exit→register handoff window) would
+		// otherwise silently overwrite each other's closures, misrouting
+		// permission_request envelopes with the wrong correlation_id.
+		// Fail loud instead.
+		runSessionID := req.SessionID
+		ownerToken := runSessionID
+		if !r.permHandlerOwner.CompareAndSwap(nil, &ownerToken) {
+			existing := r.permHandlerOwner.Load()
+			existingID := ""
+			if existing != nil {
+				existingID = *existing
+			}
+			r.logger.Warn("runner: permission handler slot busy",
+				"existing_owner", existingID,
+				"requested_session_id", runSessionID,
+			)
+			return ErrRunnerBusy
+		}
 		broker.SetRequestHandler(func(ev protocol.EventSessionPermissionRequest) {
 			if err := sink.OnPermissionRequest(ev); err != nil {
 				r.logger.Warn("permission_request egress failed",
 					"err", err,
 					"request_id", ev.RequestID,
 					"session_id", ev.SessionID,
-					"run_session_id", correlation,
+					"run_session_id", runSessionID,
 				)
 			}
 		})
-		defer broker.SetRequestHandler(nil)
+		defer func() {
+			broker.SetRequestHandler(nil)
+			r.permHandlerOwner.Store(nil)
+		}()
 	}
 
 	args := r.buildArgs(req, settingsPath)
