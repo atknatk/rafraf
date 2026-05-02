@@ -236,6 +236,12 @@ enum WebSocketContent: Codable, Sendable {
     // V1.5: Backend interactive approval question (server → client).
     // DTO yasiyor: Features/Approval/Data/DTOs/ApprovalQuestionDTO.swift.
     case question(ApprovalQuestionDTO)
+    // V1 SHIP: Client → server onay karari.
+    // Onceden `.text(jsonString)` ile sarilmis JSON-string gonderiliyordu;
+    // backend `_handle_approval_response` ise content'in dict olmasini bekliyor
+    // (`isinstance(content, dict)` kontrolu). Bu case ile DTO dogrudan dict olarak
+    // serialize edilir (`shared/api-contracts/ws/approval-messages.json` kontrati).
+    case approvalResponse(ApprovalResponseDTO)
 
     // MARK: M1 (deferred — Faz 1 polish queue)
     // Asagidaki singleValueContainer fall-through 8 yeni Agent Teams Content
@@ -355,6 +361,8 @@ enum WebSocketContent: Codable, Sendable {
         case .usageReport(let value):
             try container.encode(value)
         case .question(let value):
+            try container.encode(value)
+        case .approvalResponse(let value):
             try container.encode(value)
         }
     }

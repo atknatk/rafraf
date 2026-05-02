@@ -121,24 +121,31 @@ struct ApprovalQuestionDTOTests {
 }
 
 /// ApprovalResponseDTO encode testleri.
+/// V1 SHIP: explicit snake_case CodingKeys ile DTO kendi wire-key kontratini sahiplenir;
+/// `WebSocketMessageRouter.encoder` herhangi bir keyEncodingStrategy uygulamadan dogru
+/// snake_case key'leri uretir.
 @Suite("ApprovalResponseDTO Tests")
 struct ApprovalResponseDTOTests {
 
-    @Test("JSON'a basarili encode edilmeli")
-    func encodeToJSON() throws {
+    @Test("JSON'a explicit CodingKeys ile snake_case encode edilmeli (no strategy)")
+    func encodeToJSON_explicitKeys() throws {
         let dto = ApprovalResponseDTO(
             approvalId: "abc-123",
             decision: "approved",
             note: nil
         )
 
+        // Production parity: WebSocketMessageRouter encoder'i strategy uygulamiyor.
         let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
         let data = try encoder.encode(dto)
-        let json = try JSONDecoder().decode([String: String?].self, from: data)
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
-        #expect(json["approval_id"] == "abc-123")
-        #expect(json["decision"] == "approved")
+        #expect(json?["approval_id"] as? String == "abc-123")
+        #expect(json?["decision"] as? String == "approved")
+        // JSONEncoder default: nil optionals omitted. Backend's `content.get("note")`
+        // returns None whether the key is missing or present-as-null; both fine.
+        let noteSlot = json?["note"]
+        #expect(noteSlot == nil || noteSlot is NSNull)
     }
 
     @Test("Note ile encode edilmeli")
@@ -150,12 +157,12 @@ struct ApprovalResponseDTOTests {
         )
 
         let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
         let data = try encoder.encode(dto)
-        let jsonString = String(data: data, encoding: .utf8)
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
-        #expect(jsonString?.contains("rejected") == true)
-        #expect(jsonString?.contains("Timeout") == true)
+        #expect(json?["approval_id"] as? String == "abc-123")
+        #expect(json?["decision"] as? String == "rejected")
+        #expect(json?["note"] as? String == "Timeout - otomatik red")
     }
 
     @Test("Roundtrip encode-decode basarili olmali")
@@ -167,11 +174,9 @@ struct ApprovalResponseDTOTests {
         )
 
         let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
         let data = try encoder.encode(original)
 
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let decoded = try decoder.decode(ApprovalResponseDTO.self, from: data)
 
         #expect(decoded.approvalId == original.approvalId)

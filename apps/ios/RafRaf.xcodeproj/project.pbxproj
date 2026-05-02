@@ -13,6 +13,7 @@
 		01719DC9951AE7891BDD95E0 /* RFSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 629C0C741A2EA1DCC248E89B /* RFSettingsRow.swift */; };
 		022E4B32DEA2F3ED740BF4C0 /* RFCountdownTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E90391D47DE86AFCDF0FE1D /* RFCountdownTimer.swift */; };
 		03A0DAF73C6811B082C60CE9 /* ApprovalQuestionDTOTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88476BCA795924931C66A42B /* ApprovalQuestionDTOTests.swift */; };
+		57369B286B072224FAE4850A /* ApprovalRepositoryWireShapeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A475FE8F3B5D46B7CB021FB8 /* ApprovalRepositoryWireShapeTests.swift */; };
 		047376FB73C48A342E25402B /* ProgressEventDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6189AB90C5A36F4D3442ACC /* ProgressEventDTO.swift */; };
 		04C01CE5BA5009053D07851D /* ProactiveNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 806C04E0CC77902791920C9B /* ProactiveNotification.swift */; };
 		04E60FC566F382EB86976A6E /* RFStepProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 506A8129D75EC0B08AA1A4D4 /* RFStepProgressView.swift */; };
@@ -448,6 +449,7 @@
 		8514E3E4738EDBF1D054DF0A /* AgentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDetailView.swift; sourceTree = "<group>"; };
 		873A95A473C0B0BC9B36ACED /* RFCardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFCardTests.swift; sourceTree = "<group>"; };
 		88476BCA795924931C66A42B /* ApprovalQuestionDTOTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalQuestionDTOTests.swift; sourceTree = "<group>"; };
+		A475FE8F3B5D46B7CB021FB8 /* ApprovalRepositoryWireShapeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalRepositoryWireShapeTests.swift; sourceTree = "<group>"; };
 		884DCBB378AB332BCCE7C7E3 /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
 		89A7251A9986AF590322D9B1 /* NotificationRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRepositoryImpl.swift; sourceTree = "<group>"; };
 		8CA61012D78580A68D7F7FD5 /* SubmitApprovalDecisionUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubmitApprovalDecisionUseCase.swift; sourceTree = "<group>"; };
@@ -1421,6 +1423,7 @@
 			children = (
 				422F209F30ED7BFB450E98E0 /* ApprovalMapperTests.swift */,
 				88476BCA795924931C66A42B /* ApprovalQuestionDTOTests.swift */,
+				A475FE8F3B5D46B7CB021FB8 /* ApprovalRepositoryWireShapeTests.swift */,
 			);
 			path = Data;
 			sourceTree = "<group>";
@@ -2528,6 +2531,7 @@
 				C04EECE10C7CB20D13384ACD /* ApprovalMapperTests.swift in Sources */,
 				941B0A53882A36B1ED352971 /* ApprovalModelTests.swift in Sources */,
 				03A0DAF73C6811B082C60CE9 /* ApprovalQuestionDTOTests.swift in Sources */,
+				57369B286B072224FAE4850A /* ApprovalRepositoryWireShapeTests.swift in Sources */,
 				5B6F7CE82B6EBDD641DAB5B6 /* ApprovalTestFactory.swift in Sources */,
 				BF6662B299BF8438EE1C724D /* ApprovalToolPolicyTests.swift in Sources */,
 				683E92792EA4E9C10756A27B /* AuthInterceptorTests.swift in Sources */,

@@ -27,18 +27,15 @@ final class ApprovalRepositoryImpl: ApprovalRepositoryProtocol, @unchecked Senda
             note: note
         )
 
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
-        let payloadData = try encoder.encode(responseDTO)
-
-        guard let payloadString = String(data: payloadData, encoding: .utf8) else {
-            logger.error("Approval response encode edilemedi")
-            throw ApprovalRepositoryError.encodingFailed
-        }
-
+        // V1 SHIP fix: DTO'yu `.approvalResponse` case'i ile sariyoruz; bu sayede wire
+        // formati `content: { "approval_id": ..., "decision": ..., "note": ... }` (dict)
+        // olarak cikar. Eski yol DTO'yu JSON-string'e cevirip `.text(...)` icine
+        // sariyordu; backend `_handle_approval_response` content'in dict olmasini
+        // sart kosuyor (isinstance kontrolu) — uyumsuzluk timeout/auto-deny ile
+        // sonuclanip kullanicinin "Allow once" tap'ini kaybediyordu.
         let message = WebSocketBaseMessage(
             type: "approval_response",
-            content: .text(payloadString),
+            content: .approvalResponse(responseDTO),
             metadata: WebSocketMessageMetadata(
                 direction: WebSocketMessageDirection.clientToServer.rawValue
             )
