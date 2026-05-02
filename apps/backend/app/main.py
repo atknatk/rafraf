@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -129,6 +129,14 @@ def create_app() -> FastAPI:
     # can stitch into the same trace. /health and /metrics are excluded
     # so the trace volume stays signal-rich.
     FastAPIInstrumentor.instrument_app(application, excluded_urls=_OTEL_EXCLUDED_URLS)
+
+    # Prometheus scrape endpoint (T2.2). No auth — scraper is local /
+    # in-cluster, and the metrics surface contains no secrets. Excluded
+    # from OpenAPI to avoid polluting iOS-facing client schemas.
+    @application.get("/metrics", include_in_schema=False)
+    async def metrics_endpoint() -> Response:
+        body, content_type = render_metrics()
+        return Response(content=body, media_type=content_type)
 
     return application
 
