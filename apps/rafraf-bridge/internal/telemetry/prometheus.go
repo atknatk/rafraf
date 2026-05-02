@@ -1,4 +1,4 @@
-// Prometheus exposition for the bridge (T2.2).
+// Prometheus exposition for the bridge (T2.2 + T2.2-fix).
 //
 // The bridge already publishes a Doc 11 §9-canonical expvar surface on
 // /debug/vars (see metrics.go). Prometheus is layered alongside it —
@@ -11,6 +11,24 @@
 // (bridge_version, host_id) labelset so a multi-bridge scrape
 // (one Prometheus, N bridges) can attribute spikes correctly without
 // requiring relabel rules in the scrape config.
+//
+// Cross-target name disambiguation (T2.2-fix M3): four metric NAMES
+// previously collided with backend (Python) Prometheus families that
+// publish the same logical signal at finer granularity. Because both
+// targets are scraped by the same Prometheus instance and a name
+// collision with different (label-set, type) tuples is a hard error in
+// the storage layer, every collision-prone bridge metric is now
+// prefixed with “bridge_” to namespace it explicitly. Renamed:
+//
+//	claude_total_cost_usd_total      -> bridge_claude_total_cost_usd_total
+//	claude_rate_limit_hits_total     -> bridge_claude_rate_limit_hits_total
+//	subagent_spawned_total           -> bridge_subagent_spawned_total
+//	storage_watcher_lag_seconds      -> bridge_storage_watcher_lag_seconds
+//
+// The backend continues to publish the canonical (per-session,
+// per-rate-limit-type) family under the un-prefixed name; the bridge's
+// counterpart is a coarse aggregate keyed by (bridge_version, host_id)
+// useful for fleet-level dashboards.
 //
 // Why a separate registry? Using “prometheus.NewRegistry()“ (rather
 // than “prometheus.DefaultRegisterer“) keeps third-party packages
@@ -176,8 +194,11 @@ func newBridgeCollector() *bridgeCollector {
 			"Stream-JSON lines read from claude stdout.",
 		),
 		claudeRateLimitHitsDesc: d(
-			"claude_rate_limit_hits_total",
-			"Aggregate rate_limit_event lines (warning + exceeded).",
+			"bridge_claude_rate_limit_hits_total",
+			"Aggregate rate_limit_event lines (warning + exceeded). "+
+				"Bridge-side coarse aggregate; backend publishes the "+
+				"per-rate_limit_type family under "+
+				"claude_rate_limit_hits_total.",
 		),
 		claudeRateLimitWarningsDesc: d(
 			"claude_rate_limit_warnings_total",
@@ -192,13 +213,17 @@ func newBridgeCollector() *bridgeCollector {
 			"Times the bridge observed an expired/invalid claude auth state.",
 		),
 		claudeTotalCostUSDDesc: d(
-			"claude_total_cost_usd_total",
-			"Cumulative claude session cost in USD.",
+			"bridge_claude_total_cost_usd_total",
+			"Cumulative claude session cost in USD. Bridge-side coarse "+
+				"aggregate; backend publishes the per-session family "+
+				"under claude_total_cost_usd_total.",
 		),
 
 		subagentSpawnedDesc: d(
-			"subagent_spawned_total",
-			"Subagents (Task tool) the parser observed being spawned.",
+			"bridge_subagent_spawned_total",
+			"Subagents (Task tool) the parser observed being spawned. "+
+				"Bridge-side coarse aggregate; backend publishes the "+
+				"per-status family under subagent_spawned_total.",
 		),
 		subagentCompletedDesc: d(
 			"subagent_completed_total",
@@ -210,8 +235,11 @@ func newBridgeCollector() *bridgeCollector {
 		),
 
 		storageWatcherLagSecondsDesc: d(
-			"storage_watcher_lag_seconds",
-			"Seconds between the most recent storage event timestamp and now.",
+			"bridge_storage_watcher_lag_seconds",
+			"Seconds between the most recent storage event timestamp "+
+				"and now (last-observed gauge). Bridge-side; backend "+
+				"publishes a richer histogram under "+
+				"storage_watcher_lag_seconds for SLO p50/p99.",
 		),
 
 		statuslineLastReportAgeDesc: d(

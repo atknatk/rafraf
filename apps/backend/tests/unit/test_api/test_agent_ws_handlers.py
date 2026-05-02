@@ -15,8 +15,10 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+from prometheus_client.parser import text_string_to_metric_families
 
 from app.api.routes import agent_ws as agent_ws_module
+from app.core import metrics as _metrics
 from app.schemas.messages import MessageType
 
 
@@ -547,3 +549,264 @@ def test_session_title_message_type_is_registered() -> None:
 def test_session_pr_opened_message_type_is_registered() -> None:
     """Sanity: SESSION_PR_OPENED enum + value match the bridge wire format."""
     assert MessageType.SESSION_PR_OPENED.value == "session.pr_opened"
+
+
+# --------------------------------------------------------------------------
+# T2.2-fix M1: storage observability metric emission
+# --------------------------------------------------------------------------
+#
+# These tests assert the wiring of ``storage_events_processed_total`` +
+# ``storage_watcher_lag_seconds`` (Doc 10 §7.3) for each of the three
+# storage handlers (_handle_usage_report, _handle_session_title,
+# _handle_session_pr_opened). They re-render ``/metrics`` (via
+# ``render_metrics``) and parse it with the official Prometheus parser so
+# we exercise the same path as the scrape endpoint.
+
+def _samples_for(body: str, metric_name: str) -> list:  # type: ignore[type-arg]
+    """Return all samples whose name matches ``metric_name``."""
+    out: list = []  # type: ignore[type-arg]
+    for fam in text_string_to_metric_families(body):
+        for sample in fam.samples:
+            if sample.name == metric_name:
+                out.append(sample)
+    return out
+
+
+def _counter_value(metric_name: str, labels: dict[str, str]) -> float:
+    """Return the value of a counter sample matching ``labels`` (or 0.0)."""
+    body, _ = _metrics.render_metrics()
+    for sample in _samples_for(body.decode(), metric_name):
+        if all(sample.labels.get(k) == v for k, v in labels.items()):
+            return float(sample.value)
+    return 0.0
+
+
+@pytest.fixture
+def _isolated_storage_metrics() -> object:
+    """Clear storage metric families so per-test assertions start at 0."""
+    _metrics.storage_events_processed_total.clear()
+    _metrics.storage_watcher_lag_seconds.clear()
+    yield
+    _metrics.storage_events_processed_total.clear()
+    _metrics.storage_watcher_lag_seconds.clear()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("_isolated_storage_metrics")
+async def test_session_title_emits_storage_metrics(
+    fake_csm: MagicMock,  # noqa: ARG001
+    fake_session_owner: AsyncMock,  # noqa: ARG001
+) -> None:
+    """ai-title forward bumps the type=ai-title counter + observes lag."""
+    sid = uuid4()
+    # Generated 30s in the past so we observe a positive lag bucket.
+    generated_at = datetime.now(UTC).replace(microsecond=0)
+    raw = {
+        "type": "event.session.title",
+        "payload": {
+            "session_id": str(sid),
+            "ai_title": "x",
+            "generated_at": generated_at.isoformat(),
+        },
+    }
+    await agent_ws_module._handle_session_title(raw, "mac-01")
+
+    # Counter incremented exactly once with type=ai-title + bridge_id=mac-01.
+    assert _counter_value(
+        "storage_events_processed_total",
+        {"type": "ai-title", "bridge_id": "mac-01"},
+    ) == 1.0
+
+    # Histogram observed at least one sample (lag clamped >= 0).
+    body, _ = _metrics.render_metrics()
+    count_samples = _samples_for(
+        body.decode(), "storage_watcher_lag_seconds_count"
+    )
+    matching = [
+        s for s in count_samples if s.labels.get("bridge_id") == "mac-01"
+    ]
+    assert matching, "expected storage_watcher_lag_seconds count for mac-01"
+    assert matching[0].value == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("_isolated_storage_metrics")
+async def test_session_title_skips_lag_when_generated_at_omitted(
+    fake_csm: MagicMock,  # noqa: ARG001
+    fake_session_owner: AsyncMock,  # noqa: ARG001
+) -> None:
+    """No bridge-side timestamp → counter still bumps, lag is NOT observed.
+
+    Observing 0s when the CSM forwarder server-side-injected ``now()``
+    would skew the histogram baseline; we explicitly skip the observe.
+    """
+    raw = {
+        "type": "event.session.title",
+        "payload": {
+            "session_id": str(uuid4()),
+            "ai_title": "x",
+            # generated_at omitted on purpose
+        },
+    }
+    await agent_ws_module._handle_session_title(raw, "mac-01")
+
+    # Counter still bumps (the event WAS processed).
+    assert _counter_value(
+        "storage_events_processed_total",
+        {"type": "ai-title", "bridge_id": "mac-01"},
+    ) == 1.0
+
+    # But no histogram sample.
+    body, _ = _metrics.render_metrics()
+    count_samples = _samples_for(
+        body.decode(), "storage_watcher_lag_seconds_count"
+    )
+    matching = [
+        s for s in count_samples if s.labels.get("bridge_id") == "mac-01"
+    ]
+    assert not matching
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("_isolated_storage_metrics")
+async def test_session_title_metrics_use_unknown_when_bridge_id_none(
+    fake_csm: MagicMock,  # noqa: ARG001
+    fake_session_owner: AsyncMock,  # noqa: ARG001
+) -> None:
+    """Bridge that skipped registration → label falls back to "unknown"."""
+    raw = {
+        "type": "event.session.title",
+        "payload": {
+            "session_id": str(uuid4()),
+            "ai_title": "x",
+        },
+    }
+    # Explicitly omit bridge_id (default None).
+    await agent_ws_module._handle_session_title(raw)
+    assert _counter_value(
+        "storage_events_processed_total",
+        {"type": "ai-title", "bridge_id": "unknown"},
+    ) == 1.0
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("_isolated_storage_metrics")
+async def test_session_title_orphan_does_not_emit_metrics(
+    fake_csm: MagicMock,  # noqa: ARG001
+    fake_session_owner: AsyncMock,
+) -> None:
+    """Unknown session → metric MUST NOT bump (event wasn't fully processed)."""
+    fake_session_owner.return_value = None
+    raw = {
+        "type": "event.session.title",
+        "payload": {
+            "session_id": str(uuid4()),
+            "ai_title": "orphan",
+            "generated_at": datetime.now(UTC).isoformat(),
+        },
+    }
+    await agent_ws_module._handle_session_title(raw, "mac-01")
+    assert _counter_value(
+        "storage_events_processed_total",
+        {"type": "ai-title", "bridge_id": "mac-01"},
+    ) == 0.0
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("_isolated_storage_metrics")
+async def test_session_pr_opened_emits_storage_metrics(
+    fake_csm: MagicMock,  # noqa: ARG001
+    fake_session_owner: AsyncMock,  # noqa: ARG001
+) -> None:
+    """pr-link forward bumps the type=pr-link counter + observes lag."""
+    opened_at = datetime.now(UTC).replace(microsecond=0)
+    raw = {
+        "type": "event.session.pr_opened",
+        "payload": {
+            "session_id": str(uuid4()),
+            "pr_number": 42,
+            "pr_url": "https://github.com/o/r/pull/42",
+            "pr_repository": "o/r",
+            "opened_at": opened_at.isoformat(),
+        },
+    }
+    await agent_ws_module._handle_session_pr_opened(raw, "mac-02")
+
+    assert _counter_value(
+        "storage_events_processed_total",
+        {"type": "pr-link", "bridge_id": "mac-02"},
+    ) == 1.0
+    body, _ = _metrics.render_metrics()
+    matching = [
+        s for s in _samples_for(body.decode(), "storage_watcher_lag_seconds_count")
+        if s.labels.get("bridge_id") == "mac-02"
+    ]
+    assert matching
+    assert matching[0].value == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("_isolated_storage_metrics", "fake_ios_manager")
+async def test_usage_report_emits_storage_metrics(
+    fake_csm: MagicMock,  # noqa: ARG001
+) -> None:
+    """usage-report forward bumps the type=usage-report counter + lag."""
+    # Use a unix epoch slightly in the past so lag is positive.
+    reported_at = int(datetime.now(UTC).timestamp()) - 10
+    raw = {
+        "type": "event.usage.report",
+        "payload": {
+            "five_hour_pct": 73,
+            "seven_day_pct": 41,
+            "five_hour_resets_at": 1735689600,
+            "seven_day_resets_at": 1736294400,
+            "reported_at": reported_at,
+        },
+    }
+    await agent_ws_module._handle_usage_report(raw, "mac-03")
+
+    assert _counter_value(
+        "storage_events_processed_total",
+        {"type": "usage-report", "bridge_id": "mac-03"},
+    ) == 1.0
+    body, _ = _metrics.render_metrics()
+    matching = [
+        s for s in _samples_for(body.decode(), "storage_watcher_lag_seconds_count")
+        if s.labels.get("bridge_id") == "mac-03"
+    ]
+    assert matching
+    assert matching[0].value == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("_isolated_storage_metrics", "fake_ios_manager")
+async def test_usage_report_skips_lag_when_reported_at_zero(
+    fake_csm: MagicMock,  # noqa: ARG001
+) -> None:
+    """``reported_at = 0`` → counter still bumps, lag NOT observed.
+
+    A zero unix epoch is the bridge's "unset" sentinel; observing the
+    1970→now delta would saturate every histogram bucket.
+    """
+    raw = {
+        "type": "event.usage.report",
+        "payload": {
+            "five_hour_pct": 5,
+            "seven_day_pct": 2,
+            "five_hour_resets_at": 0,
+            "seven_day_resets_at": 0,
+            "reported_at": 0,
+        },
+    }
+    await agent_ws_module._handle_usage_report(raw, "mac-04")
+
+    assert _counter_value(
+        "storage_events_processed_total",
+        {"type": "usage-report", "bridge_id": "mac-04"},
+    ) == 1.0
+    body, _ = _metrics.render_metrics()
+    matching = [
+        s for s in _samples_for(body.decode(), "storage_watcher_lag_seconds_count")
+        if s.labels.get("bridge_id") == "mac-04"
+    ]
+    assert not matching

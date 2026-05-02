@@ -11,6 +11,7 @@ from uuid import uuid4
 import structlog
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
+from app.core import metrics
 from app.core.config import get_settings
 from app.core.database import async_session_factory
 from app.core.websocket import ConnectionManager
@@ -181,21 +182,21 @@ async def agent_websocket_endpoint(
                 # ``usage.report`` message (T1.2). MUST be matched before
                 # the generic ``event.*`` branch because dispatch_event
                 # drops correlation-less envelopes.
-                await _handle_usage_report(raw_data)
+                await _handle_usage_report(raw_data, registered_host_id)
             elif msg_type == "event.session.title":
                 # Storage-watcher-driven, broadcast event (no RPC
                 # correlation). Resolves session→user via SessionRepository
                 # and forwards a typed ``session.title`` message to that
                 # owner's iOS connections (T1.2-fix H-1). MUST be matched
                 # before the generic ``event.*`` branch.
-                await _handle_session_title(raw_data)
+                await _handle_session_title(raw_data, registered_host_id)
             elif msg_type == "event.session.pr_opened":
                 # Storage-watcher-driven, broadcast event (no RPC
                 # correlation). Resolves session→user via SessionRepository
                 # and forwards a typed ``session.pr_opened`` message
                 # (T1.2-fix H-1). MUST be matched before the generic
                 # ``event.*`` branch.
-                await _handle_session_pr_opened(raw_data)
+                await _handle_session_pr_opened(raw_data, registered_host_id)
             elif isinstance(msg_type, str) and msg_type.startswith("event."):
                 # Bridge → backend RPC events (T1.1). Routed to the
                 # ClaudeCodeRunner subscriber that owns the matching
@@ -618,7 +619,10 @@ async def _handle_claude_stream_error(
 # ------------------------------------------------------------------
 
 
-async def _handle_usage_report(raw_data: dict[str, object]) -> None:
+async def _handle_usage_report(
+    raw_data: dict[str, object],
+    bridge_id: str | None = None,
+) -> None:
     """Forward an ``event.usage.report`` envelope to all iOS users.
 
     The bridge's statusline watcher emits this whenever the local
@@ -630,6 +634,13 @@ async def _handle_usage_report(raw_data: dict[str, object]) -> None:
     Payload field discovery is defensive — the bridge wraps the typed
     ``EventUsageReport`` struct under ``payload`` (preferred) but legacy
     callers may have placed the fields under ``content``.
+
+    ``bridge_id`` (the bridge's ``host_id`` registered earlier on the same
+    connection, or ``None`` if the bridge skipped registration) is used to
+    label the storage observability metrics emitted on success per Doc 10
+    §7.3 (T2.2-fix M1). When ``None`` we fall back to the literal
+    ``"unknown"`` label so the sample still aggregates rather than getting
+    silently dropped — matches ``claude_code_runner``'s convention.
     """
     body = raw_data.get("payload")
     if not isinstance(body, dict):
@@ -656,6 +667,26 @@ async def _handle_usage_report(raw_data: dict[str, object]) -> None:
 
     # Lazy import — same cycle-avoidance as get_claude_stream_manager.
     from app.api.routes.websocket import manager as ios_manager  # noqa: PLC0415
+
+    # T2.2-fix M1: count processed storage events + observe lag against
+    # the bridge-supplied ``reported_at`` (unix epoch seconds). The lag is
+    # clamped to ``>= 0`` so a clock skew that puts the bridge in the
+    # future doesn't pollute the histogram with negative samples.
+    bridge_label = bridge_id or "unknown"
+    metrics.storage_events_processed_total.labels(
+        type="usage-report",
+        bridge_id=bridge_label,
+    ).inc()
+    if reported_at > 0:
+        try:
+            reported_dt = datetime.fromtimestamp(reported_at, tz=UTC)
+        except (OSError, OverflowError, ValueError):
+            reported_dt = None
+        if reported_dt is not None:
+            lag = (datetime.now(tz=UTC) - reported_dt).total_seconds()
+            metrics.storage_watcher_lag_seconds.labels(
+                bridge_id=bridge_label,
+            ).observe(max(0.0, lag))
 
     csm = get_claude_stream_manager()
     user_ids = ios_manager.get_active_user_ids()
@@ -719,7 +750,10 @@ async def _resolve_session_owner(session_id: uuid.UUID) -> str | None:
         return str(record.user_id)
 
 
-async def _handle_session_title(raw_data: dict[str, object]) -> None:
+async def _handle_session_title(
+    raw_data: dict[str, object],
+    bridge_id: str | None = None,
+) -> None:
     """Forward an ``event.session.title`` envelope to the session owner.
 
     The bridge's storage watcher emits this whenever an ``ai-title`` row
@@ -731,6 +765,11 @@ async def _handle_session_title(raw_data: dict[str, object]) -> None:
 
     Server-side ``generated_at`` injection is delegated to
     :meth:`ClaudeStreamManager.forward_session_title` (T1.5 reviewer M3).
+
+    ``bridge_id`` (the bridge's ``host_id`` registered earlier on the same
+    connection, or ``None`` when registration was skipped) is used as the
+    label on the storage observability metrics emitted on success per
+    Doc 10 §7.3 (T2.2-fix M1).
     """
     body = _extract_event_body(raw_data)
     if body is None:
@@ -792,6 +831,20 @@ async def _handle_session_title(raw_data: dict[str, object]) -> None:
         ai_title=ai_title_raw,
         generated_at=generated_at,
     )
+    # T2.2-fix M1: count processed storage events + observe lag against
+    # the bridge-supplied ``generated_at`` (skipped when bridge omitted
+    # it, since the CSM forwarder injects ``datetime.now(UTC)`` in that
+    # case which would always observe ~0 lag).
+    bridge_label = bridge_id or "unknown"
+    metrics.storage_events_processed_total.labels(
+        type="ai-title",
+        bridge_id=bridge_label,
+    ).inc()
+    if generated_at is not None:
+        lag = (datetime.now(tz=UTC) - generated_at).total_seconds()
+        metrics.storage_watcher_lag_seconds.labels(
+            bridge_id=bridge_label,
+        ).observe(max(0.0, lag))
     await logger.ainfo(
         "session_title_forwarded",
         session_id=session_id_raw,
@@ -800,7 +853,10 @@ async def _handle_session_title(raw_data: dict[str, object]) -> None:
     )
 
 
-async def _handle_session_pr_opened(raw_data: dict[str, object]) -> None:
+async def _handle_session_pr_opened(
+    raw_data: dict[str, object],
+    bridge_id: str | None = None,
+) -> None:
     """Forward an ``event.session.pr_opened`` envelope to the session owner.
 
     The bridge's storage watcher emits this whenever a ``pr-link`` row
@@ -811,6 +867,11 @@ async def _handle_session_pr_opened(raw_data: dict[str, object]) -> None:
 
     Server-side ``opened_at`` injection is delegated to
     :meth:`ClaudeStreamManager.forward_session_pr_opened` (T1.5 reviewer M3).
+
+    ``bridge_id`` (the bridge's ``host_id`` registered earlier on the same
+    connection, or ``None`` when registration was skipped) labels the
+    storage observability metrics emitted on success per Doc 10 §7.3
+    (T2.2-fix M1).
     """
     body = _extract_event_body(raw_data)
     if body is None:
@@ -906,6 +967,20 @@ async def _handle_session_pr_opened(raw_data: dict[str, object]) -> None:
         pr_repository=pr_repository_raw,
         opened_at=opened_at,
     )
+    # T2.2-fix M1: count processed storage events + observe lag against
+    # the bridge-supplied ``opened_at`` (skipped when bridge omitted it,
+    # since the CSM forwarder injects ``datetime.now(UTC)`` server-side
+    # in that case which would always observe ~0 lag).
+    bridge_label = bridge_id or "unknown"
+    metrics.storage_events_processed_total.labels(
+        type="pr-link",
+        bridge_id=bridge_label,
+    ).inc()
+    if opened_at is not None:
+        lag = (datetime.now(tz=UTC) - opened_at).total_seconds()
+        metrics.storage_watcher_lag_seconds.labels(
+            bridge_id=bridge_label,
+        ).observe(max(0.0, lag))
     await logger.ainfo(
         "session_pr_opened_forwarded",
         session_id=session_id_raw,

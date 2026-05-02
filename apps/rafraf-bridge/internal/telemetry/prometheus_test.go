@@ -21,6 +21,10 @@ func TestStartMetricsServer_PromMetricsExposesAllCounters(t *testing.T) {
 	telemetry.SetPromIdentity("test-version", "test-host")
 	telemetry.WSReconnects.Store(7)
 	telemetry.ClaudeTotalCostUSDx1000.Store(1234) // = $1.234
+	// Force at least one rename-collision metric to a known value so we
+	// can pin the namespaced output line below (regression for T2.2-fix
+	// M3 — naming change MUST surface in /metrics).
+	telemetry.SubagentSpawnedTotal.Store(3)
 
 	server, err := telemetry.StartMetricsServer("127.0.0.1:0", silentLogger())
 	if err != nil {
@@ -49,6 +53,8 @@ func TestStartMetricsServer_PromMetricsExposesAllCounters(t *testing.T) {
 	bodyStr := string(body)
 
 	// Names that MUST appear (Prometheus expansion of expvar Doc 11 §9).
+	// T2.2-fix M3: four metrics use the bridge_ prefix to avoid colliding
+	// with the backend's same-named families on a shared scrape.
 	wantNames := []string{
 		"bridge_uptime_seconds",
 		"ws_connected",
@@ -59,18 +65,34 @@ func TestStartMetricsServer_PromMetricsExposesAllCounters(t *testing.T) {
 		"claude_subprocess_active",
 		"claude_subprocess_total",
 		"claude_stream_lines_read_total",
-		"claude_rate_limit_hits_total",
+		"bridge_claude_rate_limit_hits_total",
 		"claude_rate_limit_warnings_total",
 		"claude_rate_limit_exceeded_total",
 		"claude_auth_expired_total",
-		"claude_total_cost_usd_total",
-		"subagent_spawned_total",
+		"bridge_claude_total_cost_usd_total",
+		"bridge_subagent_spawned_total",
 		"subagent_completed_total",
 		"subagent_failed_total",
-		"storage_watcher_lag_seconds",
+		"bridge_storage_watcher_lag_seconds",
 		"statusline_last_report_age_seconds",
 		"statusline_five_hour_pct",
 		"statusline_seven_day_pct",
+	}
+
+	// T2.2-fix M3 regression: the un-prefixed (backend canonical) names
+	// MUST NOT appear in the bridge body; if they do, the rename was
+	// reverted and a Prometheus scrape collision with the backend will
+	// silently mask data on the storage layer.
+	mustNotAppear := []string{
+		"\nclaude_rate_limit_hits_total{",
+		"\nclaude_total_cost_usd_total{",
+		"\nsubagent_spawned_total{",
+		"\nstorage_watcher_lag_seconds{",
+	}
+	for _, banned := range mustNotAppear {
+		if strings.Contains(bodyStr, banned) {
+			t.Errorf("bridge /metrics MUST NOT publish %q (collides with backend canonical name)", strings.TrimPrefix(banned, "\n"))
+		}
 	}
 	for _, name := range wantNames {
 		if !strings.Contains(bodyStr, name) {
@@ -97,7 +119,20 @@ func TestStartMetricsServer_PromMetricsExposesAllCounters(t *testing.T) {
 	// Cost counter must convert the *1000 storage trick back to USD —
 	// 1234 → 1.234. We check for the exact substring.
 	if !strings.Contains(bodyStr, "1.234") {
-		t.Error("expected claude_total_cost_usd_total to expose value 1.234")
+		t.Error(
+			"expected bridge_claude_total_cost_usd_total to expose " +
+				"value 1.234",
+		)
+	}
+	// And the value must be tagged with the namespaced metric name (the
+	// regression for T2.2-fix M3 — guarantees the cost sample isn't being
+	// emitted under the un-prefixed backend-canonical name).
+	if !strings.Contains(bodyStr, "bridge_claude_total_cost_usd_total{") {
+		t.Error("expected bridge_claude_total_cost_usd_total sample line to be present")
+	}
+	// Subagent counter regression: same shape — 3 subagents stored above.
+	if !strings.Contains(bodyStr, "bridge_subagent_spawned_total{") {
+		t.Error("expected bridge_subagent_spawned_total sample line to be present")
 	}
 }
 
