@@ -1,0 +1,69 @@
+#!/bin/bash
+# postinstall — runs as root after pkg payload is laid down.
+#
+# Tasks:
+#   1. Ensure binaries are executable (productbuild preserves mode 755 from
+#      pkgbuild source, but defensive chmod is cheap).
+#   2. Create per-user config + log dirs for the invoking installer user.
+#   3. Bootstrap the launchd LaunchAgent into the active GUI session.
+#
+# IMPORTANT: pairing_token is NOT prompted here (V1 manual edit). The
+# operator edits ~/.config/rafraf-bridge/config.toml after install.
+# Faz 4 will add a pairing-code prompt UI.
+
+set -euo pipefail
+
+LOG="/tmp/rafraf-bridge-postinstall.log"
+exec >>"${LOG}" 2>&1
+echo "[$(date)] postinstall start"
+
+# ---------------------------------------------------------------------------
+# 1. Binary perms (defensive)
+# ---------------------------------------------------------------------------
+chmod 755 /usr/local/bin/rafraf-bridge /usr/local/bin/rafraf-perm-hook 2>/dev/null || true
+
+# ---------------------------------------------------------------------------
+# 2. Per-user dirs (run AS the install-time user, not root)
+# ---------------------------------------------------------------------------
+# pkg installer runs scripts as root; resolve the desktop user via stat
+# of /dev/console (most reliable on macOS for "currently logged-in user").
+INSTALL_USER=$(stat -f%Su /dev/console)
+INSTALL_HOME=$(eval echo ~"${INSTALL_USER}")
+
+if [ -n "${INSTALL_USER}" ] && [ -d "${INSTALL_HOME}" ]; then
+    sudo -u "${INSTALL_USER}" mkdir -p \
+        "${INSTALL_HOME}/.config/rafraf-bridge" \
+        "${INSTALL_HOME}/Library/Logs/rafraf-bridge"
+    echo "[$(date)] created config + log dirs for ${INSTALL_USER}"
+else
+    echo "[$(date)] WARN: could not resolve INSTALL_USER; skipping per-user dirs"
+fi
+
+# ---------------------------------------------------------------------------
+# 3. Bootstrap the LaunchAgent into the active GUI session
+# ---------------------------------------------------------------------------
+# launchctl bootstrap requires the GUI domain UID. If the install runs in
+# a non-interactive context (e.g. CI smoke), skip — the agent loads at
+# next login anyway because the plist is in /Library/LaunchAgents.
+if [ -n "${INSTALL_USER}" ]; then
+    INSTALL_UID=$(id -u "${INSTALL_USER}" 2>/dev/null || echo "")
+    if [ -n "${INSTALL_UID}" ]; then
+        # Idempotent: bootout first (no-op if not loaded), then bootstrap.
+        launchctl bootout "gui/${INSTALL_UID}" /Library/LaunchAgents/com.rafraf.bridge.plist 2>/dev/null || true
+        if launchctl bootstrap "gui/${INSTALL_UID}" /Library/LaunchAgents/com.rafraf.bridge.plist 2>>"${LOG}"; then
+            echo "[$(date)] LaunchAgent bootstrapped into gui/${INSTALL_UID}"
+        else
+            echo "[$(date)] LaunchAgent bootstrap skipped (will auto-load at next login)"
+        fi
+    fi
+fi
+
+echo "[$(date)] postinstall complete"
+echo ""
+echo "RafRaf Bridge installed."
+echo "  Config:  ~/.config/rafraf-bridge/config.toml  (edit pairing_token)"
+echo "  Logs:    /tmp/rafraf-bridge.{stdout,stderr}.log"
+echo "  Status:  launchctl list | grep com.rafraf.bridge"
+echo ""
+
+exit 0

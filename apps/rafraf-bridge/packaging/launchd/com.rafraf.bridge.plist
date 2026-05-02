@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  com.rafraf.bridge.plist — launchd LaunchAgent for the RafRaf Mac bridge.
+
+  Installed by the .pkg into /Library/LaunchAgents/. Loaded per-user on
+  next login (or via `launchctl bootstrap gui/$UID ...` from postinstall).
+
+  KeepAlive=true — restart on crash.
+  RunAtLoad=true — start at user login.
+  StandardOut/ErrorPath — stream stdout/stderr to ~/Library/Logs/rafraf-bridge/
+    (per-user log dir; .pkg postinstall creates it).
+
+  Config path expectation: ~/.config/rafraf-bridge/config.toml — operator
+  edits pairing_token after first install. The bridge gracefully reports
+  "config missing" via stderr until configured (does not crash-loop).
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.rafraf.bridge</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/rafraf-bridge</string>
+        <string>-config</string>
+        <string>~/.config/rafraf-bridge/config.toml</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/rafraf-bridge.stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/rafraf-bridge.stderr.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+</dict>
+</plist>

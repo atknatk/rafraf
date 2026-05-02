@@ -1,11 +1,26 @@
 name: Backend Deploy
 
+# Manual-only trigger (2026-05-02). The push-to-develop/main auto-trigger
+# was removed for the same reason as ios-testflight.yml: ECR pushes —
+# even though they're not a live K8s deploy — should be an explicit
+# operator decision so image SHA tags align with intentional release
+# cuts and `latest` doesn't drift on every backend commit.
+#
+# To deploy:
+#   GitHub UI → Actions → "Backend Deploy" → "Run workflow"
+#   (pick branch — develop for staging, main for prod)
+#
+# After the ECR push completes, ArgoCD picks up the new SHA tag if
+# its image-updater is configured to track this repo, OR the operator
+# manually `helm upgrade` / ArgoCD sync against the new tag per
+# docs/runbooks/deploy.md.
 on:
-  push:
-    branches: [develop, main]
-    paths:
-      - "apps/backend/**"
-      - ".github/workflows/backend-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      image_tag_override:
+        description: "Override image tag (leave empty to use github.sha[:8])"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -48,7 +63,11 @@ jobs:
 
       - name: Build and push Docker image
         run: |
-          IMAGE_TAG="${GITHUB_SHA::8}"
+          if [ -n "${{ inputs.image_tag_override }}" ]; then
+            IMAGE_TAG="${{ inputs.image_tag_override }}"
+          else
+            IMAGE_TAG="${GITHUB_SHA::8}"
+          fi
           FULL_IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}"
 
           docker --config "${DOCKER_DIR}" build \

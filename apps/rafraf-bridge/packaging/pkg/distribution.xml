@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  distribution.xml — productbuild manifest for the RafRaf Mac bridge .pkg.
+  Single-component (the bridge + hook payload), targets macOS 13+ (arm64
+  default; build-pkg.sh accepts amd64 as second arg for Intel Macs).
+-->
+<installer-gui-script minSpecVersion="2">
+    <title>RafRaf Bridge</title>
+    <organization>app.rafraf</organization>
+
+    <!-- Apple silicon native; amd64 builds emitted by passing ARCH=amd64
+         to build-pkg.sh produce an Intel-native .pkg via the same template. -->
+    <options customize="never" require-scripts="true" hostArchitectures="arm64,x86_64"/>
+
+    <!-- macOS 13 Ventura is the published minimum: matches Doc 11 §11
+         platform line + matches what the dev team currently tests. -->
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="13.0"/>
+        </allowed-os-versions>
+    </volume-check>
+
+    <choices-outline>
+        <line choice="default">
+            <line choice="app.rafraf.bridge"/>
+        </line>
+    </choices-outline>
+
+    <choice id="default"/>
+
+    <choice id="app.rafraf.bridge"
+            visible="false"
+            title="RafRaf Bridge"
+            description="rafraf-bridge daemon, rafraf-perm-hook, launchd plist"
+            start_selected="true">
+        <pkg-ref id="app.rafraf.bridge"/>
+    </choice>
+
+    <pkg-ref id="app.rafraf.bridge"
+             version="0.0.0"
+             onConclusion="none">rafraf-bridge-component.pkg</pkg-ref>
+</installer-gui-script>
