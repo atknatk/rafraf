@@ -86,4 +86,4 @@ seed.md
 
 .claude/worktrees
 .claude/*.lock
-.orchestrate/state*.md
+.orchestrate/
