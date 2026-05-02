@@ -2,7 +2,7 @@ name: bridge-ci
 
 on:
   push:
-    branches: [develop, "feature/f0.5/**"]
+    branches: [develop, main, "feature/**"]
     paths:
       - "apps/rafraf-bridge/**"
       - ".github/workflows/bridge-ci.yml"
@@ -38,7 +38,7 @@ jobs:
         run: go mod download
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
           version: v2.12.0
           working-directory: apps/rafraf-bridge
