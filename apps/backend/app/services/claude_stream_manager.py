@@ -33,6 +33,7 @@ from uuid import UUID, uuid4
 
 import structlog
 
+from app.core import metrics as _metrics
 from app.orchestrator.claude_code_runner import (
     ClaudeCodeError,
     ToolProgressEvent,
@@ -578,6 +579,7 @@ class ClaudeStreamManager:
         five_hour_resets_at: int,
         seven_day_resets_at: int,
         reported_at: int,
+        bridge_id: str | None = None,
     ) -> int:
         """Push ``usage.report`` to ALL iOS sessions of ``user_id``.
 
@@ -585,6 +587,12 @@ class ClaudeStreamManager:
         every active iOS connection of the user must receive the payload.
         Returns the number of connections the message was successfully
         delivered to.
+
+        T2.2: bumps :data:`claude_usage_report_total` and updates the
+        per-user gauges (``claude_5h_usage_pct`` / ``claude_7d_usage_pct``
+        / ``claude_usage_report_age_seconds``). ``bridge_id`` is optional
+        so legacy callers that don't have it still work — defaults to
+        ``"unknown"`` for the counter label.
         """
         payload = UsageReportPayload(
             five_hour_pct=five_hour_pct,
@@ -593,6 +601,20 @@ class ClaudeStreamManager:
             seven_day_resets_at=seven_day_resets_at,
             reported_at=reported_at,
         )
+        # Update gauges before forwarding so a delivery failure still
+        # surfaces the latest known usage.
+        _metrics.claude_5h_usage_pct.labels(user_id=user_id).set(float(five_hour_pct))
+        _metrics.claude_7d_usage_pct.labels(user_id=user_id).set(float(seven_day_pct))
+        # ``reported_at`` is a Unix-epoch seconds timestamp on the wire;
+        # the staleness gauge surfaces "how long ago" without requiring
+        # a separate scrape.
+        now_epoch_sec = datetime.now(tz=UTC).timestamp()
+        age_sec = max(0.0, now_epoch_sec - float(reported_at))
+        _metrics.claude_usage_report_age_seconds.labels(user_id=user_id).set(age_sec)
+
+        _metrics.claude_usage_report_total.labels(
+            bridge_id=bridge_id or "unknown",
+        ).inc()
         return await self._push_typed_to_user(
             user_id=user_id,
             msg_type=MessageType.USAGE_REPORT,

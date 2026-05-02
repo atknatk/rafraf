@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
 from app.api.middleware.rate_limit import RateLimitMiddleware
 from app.api.middleware.request_logging import RequestLoggingMiddleware
@@ -26,6 +27,7 @@ from app.api.routes.websocket import router as websocket_router
 from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import setup_logging
+from app.core.metrics import render_metrics
 from app.core.redis import redis_client
 from app.services.bridge_registry_service import bridge_registry
 
@@ -102,6 +104,14 @@ def create_app() -> FastAPI:
     application.include_router(proactive_notifications_router)
     application.include_router(backups_router)
     application.include_router(tasks_router)
+
+    # Prometheus scrape endpoint (T2.2). No auth — scraper is local /
+    # in-cluster, and the metrics surface contains no secrets. Excluded
+    # from OpenAPI to avoid polluting iOS-facing client schemas.
+    @application.get("/metrics", include_in_schema=False)
+    async def metrics_endpoint() -> Response:
+        body, content_type = render_metrics()
+        return Response(content=body, media_type=content_type)
 
     return application
 

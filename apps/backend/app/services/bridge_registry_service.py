@@ -27,6 +27,8 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from app.core import metrics as _metrics
+
 if TYPE_CHECKING:
     from app.core.websocket import ConnectionManager
 
@@ -178,6 +180,20 @@ class BridgeRegistryService:
 
         self._bridges[payload.host_id] = record
 
+        # T2.2: Bump the canonical ws_connections_active{kind="bridge"}
+        # gauge on first-time registration only. Re-registers (e.g. a
+        # reconnect after a transient network hiccup) reuse the same
+        # _BridgeRecord slot, so we don't want to double-count. The
+        # offset path is :meth:`mark_disconnected` /
+        # :meth:`unregister_by_connection`, which transitions a record
+        # to OFFLINE without removing it.
+        if is_new:
+            _metrics.ws_connections_active.labels(kind="bridge").inc()
+        elif existing is not None and existing.status == AgentStatus.OFFLINE:
+            # Re-register of a previously-offline bridge — count it as
+            # coming back online so the gauge tracks reality.
+            _metrics.ws_connections_active.labels(kind="bridge").inc()
+
         # Persist to DB (best-effort)
         try:
             from app.core.database import async_session_factory
@@ -241,6 +257,17 @@ class BridgeRegistryService:
         record.resources = payload.resources
         record.claude_processes = list(payload.claude_processes)
 
+        # T2.2: ``claude_subprocess_count`` reflects the bridge's most
+        # recent self-report. The runner-side gauge (in
+        # ``claude_code_runner.py``) tracks the *backend's view* of active
+        # RPCs; this gauge tracks the *bridge's view* of running claude
+        # CLIs (which may differ when restarts/aborts happen). We
+        # intentionally use ``set`` so a missed heartbeat eventually
+        # converges (next heartbeat is the source of truth).
+        _metrics.claude_subprocess_count.labels(bridge_id=payload.host_id).set(
+            float(len(payload.claude_processes))
+        )
+
         # Persist to DB (best-effort)
         try:
             from app.core.database import async_session_factory
@@ -300,7 +327,11 @@ class BridgeRegistryService:
         """Mark a bridge as offline upon WebSocket disconnect."""
         record = self._bridges.get(host_id)
         if record is not None:
+            was_online = record.status != AgentStatus.OFFLINE
             record.status = AgentStatus.OFFLINE
+            if was_online:
+                # T2.2: mirror the registry-side increment.
+                _metrics.ws_connections_active.labels(kind="bridge").dec()
             # Persist to DB (best-effort)
             try:
                 from app.core.database import async_session_factory
@@ -321,7 +352,12 @@ class BridgeRegistryService:
         """
         for record in self._bridges.values():
             if record.connection_id == connection_id:
+                was_online = record.status != AgentStatus.OFFLINE
                 record.status = AgentStatus.OFFLINE
+                if was_online:
+                    # T2.2: track active bridges via the same gauge as
+                    # :meth:`register_agent`.
+                    _metrics.ws_connections_active.labels(kind="bridge").dec()
                 await logger.ainfo(
                     "bridge_disconnected_by_connection",
                     host_id=record.host_id,

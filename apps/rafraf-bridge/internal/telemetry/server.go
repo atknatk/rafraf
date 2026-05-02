@@ -43,6 +43,11 @@ func StartMetricsServer(addr string, logger *slog.Logger) (*http.Server, error) 
 
 	mux := http.NewServeMux()
 	mux.Handle("/debug/vars", expvar.Handler())
+	// T2.2: /metrics serves the Prometheus exposition of the same
+	// counters as /debug/vars (Doc 11 §9). Mounted alongside, not in
+	// place of, /debug/vars so existing tooling (stderr summary,
+	// integration scripts) keeps working unchanged.
+	mux.Handle("/metrics", PromHandler())
 	mux.HandleFunc("/healthz", healthzHandler)
 
 	listener, err := net.Listen("tcp", addr)

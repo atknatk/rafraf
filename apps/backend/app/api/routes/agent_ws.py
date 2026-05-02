@@ -31,7 +31,18 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 router = APIRouter()
 
 # Dedicated connection manager for agent connections (separate from iOS clients)
-agent_manager = ConnectionManager(heartbeat_interval=30, heartbeat_timeout=10)
+# NOTE: ``kind="raw_bridge_ws"`` keeps the iOS ↔ bridge gauge separation
+# clear *and* avoids double-counting with the canonical
+# ``ws_connections_active{kind="bridge"}`` gauge that
+# ``BridgeRegistryService`` increments on bridge *registration* (not raw
+# socket accept). The metric we care about for capacity planning is
+# "registered + healthy bridges", so we keep that one in the registry
+# service and label this lower-level WS gauge separately for diagnostics.
+agent_manager = ConnectionManager(
+    heartbeat_interval=30,
+    heartbeat_timeout=10,
+    kind="raw_bridge_ws",
+)
 
 # Wire the bridge-side ConnectionManager into the registry singleton so
 # ClaudeCodeRunner can route ``command.claude.run`` envelopes (T1.1).

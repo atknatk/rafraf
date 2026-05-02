@@ -86,6 +86,16 @@ func run(args []string) int {
 
 	logger := telemetry.NewLogger(cfg.Telemetry.LogLevel)
 	telemetry.SetBridgeVersion(Version)
+	// T2.2: stamp the Prometheus collector with (bridge_version, host_id)
+	// so multi-bridge scrapes attribute samples without relabel rules.
+	// Hostname is the canonical bridge identity today; if os.Hostname()
+	// fails we fall through to the "unknown" sentinel set inside the
+	// telemetry package so /metrics still serves a usable body.
+	hostName, hostErr := os.Hostname()
+	if hostErr != nil || hostName == "" {
+		hostName = "unknown"
+	}
+	telemetry.SetPromIdentity(Version, hostName)
 
 	logger.Info("rafraf-bridge starting",
 		"version", Version,

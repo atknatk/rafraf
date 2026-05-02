@@ -29,6 +29,7 @@ Public types preserved for backwards compatibility:
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Coroutine
 from dataclasses import dataclass, field
@@ -36,6 +37,8 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import structlog
+
+from app.core import metrics as _metrics
 
 if TYPE_CHECKING:
     from app.repositories.subagent_repo import SubagentRepository
@@ -307,6 +310,13 @@ class ClaudeCodeRunner:
                 returncode=-1,
             )
 
+        # T2.2: start wall-clock for the duration histogram. The
+        # ``claude_subprocess_count`` gauge is *set* from bridge
+        # heartbeats in ``bridge_registry_service.process_heartbeat`` —
+        # we don't dual-write it here to avoid racing two writers
+        # against the same labelset.
+        run_started_monotonic = time.monotonic()
+
         await logger.ainfo(
             "claude_rpc_sent",
             bridge_host_id=target_host_id,
@@ -330,24 +340,39 @@ class ClaudeCodeRunner:
         )
 
         try:
-            async for event in self._bridges.stream_events(
-                queue=queue,
-                rpc_id=rpc_id,
+            try:
+                async for event in self._bridges.stream_events(
+                    queue=queue,
+                    rpc_id=rpc_id,
+                    bridge_id=target_host_id,
+                ):
+                    terminal = await self._dispatch_event(
+                        event=event,
+                        state=state,
+                        callbacks=callbacks,
+                        bridge_host_id=target_host_id,
+                    )
+                    if terminal:
+                        break
+            except ClaudeCodeError:
+                raise
+            except Exception as exc:  # pragma: no cover - defensive
+                await logger.aexception("claude_rpc_unexpected_error", rpc_id=rpc_id)
+                raise ClaudeCodeError(f"Bridge RPC error: {exc}") from exc
+        finally:
+            # T2.2: observe wall-clock duration + accumulate cost
+            # regardless of how the run ended. Cost lives here so we
+            # accumulate even if the caller short-circuits the
+            # response_text consumer. Subprocess gauge is heartbeat-driven
+            # in :class:`BridgeRegistryService` (see process_heartbeat).
+            _metrics.claude_subprocess_duration_seconds.labels(
                 bridge_id=target_host_id,
-            ):
-                terminal = await self._dispatch_event(
-                    event=event,
-                    state=state,
-                    callbacks=callbacks,
-                    bridge_host_id=target_host_id,
-                )
-                if terminal:
-                    break
-        except ClaudeCodeError:
-            raise
-        except Exception as exc:  # pragma: no cover - defensive
-            await logger.aexception("claude_rpc_unexpected_error", rpc_id=rpc_id)
-            raise ClaudeCodeError(f"Bridge RPC error: {exc}") from exc
+            ).observe(time.monotonic() - run_started_monotonic)
+            if state.cost_usd > 0:
+                _metrics.claude_total_cost_usd_total.labels(
+                    bridge_id=target_host_id,
+                    session_id=state.session_id or "unknown",
+                ).inc(state.cost_usd)
 
         # 4. Final stream_end callback for legacy parity.
         if on_stream_end is not None:
@@ -432,6 +457,10 @@ class ClaudeCodeRunner:
 
         if event_type == "event.session.task_started":
             payload.setdefault("started_at", now_iso)
+            _metrics.subagent_spawned_total.labels(
+                bridge_id=bridge_host_id,
+                status="started",
+            ).inc()
             if callbacks.on_subagent_spawned is not None:
                 await callbacks.on_subagent_spawned(payload)
             await self._persist_subagent_spawned(
@@ -458,6 +487,15 @@ class ClaudeCodeRunner:
 
         if event_type == "event.session.task_notification":
             payload.setdefault("completed_at", now_iso)
+            # Bridge surfaces "completed" / "failed" / "aborted" — bucket
+            # everything that isn't a clean "completed" into "failed" so
+            # the Prometheus label cardinality stays bounded.
+            term_status = str(payload.get("status", "completed"))
+            metric_status = "completed" if term_status == "completed" else "failed"
+            _metrics.subagent_spawned_total.labels(
+                bridge_id=bridge_host_id,
+                status=metric_status,
+            ).inc()
             if callbacks.on_subagent_completed is not None:
                 await callbacks.on_subagent_completed(payload)
             await self._persist_subagent_completed(
@@ -468,6 +506,11 @@ class ClaudeCodeRunner:
             return False
 
         if event_type == "event.session.rate_limit":
+            rate_limit_type = str(payload.get("rate_limit_type") or "unknown")
+            _metrics.claude_rate_limit_hits_total.labels(
+                bridge_id=bridge_host_id,
+                rate_limit_type=rate_limit_type,
+            ).inc()
             if callbacks.on_rate_limit is not None:
                 await callbacks.on_rate_limit(payload)
             return False

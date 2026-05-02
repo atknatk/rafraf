@@ -8,6 +8,8 @@ import structlog
 from fastapi import WebSocket
 from starlette.websockets import WebSocketState
 
+from app.core import metrics as _metrics
+
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 
@@ -46,10 +48,21 @@ class ConnectionManager:
         self,
         heartbeat_interval: int = 30,
         heartbeat_timeout: int = 10,
+        kind: str = "ios",
     ) -> None:
+        """Initialise the connection manager.
+
+        ``kind`` labels the Prometheus ``ws_connections_active`` gauge so
+        a single Grafana panel can split iOS clients from bridge
+        connections (T2.2). Defaults to ``"ios"`` because the historical
+        constructor call sites (``api/routes/websocket.py``) are the iOS
+        endpoint; the bridge-side instance in ``api/routes/agent_ws.py``
+        passes ``kind="bridge"`` explicitly.
+        """
         self._connections: dict[str, ConnectionInfo] = {}
         self._heartbeat_interval = heartbeat_interval
         self._heartbeat_timeout = heartbeat_timeout
+        self._kind = kind
 
     def _generate_connection_id(self, user_id: str) -> str:
         """Generate a unique connection ID for a user (multi-device support)."""
@@ -74,6 +87,8 @@ class ConnectionManager:
             session_id=session_id,
         )
         self._connections[connection_id] = info
+        # T2.2: track active WS sessions by kind (ios|bridge).
+        _metrics.ws_connections_active.labels(kind=self._kind).inc()
         await logger.ainfo(
             "websocket_connected",
             connection_id=connection_id,
@@ -89,6 +104,12 @@ class ConnectionManager:
         if info is not None:
             if info.heartbeat_task is not None and not info.heartbeat_task.done():
                 info.heartbeat_task.cancel()
+            # T2.2: mirror the increment in :meth:`connect` so the gauge
+            # stays accurate. ``disconnect`` is the only path that removes
+            # an entry from ``_connections`` (broadcast/send_to_user
+            # call back into it on failure), so a double-decrement is
+            # impossible.
+            _metrics.ws_connections_active.labels(kind=self._kind).dec()
             await logger.ainfo(
                 "websocket_disconnected",
                 connection_id=connection_id,
