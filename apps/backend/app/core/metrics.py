@@ -84,6 +84,15 @@ claude_rate_limit_hits_total: Counter = Counter(
     registry=REGISTRY,
 )
 
+# T2.4: backend's OWN per-IP request throttler in app/api/middleware/rate_limit.py.
+# Distinct from claude_rate_limit_hits_total — different operational signal.
+backend_rate_limit_hits_total: Counter = Counter(
+    "backend_rate_limit_hits_total",
+    "Backend per-IP request-throttler 429 rejections (own middleware).",
+    labelnames=("endpoint", "source"),
+    registry=REGISTRY,
+)
+
 apns_delivery_success_total: Counter = Counter(
     "apns_delivery_success_total",
     "APNs push notifications successfully accepted by Apple.",
@@ -212,6 +221,7 @@ __all__ = [
     "REGISTRY",
     "apns_delivery_failure_total",
     "apns_delivery_success_total",
+    "backend_rate_limit_hits_total",
     "claude_5h_usage_pct",
     "claude_7d_usage_pct",
     "claude_rate_limit_hits_total",
