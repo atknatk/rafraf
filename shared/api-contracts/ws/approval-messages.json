@@ -2,6 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ApprovalMessages",
   "description": "WebSocket mesajlari: Approval sistemi soru-cevap akisi",
+  "notes": [
+    {
+      "id": "timeout_seconds-bridge-clamp",
+      "scope": "question.payload.timeout_seconds",
+      "description": "V1.4-fix HIGH (commit 811ea0f) — when a bridge-originated event.session.permission_request envelope drives the question (see bridge-permission-messages.json), the question.timeout_seconds field reflects the bridge-suggested ceiling (typically 30s for the V1.4 PreToolUse hook flow), NOT the per-category default (180-300s in CATEGORY_TIMEOUTS, app/schemas/approval.py:110). ApprovalService.build_question_message clamps to record.bridge_timeout_seconds when present and falls back to the category default for orchestrator-originated approvals (kubectl, git_push, …). iOS RFApprovalSheet's countdown MUST mirror this value or the user watches the sheet collapse mid-tap. Cross-reference: docs/runbooks/permission-flow.md §13 latency budget."
+    }
+  ],
   "messages": [
     {
       "direction": "server_to_client",

@@ -7,9 +7,9 @@
 | Field          | Value                                      |
 |----------------|--------------------------------------------|
 | Owner          | Backend / Faz 3 squad                      |
-| Last Reviewed  | 2026-05-02 (Faz 3 — T3.2)                  |
-| Related Specs  | Doc 10 §2.5, §6.1, §9.7; Doc 11 §5; Doc 7 |
-| Source of Truth| `apps/backend/app/services/approval_service.py`, `apps/rafraf-bridge/internal/claude/runner.go` |
+| Last Reviewed  | 2026-05-02 (Faz 3 — T3.2 + V1.1-V1.6)      |
+| Related Specs  | Doc 10 §2.5, §6.1, §9.7; Doc 11 §5; Doc 7; `docs/design/v1-permission-blockers.md` |
+| Source of Truth| `apps/backend/app/services/approval_service.py`, `apps/rafraf-bridge/internal/claude/runner.go`, `apps/rafraf-bridge/internal/permission/broker.go` |
 
 ---
 
@@ -170,14 +170,17 @@ event surface.
 
 Step-by-step:
 
-1. **Bridge emits** — claude CLI's stream-json contains a tool call the
-   permission policy denies. Parser packs the denial into the per-frame
-   subagent state (`apps/rafraf-bridge/internal/claude/state.go:190`)
-   and a `permission_request` envelope is sent over the bridge's
-   WebSocket. (For V1, the bridge currently surfaces denials only on
-   the **terminal** `event.session.result.permission_denials` array;
-   per-tool real-time `permission_request` event surfacing is the
-   gap noted in §11 below.)
+1. **Bridge emits** — V1.1+V1.2+V1.3 closed the real-time path:
+   the bridge's PreToolUse hook (`internal/cmd/rafraf-perm-hook`)
+   intercepts every tool call before claude executes it, and the
+   `permission.Broker` (`internal/permission/broker.go`) builds an
+   `event.session.permission_request` envelope per
+   `shared/api-contracts/ws/bridge-permission-messages.json` (schema
+   carries `request_id`, `tool_name`, `tool_input`, `input_preview`,
+   `risk`, `timeout_ms`, optional `parent_task_id`). The terminal
+   `event.session.result.permission_denials` array is still emitted
+   for the audit trail, but the real-time envelope is the canonical V1
+   surface — see §11 closed gaps for the wave history.
 2. **Backend dispatches** — `agent_ws.py` routes any envelope whose
    type starts with `event.` into `bridge_registry.dispatch_event(...)`
    keyed by `correlation_id`. The orchestrator-side runner is the
@@ -344,38 +347,62 @@ Rationale:
 
 ---
 
-## 11. Wiring gaps surfaced (deferred)
+## 11. Wiring gaps surfaced (V1.1–V1.5 status)
 
-These were identified during T3.2 test authoring; they are **not**
-fixed in T3.2 (per the task scope). Tracked for follow-up:
+These were identified during T3.2 test authoring. The V1.1–V1.5 wave
+shipped **three of the four** end-to-end blockers; one item remains
+deferred.
 
-- **Bridge → backend `permission_request` event.** Today the bridge
-  surfaces denials only on the terminal
-  `event.session.result.permission_denials` array (see
-  `parser.go:594` — `PermissionDenials` field on the `handleResult`
-  result struct). Real-time per-tool `permission_request` envelope
-  surfacing (so iOS gets the prompt **before** the run completes) is
-  not yet wired. Approval flow §6 step 1 documents the eventual path;
-  the integration tests in `tests/integration/test_permission_flow.py`
-  exercise the orchestrator-direct path
-  (`approval_service.create_approval(...)`) which is the V1 surface
-  area. Tracked as `T3.2-followup-bridge-perm-event`.
-- **`command.claude.permission.allow|deny` RPC.** Backend can record
-  decisions but lacks an envelope to push them back into a live
-  bridge-side claude run. Same follow-up.
-- **REST `GET /approvals?status=pending`.** Reconnect snapshot
-  currently piggy-backs on the WebSocket ack; a typed REST endpoint
-  would simplify iOS reconnect logic.
+- ~~**Bridge → backend `permission_request` event.**~~
+  **RESOLVED 2026-05-02 (V1.1 + V1.2 + V1.3).** The bridge now embeds
+  a `PreToolUse` hook (Strategy B per design doc §2.1.1) that fires
+  before any tool executes. The hook subprocess opens a UDS connection
+  to the parent bridge process, the bridge's
+  `permission.Broker.RequestDecision(...)`
+  (`apps/rafraf-bridge/internal/permission/broker.go`) registers a
+  waiter, classifies risk, and the runner's `wsEventSink.OnPermissionRequest`
+  builds + emits the new `event.session.permission_request` envelope
+  (schema documented in `shared/api-contracts/ws/bridge-permission-messages.json`).
+  Touched by commits b9f2a4a (V1.1 protocol types + inbound channel),
+  b329468 (V1.2 broker + UDS server + hook binary), 86dd472 (V1.3 broker → WS sink wiring).
+  The runbook §6 step 1 caveat ("the bridge currently surfaces denials only on
+  the terminal `event.session.result.permission_denials` array") is now
+  **historical** — the real-time path is the canonical V1 surface.
+- ~~**`command.claude.permission.allow|deny` RPC.**~~
+  **RESOLVED 2026-05-02 (V1.1 + V1.3).** `ws.Client.Inbound` channel
+  is wired (V1.1 — `apps/rafraf-bridge/internal/ws/client.go`),
+  `runInboundDispatcher` routes typed envelopes into `dispatchCommand`
+  (V1.1 — `apps/rafraf-bridge/cmd/bridge/main.go`), and the new
+  `command.claude.permission.allow|deny` cases call
+  `broker.Resolve(request_id, decision)` to unblock the matching UDS
+  hook connection (V1.3). Schemas documented in
+  `shared/api-contracts/ws/bridge-permission-messages.json`. The
+  receiving runner is `_await_and_dispatch_decision` in
+  `apps/backend/app/api/routes/websocket.py` (V1.4 commit 8a43991).
+- **REST `GET /approvals?status=pending` snapshot replay.** Still
+  deferred. Design doc §4.2 sketches the eventual flow; the iOS
+  `WebSocketReconnect` coordinator currently does not re-fetch pending
+  questions from the backend after reconnect, so a question pushed
+  while the iOS app was background-suspended can be lost (the backend
+  asyncio waiter is still alive — it eventually times out and denies,
+  preserving the deny-on-timeout invariant). NOTE: V1.4 added
+  `request_id`, `bridge_host_id`, `rpc_id` columns to the
+  `approval_requests` table (migration 018) so future snapshot replay
+  is implementable without further schema changes; the scope of
+  remaining work is REST endpoint + iOS coordinator wiring.
+  **Defer to V1.6+ or Faz 4.**
 - ~~**`AuditService.log_tool_call` emit at `submit_decision` call site.**~~
-  **RESOLVED 2026-05-02.** Wired in
+  **RESOLVED 2026-05-02 (T3.2-followup + V1.4).** Originally wired in
   `app/api/routes/websocket.py::_handle_approval_response` via the
-  `_emit_approval_audit_log` helper — approval and rejection decisions
-  now both land in `audit_log` with `approval_required=True` and
-  `output_result={"decision": ...}` populated. Unit coverage in
+  `_emit_approval_audit_log` helper for the user-tap path. V1.4 added a
+  **second** emit at the `_await_and_dispatch_decision` awaiter path
+  so EVERY decision (user-tap, RFApprovalSheet timeout, bridge-offline
+  dispatch failure) lands in `audit_log` with `approval_required=True`
+  and `output_result={"decision": ...}`. Unit coverage in
   `tests/unit/test_api/test_websocket/test_handle_approval_response_audit.py`;
-  the integration test
+  contract anchor in
   `tests/integration/test_permission_flow.py::test_audit_log_records_each_decision`
-  remains as the contract anchor.
+  (xfail marker removed in V1.4 commit 8a43991).
 
 ---
 
@@ -394,7 +421,170 @@ kubectl logs -l app=rafraf-backend -f | grep -E 'approval_(created|processed|exp
 # Force-expire stale approvals (emergency)
 # Run inside an admin shell — there is no UI surface for this.
 psql $DATABASE_URL -c "UPDATE approvals SET status = 'expired' WHERE status = 'pending' AND timeout_at < NOW();"
+
+# Inspect new V1.1+V1.4 permission counters
+curl -s http://localhost:8000/metrics | grep -E '^permission_request_(emitted|decided|timeout)_total'
 ```
 
 For runbook ownership transfer, file an issue with label
 `runbook:permission-flow` and assign the Faz 3 squad lead.
+
+---
+
+## 13. End-to-end timeline
+
+Per-hop latency budget for one permission_request → decision round-trip
+(restated from `docs/design/v1-permission-blockers.md` §2.2.4 so SREs
+can size alerts without bouncing between docs).
+
+| Hop                                                  | Budget                       |
+|------------------------------------------------------|------------------------------|
+| Hook subprocess fork + UDS connect                   | ≤ 50 ms                      |
+| Bridge → backend WS frame                            | ≤ 30 ms (LAN) / ≤ 200 ms (cross-region) |
+| Backend forward to iOS                               | ≤ 50 ms                      |
+| **User decision (RFApprovalSheet auto-timeout)**     | up to 30 s                   |
+| iOS → backend WS frame                               | ≤ 200 ms                     |
+| Backend → bridge WS frame                            | ≤ 30 ms                      |
+| Bridge → hook UDS write + hook stdout flush          | ≤ 50 ms                      |
+| **Total worst case**                                 | **~30.6 s**                  |
+
+Claude CLI's PreToolUse hook timeout is 60 s by default, so the V1
+budget leaves a 2× safety margin. The bridge-suggested `timeout_ms`
+field on `event.session.permission_request` (default `30000`) is the
+hard ceiling propagated to all layers:
+
+| Layer                              | Effective ceiling                         |
+|------------------------------------|-------------------------------------------|
+| iOS RFApprovalSheet countdown      | `request.timeoutSeconds` (= 30 s)         |
+| Backend ApprovalService awaiter    | `bridge_timeout_seconds + 2 s` grace      |
+| Bridge UDS broker timeout          | `timeout_ms + 4 s` grace                  |
+| Claude CLI hook timeout (CLI)      | 60 s default — left untouched             |
+
+Operators alerting on `permission_request_round_trip_seconds` should
+fire warning at p95 > 5 s and page at p95 > 25 s (= within budget but
+approaching auto-deny). The matching Prometheus counter catalogue
+(emitted / decided / timeout) lives in `infra/grafana/README.md`.
+
+---
+
+## 14. Manual smoke test
+
+Step-by-step recipe for a developer to verify the entire permission
+loop on their Mac. Assumes a working local backend stack and an iOS
+simulator. Run in order; each step has an explicit pass criterion.
+
+1. **Build the bridge + hook binary.**
+   ```bash
+   cd apps/rafraf-bridge
+   make build
+   ```
+   Pass criterion: `bin/rafraf-bridge` and `bin/rafraf-perm-hook`
+   exist (~2.6 MiB each on darwin-arm64).
+
+2. **Start the backend dev stack.**
+   ```bash
+   docker compose -f infra/docker/docker-compose.dev.yml up -d
+   cd apps/backend && python -m uvicorn app.main:app --reload
+   ```
+   Pass criterion: `curl http://localhost:8000/health` returns 200.
+
+3. **Pair the bridge with backend.**
+   ```bash
+   ./apps/rafraf-bridge/bin/rafraf-bridge \
+     -config ~/.config/rafraf-bridge/config.toml
+   ```
+   Pass criterion: bridge logs `bridge_paired host_id=...` and
+   backend logs `agent_register host_id=...`. The
+   `event.session.permission_request` envelope cannot fire until the
+   inbound channel handshakes are complete.
+
+4. **Open the iOS app in the simulator.**
+   - Launch from Xcode (`apps/ios/RafRaf` scheme).
+   - Log in with a dev JWT (or run through the onboarding flow).
+   - Tap into a fresh chat session.
+
+   Pass criterion: WebSocket connection indicator shows green.
+
+5. **Issue a prompt that should trigger a permission prompt.**
+   In the iOS chat input field, send:
+   ```
+   Lütfen tmp/build.log dosyasını sil
+   ```
+   (Or any prompt that drives claude to call `Bash` with an
+   off-whitelist command — `rm`, `curl https://...`, `git push`.)
+
+   Pass criterion: bridge logs
+   `permission_request_emit request_id=... tool=Bash risk=high`.
+
+6. **Verify the iOS sheet renders correctly.**
+   The `RFApprovalSheet` should appear within ~1 s of step 5,
+   showing:
+   - **Risk badge**: `risk=high` (red).
+   - **Countdown timer**: 30 s.
+   - **Three buttons**: "İzin Ver (tek seferlik)",
+     "İzin Ver (oturum)", "Reddet".
+   - **Tool context line**: `Tool: Bash, Action: rm -rf tmp/build.log`
+     (or similar 240-byte preview).
+
+   Pass criterion: sheet matches all four checks above. If countdown
+   reads anything other than 30 s, the bridge `timeout_ms`
+   propagation is broken — see §13 ceiling table.
+
+7. **Reject path — tap "Reddet".**
+   - Expected: claude reports refusal in the result event ("Tool
+     çağrısı reddedildi" or similar).
+   - Verify the audit log row exists:
+     ```sql
+     SELECT id, tool_name, action, output_result FROM audit_log
+       WHERE approval_required = TRUE
+       ORDER BY created_at DESC LIMIT 1;
+     ```
+   - Expected: `output_result->>'decision' = 'rejected'`.
+
+   Pass criterion: refusal text appears in iOS chat AND audit row
+   exists with `decision = 'rejected'`.
+
+8. **Allow-session path — issue another prompt that triggers the
+   same tool, tap "İzin Ver (oturum)".**
+   - Expected: claude continues, completes the tool call, and the
+     subsequent message renders normally.
+   - **V1 caveat**: the backend currently treats `allow_session` as
+     `allow_once` (the wire only knows "approved" / "rejected"; the
+     `note: "allow_session"` is captured but not yet used for
+     deduplication). A second invocation of the same tool in the
+     same session WILL prompt again. Full session-allow ships in
+     Faz 4 per design doc §6.3.
+
+   Pass criterion: tool executes successfully on this turn AND a
+   second invocation in the same session re-prompts (expected V1
+   behaviour). Audit row for this turn carries
+   `output_result->>'decision' = 'approved'`.
+
+9. **Timeout path — issue another triggering prompt and DO NOT tap
+   anything for 30 s.**
+   - Expected: sheet auto-dismisses at 0 s; iOS sends
+     `approval_response{decision: "rejected"}` automatically; backend
+     dispatches `command.claude.permission.deny` with
+     `reason: "timeout"`; bridge broker resolves the hook with
+     `block`; claude reports refusal.
+   - Verify the metric:
+     ```bash
+     curl -s http://localhost:8000/metrics | grep permission_request_timeout_total
+     ```
+   - Expected: counter incremented by 1 with
+     `tool_name="Bash"`.
+
+   Pass criterion: refusal text in iOS AND timeout counter
+   incremented AND audit row carries
+   `output_result->>'decision' = 'expired'` or `'rejected'`
+   (acceptable either way — both indicate auto-deny took effect).
+
+10. **Cleanup.**
+    Stop the bridge with `Ctrl+C`. Verify
+    `$TMPDIR/rafraf-bridge-perm-*.sock` and
+    `$TMPDIR/rafraf-bridge-settings-*.json` are removed (best-effort
+    cleanup; a startup sweep handles leaks > 1 h old).
+
+If any step fails, capture bridge logs (`-log-level debug`) + backend
+logs + the relevant `audit_log` row and file an incident with label
+`runbook:permission-flow`.
