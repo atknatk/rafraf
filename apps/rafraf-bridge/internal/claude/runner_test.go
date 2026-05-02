@@ -43,6 +43,9 @@ func (nullSink) OnRateLimit(protocol.EventSessionRateLimit) error       { return
 func (nullSink) OnHookStarted(protocol.EventSessionHookStarted) error   { return nil }
 func (nullSink) OnHookResponse(protocol.EventSessionHookResponse) error { return nil }
 func (nullSink) OnResult(protocol.EventSessionResult) error             { return nil }
+func (nullSink) OnPermissionRequest(protocol.EventSessionPermissionRequest) error {
+	return nil
+}
 
 // ---------------------------------------------------------------------------
 // buildArgs — argument vector composition.
@@ -158,7 +161,8 @@ func TestRunner_BuildArgs_AppendsSettingsWhenProvided(t *testing.T) {
 func TestRunner_BuildEnv_InjectsBrokerSockWhenSet(t *testing.T) {
 	t.Parallel()
 	r := NewRunner(&config.Config{}, silentLogger())
-	r.SetPermissionContext("/tmp/broker.sock", "/usr/local/bin/rafraf-perm-hook")
+	// V1.3: nil broker is fine here — this test only exercises buildEnv.
+	r.SetPermissionContext(nil, "/tmp/broker.sock", "/usr/local/bin/rafraf-perm-hook")
 	env := r.buildEnv(RunRequest{})
 	if !slices.Contains(env, "RAFRAF_BRIDGE_PERM_SOCK=/tmp/broker.sock") {
 		t.Fatalf("buildEnv: expected RAFRAF_BRIDGE_PERM_SOCK in env, got %#v", env)
@@ -189,7 +193,7 @@ func TestRunner_PreparePermissionOverlay_NoContextSkips(t *testing.T) {
 func TestRunner_PreparePermissionOverlay_MissingHookSkips(t *testing.T) {
 	t.Parallel()
 	r := NewRunner(&config.Config{}, silentLogger())
-	r.SetPermissionContext("/tmp/sock", "/non/existent/hook-binary")
+	r.SetPermissionContext(nil, "/tmp/sock", "/non/existent/hook-binary")
 	path, cleanup := r.preparePermissionOverlay(RunRequest{SessionID: "sess"})
 	defer cleanup()
 	if path != "" {
@@ -205,7 +209,7 @@ func TestRunner_PreparePermissionOverlay_WritesAndCleans(t *testing.T) {
 		t.Skipf("/bin/sh not present, skipping: %v", err)
 	}
 	r := NewRunner(&config.Config{}, silentLogger())
-	r.SetPermissionContext("/tmp/sock", hook)
+	r.SetPermissionContext(nil, "/tmp/sock", hook)
 	path, cleanup := r.preparePermissionOverlay(RunRequest{SessionID: "test-sess-123"})
 	if path == "" {
 		t.Fatalf("preparePermissionOverlay: expected non-empty path")

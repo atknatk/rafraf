@@ -91,6 +91,13 @@ type activeRun struct {
 // path. When PermissionHookPath cannot be resolved (e.g. dev mode
 // where the sibling binary isn't built) the runner logs a warning and
 // SKIPS the --settings injection so the dev workflow still works.
+//
+// V1.3 promotes permissionBroker to a first-class runner dependency:
+// at Run-time the runner installs a SetRequestHandler closure that
+// forwards each broker request through the per-run EventSink (so the
+// envelope carries the right correlation_id), then clears it on Run
+// exit. The broker stays alive across runs but only one runner can be
+// active at a time in V1 — see the LWW invariant note in Run().
 type Runner struct {
 	cfg    *config.Config
 	logger *slog.Logger
@@ -103,6 +110,12 @@ type Runner struct {
 	// binary. Resolved via os.Executable() + sibling lookup at
 	// NewRunner-time. Empty → injection disabled.
 	permissionHookPath string
+	// permissionBroker, when non-nil, has its SetRequestHandler hook
+	// flipped on/off around each Run() so per-run envelopes carry the
+	// originating command.claude.run correlation_id. Nil → V1.2
+	// degraded path (broker startup failed); the runner still spawns
+	// claude but the broker resolves every hook request as deny.
+	permissionBroker PermissionBroker
 
 	mu         sync.Mutex
 	activeRuns map[string]activeRun // sessionID → cancel + generation
@@ -140,6 +153,13 @@ type RunRequest struct {
 //
 // T0.5.6 wires up dispatch — the Parser now invokes one of these methods
 // per recognised stream-json frame.
+//
+// V1.3 adds OnPermissionRequest. Unlike the other callbacks, this one is
+// NOT driven by the stream-json parser; it is invoked by the
+// permission.Broker via a closure the runner installs at Run-time so
+// the per-run sink (which carries the originating
+// command.claude.run correlation_id) is the egress path. This keeps
+// envelope routing aligned with the rest of the per-RPC events.
 type EventSink interface {
 	OnInit(ev protocol.EventSessionInit) error
 	OnAssistant(ev protocol.EventSessionAssistant) error
@@ -152,6 +172,21 @@ type EventSink interface {
 	OnHookStarted(ev protocol.EventSessionHookStarted) error
 	OnHookResponse(ev protocol.EventSessionHookResponse) error
 	OnResult(ev protocol.EventSessionResult) error
+	OnPermissionRequest(ev protocol.EventSessionPermissionRequest) error
+}
+
+// PermissionBroker is the narrow contract the runner needs from the
+// permission package. It is declared locally (rather than imported from
+// internal/permission) so the claude package never takes a dependency
+// on internal/permission — that import direction would create a cycle
+// the moment internal/permission needs anything from internal/claude.
+//
+// The runner uses SetRequestHandler to install a closure that forwards
+// each broker request through the per-run EventSink. Closures take
+// precedence over previous handlers (LWW); see the V1 invariant note in
+// Run().
+type PermissionBroker interface {
+	SetRequestHandler(fn func(ev protocol.EventSessionPermissionRequest))
 }
 
 // ExecCommandFn matches exec.CommandContext's signature so tests can
@@ -175,19 +210,29 @@ func NewRunner(cfg *config.Config, logger *slog.Logger) *Runner {
 	}
 }
 
-// SetPermissionContext configures the V1.2 PreToolUse hook injection.
-// sockPath is the broker UDS the hook will dial; hookPath is the
-// absolute path to the rafraf-perm-hook binary. Either being empty
-// disables injection (the runner logs a warning at first Run() and
-// proceeds without --settings).
+// SetPermissionContext configures the V1.2/V1.3 PreToolUse hook
+// injection. broker, when non-nil, gets its SetRequestHandler closure
+// installed at Run-time so per-run envelopes carry the originating
+// command.claude.run correlation_id. sockPath is the broker UDS the
+// hook will dial; hookPath is the absolute path to the rafraf-perm-hook
+// binary. Either path being empty disables --settings injection (the
+// runner logs at first Run() and proceeds plain).
 //
-// The runner stores both paths verbatim — it does NOT validate that
+// The runner stores everything verbatim — it does NOT validate that
 // hookPath exists at SetPermissionContext-time so callers can wire
 // the deferred hook discovery (typical: bridge startup hits this with
 // the path it just resolved via os.Executable() sibling lookup).
-func (r *Runner) SetPermissionContext(sockPath, hookPath string) {
+//
+// V1 ships at most one active claude subprocess per bridge process at a
+// time, so the LWW SetRequestHandler discipline (each Run() overwrites,
+// then defers clearing) is safe. If a future iteration multiplexes
+// runners against a single broker this contract has to change — the
+// broker would need a per-correlation map of handlers instead of one
+// process-wide slot.
+func (r *Runner) SetPermissionContext(broker PermissionBroker, sockPath, hookPath string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.permissionBroker = broker
 	r.permissionSockPath = sockPath
 	r.permissionHookPath = hookPath
 }
@@ -227,6 +272,35 @@ func (r *Runner) runWithExec(
 	// piped into buildArgs via the optional --settings flag.
 	settingsPath, settingsCleanup := r.preparePermissionOverlay(req)
 	defer settingsCleanup()
+
+	// V1.3 — install the broker→sink closure BEFORE the subprocess
+	// spawn so any PreToolUse hook fired during init is already routed
+	// through the correct per-run envelope path. Cleared on exit so a
+	// late hook firing against a torn-down sink fails silently rather
+	// than panicking.
+	//
+	// LWW invariant: V1 ships at most one active claude subprocess per
+	// bridge, so a single SetRequestHandler slot on the broker is
+	// sufficient. The defer below restores nil when this run exits —
+	// concurrent runs are an explicit V2+ concern that would require a
+	// per-correlation handler map on the broker side.
+	r.mu.Lock()
+	broker := r.permissionBroker
+	r.mu.Unlock()
+	if broker != nil {
+		correlation := req.SessionID
+		broker.SetRequestHandler(func(ev protocol.EventSessionPermissionRequest) {
+			if err := sink.OnPermissionRequest(ev); err != nil {
+				r.logger.Warn("permission_request egress failed",
+					"err", err,
+					"request_id", ev.RequestID,
+					"session_id", ev.SessionID,
+					"run_session_id", correlation,
+				)
+			}
+		})
+		defer broker.SetRequestHandler(nil)
+	}
 
 	args := r.buildArgs(req, settingsPath)
 	cmd := execCmd(runCtx, r.cfg.ClaudeBinary, args...)

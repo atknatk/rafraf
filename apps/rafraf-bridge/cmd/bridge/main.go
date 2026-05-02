@@ -184,7 +184,11 @@ func run(args []string) int {
 			logger.Error("permission broker start failed", "err", err)
 		}
 		hookPath := resolvePermissionHookPath(logger)
-		runner.SetPermissionContext(broker.Sock(), hookPath)
+		// V1.3 — pass the broker itself so claude.Runner.Run can install
+		// its per-run SetRequestHandler closure (which routes broker
+		// requests through the per-RPC wsEventSink so envelopes carry
+		// the originating command.claude.run correlation_id).
+		runner.SetPermissionContext(broker, broker.Sock(), hookPath)
 		logger.Info("permission broker wired into runner",
 			"sock", broker.Sock(),
 			"hook", hookPath,
@@ -261,11 +265,12 @@ func run(args []string) int {
 	// into dispatchCommand. Each handler is required to be non-blocking
 	// (synchronous work must be moved into a goroutine) so a slow handler
 	// cannot back up the bounded Inbound buffer — V1.3 broker.Resolve
-	// must follow the same contract.
+	// follows the same contract (non-blocking send into a buffered ch1
+	// channel, drop on full).
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		runInboundDispatcher(ctx, runner, wsClient, logger)
+		runInboundDispatcher(ctx, runner, wsClient, logger, broker)
 	}()
 
 	logger.Info("rafraf-bridge ready",
@@ -373,15 +378,20 @@ func runMetricsPrinter(ctx context.Context, wg *sync.WaitGroup, logger *slog.Log
 // it through the bounded Inbound channel; this loop is the single
 // consumer.
 //
-// V1.1 wires the plumbing for command.claude.run / command.claude.abort
-// (already supported by dispatchCommand) and is the foundation for the
-// permission RPCs added in V1.3 (command.claude.permission.allow|deny).
-// Until V1.3 lands those RPC types fall through dispatchCommand's
-// default branch which logs at debug level — that is the safe
-// degradation behaviour spelled out in the design doc §4.4.
-func runInboundDispatcher(ctx context.Context, runner *claude.Runner, wsClient *ws.Client, logger *slog.Logger) {
+// V1.1 wired the plumbing for command.claude.run / command.claude.abort
+// (already supported by dispatchCommand). V1.3 adds the permission
+// decision RPCs (command.claude.permission.allow|deny) which route
+// through the broker — broker may be nil when its V1.2 startup failed,
+// in which case the new cases short-circuit with a warn log so the
+// bridge stays alive in degraded mode. correlation_id discipline is
+// preserved end-to-end: the bridge originates a permission_request
+// envelope with correlation_id = command.claude.run rpc id, the
+// backend awaiter echoes it back on the decision RPC, and the broker
+// resolves by the payload-level RequestID.
+func runInboundDispatcher(ctx context.Context, runner *claude.Runner, wsClient *ws.Client, logger *slog.Logger, broker *permission.Broker) {
 	logger.Debug("inbound dispatcher started",
 		"inbound_capacity", cap(wsClient.Inbound),
+		"broker_attached", broker != nil,
 	)
 	for {
 		select {
@@ -391,7 +401,7 @@ func runInboundDispatcher(ctx context.Context, runner *claude.Runner, wsClient *
 			if !ok {
 				return
 			}
-			dispatchCommand(ctx, runner, wsClient, logger, env)
+			dispatchCommand(ctx, runner, wsClient, logger, broker, env)
 		}
 	}
 }
@@ -400,7 +410,19 @@ func runInboundDispatcher(ctx context.Context, runner *claude.Runner, wsClient *
 // invoked from runInboundDispatcher once the ws.Client surfaces inbound
 // frames. Kept as a free function so tests can exercise the routing
 // without spinning up the full process.
-func dispatchCommand(ctx context.Context, runner *claude.Runner, wsClient *ws.Client, logger *slog.Logger, env protocol.Envelope) {
+//
+// All handlers MUST be non-blocking (V1.1 reviewer M1 contract). Long
+// work is moved into goroutines so a slow handler cannot wedge the
+// bounded Inbound channel. The V1.3 permission cases satisfy this by
+// calling broker.Resolve, which performs a non-blocking send into the
+// per-request buffered channel and drops silently if the waiter is
+// gone (timed out / closed).
+//
+// broker may be nil — V1.2 broker startup failure is non-fatal, the
+// bridge runs in degraded mode without approval prompts. The new
+// permission cases short-circuit with a warn log when broker == nil
+// rather than panicking.
+func dispatchCommand(ctx context.Context, runner *claude.Runner, wsClient *ws.Client, logger *slog.Logger, broker *permission.Broker, env protocol.Envelope) {
 	switch env.Type {
 	case protocol.TypeCommandClaudeRun:
 		var cmd protocol.CommandClaudeRun
@@ -446,6 +468,56 @@ func dispatchCommand(ctx context.Context, runner *claude.Runner, wsClient *ws.Cl
 				logger.Warn("abort failed", "err", err, "session_id", cmd.SessionID)
 			}
 		}()
+	case protocol.TypeCommandClaudePermissionAllow:
+		if broker == nil {
+			logger.Warn("dispatch: permission.allow received but broker is nil (degraded V1.2 path)",
+				"id", env.ID,
+				"correlation_id", env.CorrelationID,
+			)
+			return
+		}
+		var cmd protocol.CommandClaudePermissionDecision
+		if err := json.Unmarshal(env.Payload, &cmd); err != nil {
+			logger.Warn("dispatch: invalid command.claude.permission.allow payload",
+				"err", err,
+				"id", env.ID,
+			)
+			return
+		}
+		if cmd.RequestID == "" {
+			logger.Warn("dispatch: permission.allow missing request_id",
+				"id", env.ID,
+				"correlation_id", env.CorrelationID,
+			)
+			return
+		}
+		// Resolve is non-blocking by contract — see broker.go's
+		// CRITICAL CONTRACTS doc block.
+		broker.Resolve(cmd.RequestID, permission.DecisionAllow)
+	case protocol.TypeCommandClaudePermissionDeny:
+		if broker == nil {
+			logger.Warn("dispatch: permission.deny received but broker is nil (degraded V1.2 path)",
+				"id", env.ID,
+				"correlation_id", env.CorrelationID,
+			)
+			return
+		}
+		var cmd protocol.CommandClaudePermissionDecision
+		if err := json.Unmarshal(env.Payload, &cmd); err != nil {
+			logger.Warn("dispatch: invalid command.claude.permission.deny payload",
+				"err", err,
+				"id", env.ID,
+			)
+			return
+		}
+		if cmd.RequestID == "" {
+			logger.Warn("dispatch: permission.deny missing request_id",
+				"id", env.ID,
+				"correlation_id", env.CorrelationID,
+			)
+			return
+		}
+		broker.Resolve(cmd.RequestID, permission.DecisionDeny)
 	default:
 		logger.Debug("dispatch: ignoring envelope", "type", env.Type, "id", env.ID)
 	}
@@ -521,6 +593,18 @@ func (s *wsEventSink) OnHookResponse(ev protocol.EventSessionHookResponse) error
 
 func (s *wsEventSink) OnResult(ev protocol.EventSessionResult) error {
 	return s.emit(protocol.NewEventSessionResult(s.target(ev.SessionID), s.correlationID, ev))
+}
+
+// OnPermissionRequest pushes the V1.3 permission_request envelope.
+// Unlike the parser-driven callbacks above, this one is invoked by the
+// permission Broker via the closure installed in claude.Runner.Run, so
+// each emission is guaranteed to carry the originating
+// command.claude.run correlation_id (s.correlationID). The backend
+// dispatcher uses that correlation_id to route the envelope back into
+// the right per-RPC subscriber queue (silently dropping
+// correlation-less events).
+func (s *wsEventSink) OnPermissionRequest(ev protocol.EventSessionPermissionRequest) error {
+	return s.emit(protocol.NewEventSessionPermissionRequest(s.target(ev.SessionID), s.correlationID, ev))
 }
 
 // wsStorageSink adapts storage.Sink to ws.Client.Send.
