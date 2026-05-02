@@ -102,7 +102,7 @@ struct RFApprovalSheet: View {
                     .font(.caption)
                     .foregroundStyle(remainingColor)
                 let countdownTemplate = String(
-                    localized: "approval.sheet.countdown %lld"
+                    localized: "approval.countdown.remaining %lld"
                 )
                 RFText(
                     String.localizedStringWithFormat(countdownTemplate, remainingSeconds),
