@@ -1,0 +1,58 @@
+# ArgoCD Application — rafraf-backend (PRODUCTION)
+# Tracks `main` branch. Auto-sync intentionally DISABLED — production releases
+# require manual ArgoCD sync after passing staging smoke tests.
+# Apply with: kubectl apply -n argocd -f infra/argocd/rafraf-backend-app-prod.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rafraf-backend-prod
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: rafraf
+    environment: production
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/atknatk/rafraf.git
+    targetRevision: main
+    path: infra/helm/rafraf-backend
+    helm:
+      releaseName: rafraf-backend
+      valueFiles:
+        - values.yaml
+        - values-prod.yaml
+      # IMPORTANT: production tag MUST be set per release (do NOT auto-update).
+      # parameters:
+      #   - name: image.tag
+      #     value: "<8-char git SHA>"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: rafraf
+  syncPolicy:
+    # Manual sync only — operator approves prod rollouts via ArgoCD UI/CLI.
+    # automated: {}  ← intentionally absent
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+      - PrunePropagationPolicy=foreground
+    retry:
+      limit: 3
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+  revisionHistoryLimit: 20
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: rafraf-backend-secrets
+      jsonPointers:
+        - /data
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+      jsonPointers:
+        - /spec/minReplicas
+        - /spec/maxReplicas

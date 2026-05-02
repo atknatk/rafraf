@@ -19,21 +19,24 @@ import "encoding/json"
 
 const (
 	// Inbound (backend → bridge).
-	TypeCommandClaudeRun   = "command.claude.run"
-	TypeCommandClaudeAbort = "command.claude.abort"
+	TypeCommandClaudeRun             = "command.claude.run"
+	TypeCommandClaudeAbort           = "command.claude.abort"
+	TypeCommandClaudePermissionAllow = "command.claude.permission.allow"
+	TypeCommandClaudePermissionDeny  = "command.claude.permission.deny"
 
 	// Session events (bridge → backend).
-	TypeEventSessionInit             = "event.session.init"
-	TypeEventSessionAssistant        = "event.session.assistant"
-	TypeEventSessionUser             = "event.session.user"
-	TypeEventSessionStream           = "event.session.stream"
-	TypeEventSessionTaskStarted      = "event.session.task_started"
-	TypeEventSessionTaskProgress     = "event.session.task_progress"
-	TypeEventSessionTaskNotification = "event.session.task_notification"
-	TypeEventSessionRateLimit        = "event.session.rate_limit"
-	TypeEventSessionResult           = "event.session.result"
-	TypeEventSessionHookStarted      = "event.session.hook_started"
-	TypeEventSessionHookResponse     = "event.session.hook_response"
+	TypeEventSessionInit              = "event.session.init"
+	TypeEventSessionAssistant         = "event.session.assistant"
+	TypeEventSessionUser              = "event.session.user"
+	TypeEventSessionStream            = "event.session.stream"
+	TypeEventSessionTaskStarted       = "event.session.task_started"
+	TypeEventSessionTaskProgress      = "event.session.task_progress"
+	TypeEventSessionTaskNotification  = "event.session.task_notification"
+	TypeEventSessionRateLimit         = "event.session.rate_limit"
+	TypeEventSessionResult            = "event.session.result"
+	TypeEventSessionHookStarted       = "event.session.hook_started"
+	TypeEventSessionHookResponse      = "event.session.hook_response"
+	TypeEventSessionPermissionRequest = "event.session.permission_request"
 
 	// Storage events (bridge → backend).
 	TypeEventStorageAITitle        = "event.storage.ai_title"
@@ -67,6 +70,27 @@ type CommandClaudeRun struct {
 // CommandClaudeAbort signals the bridge to terminate an in-flight session.
 type CommandClaudeAbort struct {
 	SessionID string `json:"session_id"`
+}
+
+// CommandClaudePermissionDecision is the inbound RPC payload for the
+// command.claude.permission.allow and command.claude.permission.deny
+// envelopes. It carries the user's decision back to the bridge so the
+// permission Broker can resolve the matching in-flight PreToolUse hook.
+//
+// RequestID identifies the originating event.session.permission_request
+// envelope (the bridge-generated UUID). SessionID echoes the lead claude
+// session for observability + audit. Decision is the canonical "allow" or
+// "deny" string (matching the Strategy B hook contract). Reason is a
+// free-form audit string surfaced into structured logs. UpdatedInput is
+// reserved for the MCP-style "permission tool returns a modified
+// tool_input" branch and is ignored by V1; downstream V2/V3 work may wire
+// it through the broker into the hook reply.
+type CommandClaudePermissionDecision struct {
+	SessionID    string          `json:"session_id"`
+	RequestID    string          `json:"request_id"`
+	Decision     string          `json:"decision"`
+	Reason       string          `json:"reason,omitempty"`
+	UpdatedInput json.RawMessage `json:"updated_input,omitempty"`
 }
 
 // ---------------------------------------------------------------------------
@@ -189,6 +213,40 @@ type EventSessionHookResponse struct {
 	SessionID string          `json:"session_id"`
 	HookName  string          `json:"hook_name"`
 	Result    json.RawMessage `json:"result"`
+}
+
+// EventSessionPermissionRequest fires from the bridge's PreToolUse hook
+// path (Strategy B in docs/design/v1-permission-blockers.md §2.1.1) when
+// a tool call needs explicit user approval. The request_id is a
+// bridge-generated UUID that serves as the decision-correlation token —
+// the iOS approval UI echoes it back via approval_response, and the
+// backend rebroadcasts it as the request_id field on the inbound
+// command.claude.permission.allow|deny RPC. The envelope's outer
+// correlation_id always carries the originating command.claude.run rpc
+// id so the backend orchestrator can route it into the correct
+// per-session subscriber queue.
+//
+// ToolInput preserves the raw claude PreToolUse payload byte-for-byte so
+// the backend can decode it into Pydantic without an intermediate Go
+// schema bound; InputPreview is a 240-byte truncated text suitable for
+// display on iOS without leaking large file diffs. Risk is "low",
+// "medium", or "high" — classification authority lives in the bridge
+// (it has direct access to cwd + path comparisons + the bash whitelist).
+// TimeoutMs is the bridge-suggested ceiling (default 30000); iOS sets
+// its countdown to this value and the bridge's broker times out at
+// TimeoutMs + grace. ParentTaskID is set when the PreToolUse hook fires
+// from inside a sub-agent task so the backend can attribute the question
+// to the lead session.
+type EventSessionPermissionRequest struct {
+	SessionID    string          `json:"session_id"`
+	RequestID    string          `json:"request_id"`
+	ToolName     string          `json:"tool_name"`
+	ToolInput    json.RawMessage `json:"tool_input"`
+	InputPreview string          `json:"input_preview"`
+	Risk         string          `json:"risk"`
+	Reason       string          `json:"reason,omitempty"`
+	TimeoutMs    int             `json:"timeout_ms"`
+	ParentTaskID string          `json:"parent_task_id,omitempty"`
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,88 @@
+# Staging environment overrides — merged on top of values.yaml
+# Usage: helm upgrade --install rafraf-backend ./infra/helm/rafraf-backend \
+#        --namespace rafraf --create-namespace \
+#        -f infra/helm/rafraf-backend/values.yaml \
+#        -f infra/helm/rafraf-backend/values-staging.yaml
+
+image:
+  # ArgoCD / CI substitutes the immutable SHA tag here per release.
+  tag: "staging"
+
+env:
+  LOG_LEVEL: DEBUG
+  OTEL_DEPLOYMENT_ENV: "staging"
+  # Staging may run without a paired bridge for smoke testing.
+  READY_REQUIRES_BRIDGE: "false"
+
+externalSecrets:
+  remoteRefs:
+    - secretKey: DATABASE_URL
+      remoteKey: rafraf/staging/db-url
+    - secretKey: REDIS_URL
+      remoteKey: rafraf/staging/redis-url
+    - secretKey: JWT_PRIVATE_KEY
+      remoteKey: rafraf/staging/jwt-private-key
+    - secretKey: JWT_PUBLIC_KEY
+      remoteKey: rafraf/staging/jwt-public-key
+    - secretKey: JWT_SECRET_KEY
+      remoteKey: rafraf/staging/jwt-secret-key
+    # T3.5-polish (M3): JWT_LEGACY_HS256_SECRET day-1 path; matches prod overlay.
+    - secretKey: JWT_LEGACY_HS256_SECRET
+      remoteKey: rafraf/staging/jwt-legacy-hs256-secret
+    - secretKey: ANTHROPIC_API_KEY
+      remoteKey: rafraf/staging/anthropic-api-key
+    - secretKey: AGENT_API_KEY
+      remoteKey: rafraf/staging/agent-api-key
+    - secretKey: AWS_ACCESS_KEY_ID
+      remoteKey: rafraf/staging/aws-access-key-id
+    - secretKey: AWS_SECRET_ACCESS_KEY
+      remoteKey: rafraf/staging/aws-secret-access-key
+    - secretKey: AWS_S3_BUCKET
+      remoteKey: rafraf/staging/aws-s3-bucket
+    - secretKey: APNS_KEY
+      remoteKey: rafraf/staging/apns-key-p8
+    - secretKey: APNS_KEY_ID
+      remoteKey: rafraf/staging/apns-key-id
+    - secretKey: APNS_TEAM_ID
+      remoteKey: rafraf/staging/apns-team-id
+    - secretKey: GITHUB_TOKEN
+      remoteKey: rafraf/staging/github-token
+    - secretKey: GITHUB_WEBHOOK_SECRET
+      remoteKey: rafraf/staging/github-webhook-secret
+
+serviceAccount:
+  annotations:
+    # TODO: staging IRSA role ARN
+    eks.amazonaws.com/role-arn: "arn:aws:iam::827604626727:role/rafraf-backend-staging"
+
+ingress:
+  annotations:
+    # TODO: staging ACM cert ARN
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:eu-central-1:827604626727:certificate/STAGING-CERT-ID"
+  host: "staging-api.rafraf.app"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+hpa:
+  enabled: false  # staging stays at fixed 1 replica
+
+# T3.5-polish (M4): staging keeps wider CIDRs (faster cluster swaps in CI)
+# but still names the namespaces explicitly. Tighten when staging promotes
+# to a stable VPC.
+networkPolicy:
+  rdsCIDRs:
+    - 10.20.0.0/16  # TODO: staging VPC CIDR
+  redisCIDRs:
+    - 10.20.0.0/16  # TODO: staging VPC CIDR
+  externalHTTPSCIDRs:
+    - 0.0.0.0/0
+  externalHTTPSExcept:
+    - 169.254.169.254/32
+  albNamespace: kube-system
+  prometheusNamespace: monitoring

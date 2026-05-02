@@ -52,6 +52,10 @@ jobs:
         run: |
           GOOS=darwin GOARCH=arm64 go build -o /dev/null ./cmd/bridge
           GOOS=darwin GOARCH=amd64 go build -o /dev/null ./cmd/bridge
+          # V1.2 — the PreToolUse permission hook ships alongside the
+          # bridge binary; CI must compile it for both arches.
+          GOOS=darwin GOARCH=arm64 go build -o /dev/null ./internal/cmd/rafraf-perm-hook
+          GOOS=darwin GOARCH=amd64 go build -o /dev/null ./internal/cmd/rafraf-perm-hook
 
   release-binary:
     name: release prebuilt binaries (darwin)
@@ -79,6 +83,13 @@ jobs:
             -o dist/rafraf-bridge-darwin-arm64 ./cmd/bridge
           GOOS=darwin GOARCH=amd64 go build -ldflags "${LDFLAGS}" \
             -o dist/rafraf-bridge-darwin-amd64 ./cmd/bridge
+          # V1.2 — ship the PreToolUse permission hook alongside the
+          # bridge binary. The runner resolves it via os.Executable()
+          # sibling lookup so both binaries MUST land in the same dir.
+          GOOS=darwin GOARCH=arm64 go build -ldflags "${LDFLAGS}" \
+            -o dist/rafraf-perm-hook-darwin-arm64 ./internal/cmd/rafraf-perm-hook
+          GOOS=darwin GOARCH=amd64 go build -ldflags "${LDFLAGS}" \
+            -o dist/rafraf-perm-hook-darwin-amd64 ./internal/cmd/rafraf-perm-hook
           ls -lh dist/
 
       - name: GitHub Release upload

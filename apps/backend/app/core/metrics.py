@@ -121,6 +121,32 @@ claude_usage_report_total: Counter = Counter(
     registry=REGISTRY,
 )
 
+# V1.4 — bridge ``permission_request`` round-trip counters. The three
+# metrics partition the lifecycle so dashboards can plot
+# emit / decide / timeout on the same chart and answer the SRE
+# question "what fraction of permission_requests are auto-denying?"
+# without joining counters cross-component.
+permission_request_emitted_total: Counter = Counter(
+    "permission_request_emitted_total",
+    "permission_request envelopes received from bridges.",
+    labelnames=("bridge_id", "tool_name", "risk"),
+    registry=REGISTRY,
+)
+
+permission_request_decided_total: Counter = Counter(
+    "permission_request_decided_total",
+    "permission_request decisions dispatched back to bridges.",
+    labelnames=("bridge_id", "tool_name", "decision"),
+    registry=REGISTRY,
+)
+
+permission_request_timeout_total: Counter = Counter(
+    "permission_request_timeout_total",
+    "permission_request decisions that hit the timeout (auto-deny).",
+    labelnames=("bridge_id", "tool_name"),
+    registry=REGISTRY,
+)
+
 
 # ---------------------------------------------------------------------------
 # Gauges
@@ -230,6 +256,9 @@ __all__ = [
     "claude_total_cost_usd_total",
     "claude_usage_report_age_seconds",
     "claude_usage_report_total",
+    "permission_request_decided_total",
+    "permission_request_emitted_total",
+    "permission_request_timeout_total",
     "render_metrics",
     "storage_events_processed_total",
     "storage_watcher_lag_seconds",

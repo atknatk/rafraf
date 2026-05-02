@@ -196,6 +196,115 @@ func TestRoundTripMarshalUnmarshal(t *testing.T) {
 			},
 		},
 		{
+			name: "EventSessionPermissionRequest",
+			typ:  TypeEventSessionPermissionRequest,
+			build: func() (Envelope, error) {
+				inner := json.RawMessage(`{"command":"rm -rf tmp/build.log"}`)
+				return NewEventSessionPermissionRequest("session:abc", "corr-1", EventSessionPermissionRequest{
+					SessionID:    sessionID,
+					RequestID:    "req-uuid-7",
+					ToolName:     "Bash",
+					ToolInput:    inner,
+					InputPreview: "rm -rf tmp/build.log",
+					Risk:         "high",
+					Reason:       "off-whitelist Bash invocation",
+					TimeoutMs:    30000,
+					ParentTaskID: "task-42",
+				})
+			},
+			decode: func(t *testing.T, raw json.RawMessage) {
+				t.Helper()
+				var got EventSessionPermissionRequest
+				if err := json.Unmarshal(raw, &got); err != nil {
+					t.Fatalf("unmarshal: %v", err)
+				}
+				if got.SessionID != sessionID || got.RequestID != "req-uuid-7" {
+					t.Errorf("ids lost: %+v", got)
+				}
+				if got.ToolName != "Bash" || got.Risk != "high" {
+					t.Errorf("classification fields lost: %+v", got)
+				}
+				if got.TimeoutMs != 30000 {
+					t.Errorf("TimeoutMs = %d", got.TimeoutMs)
+				}
+				if got.ParentTaskID != "task-42" {
+					t.Errorf("ParentTaskID lost: %q", got.ParentTaskID)
+				}
+				if !bytes.Contains(got.ToolInput, []byte(`"rm -rf tmp/build.log"`)) {
+					t.Errorf("ToolInput passthrough lost: %s", string(got.ToolInput))
+				}
+				if got.InputPreview != "rm -rf tmp/build.log" {
+					t.Errorf("InputPreview lost: %q", got.InputPreview)
+				}
+				if got.Reason != "off-whitelist Bash invocation" {
+					t.Errorf("Reason lost: %q", got.Reason)
+				}
+			},
+		},
+		{
+			name: "CommandClaudePermissionAllow",
+			typ:  TypeCommandClaudePermissionAllow,
+			build: func() (Envelope, error) {
+				return NewCommandClaudePermissionAllow("session:abc", "corr-1", CommandClaudePermissionDecision{
+					SessionID: sessionID,
+					RequestID: "req-uuid-7",
+					Decision:  "allow",
+					Reason:    "user approved",
+				})
+			},
+			decode: func(t *testing.T, raw json.RawMessage) {
+				t.Helper()
+				var got CommandClaudePermissionDecision
+				if err := json.Unmarshal(raw, &got); err != nil {
+					t.Fatalf("unmarshal: %v", err)
+				}
+				if got.SessionID != sessionID || got.RequestID != "req-uuid-7" {
+					t.Errorf("ids lost: %+v", got)
+				}
+				if got.Decision != "allow" {
+					t.Errorf("Decision = %q", got.Decision)
+				}
+				if got.Reason != "user approved" {
+					t.Errorf("Reason lost: %q", got.Reason)
+				}
+				if len(got.UpdatedInput) != 0 {
+					t.Errorf("UpdatedInput should be empty, got %s", string(got.UpdatedInput))
+				}
+			},
+		},
+		{
+			name: "CommandClaudePermissionDeny",
+			typ:  TypeCommandClaudePermissionDeny,
+			build: func() (Envelope, error) {
+				return NewCommandClaudePermissionDeny("session:abc", "corr-1", CommandClaudePermissionDecision{
+					SessionID:    sessionID,
+					RequestID:    "req-uuid-9",
+					Decision:     "deny",
+					Reason:       "user denied",
+					UpdatedInput: json.RawMessage(`{"path":"/safer/path"}`),
+				})
+			},
+			decode: func(t *testing.T, raw json.RawMessage) {
+				t.Helper()
+				var got CommandClaudePermissionDecision
+				if err := json.Unmarshal(raw, &got); err != nil {
+					t.Fatalf("unmarshal: %v", err)
+				}
+				if got.SessionID != sessionID || got.RequestID != "req-uuid-9" {
+					t.Errorf("ids lost: %+v", got)
+				}
+				if got.Decision != "deny" {
+					t.Errorf("Decision = %q", got.Decision)
+				}
+				if got.Reason != "user denied" {
+					t.Errorf("Reason lost: %q", got.Reason)
+				}
+				if !bytes.Contains(got.UpdatedInput, []byte(`"/safer/path"`)) {
+					t.Errorf("UpdatedInput passthrough lost: %s", string(got.UpdatedInput))
+				}
+			},
+		},
+		{
 			name: "EventUsageReport",
 			typ:  TypeEventUsageReport,
 			build: func() (Envelope, error) {

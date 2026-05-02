@@ -32,8 +32,18 @@ class ApprovalRepository:
         timeout_at: datetime | None = None,
         connection_id: str | None = None,
         params: dict[str, object] | None = None,
+        request_id: str | None = None,
+        bridge_host_id: str | None = None,
+        rpc_id: str | None = None,
+        bridge_timeout_seconds: int | None = None,
     ) -> ApprovalRequest:
-        """Create a new approval request record."""
+        """Create a new approval request record.
+
+        The bridge-correlation kwargs (``request_id``, ``bridge_host_id``,
+        ``rpc_id``, ``bridge_timeout_seconds``) are populated for V1.4
+        bridge-originated rows and left as ``None`` for the legacy
+        orchestrator-mediated path so existing call sites stay compatible.
+        """
         record = ApprovalRequest(
             id=id,
             session_id=session_id,
@@ -46,6 +56,10 @@ class ApprovalRepository:
             status="pending",
             timeout_seconds=timeout_seconds,
             timeout_at=timeout_at,
+            request_id=request_id,
+            bridge_host_id=bridge_host_id,
+            rpc_id=rpc_id,
+            bridge_timeout_seconds=bridge_timeout_seconds,
         )
         self._session.add(record)
         await self._session.flush()

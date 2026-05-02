@@ -1,0 +1,125 @@
+# Production environment overrides — merged on top of values.yaml
+# Usage: helm upgrade --install rafraf-backend ./infra/helm/rafraf-backend \
+#        --namespace rafraf --create-namespace \
+#        -f infra/helm/rafraf-backend/values.yaml \
+#        -f infra/helm/rafraf-backend/values-prod.yaml
+#
+# REVIEW BEFORE FIRST DEPLOY — placeholders marked TODO must be filled in.
+
+image:
+  # Set by ArgoCD to the immutable 8-char git SHA on each release.
+  # Manual override: --set image.tag=<sha>
+  tag: "TODO-SET-PER-RELEASE"
+
+env:
+  LOG_LEVEL: INFO
+  OTEL_DEPLOYMENT_ENV: "production"
+  READY_REQUIRES_BRIDGE: "true"
+  # Adjust grace expiry as old HS256 tokens fully drain.
+  # ISO-8601 with "+00:00" offset for unambiguous Pydantic parsing.
+  JWT_LEGACY_GRACE_UNTIL: "2026-08-01T00:00:00+00:00"
+
+externalSecrets:
+  # Production AWS Secrets Manager paths (already wired in values.yaml — copied
+  # here for explicitness when reviewing prod manifest renders).
+  remoteRefs:
+    - secretKey: DATABASE_URL
+      remoteKey: rafraf/prod/db-url
+    - secretKey: REDIS_URL
+      remoteKey: rafraf/prod/redis-url
+    - secretKey: JWT_PRIVATE_KEY
+      remoteKey: rafraf/prod/jwt-private-key
+    - secretKey: JWT_PUBLIC_KEY
+      remoteKey: rafraf/prod/jwt-public-key
+    - secretKey: JWT_SECRET_KEY
+      remoteKey: rafraf/prod/jwt-secret-key
+    # T3.5-polish (M3): provision the JWT_LEGACY_HS256_SECRET path day-1 so a
+    # future rotation does not require a chart change. Value MAY be empty in
+    # AWS Secrets Manager initially; backend tolerates it (HS256 fallback just
+    # stays disabled). See values.yaml comment for details.
+    - secretKey: JWT_LEGACY_HS256_SECRET
+      remoteKey: rafraf/prod/jwt-legacy-hs256-secret
+    - secretKey: ANTHROPIC_API_KEY
+      remoteKey: rafraf/prod/anthropic-api-key
+    - secretKey: AGENT_API_KEY
+      remoteKey: rafraf/prod/agent-api-key
+    - secretKey: AWS_ACCESS_KEY_ID
+      remoteKey: rafraf/prod/aws-access-key-id
+    - secretKey: AWS_SECRET_ACCESS_KEY
+      remoteKey: rafraf/prod/aws-secret-access-key
+    - secretKey: AWS_S3_BUCKET
+      remoteKey: rafraf/prod/aws-s3-bucket
+    - secretKey: APNS_KEY
+      remoteKey: rafraf/prod/apns-key-p8
+    - secretKey: APNS_KEY_ID
+      remoteKey: rafraf/prod/apns-key-id
+    - secretKey: APNS_TEAM_ID
+      remoteKey: rafraf/prod/apns-team-id
+    - secretKey: GITHUB_TOKEN
+      remoteKey: rafraf/prod/github-token
+    - secretKey: GITHUB_WEBHOOK_SECRET
+      remoteKey: rafraf/prod/github-webhook-secret
+
+serviceAccount:
+  annotations:
+    # TODO: confirm production IRSA role ARN
+    eks.amazonaws.com/role-arn: "arn:aws:iam::827604626727:role/rafraf-backend-prod"
+
+ingress:
+  annotations:
+    # TODO: production ACM cert ARN
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:eu-central-1:827604626727:certificate/PROD-CERT-ID"
+  host: "api.rafraf.app"
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 768Mi
+  limits:
+    cpu: 1500m
+    memory: 1.5Gi
+
+hpa:
+  enabled: true
+  minReplicas: 1
+  # CRITICAL: keep at 1 — see comment in values.yaml about bridge_registry.
+  maxReplicas: 1
+  targetCPUUtilizationPercentage: 70
+
+# Long-running WS sessions need a longer drain budget than the default 60s.
+# 120s gives the preStop sleep + uvicorn graceful shutdown enough room to
+# finish in-flight Anthropic streams before SIGKILL. Staging keeps the
+# faster 60s default for quicker CI rollouts.
+terminationGracePeriodSeconds: 120
+
+# T3.5-polish (M4): subnet-scoped CIDRs via structured values. The chart
+# template fans these out into the four egress rules (RDS, Redis, DNS,
+# External HTTPS) and the two ingress rules (ALB ns, Prometheus ns).
+# Note: leaving `egress`/`ingress` empty keeps the structured form active.
+networkPolicy:
+  # TODO: replace with the actual prod RDS subnet CIDR(s) (e.g. /24 per AZ).
+  rdsCIDRs:
+    - 10.10.1.0/24
+    - 10.10.2.0/24
+    - 10.10.3.0/24
+  # TODO: replace with the actual prod ElastiCache subnet CIDR(s).
+  redisCIDRs:
+    - 10.10.11.0/24
+    - 10.10.12.0/24
+    - 10.10.13.0/24
+  # Anthropic + GitHub + APNs publish no fixed CIDR list — keep wide HTTPS,
+  # but always block IMDS to enforce IRSA.
+  externalHTTPSCIDRs:
+    - 0.0.0.0/0
+  externalHTTPSExcept:
+    - 169.254.169.254/32
+  albNamespace: kube-system
+  prometheusNamespace: monitoring
+
+# T3.5-polish-fix (HIGH #2): fail-fast guard against shipping placeholder
+# RDS/Redis CIDRs to a real prod cluster. With prodGuard.enabled=true the
+# chart refuses to render if rdsCIDRs/redisCIDRs still contain the
+# illustrative 10.10.x.0/24 values from above. Replace those, then the
+# render passes. Bypass for non-prod testing: --set prodGuard.enabled=false.
+prodGuard:
+  enabled: true

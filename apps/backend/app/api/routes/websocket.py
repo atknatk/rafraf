@@ -12,13 +12,14 @@ from uuid import uuid4
 import structlog
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
+from app.core import metrics as _metrics
 from app.core.config import get_settings
 from app.core.database import async_session_factory
 from app.core.security import SecurityError, verify_access_token
 from app.core.websocket import ConnectionManager
 from app.orchestrator.claude_code_runner import ToolProgressEvent
 from app.orchestrator.question_bridge import get_question_bridge
-from app.schemas.approval import ApprovalDecision
+from app.schemas.approval import ApprovalDecision, ApprovalRequestRecord
 from app.schemas.messages import (
     ChatStreamEndPayload,
     ChatStreamPayload,
@@ -234,7 +235,7 @@ async def _handle_message(
     elif msg_type == MessageType.TEXT:
         await _handle_text(raw_data, connection_id, session_id, user_id)
     elif msg_type == MessageType.APPROVAL_RESPONSE:
-        await _handle_approval_response(raw_data, connection_id, session_id)
+        await _handle_approval_response(raw_data, connection_id, session_id, user_id)
     elif msg_type == MessageType.CANCEL_STREAM:
         await _handle_cancel_stream(connection_id, session_id)
     else:
@@ -646,6 +647,129 @@ async def _process_with_orchestrator(
             session_id=session_id,
         )
 
+    async def _on_permission_request(
+        record: ApprovalRequestRecord,
+        bridge_host_id: str,
+        rpc_id: str,
+        timeout_seconds: int,
+    ) -> None:
+        """Push the bridge ``permission_request`` QUESTION to iOS and
+        spawn the decision-await + bridge-reply round-trip.
+
+        The decision-await coroutine is fire-and-forget because the
+        runner's stream loop must keep consuming further envelopes
+        (claude may emit multiple parallel ``permission_request``
+        envelopes for sub-agents in flight). See V1.4 §2.1.4.
+        """
+        approval_service = get_approval_service()
+        question_envelope = approval_service.build_question_message(
+            record,
+            session_id=session_id,
+        )
+        with contextlib.suppress(Exception):
+            await manager.send_json(_current_conn(), question_envelope)
+
+        asyncio.create_task(
+            _await_and_dispatch_decision(
+                record=record,
+                bridge_host_id=bridge_host_id,
+                rpc_id=rpc_id,
+                timeout_seconds=timeout_seconds,
+            )
+        )
+
+    async def _await_and_dispatch_decision(
+        *,
+        record: ApprovalRequestRecord,
+        bridge_host_id: str,
+        rpc_id: str,
+        timeout_seconds: int,
+    ) -> None:
+        """Block on the user's decision, then dispatch the decision RPC.
+
+        On timeout (``ApprovalResult.decision == "expired"``) we still
+        emit the ``command.claude.permission.deny`` envelope so the
+        bridge's UDS broker doesn't have to rely solely on its own
+        deadline. The Prometheus timeout counter increments here too —
+        the design's invariant "silence is never a yes" must be
+        observable on the same dashboard panel as the regular
+        approve/deny mix.
+
+        On bridge offline (``send_to_bridge`` returns ``False``) we log
+        ``permission_dispatch_failed`` and rely on the bridge-side
+        timeout to deny. This degrades gracefully: even if the bridge
+        WS dies mid-decision, the broker's own ``timeout_ms`` window
+        still fires the hook's deny path.
+        """
+        approval_service = get_approval_service()
+        result = await approval_service.wait_for_decision(
+            record.id,
+            timeout_override=timeout_seconds,
+        )
+
+        decision_str: str
+        envelope_type: str
+        if result.approved:
+            decision_str = "allow"
+            envelope_type = "command.claude.permission.allow"
+        else:
+            decision_str = "deny"
+            envelope_type = "command.claude.permission.deny"
+            if result.decision == "expired":
+                _metrics.permission_request_timeout_total.labels(
+                    bridge_id=bridge_host_id,
+                    tool_name=record.tool_name or "unknown",
+                ).inc()
+
+        envelope: dict[str, object] = {
+            "type": envelope_type,
+            "id": str(uuid4()),
+            "ts": datetime.now(tz=UTC).isoformat(),
+            "correlation_id": rpc_id,
+            "target": bridge_host_id,
+            "payload": {
+                "session_id": record.session_id,
+                "request_id": record.request_id or record.id,
+                "decision": decision_str,
+                "reason": result.note or "",
+            },
+        }
+
+        sent = await bridge_registry.send_to_bridge(bridge_host_id, envelope)
+        if not sent:
+            await logger.awarning(
+                "permission_dispatch_failed",
+                bridge_host_id=bridge_host_id,
+                request_id=record.request_id,
+                rpc_id=rpc_id,
+                decision=decision_str,
+            )
+
+        # Decided counter — labels include the resolved decision so
+        # the dashboard can split allow / deny / expired panels.
+        _metrics.permission_request_decided_total.labels(
+            bridge_id=bridge_host_id,
+            tool_name=record.tool_name or "unknown",
+            decision=result.decision,
+        ).inc()
+
+        # Audit emit — V1.4 closes the runbook §11 wiring gap #4 second
+        # leg: the existing ``_handle_approval_response`` audit call
+        # only fires for iOS-driven decisions (the user actively taps
+        # a button). Bridge-originated permission_requests that
+        # auto-deny on timeout never go through that path; this emit
+        # ensures every decision lands in the audit log regardless of
+        # the trigger source. AuditService swallows DB write failures
+        # internally, preserving the "audit must not break operations"
+        # invariant.
+        await _emit_approval_audit_log(
+            user_id=user_id,
+            session_id=record.session_id or session_id,
+            tool_name=record.tool_name,
+            action=record.action,
+            decision=result.decision,
+        )
+
     # --- Ana islem ---
 
     async def _run_processing() -> None:
@@ -732,6 +856,7 @@ async def _process_with_orchestrator(
                         on_stream_end=_on_stream_end,
                         on_tool_progress=_on_tool_progress,
                         on_question=_on_question,
+                        on_permission_request=_on_permission_request,
                     )
             else:
                 # --- FALLBACK PATH: API ---
@@ -911,10 +1036,15 @@ async def _handle_approval_response(
     raw_data: dict[str, object],
     connection_id: str,
     session_id: str,
+    user_id: str,
 ) -> None:
     """Process an approval response from the client.
 
     Extracts the decision payload and submits it to the approval service.
+    Wires ``AuditService.log_tool_call(approval_required=True)`` at the
+    submit_decision call site so each user-supplied decision (allow / deny)
+    lands in the audit log alongside tool execution events. Resolves
+    runbook §11 wiring gap #4 (`docs/runbooks/permission-flow.md`).
     """
     content = raw_data.get("content")
     if not isinstance(content, dict):
@@ -957,7 +1087,25 @@ async def _handle_approval_response(
     )
 
     approval_service = get_approval_service()
+    # Snapshot the pending record BEFORE submit_decision consumes it (the
+    # service's _process_decision path pops the record from _pending).
+    # We need tool_name/action from the original request to populate the
+    # audit row.
+    pending_snapshot = approval_service.get_pending_approval(approval_id)
     submitted = await approval_service.submit_decision(decision)
+
+    # Wiring gap #4 (T3.2 runbook §11 → §10): every approval/denial must
+    # reach the audit log so SREs can answer "did the user approve X at Y"
+    # without trawling _history. Best-effort — audit failure must NEVER
+    # break the WebSocket flow.
+    if submitted and pending_snapshot is not None:
+        await _emit_approval_audit_log(
+            user_id=user_id,
+            session_id=session_id,
+            tool_name=pending_snapshot.tool_name,
+            action=pending_snapshot.action,
+            decision=decision_str,
+        )
 
     # Also check QuestionBridge for claude -p questions
     if not submitted:
@@ -985,3 +1133,53 @@ async def _handle_approval_response(
         decision=decision_str,
         submitted=submitted,
     )
+
+
+async def _emit_approval_audit_log(
+    *,
+    user_id: str,
+    session_id: str,
+    tool_name: str,
+    action: str,
+    decision: str,
+) -> None:
+    """Persist an approval decision to the audit log via ``AuditService``.
+
+    Wraps the dedicated DB session lifecycle so the WebSocket request flow
+    is decoupled from audit persistence. Mirrors the best-effort posture of
+    the rest of the approval pipeline — exceptions are caught and logged
+    but never re-raised. ``user_id`` is parsed as a UUID; non-UUID
+    subjects (test stubs) are recorded with ``user_id=None`` so the row
+    still lands.
+    """
+    try:
+        user_uuid: _uuid_mod.UUID | None
+        try:
+            user_uuid = _uuid_mod.UUID(user_id)
+        except ValueError:
+            user_uuid = None
+
+        # Lazy imports keep the module import graph thin and avoid
+        # pulling the audit + DB layer into the hot WebSocket import path
+        # for connections that never see an approval response.
+        from app.services.audit_service import AuditService
+
+        async with async_session_factory() as db:
+            audit = AuditService(db)
+            await audit.log_tool_call(
+                tool_name=tool_name,
+                action=action,
+                success=(decision == "approved"),
+                session_id=session_id,
+                user_id=user_uuid,
+                output_result={"decision": decision},
+                approval_required=True,
+            )
+            await db.commit()
+    except Exception:
+        await logger.aexception(
+            "approval_audit_log_emit_failed",
+            session_id=session_id,
+            tool_name=tool_name,
+            decision=decision,
+        )

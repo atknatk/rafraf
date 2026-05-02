@@ -34,12 +34,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/claude"
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/config"
+	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/permission"
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/protocol"
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/statusline"
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/storage"
@@ -54,6 +56,14 @@ const (
 	telemetryShutdownGrace  = 5 * time.Second
 	postShutdownDrainPause  = 200 * time.Millisecond
 	authCheckTimeoutSeconds = 10
+	// staleArtifactMaxAge is the threshold above which the V1.2
+	// startup sweep deletes leftover settings overlays from prior
+	// crashed bridge runs.
+	staleArtifactMaxAge = time.Hour
+	// permissionHookSibling is the file name of the hook binary
+	// shipped alongside the bridge binary. The runner resolves it via
+	// os.Executable() + sibling lookup at startup.
+	permissionHookSibling = "rafraf-perm-hook"
 )
 
 // run is the testable entrypoint. It returns the desired process exit code
@@ -152,6 +162,46 @@ func run(args []string) int {
 	// Claude subprocess runner.
 	runner := claude.NewRunner(cfg, logger)
 
+	// V1.2 — start the permission Broker + UDS listener and wire it
+	// into the runner so the per-session settings overlay can register
+	// the PreToolUse hook.
+	//
+	// The startup sweep drops leftover sock + settings files from a
+	// previously crashed bridge before we bind our own socket. Failures
+	// are non-fatal: the broker also reclaims a stale socket on bind.
+	permission.SweepStaleArtifacts(logger, "", staleArtifactMaxAge)
+	broker, brokerErr := permission.NewBroker("", logger)
+	if brokerErr != nil {
+		// Broker startup failure is degraded-mode but not fatal —
+		// without it tool calls flow without approval prompts (the
+		// runner skips --settings injection). The operator must
+		// restart to recover. Log loudly.
+		logger.Error("permission broker startup failed; running without approval hook",
+			"err", brokerErr,
+		)
+	} else {
+		if err := broker.Start(ctx); err != nil {
+			logger.Error("permission broker start failed", "err", err)
+		}
+		hookPath := resolvePermissionHookPath(logger)
+		// V1.3 — pass the broker itself so claude.Runner.Run can install
+		// its per-run SetRequestHandler closure (which routes broker
+		// requests through the per-RPC wsEventSink so envelopes carry
+		// the originating command.claude.run correlation_id).
+		runner.SetPermissionContext(broker, broker.Sock(), hookPath)
+		logger.Info("permission broker wired into runner",
+			"sock", broker.Sock(),
+			"hook", hookPath,
+		)
+	}
+	defer func() {
+		if broker != nil {
+			if err := broker.Close(); err != nil {
+				logger.Warn("permission broker close error", "err", err)
+			}
+		}
+	}()
+
 	// Pre-flight auth check. A failure is non-fatal — the bridge stays
 	// alive so the operator can refresh `claude login` without restarting
 	// the daemon. We surface event.bridge.auth_expired so the control
@@ -210,17 +260,17 @@ func run(args []string) int {
 		}()
 	}
 
-	// Inbound dispatcher: drain ws inbound (when supported) and route
-	// command.* envelopes to the runner. The current ws.Client only
-	// reads to keep the socket alive; once it gains an inbound channel
-	// the existing routeInbound() helper will subscribe directly.
-	// Until then this loop exits immediately on ctx cancellation; it
-	// exists so the wiring is in place for T0.5.14+ inbound work
-	// without further main.go churn.
+	// Inbound dispatcher: single consumer of ws.Client.Inbound. V1.1 wired
+	// the channel + JSON decode in the ws reader; this loop fans frames
+	// into dispatchCommand. Each handler is required to be non-blocking
+	// (synchronous work must be moved into a goroutine) so a slow handler
+	// cannot back up the bounded Inbound buffer — V1.3 broker.Resolve
+	// follows the same contract (non-blocking send into a buffered ch1
+	// channel, drop on full).
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		runInboundDispatcher(ctx, runner, wsClient, logger)
+		runInboundDispatcher(ctx, runner, wsClient, logger, broker)
 	}()
 
 	logger.Info("rafraf-bridge ready",
@@ -322,32 +372,57 @@ func runMetricsPrinter(ctx context.Context, wg *sync.WaitGroup, logger *slog.Log
 	}
 }
 
-// runInboundDispatcher drains ws.Client.Inbound and routes command.* frames
-// to the runner. The ws.Client today exposes no inbound channel — the
-// reader goroutine inside connectAndPump silently discards frames so the
-// connection stays alive — so this loop selects only on ctx.Done(). The
-// dispatchCommand closure below is fully wired to the runner so the moment
-// ws.Client gains an Inbound channel (T0.5.14+) the switch in dispatchCommand
-// will already be the canonical entry point.
+// runInboundDispatcher drains ws.Client.Inbound and routes command.*
+// frames to the runner via dispatchCommand. The ws.Client reader
+// goroutine decodes each WSS frame into a protocol.Envelope and fans
+// it through the bounded Inbound channel; this loop is the single
+// consumer.
 //
-// We allocate the dispatch closure here rather than a free function so the
-// linter sees both wsEventSink and dispatchCommand as live (the goroutine
-// itself never invokes them today, but the closure captures the references).
-func runInboundDispatcher(ctx context.Context, runner *claude.Runner, wsClient *ws.Client, logger *slog.Logger) {
-	dispatch := func(env protocol.Envelope) {
-		dispatchCommand(ctx, runner, wsClient, logger, env)
-	}
-	logger.Debug("inbound dispatcher started — ws.Client.Inbound channel deferred to T0.5.14+",
-		"dispatch_ready", dispatch != nil,
+// V1.1 wired the plumbing for command.claude.run / command.claude.abort
+// (already supported by dispatchCommand). V1.3 adds the permission
+// decision RPCs (command.claude.permission.allow|deny) which route
+// through the broker — broker may be nil when its V1.2 startup failed,
+// in which case the new cases short-circuit with a warn log so the
+// bridge stays alive in degraded mode. correlation_id discipline is
+// preserved end-to-end: the bridge originates a permission_request
+// envelope with correlation_id = command.claude.run rpc id, the
+// backend awaiter echoes it back on the decision RPC, and the broker
+// resolves by the payload-level RequestID.
+func runInboundDispatcher(ctx context.Context, runner *claude.Runner, wsClient *ws.Client, logger *slog.Logger, broker *permission.Broker) {
+	logger.Debug("inbound dispatcher started",
+		"inbound_capacity", cap(wsClient.Inbound),
+		"broker_attached", broker != nil,
 	)
-	<-ctx.Done()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case env, ok := <-wsClient.Inbound:
+			if !ok {
+				return
+			}
+			dispatchCommand(ctx, runner, wsClient, logger, broker, env)
+		}
+	}
 }
 
 // dispatchCommand routes a parsed command.* envelope to the runner. It is
 // invoked from runInboundDispatcher once the ws.Client surfaces inbound
 // frames. Kept as a free function so tests can exercise the routing
 // without spinning up the full process.
-func dispatchCommand(ctx context.Context, runner *claude.Runner, wsClient *ws.Client, logger *slog.Logger, env protocol.Envelope) {
+//
+// All handlers MUST be non-blocking (V1.1 reviewer M1 contract). Long
+// work is moved into goroutines so a slow handler cannot wedge the
+// bounded Inbound channel. The V1.3 permission cases satisfy this by
+// calling broker.Resolve, which performs a non-blocking send into the
+// per-request buffered channel and drops silently if the waiter is
+// gone (timed out / closed).
+//
+// broker may be nil — V1.2 broker startup failure is non-fatal, the
+// bridge runs in degraded mode without approval prompts. The new
+// permission cases short-circuit with a warn log when broker == nil
+// rather than panicking.
+func dispatchCommand(ctx context.Context, runner *claude.Runner, wsClient *ws.Client, logger *slog.Logger, broker *permission.Broker, env protocol.Envelope) {
 	switch env.Type {
 	case protocol.TypeCommandClaudeRun:
 		var cmd protocol.CommandClaudeRun
@@ -385,9 +460,70 @@ func dispatchCommand(ctx context.Context, runner *claude.Runner, wsClient *ws.Cl
 			logger.Warn("dispatch: invalid command.claude.abort payload", "err", err, "id", env.ID)
 			return
 		}
-		if err := runner.Abort(cmd.SessionID); err != nil {
-			logger.Warn("abort failed", "err", err, "session_id", cmd.SessionID)
+		// runner.Abort blocks for ~100ms (abortGracePeriod). Spawn a
+		// goroutine so back-to-back aborts do not wedge the bounded
+		// Inbound buffer. Abort is idempotent + thread-safe.
+		go func() {
+			if err := runner.Abort(cmd.SessionID); err != nil {
+				logger.Warn("abort failed", "err", err, "session_id", cmd.SessionID)
+			}
+		}()
+	case protocol.TypeCommandClaudePermissionAllow:
+		// Note (V1.3 reviewer M1): unhappy-path logger.Warn calls below
+		// are formally synchronous stderr writes. In practice slog's
+		// JSON handler is fast (<10us) and stderr is rarely the
+		// bottleneck. Healthy-path is broker.Resolve which IS non-
+		// blocking by contract (broker.go CRITICAL CONTRACTS).
+		// Acceptable deviation from V1.1 reviewer M1 strict reading.
+		if broker == nil {
+			logger.Warn("dispatch: permission.allow received but broker is nil (degraded V1.2 path)",
+				"id", env.ID,
+				"correlation_id", env.CorrelationID,
+			)
+			return
 		}
+		var cmd protocol.CommandClaudePermissionDecision
+		if err := json.Unmarshal(env.Payload, &cmd); err != nil {
+			logger.Warn("dispatch: invalid command.claude.permission.allow payload",
+				"err", err,
+				"id", env.ID,
+			)
+			return
+		}
+		if cmd.RequestID == "" {
+			logger.Warn("dispatch: permission.allow missing request_id",
+				"id", env.ID,
+				"correlation_id", env.CorrelationID,
+			)
+			return
+		}
+		// Resolve is non-blocking by contract — see broker.go's
+		// CRITICAL CONTRACTS doc block.
+		broker.Resolve(cmd.RequestID, permission.DecisionAllow)
+	case protocol.TypeCommandClaudePermissionDeny:
+		if broker == nil {
+			logger.Warn("dispatch: permission.deny received but broker is nil (degraded V1.2 path)",
+				"id", env.ID,
+				"correlation_id", env.CorrelationID,
+			)
+			return
+		}
+		var cmd protocol.CommandClaudePermissionDecision
+		if err := json.Unmarshal(env.Payload, &cmd); err != nil {
+			logger.Warn("dispatch: invalid command.claude.permission.deny payload",
+				"err", err,
+				"id", env.ID,
+			)
+			return
+		}
+		if cmd.RequestID == "" {
+			logger.Warn("dispatch: permission.deny missing request_id",
+				"id", env.ID,
+				"correlation_id", env.CorrelationID,
+			)
+			return
+		}
+		broker.Resolve(cmd.RequestID, permission.DecisionDeny)
 	default:
 		logger.Debug("dispatch: ignoring envelope", "type", env.Type, "id", env.ID)
 	}
@@ -465,6 +601,18 @@ func (s *wsEventSink) OnResult(ev protocol.EventSessionResult) error {
 	return s.emit(protocol.NewEventSessionResult(s.target(ev.SessionID), s.correlationID, ev))
 }
 
+// OnPermissionRequest pushes the V1.3 permission_request envelope.
+// Unlike the parser-driven callbacks above, this one is invoked by the
+// permission Broker via the closure installed in claude.Runner.Run, so
+// each emission is guaranteed to carry the originating
+// command.claude.run correlation_id (s.correlationID). The backend
+// dispatcher uses that correlation_id to route the envelope back into
+// the right per-RPC subscriber queue (silently dropping
+// correlation-less events).
+func (s *wsEventSink) OnPermissionRequest(ev protocol.EventSessionPermissionRequest) error {
+	return s.emit(protocol.NewEventSessionPermissionRequest(s.target(ev.SessionID), s.correlationID, ev))
+}
+
 // wsStorageSink adapts storage.Sink to ws.Client.Send.
 type wsStorageSink struct {
 	ws *ws.Client
@@ -506,6 +654,47 @@ func (s *wsStorageSink) OnHookAttachment(ev protocol.EventStorageHookAttachment)
 	}
 	s.ws.Send(env)
 	return nil
+}
+
+// resolvePermissionHookPath returns the absolute path to the
+// rafraf-perm-hook binary that ships alongside the bridge. We
+// discover it via os.Executable() + sibling lookup so the same
+// resolution works in dev (running `go run ./cmd/bridge`), in a
+// hand-built `make build` layout, and in the eventual `.pkg`
+// install layout (/usr/local/bin/{rafraf-bridge,rafraf-perm-hook}).
+//
+// Returns "" when the sibling binary cannot be found; the runner
+// then logs a warning and skips the --settings injection so dev
+// without the hook still works.
+func resolvePermissionHookPath(logger *slog.Logger) string {
+	exe, err := os.Executable()
+	if err != nil {
+		logger.Warn("permission hook resolve: os.Executable failed",
+			"err", err,
+		)
+		return ""
+	}
+	// V1.2-fix M1: os.Executable() may return a symlink target on
+	// macOS Mach-O. Brew/launchd installs that symlink the bridge
+	// binary would otherwise probe the wrong sibling directory and
+	// silently disable the PreToolUse hook. EvalSymlinks resolves
+	// to the real binary's directory before the sibling lookup.
+	if resolved, evalErr := filepath.EvalSymlinks(exe); evalErr == nil {
+		exe = resolved
+	} else {
+		logger.Debug("permission hook resolve: EvalSymlinks failed; using raw path",
+			"err", evalErr,
+		)
+	}
+	exeDir := filepath.Dir(exe)
+	candidate := filepath.Join(exeDir, permissionHookSibling)
+	if _, statErr := os.Stat(candidate); statErr == nil {
+		return candidate
+	}
+	logger.Debug("permission hook resolve: sibling missing",
+		"candidate", candidate,
+	)
+	return ""
 }
 
 // newWSUsageSink builds a statusline.UsageSink closure that forwards each

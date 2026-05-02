@@ -1,0 +1,72 @@
+{{- /* Helm post-install / post-upgrade hints. */ -}}
+RafRaf Backend chart {{ .Chart.Version }} (app {{ .Chart.AppVersion }}) deployed
+to namespace "{{ .Release.Namespace }}" as release "{{ .Release.Name }}".
+
+  Image:        {{ include "rafraf-backend.image" . }}
+  Replicas:     {{ .Values.replicaCount }}  (V1 architecture: in-memory bridge_registry — DO NOT scale)
+  Service:      {{ include "rafraf-backend.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+{{- if .Values.ingress.enabled }}
+  Public URL:   https://{{ .Values.ingress.host }}
+{{- end }}
+
+------------------------------------------------------------------------
+Verify rollout:
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "rafraf-backend.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Tail logs:
+  kubectl -n {{ .Release.Namespace }} logs -f deploy/{{ include "rafraf-backend.fullname" . }}
+
+Probe inside the cluster:
+  kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "rafraf-backend.fullname" . }} -- curl -s http://localhost:{{ .Values.service.port }}/health
+  kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "rafraf-backend.fullname" . }} -- curl -s http://localhost:{{ .Values.service.port }}/ready
+
+Run the chart's smoke test (curls /health from a freshly scheduled pod):
+  helm -n {{ .Release.Namespace }} test {{ .Release.Name }}
+
+{{- if eq .Values.image.tag "" }}
+
+WARNING: image.tag is empty — falling back to .Chart.AppVersion ({{ .Chart.AppVersion }}).
+For production, ALWAYS set image.tag to the immutable 8-char git SHA from the
+backend-deploy.yml workflow output.
+{{- end }}
+{{- if .Values.serviceAccount.create }}
+{{- $arn := index .Values.serviceAccount.annotations "eks.amazonaws.com/role-arn" }}
+{{- if or (eq $arn nil) (eq $arn "") }}
+
+NOTE: ServiceAccount has no IRSA role ARN annotation. Set
+serviceAccount.annotations."eks.amazonaws.com/role-arn" in values-{env}.yaml so
+the pod can pull secrets from AWS Secrets Manager and write to S3.
+{{- end }}
+{{- end }}
+
+------------------------------------------------------------------------
+## Ingress / ALB requirement
+
+ingress.host is REQUIRED when ingress.enabled=true. The chart fails the
+render with a helpful message if it is empty — this prevents a silent
+ALB Controller misconfiguration where `host: ""` provisions a broken
+load balancer. Per-env values files MUST set ingress.host:
+
+  values-staging.yaml -> ingress.host: staging-api.rafraf.app
+  values-prod.yaml    -> ingress.host: api.rafraf.app
+
+------------------------------------------------------------------------
+## Secret rotation post-deploy
+
+The ExternalSecret refreshes the underlying Kubernetes Secret on the
+configured interval ({{ .Values.externalSecrets.refreshInterval }}), but
+running pods do NOT restart automatically when the Secret changes.
+JWT_PRIVATE_KEY / JWT_PUBLIC_KEY / APNS_KEY / database creds rotated
+in AWS Secrets Manager will only take effect after a manual rollout:
+
+  kubectl -n {{ .Release.Namespace }} rollout restart deploy/{{ include "rafraf-backend.fullname" . }}
+  kubectl -n {{ .Release.Namespace }} rollout status  deploy/{{ include "rafraf-backend.fullname" . }}
+
+Cross-references:
+  - docs/runbooks/jwt-key-rotation.md  (T2.9)  — RS256 key rotation flow
+  - docs/runbooks/secret-rotation.md   (T3.8)  — generic AWS SM rotation
+
+Future infra option: deploy stakater/Reloader controller (annotation-driven
+auto-restart on Secret/ConfigMap change). Out of scope for T3.5; track as a
+separate infra task.

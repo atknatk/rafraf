@@ -437,4 +437,60 @@ struct WebSocketMessageTests {
             Issue.record("Content taskStatus olmali")
         }
     }
+
+    // MARK: - V1.5 Question Content (backend QUESTION envelope)
+
+    @Test("question envelope ApprovalQuestionDTO icine decode edilmeli")
+    func questionEnvelopeDecode() throws {
+        // Backend reference: apps/backend/app/services/approval_service.py::build_question_message
+        // V1.4-fix HIGH: timeout_seconds bridge_timeout_seconds yansitir (clamped 30s).
+        let json = """
+        {
+            "id": "msg-q-1",
+            "type": "question",
+            "content": {
+                "approval_id": "appr-uuid-123",
+                "question": "rm -rf /tmp/build.log",
+                "context": "Tool: Bash, Action: rm -rf /tmp/build.log",
+                "options": [
+                    {"id": "approve", "label": "Onayla", "style": "primary"},
+                    {"id": "reject", "label": "Reddet", "style": "danger"}
+                ],
+                "timeout_seconds": 30,
+                "category": "destructive"
+            },
+            "metadata": {
+                "timestamp": "2026-05-02T12:00:00Z",
+                "session_id": "sess-789",
+                "direction": "server_to_client"
+            }
+        }
+        """
+        let data = try #require(json.data(using: .utf8))
+        let decoder = JSONDecoder()
+        let message = try decoder.decode(WebSocketBaseMessage.self, from: data)
+
+        #expect(message.type == "question")
+        #expect(message.metadata?.sessionId == "sess-789")
+
+        if case .question(let dto) = message.content {
+            #expect(dto.approvalId == "appr-uuid-123")
+            #expect(dto.question == "rm -rf /tmp/build.log")
+            #expect(dto.context == "Tool: Bash, Action: rm -rf /tmp/build.log")
+            #expect(dto.timeoutSeconds == 30)
+            #expect(dto.category == "destructive")
+            #expect(dto.options.count == 2)
+            #expect(dto.options[0].id == "approve")
+            #expect(dto.options[0].style == "primary")
+            #expect(dto.options[1].id == "reject")
+            #expect(dto.options[1].style == "danger")
+        } else {
+            Issue.record("Content question(ApprovalQuestionDTO) olmali")
+        }
+    }
+
+    @Test("question MessageType enum 'question' raw value'ya sahip")
+    func questionMessageTypeRawValue() {
+        #expect(WebSocketMessageType.question.rawValue == "question")
+    }
 }

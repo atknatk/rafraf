@@ -45,6 +45,7 @@ from app.core.telemetry import get_tracer
 if TYPE_CHECKING:
     from app.repositories.session_repo import SessionRepository
     from app.repositories.subagent_repo import SubagentRepository
+    from app.schemas.approval import ApprovalRequestRecord
     from app.services.bridge_registry_service import BridgeRegistryService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
@@ -112,6 +113,19 @@ SubagentSpawnedCallback = Callable[[dict[str, object]], Coroutine[object, object
 SubagentProgressCallback = Callable[[dict[str, object]], Coroutine[object, object, None]]
 SubagentCompletedCallback = Callable[[dict[str, object]], Coroutine[object, object, None]]
 RateLimitCallback = Callable[[dict[str, object]], Coroutine[object, object, None]]
+
+# V1.4 — bridge ``event.session.permission_request`` callback.
+# Receives the freshly-created :class:`ApprovalRequestRecord` plus the
+# routing trio (bridge_host_id, rpc_id, timeout_seconds) the awaiter
+# needs to dispatch the eventual ``command.claude.permission.{allow,
+# deny}`` envelope back. The runner stays pure event-dispatch — the
+# callback owns the iOS push + decision-await + bridge-reply round-trip
+# and MUST be fire-and-forget so the runner's stream loop is never
+# blocked by user think-time. See design doc V1.4 §2.1.4 + §2.2.3.
+PermissionRequestCallback = Callable[
+    ["ApprovalRequestRecord", str, str, int],
+    Coroutine[object, object, None],
+]
 
 
 @dataclass(frozen=True)
@@ -245,6 +259,7 @@ class ClaudeCodeRunner:
         on_subagent_progress: SubagentProgressCallback | None = None,
         on_subagent_completed: SubagentCompletedCallback | None = None,
         on_rate_limit: RateLimitCallback | None = None,
+        on_permission_request: PermissionRequestCallback | None = None,
         append_system_prompt: str | None = None,  # noqa: ARG002 (forwarded later)
     ) -> ClaudeCodeResult:
         """Send a ``command.claude.run`` RPC to a bridge and stream events.
@@ -278,6 +293,15 @@ class ClaudeCodeRunner:
                 ``event.session.task_notification``.
             on_rate_limit: Optional callback for
                 ``event.session.rate_limit``.
+            on_permission_request: Optional callback for
+                ``event.session.permission_request`` (V1.4). Receives
+                the freshly-created :class:`ApprovalRequestRecord`,
+                ``bridge_host_id``, ``rpc_id`` (originating
+                ``command.claude.run`` correlation_id), and
+                ``timeout_seconds`` so the awaiter can dispatch the
+                eventual ``command.claude.permission.{allow,deny}``
+                envelope back. MUST be fire-and-forget — the runner's
+                stream loop waits for nothing.
             append_system_prompt: Reserved (currently ignored; will be
                 forwarded to the bridge once the RPC payload schema gains
                 an ``append_system_prompt`` field — out of scope for T1.1).
@@ -319,6 +343,7 @@ class ClaudeCodeRunner:
                     on_subagent_progress=on_subagent_progress,
                     on_subagent_completed=on_subagent_completed,
                     on_rate_limit=on_rate_limit,
+                    on_permission_request=on_permission_request,
                     span=run_span,
                 )
             except ClaudeCodeError as exc:
@@ -344,6 +369,7 @@ class ClaudeCodeRunner:
         on_subagent_progress: SubagentProgressCallback | None,
         on_subagent_completed: SubagentCompletedCallback | None,
         on_rate_limit: RateLimitCallback | None,
+        on_permission_request: PermissionRequestCallback | None,
         span: trace.Span,
     ) -> ClaudeCodeResult:
         """Inner body of :meth:`run`, kept separate so the span context manager
@@ -423,6 +449,7 @@ class ClaudeCodeRunner:
             on_subagent_progress=on_subagent_progress,
             on_subagent_completed=on_subagent_completed,
             on_rate_limit=on_rate_limit,
+            on_permission_request=on_permission_request,
         )
 
         try:
@@ -439,6 +466,7 @@ class ClaudeCodeRunner:
                         bridge_host_id=target_host_id,
                         db_session_id=db_session_id,
                         user_id=user_id,
+                        rpc_id=rpc_id,
                     )
                     if terminal:
                         break
@@ -514,6 +542,7 @@ class ClaudeCodeRunner:
         bridge_host_id: str,
         db_session_id: uuid.UUID | None = None,
         user_id: str | None = None,
+        rpc_id: str = "",
     ) -> bool:
         """Route one bridge event to the right callback + state slot.
 
@@ -544,6 +573,7 @@ class ClaudeCodeRunner:
                     db_session_id=db_session_id,
                     user_id=user_id,
                     span=span,
+                    rpc_id=rpc_id,
                 )
             except ClaudeCodeError as exc:
                 span.record_exception(exc)
@@ -560,6 +590,7 @@ class ClaudeCodeRunner:
         db_session_id: uuid.UUID | None,
         user_id: str | None,
         span: trace.Span,
+        rpc_id: str = "",
     ) -> bool:
         """Body of :meth:`_dispatch_event`, wrapped by the OTel span."""
         event_type = event.get("type")
@@ -688,7 +719,23 @@ class ClaudeCodeRunner:
             # surfacing tool outputs to the UI.
             return False
 
-        if event_type == "event.session.task_started":  # pragma: no cover - duplicate
+        if event_type == "event.session.permission_request":
+            # V1.4 — bridge PreToolUse hook intercepted a tool call and
+            # is asking for the user's verdict. We translate the bridge
+            # envelope into an :class:`ApprovalRequestRecord`, hand the
+            # routing trio (host, rpc, request) to the websocket-layer
+            # callback, then return immediately so the runner's stream
+            # loop keeps consuming further envelopes (subagents may
+            # raise concurrent permission_requests). The callback owns
+            # the iOS push + decision-await + bridge-reply round-trip
+            # in a fire-and-forget asyncio.Task.
+            await self._handle_permission_request(
+                payload=payload,
+                state=state,
+                callbacks=callbacks,
+                bridge_host_id=bridge_host_id,
+                rpc_id=rpc_id,
+            )
             return False
 
         if event_type == "event.session.result":
@@ -789,6 +836,139 @@ class ClaudeCodeRunner:
         # forward-compatible with new bridge envelopes.
         await logger.adebug("claude_rpc_unknown_event", type=event_type)
         return False
+
+    # ------------------------------------------------------------------
+    # Permission-request handling (V1.4).
+    # ------------------------------------------------------------------
+
+    async def _handle_permission_request(
+        self,
+        *,
+        payload: dict[str, object],
+        state: _RunState,
+        callbacks: _Callbacks,
+        bridge_host_id: str,
+        rpc_id: str,
+    ) -> None:
+        """Translate a bridge ``permission_request`` envelope into an
+        :class:`ApprovalRequestRecord` and dispatch the routing trio.
+
+        Risk → :class:`ApprovalCategory` mapping mirrors the design
+        doc V1.4 §2.1.3 risk table:
+
+        * ``high`` → ``DESTRUCTIVE`` (Bash off-whitelist, WebFetch,
+          unknown tools — deny-default tier)
+        * ``medium`` → ``WRITE_REMOTE`` (Edit/Write within cwd,
+          Bash whitelist hit)
+        * ``low`` → ``INFRASTRUCTURE`` (Read/Glob/Grep — should rarely
+          hit the hook because acceptEdits already greenlights them,
+          but kept for symmetry with the bridge enum)
+
+        Anything outside the three known risk values defaults to the
+        most-conservative ``DESTRUCTIVE`` so a malformed envelope
+        produces a real approval prompt rather than a silent allow.
+
+        Routing trio: ``rpc_id`` is the originating
+        ``command.claude.run`` correlation_id (= the runner's own
+        rpc_id, threaded through ``_dispatch_event`` →
+        ``_dispatch_event_inner`` → here) so the eventual decision RPC
+        carries the same correlation_id and the bridge's inbound
+        dispatcher routes the reply to the correct broker invocation.
+        """
+        from app.schemas.approval import (
+            ApprovalCategory,
+            ApprovalRequestCreate,
+        )
+        from app.services.approval_service import get_approval_service
+
+        request_id = str(payload.get("request_id", ""))
+        tool_name = str(payload.get("tool_name", ""))
+        risk = str(payload.get("risk", "high"))
+        input_preview_raw = payload.get("input_preview")
+        input_preview = str(input_preview_raw) if input_preview_raw is not None else ""
+        timeout_ms_raw = payload.get("timeout_ms", 30_000)
+        timeout_ms = (
+            int(timeout_ms_raw) if isinstance(timeout_ms_raw, (int, float)) else 30_000
+        )
+        # V1.4-fix LOW: cap at 600s so a malicious or buggy bridge envelope
+        # cannot persist arbitrarily large bridge_timeout_seconds. The
+        # backend's per-category max is 300s; 600s gives 2x headroom.
+        timeout_seconds = min(600, max(1, (timeout_ms + 999) // 1000))
+
+        # V1.4-fix LOW: bridge protocol REQUIRES request_id (design §2.1.4).
+        # Empty value is a protocol violation; record will fall back to its
+        # backend-side approval UUID for the dispatched envelope, which the
+        # bridge broker will not match → hook denies on its own timeout.
+        # Log so SREs can see it.
+        if not request_id:
+            await logger.awarning(
+                "bridge_envelope_missing_request_id",
+                bridge_host_id=bridge_host_id,
+                tool_name=tool_name,
+            )
+
+        risk_to_category: dict[str, ApprovalCategory] = {
+            "high": ApprovalCategory.DESTRUCTIVE,
+            "medium": ApprovalCategory.WRITE_REMOTE,
+            "low": ApprovalCategory.INFRASTRUCTURE,
+        }
+        category = risk_to_category.get(risk, ApprovalCategory.DESTRUCTIVE)
+
+        session_id_for_record = state.session_id or str(payload.get("session_id", ""))
+
+        # The bridge envelope's input_preview is intentionally kept
+        # short (240 bytes per design §2.1.3) — never log the raw
+        # tool_input here even at debug, which may carry secrets
+        # (Bash command, file paths). See design §4.5 privacy note.
+        await logger.adebug(
+            "permission_request_received",
+            bridge_host_id=bridge_host_id,
+            request_id=request_id,
+            tool_name=tool_name,
+            risk=risk,
+        )
+
+        approval_service = get_approval_service()
+        request = ApprovalRequestCreate(
+            session_id=session_id_for_record,
+            connection_id="",  # filled by the awaiter when it knows the iOS conn
+            tool_name=tool_name,
+            action=tool_name,
+            description=input_preview or f"{tool_name} tool çağrısı için onay gerekli",
+            params=None,
+            category=category,
+            timeout_seconds=timeout_seconds,
+            request_id=request_id or None,
+            bridge_host_id=bridge_host_id,
+            rpc_id=rpc_id or None,
+            # V1.4-fix MEDIUM #1: pass bridge timeout explicitly so
+            # build_question_message can render the correct iOS countdown.
+            bridge_timeout_seconds=timeout_seconds,
+        )
+        record = await approval_service.create_approval(request)
+
+        # Prometheus increment: emitted counter is the SLI for "how many
+        # PreToolUse hooks fired". The decided + timeout counters land
+        # in the awaiter (see websocket._await_and_dispatch_decision).
+        _metrics.permission_request_emitted_total.labels(
+            bridge_id=bridge_host_id,
+            tool_name=tool_name or "unknown",
+            risk=risk or "unknown",
+        ).inc()
+
+        if callbacks.on_permission_request is not None:
+            # The callback already spawns its own asyncio.Task internally
+            # (see websocket._on_permission_request); awaiting this
+            # invocation here is non-blocking because the callback returns
+            # as soon as the spawn completes, so the runner's stream loop
+            # is free to consume further bridge events while the user
+            # decides.
+            await callbacks.on_permission_request(
+                record,
+                bridge_host_id,
+                rpc_id,
+                timeout_seconds,
+            )
 
     # ------------------------------------------------------------------
     # Subagent persistence.
@@ -981,6 +1161,7 @@ class _Callbacks:
     on_subagent_progress: SubagentProgressCallback | None
     on_subagent_completed: SubagentCompletedCallback | None
     on_rate_limit: RateLimitCallback | None
+    on_permission_request: PermissionRequestCallback | None
 
 
 def _build_progress_event(state: _RunState) -> ToolProgressEvent:

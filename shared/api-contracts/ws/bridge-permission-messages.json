@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BridgePermissionMessages",
+  "description": "WebSocket envelopes — bridge permission RPC (Strategy B PreToolUse hook). Outbound permission_request (bridge → backend) plus the matching command.claude.permission.allow|deny decision RPC (backend → bridge). Cross-reference: docs/design/v1-permission-blockers.md §2.1.3 (envelope schema) and §2.2.2 (decision RPC).",
+  "messages": [
+    {
+      "direction": "bridge_to_backend",
+      "type": "event.session.permission_request",
+      "description": "Bridge surfaces a pending tool call to backend so the user can approve/deny before the claude CLI executes the tool. Fired from inside the bridge's PreToolUse hook path (Strategy B per design doc §2.1.1). Backend translates this envelope into the existing iOS-bound `question` MessageType (see approval-messages.json). The envelope's outer correlation_id always carries the originating command.claude.run rpc_id so the backend orchestrator can route the event into the correct per-session subscriber queue.",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Lead claude session UUID. For sub-agent originated requests this is still the lead session id (the sub-agent task id lives in parent_task_id) so backend can attribute the question to the correct iOS connection."
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Bridge-generated UUIDv7 (time-ordered). Serves as the decision-correlation token: iOS echoes it back via approval_response and the backend re-broadcasts it on the inbound command.claude.permission.allow|deny RPC. The bridge's permission Broker keys its in-flight UDS waiters by this id."
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Canonical (post-aliased) claude tool name — e.g. `Bash`, `Edit`, `Write`, `WebFetch`. Matches the keys in the bridge-side risk classification table."
+          },
+          "tool_input": {
+            "type": "object",
+            "description": "Verbatim claude PreToolUse payload. Preserved as a raw JSON object so the backend can decode it into Pydantic without an intermediate Go schema bound. May carry sensitive content (Bash commands with secrets, file paths with PII); backend MUST NOT log this field at info level — see runbook §11 + design §4.5.",
+            "additionalProperties": true
+          },
+          "input_preview": {
+            "type": "string",
+            "maxLength": 240,
+            "description": "Truncated text representation of tool_input suitable for iOS display without leaking large file diffs or full Bash command lines. Bridge-side truncation, capped at 240 bytes."
+          },
+          "risk": {
+            "type": "string",
+            "enum": ["low", "medium", "high"],
+            "description": "Bridge-classified risk band. Classification authority lives in the bridge — it has direct access to cwd, can compare paths, and knows the bash whitelist. Backend translates this to ApprovalCategory (high → DESTRUCTIVE, medium → WRITE_REMOTE, low → INFRASTRUCTURE) via the runbook §4 table."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Optional free-form audit string explaining why approval was needed (e.g. 'whitelist miss', 'off-cwd write', 'unknown plugin tool'). Surfaced into structured logs and the audit_log row."
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 60000,
+            "default": 30000,
+            "description": "Bridge-suggested decision ceiling (default 30000ms). Backend forwards this as `timeout_seconds` in the iOS QUESTION payload (clamping the per-category default — see V1.4-fix HIGH commit 811ea0f). Bridge's UDS broker timeout = timeout_ms + 4s grace; claude CLI hook timeout left at 60s default (well above this ceiling per design §2.2.4)."
+          },
+          "parent_task_id": {
+            "type": "string",
+            "description": "Set when the PreToolUse hook fires from inside a sub-agent task. Backend uses this to attribute the question to the lead session_id rather than the sub-agent task_id."
+          }
+        },
+        "required": ["session_id", "request_id", "tool_name", "tool_input", "input_preview", "risk", "timeout_ms"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "backend_to_bridge",
+      "type": "command.claude.permission.allow",
+      "description": "Backend dispatches an `allow` decision back to the originating bridge. Bridge `dispatchCommand` looks up the permission Broker singleton and calls `broker.Resolve(request_id, Allow)` — the matching in-flight UDS hook connection unblocks, prints `{\"decision\": \"allow\"}` to stdout, and the claude CLI proceeds with the tool call. Sent by `_await_and_dispatch_decision` after `approval_service.wait_for_decision(...)` resolves to approved. The envelope's outer correlation_id echoes the originating command.claude.run rpc_id (though the broker itself routes by request_id, not by correlation_id).",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Lead claude session UUID. Echoes the value from the originating event.session.permission_request for observability + audit (the broker's UDS hook routes purely by request_id)."
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID from the originating event.session.permission_request envelope. The bridge's permission Broker keys its in-flight UDS waiters by this value; mismatch = noop."
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["allow"],
+            "description": "Hard-coded to `allow` for this envelope type. The matching deny envelope uses type=command.claude.permission.deny with decision=`deny`."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Optional free-form audit string surfaced into structured logs. For user-driven approvals this is typically blank (the audit row already captures the user_id + responded_at)."
+          },
+          "updated_input": {
+            "type": "object",
+            "description": "Reserved for the MCP-style `permission_prompt_tool returns a modified tool_input` branch. **Ignored by V1** — the broker forwards the original tool_input unchanged. Future V2/V3 work may wire this through the broker into the hook reply.",
+            "additionalProperties": true
+          }
+        },
+        "required": ["session_id", "request_id", "decision"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "direction": "backend_to_bridge",
+      "type": "command.claude.permission.deny",
+      "description": "Backend dispatches a `deny` decision back to the originating bridge. Bridge `dispatchCommand` looks up the permission Broker singleton and calls `broker.Resolve(request_id, Deny)` — the matching in-flight UDS hook connection unblocks, prints `{\"decision\": \"block\", \"reason\": \"user denied\"}` to stdout, and the claude CLI cancels the tool call. Sent by `_await_and_dispatch_decision` for three sources: explicit user reject, RFApprovalSheet auto-timeout, or `bridge_registry.send_to_bridge` failure (bridge offline → automatic deny per the deny-on-timeout invariant in runbook §7).",
+      "payload": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Lead claude session UUID. Echoes the value from the originating event.session.permission_request for observability + audit (the broker's UDS hook routes purely by request_id)."
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID from the originating event.session.permission_request envelope. The bridge's permission Broker keys its in-flight UDS waiters by this value; mismatch = noop."
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["deny"],
+            "description": "Hard-coded to `deny` for this envelope type. The matching allow envelope uses type=command.claude.permission.allow with decision=`allow`."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Optional free-form audit string surfaced into structured logs. Backend populates this with the timeout source (`user denied`, `timeout`, `dispatch_failed`) so the bridge-side audit + the hook stdout reason field stay in sync."
+          },
+          "updated_input": {
+            "type": "object",
+            "description": "Reserved for symmetry with the allow envelope — never set on a deny path. Ignored by V1.",
+            "additionalProperties": true
+          }
+        },
+        "required": ["session_id", "request_id", "decision"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

@@ -13,8 +13,13 @@ struct ContentView: View {
     @State private var authViewModel = Container.shared.authViewModel()
     @State private var notificationCenterViewModel = Container.shared.notificationCenterViewModel()
     @State private var isShowingNotifications = false
+    /// V1.5: Backend-originated approval question presenter.
+    /// Singleton — DI'dan ayni instance gelir; root view `.sheet(item:)` ile
+    /// observe eder, WebSocket handler queue'ya iter.
+    @State private var approvalCoordinator = Container.shared.approvalCoordinator()
     private let webSocketManager = Container.shared.webSocketConnectionManager()
     private let subagentRepository = Container.shared.subagentRepository()
+    private let approvalQuestionMessageHandler = Container.shared.approvalQuestionMessageHandler()
 
     init() {
         configureTabBarAppearance()
@@ -34,6 +39,16 @@ struct ContentView: View {
             }
         }
         .animation(RFAnimation.springGentle, value: authManager.authState)
+        // V1.5: Backend-originated approval question sheet — root view'a baglandi
+        // ki herhangi bir tab aktifken (chat / agents / settings) sheet ustte
+        // gosterilebilsin. ApprovalCoordinator queue tek instance.
+        .sheet(item: $approvalCoordinator.activeRequest) { request in
+            RFApprovalSheet(request: request) { choice in
+                Task {
+                    await approvalCoordinator.handleDecision(choice)
+                }
+            }
+        }
         .task {
             // Reconnect callback — kacirilmis mesajlari fetch et
             webSocketManager.onReconnect = { [chatSessionManager] in
@@ -43,6 +58,10 @@ struct ContentView: View {
             // Claude Agent Teams subagent handler'larini WebSocket router'a bagla.
             // Doc 10 §6.3.3 — T1.7. Acilis sirasinda bir kez kayit yeterli.
             await registerSubagentHandlers()
+
+            // V1.5: Backend-originated approval question handler'ini router'a bagla.
+            // `question` envelope decode edildiginde coordinator queue'ya itilir.
+            await registerApprovalQuestionHandler()
 
             await authManager.checkExistingAuth()
             // Auth basarili ise hemen WebSocket bagla
@@ -56,6 +75,12 @@ struct ContentView: View {
                     await webSocketManager.connect()
                 } else if newState == .unauthenticated {
                     await webSocketManager.disconnect()
+                    // V1.5 reviewer M2 fix: coordinator is a Factory
+                    // singleton — without explicit reset, a residual
+                    // approval sheet from the prior session would
+                    // persist for the next user. Drop the active
+                    // request + queue on auth transition.
+                    await approvalCoordinator.reset()
                 }
             }
         }
@@ -129,6 +154,15 @@ struct ContentView: View {
         await webSocketManager.registerHandler(
             type: WebSocketMessageType.subagentCompleted.rawValue,
             handler: SubagentCompletedHandler(repository: subagentRepository)
+        )
+    }
+
+    /// V1.5: Backend `question` envelope'ini ApprovalCoordinator'a tasiyan
+    /// handler kaydi.
+    private func registerApprovalQuestionHandler() async {
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.question.rawValue,
+            handler: approvalQuestionMessageHandler
         )
     }
 

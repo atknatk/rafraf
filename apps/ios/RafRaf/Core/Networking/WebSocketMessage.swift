@@ -48,6 +48,10 @@ enum WebSocketMessageType: String, Codable, Sendable {
     case sessionTitle = "session.title"
     case sessionPrOpened = "session.pr_opened"
     case usageReport = "usage.report"
+    // V1.5: Backend interactive approval question (server → client)
+    // Backend reference: `apps/backend/app/services/approval_service.py::build_question_message`.
+    // `shared/api-contracts/ws/approval-messages.json` kontratina uygun.
+    case question = "question"
 }
 
 /// Mesaj yonu.
@@ -170,6 +174,18 @@ struct WebSocketBaseMessage: Codable, Sendable {
                 webSocketMessageLogger.warning("usage.report payload decode failed: \(String(describing: error))")
                 self.content = nil
             }
+        } else if self.type == WebSocketMessageType.question.rawValue {
+            // V1.5: Backend QUESTION envelope (approval prompt).
+            // Onceden "case question" yoktu — silently dropped on the wire (latent bug).
+            // Type-dispatch ile ApprovalQuestionDTO'ya decode ediyoruz; fallback singleValueContainer
+            // kullanmiyoruz (snake_case CodingKeys explicit DTO icinde).
+            do {
+                let payload = try container.decodeIfPresent(ApprovalQuestionDTO.self, forKey: .content)
+                self.content = payload.map { .question($0) }
+            } catch {
+                webSocketMessageLogger.warning("question payload decode failed: \(String(describing: error))")
+                self.content = nil
+            }
         } else {
             self.content = try? container.decodeIfPresent(WebSocketContent.self, forKey: .content)
         }
@@ -217,6 +233,9 @@ enum WebSocketContent: Codable, Sendable {
     case sessionTitle(SessionTitleContent)
     case sessionPrOpened(SessionPrOpenedContent)
     case usageReport(UsageReportContent)
+    // V1.5: Backend interactive approval question (server → client).
+    // DTO yasiyor: Features/Approval/Data/DTOs/ApprovalQuestionDTO.swift.
+    case question(ApprovalQuestionDTO)
 
     // MARK: M1 (deferred — Faz 1 polish queue)
     // Asagidaki singleValueContainer fall-through 8 yeni Agent Teams Content
@@ -334,6 +353,8 @@ enum WebSocketContent: Codable, Sendable {
         case .sessionPrOpened(let value):
             try container.encode(value)
         case .usageReport(let value):
+            try container.encode(value)
+        case .question(let value):
             try container.encode(value)
         }
     }

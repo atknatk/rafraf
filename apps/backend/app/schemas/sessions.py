@@ -15,7 +15,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # Period vocabulary — kept in sync with
 # ``app.repositories.session_repo.CostPeriod``. Duplicated here (rather
@@ -30,7 +30,13 @@ class SessionCostBreakdownItem(BaseModel):
     default ``Decimal`` serializer to preserve precision (the column is
     ``NUMERIC(10, 6)``); clients should parse it as a high-precision
     decimal rather than a 64-bit float.
+
+    T2.5 M3: ``frozen=True`` so the DTO is immutable once constructed —
+    the endpoint builds the row in one place and never mutates it
+    afterwards. Pydantic raises ``ValidationError`` on attribute assignment.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     session_id: uuid.UUID = Field(description="Sessions table primary key.")
     cost_usd: Decimal = Field(
@@ -54,9 +60,7 @@ class SessionCostBreakdownItem(BaseModel):
     total_tokens: int = Field(
         default=0,
         ge=0,
-        description=(
-            "Convenience sum: input + output + cache_creation + cache_read."
-        ),
+        description=("Convenience sum: input + output + cache_creation + cache_read."),
     )
 
 
@@ -67,7 +71,14 @@ class SessionCostSummary(BaseModel):
     ``"2026-05"`` for current_month, ``"2026-W18"`` for current_week,
     ``"last_7_days"`` for the rolling-window variant. Clients should treat
     it as opaque (suitable for display, not for parsing).
+
+    T2.5 M3: ``frozen=True`` so the response DTO is immutable once
+    constructed in the route. The endpoint computes totals in local
+    accumulators and assembles the model in a single ``return`` — there
+    is no post-construction mutation in the call path.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     period: str = Field(
         description="Canonical label for the period (display only).",

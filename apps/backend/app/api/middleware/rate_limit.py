@@ -52,6 +52,60 @@ class RateLimitStore:
         self._requests[key].append(now)
         return False
 
+    def seconds_until_next_slot(
+        self,
+        key: str,
+        max_requests: int,
+        window_seconds: int,
+    ) -> int:
+        """Return the seconds the caller must wait before the next slot opens.
+
+        Implements the sliding-window UX (T2.4 L2): instead of returning a
+        fixed full-window cool-down, we look at the **oldest** request still
+        inside the window for ``key`` and compute when it will fall out.
+        Once that timestamp expires the caller has at least one slot back.
+
+        Returns ``window_seconds`` as a safe upper bound when the key is
+        empty (defensive — should never happen on the rate-limited path)
+        and a minimum of ``1`` second so ``Retry-After`` is always
+        actionable (RFC 7231 §7.1.3 allows ``0`` but iOS retry logic
+        behaves better with a >0 hint).
+        """
+        timestamps = self._requests.get(key, [])
+        if not timestamps:
+            return max(1, window_seconds)
+
+        # Sliding window: the next slot opens once the oldest entry within
+        # the window ages out (oldest_ts + window_seconds <= now). The
+        # number of seconds until that happens is the cool-down hint.
+        # When more than max_requests entries are present (shouldn't happen
+        # — we cap on push — guard anyway), align on the (max_requests-th)
+        # oldest entry so we wait until enough headroom returns.
+        sorted_ts = sorted(timestamps)
+        anchor = sorted_ts[-max_requests] if len(sorted_ts) >= max_requests else sorted_ts[0]
+
+        now = time.monotonic()
+        seconds_until_free = (anchor + window_seconds) - now
+        return max(1, int(seconds_until_free) + 1)
+
+    def tokens_available(
+        self,
+        key: str,
+        max_requests: int,
+        window_seconds: int,
+    ) -> int:
+        """Snapshot of remaining slots in the current window for ``key``.
+
+        Used by the L3 structured log so SREs can see headroom (or the
+        lack thereof) when triaging rate-limit complaints. Does NOT mutate
+        state. Returns 0 when the key is over the cap.
+        """
+        now = time.monotonic()
+        cutoff = now - window_seconds
+        live = [t for t in self._requests.get(key, []) if t > cutoff]
+        remaining = max_requests - len(live)
+        return remaining if remaining > 0 else 0
+
 
 # Module-level store (single instance per process)
 _rate_limit_store = RateLimitStore()
@@ -87,22 +141,56 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         client_ip = self._get_client_ip(request)
         rate_limit_key = f"auth:{client_ip}"
 
+        max_requests = settings.rate_limit_requests_per_minute
+        window_seconds = 60
+
         if self._store.is_rate_limited(
             key=rate_limit_key,
-            max_requests=settings.rate_limit_requests_per_minute,
-            window_seconds=60,
+            max_requests=max_requests,
+            window_seconds=window_seconds,
         ):
+            # T2.4 L2: sliding-window Retry-After. The fixed 60s cool-down
+            # was misleading whenever the window was already "thawing" —
+            # iOS would back off a full minute while the next slot was a
+            # few seconds away. We now query the store for the seconds
+            # until the oldest entry ages out and surface that.
+            retry_after_seconds = self._store.seconds_until_next_slot(
+                key=rate_limit_key,
+                max_requests=max_requests,
+                window_seconds=window_seconds,
+            )
+            # Snapshot headroom AFTER the throttler decision: by definition
+            # this is 0 on the 429 path, but we read through the store so
+            # the field stays consistent with the underlying state and
+            # future limit changes don't silently drift the log line.
+            tokens_available_after = self._store.tokens_available(
+                key=rate_limit_key,
+                max_requests=max_requests,
+                window_seconds=window_seconds,
+            )
+            endpoint = _classify_endpoint(path)
+            # T2.4 L3: structured 429 log so SREs can grep for actionable
+            # context (endpoint + ip + cool-down + headroom snapshot)
+            # without joining against the request log. ``tokens_consumed``
+            # is the cap minus the remaining headroom; for a saturated
+            # window this equals max_requests, which is exactly the data
+            # operators need when fielding "your throttler is too tight"
+            # complaints.
             await logger.awarning(
                 "rate_limit_exceeded",
                 client_ip=client_ip,
                 path=path,
+                endpoint=endpoint,
+                tokens_consumed=max_requests - tokens_available_after,
+                tokens_available_after=tokens_available_after,
+                retry_after_seconds=retry_after_seconds,
+                window_seconds=window_seconds,
             )
             # T2.4: emit a separate counter for backend-throttler 429s so
             # operators can graph them independently from the upstream
             # ``claude_rate_limit_hits_total`` (different operational
             # signal entirely). Endpoint label is coarse-grained to avoid
             # cardinality explosion from dynamic path params.
-            endpoint = _classify_endpoint(path)
             backend_rate_limit_hits_total.labels(
                 endpoint=endpoint,
                 source=_MIDDLEWARE_SOURCE,
@@ -112,7 +200,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             # and backend-origin throttling responses. ``resets_at`` is
             # an integer unix timestamp in seconds, matching
             # ``RateLimitInfoPayload``.
-            retry_after_seconds = 60
             resets_at = int(time.time()) + retry_after_seconds
             body: dict[str, object] = {
                 "detail": "Too many requests. Please try again later.",

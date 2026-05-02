@@ -15,10 +15,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.main import app
+from app.schemas.sessions import SessionCostBreakdownItem, SessionCostSummary
 
 
 def _make_user_stub(user_id: uuid.UUID | None = None) -> MagicMock:
@@ -396,3 +398,65 @@ class TestT25FixUpsertEndToEnd:
         assert data["total_output_tokens"] == 250
         assert len(data["by_session"]) == 1
         assert data["by_session"][0]["session_id"] == str(ws_session_id)
+
+
+# ---------------------------------------------------------------------------
+# T2.5 M3 — frozen response DTOs (immutability contract).
+# ---------------------------------------------------------------------------
+
+
+class TestCostSummaryDTOsFrozen:
+    """``SessionCostSummary`` and ``SessionCostBreakdownItem`` are frozen
+    Pydantic models — the route assembles them in a single ``return`` and
+    nothing in the call path mutates them after construction. Pinning the
+    contract here keeps a future drive-by edit from silently relaxing it."""
+
+    def test_breakdown_item_is_frozen(self) -> None:
+        item = SessionCostBreakdownItem(
+            session_id=uuid.uuid4(),
+            cost_usd=Decimal("0.10"),
+            started_at=datetime.now(tz=UTC),
+        )
+        with pytest.raises(ValidationError):
+            item.cost_usd = Decimal("999.99")  # type: ignore[misc]
+
+    def test_summary_is_frozen(self) -> None:
+        summary = SessionCostSummary(
+            period="2026-05",
+            period_kind="current_month",
+            period_start=datetime.now(tz=UTC),
+            period_end=None,
+            user_id=uuid.uuid4(),
+            total_cost_usd=Decimal("1.23"),
+            session_count=1,
+            total_input_tokens=10,
+            total_output_tokens=20,
+            total_cache_creation_tokens=0,
+            total_cache_read_tokens=0,
+            by_session=[],
+        )
+        with pytest.raises(ValidationError):
+            summary.total_cost_usd = Decimal("999.99")  # type: ignore[misc]
+
+    def test_summary_serializes_via_json(self) -> None:
+        """Frozen models must still round-trip via ``model_dump_json`` —
+        no behavioural regression for the existing FastAPI response path."""
+        summary = SessionCostSummary(
+            period="2026-W18",
+            period_kind="current_week",
+            period_start=datetime.now(tz=UTC),
+            period_end=None,
+            user_id=uuid.uuid4(),
+            total_cost_usd=Decimal("0"),
+            session_count=0,
+            total_input_tokens=0,
+            total_output_tokens=0,
+            total_cache_creation_tokens=0,
+            total_cache_read_tokens=0,
+            by_session=[],
+        )
+        # Serialization MUST NOT mutate the model.
+        payload = summary.model_dump_json()
+        assert "current_week" in payload
+        # Confirm immutability survives a second round of serialization.
+        assert summary.period_kind == "current_week"

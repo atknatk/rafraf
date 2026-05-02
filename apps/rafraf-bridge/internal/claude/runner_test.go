@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -42,6 +43,9 @@ func (nullSink) OnRateLimit(protocol.EventSessionRateLimit) error       { return
 func (nullSink) OnHookStarted(protocol.EventSessionHookStarted) error   { return nil }
 func (nullSink) OnHookResponse(protocol.EventSessionHookResponse) error { return nil }
 func (nullSink) OnResult(protocol.EventSessionResult) error             { return nil }
+func (nullSink) OnPermissionRequest(protocol.EventSessionPermissionRequest) error {
+	return nil
+}
 
 // ---------------------------------------------------------------------------
 // buildArgs — argument vector composition.
@@ -53,7 +57,7 @@ func TestRunner_BuildArgs_Basic(t *testing.T) {
 	cfg := &config.Config{ClaudeBinary: "claude", PermissionMode: "acceptEdits"}
 	r := NewRunner(cfg, silentLogger())
 
-	got := r.buildArgs(RunRequest{Prompt: "do the thing"})
+	got := r.buildArgs(RunRequest{Prompt: "do the thing"}, "")
 	want := []string{
 		"-p",
 		"--output-format", "stream-json",
@@ -76,7 +80,7 @@ func TestRunner_BuildArgs_WithSession(t *testing.T) {
 	got := r.buildArgs(RunRequest{
 		Prompt:    "follow up",
 		SessionID: "sess-42",
-	})
+	}, "")
 
 	// --resume must precede the trailing positional prompt.
 	if !slices.Contains(got, "--resume") {
@@ -104,7 +108,7 @@ func TestRunner_BuildArgs_PermissionModeOverride(t *testing.T) {
 	got := r.buildArgs(RunRequest{
 		Prompt:         "audit",
 		PermissionMode: "plan",
-	})
+	}, "")
 
 	for i, tok := range got {
 		if tok == "--permission-mode" {
@@ -125,9 +129,104 @@ func TestRunner_BuildArgs_OmitsPermissionWhenBlank(t *testing.T) {
 	cfg := &config.Config{ClaudeBinary: "claude"}
 	r := NewRunner(cfg, silentLogger())
 
-	got := r.buildArgs(RunRequest{Prompt: "go"})
+	got := r.buildArgs(RunRequest{Prompt: "go"}, "")
 	if slices.Contains(got, "--permission-mode") {
 		t.Fatalf("buildArgs: --permission-mode must be omitted when blank, got %#v", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// V1.2 — settings overlay injection.
+// ---------------------------------------------------------------------------
+
+func TestRunner_BuildArgs_AppendsSettingsWhenProvided(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{ClaudeBinary: "claude"}
+	r := NewRunner(cfg, silentLogger())
+	got := r.buildArgs(RunRequest{Prompt: "p"}, "/tmp/overlay.json")
+	// --settings + path must appear and the prompt remains the
+	// trailing positional.
+	idx := slices.Index(got, "--settings")
+	if idx == -1 {
+		t.Fatalf("buildArgs: --settings missing, got %#v", got)
+	}
+	if got[idx+1] != "/tmp/overlay.json" {
+		t.Fatalf("buildArgs: --settings not followed by path, got %#v", got)
+	}
+	if got[len(got)-1] != "p" {
+		t.Fatalf("buildArgs: prompt not last, got %#v", got)
+	}
+}
+
+func TestRunner_BuildEnv_InjectsBrokerSockWhenSet(t *testing.T) {
+	t.Parallel()
+	r := NewRunner(&config.Config{}, silentLogger())
+	// V1.3: nil broker is fine here — this test only exercises buildEnv.
+	r.SetPermissionContext(nil, "/tmp/broker.sock", "/usr/local/bin/rafraf-perm-hook")
+	env := r.buildEnv(RunRequest{})
+	if !slices.Contains(env, "RAFRAF_BRIDGE_PERM_SOCK=/tmp/broker.sock") {
+		t.Fatalf("buildEnv: expected RAFRAF_BRIDGE_PERM_SOCK in env, got %#v", env)
+	}
+}
+
+func TestRunner_BuildEnv_OmitsBrokerSockByDefault(t *testing.T) {
+	t.Parallel()
+	r := NewRunner(&config.Config{}, silentLogger())
+	env := r.buildEnv(RunRequest{})
+	for _, e := range env {
+		if strings.HasPrefix(e, "RAFRAF_BRIDGE_PERM_SOCK=") {
+			t.Fatalf("buildEnv: must not inject RAFRAF_BRIDGE_PERM_SOCK without context, got %q", e)
+		}
+	}
+}
+
+func TestRunner_PreparePermissionOverlay_NoContextSkips(t *testing.T) {
+	t.Parallel()
+	r := NewRunner(&config.Config{}, silentLogger())
+	path, cleanup := r.preparePermissionOverlay(RunRequest{})
+	defer cleanup()
+	if path != "" {
+		t.Fatalf("preparePermissionOverlay: expected empty path, got %q", path)
+	}
+}
+
+func TestRunner_PreparePermissionOverlay_MissingHookSkips(t *testing.T) {
+	t.Parallel()
+	r := NewRunner(&config.Config{}, silentLogger())
+	r.SetPermissionContext(nil, "/tmp/sock", "/non/existent/hook-binary")
+	path, cleanup := r.preparePermissionOverlay(RunRequest{SessionID: "sess"})
+	defer cleanup()
+	if path != "" {
+		t.Fatalf("preparePermissionOverlay: must skip when hook missing, got %q", path)
+	}
+}
+
+func TestRunner_PreparePermissionOverlay_WritesAndCleans(t *testing.T) {
+	t.Parallel()
+	// Pretend the hook binary is /bin/sh which always exists.
+	hook := "/bin/sh"
+	if _, err := os.Stat(hook); err != nil {
+		t.Skipf("/bin/sh not present, skipping: %v", err)
+	}
+	r := NewRunner(&config.Config{}, silentLogger())
+	r.SetPermissionContext(nil, "/tmp/sock", hook)
+	path, cleanup := r.preparePermissionOverlay(RunRequest{SessionID: "test-sess-123"})
+	if path == "" {
+		t.Fatalf("preparePermissionOverlay: expected non-empty path")
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read overlay: %v", err)
+	}
+	if !strings.Contains(string(body), "PreToolUse") {
+		t.Fatalf("overlay body missing PreToolUse: %s", body)
+	}
+	if !strings.Contains(string(body), hook) {
+		t.Fatalf("overlay body missing hook path %s: %s", hook, body)
+	}
+	cleanup()
+	if _, err := os.Stat(path); err == nil {
+		t.Fatalf("overlay still present after cleanup: %s", path)
 	}
 }
 

@@ -21,14 +21,19 @@ package claude
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -44,6 +49,14 @@ import (
 // claudeTracerName is the OTel instrumentation library identifier used
 // by the runner + parser; matches the convention "<module>/<package>".
 const claudeTracerName = "rafraf-bridge/claude"
+
+// ErrRunnerBusy is returned by Run() when a permission broker is wired
+// AND another concurrent Run is already holding the broker's
+// SetRequestHandler slot. V1.3 reviewer H1 fix: rather than silently
+// overwriting the predecessor's closure (which would misroute
+// permission_request envelopes with the wrong correlation_id), we fail
+// loud so the caller can observe and retry.
+var ErrRunnerBusy = errors.New("claude: runner busy (permission broker handler held by another run)")
 
 // abortGracePeriod is how long Abort() lingers after cancelling the run
 // context, giving the subprocess a chance to flush stdout before any
@@ -79,13 +92,49 @@ type activeRun struct {
 // subprocesses. A single Runner can host multiple concurrent sessions
 // keyed by RunRequest.SessionID; each may be cancelled independently
 // via Abort.
+//
+// V1.2 adds permission-broker plumbing: when the runner is constructed
+// with a non-empty PermissionSockPath the per-session settings overlay
+// registers the rafraf-perm-hook binary as a PreToolUse hook and the
+// subprocess env carries RAFRAF_BRIDGE_PERM_SOCK pointing at the same
+// path. When PermissionHookPath cannot be resolved (e.g. dev mode
+// where the sibling binary isn't built) the runner logs a warning and
+// SKIPS the --settings injection so the dev workflow still works.
+//
+// V1.3 promotes permissionBroker to a first-class runner dependency:
+// at Run-time the runner installs a SetRequestHandler closure that
+// forwards each broker request through the per-run EventSink (so the
+// envelope carries the right correlation_id), then clears it on Run
+// exit. The broker stays alive across runs but only one runner can be
+// active at a time in V1 — see the LWW invariant note in Run().
 type Runner struct {
 	cfg    *config.Config
 	logger *slog.Logger
 
+	// permissionSockPath is the UDS path the broker is listening on.
+	// Empty → permission injection disabled (V1.0/V1.1 compatibility
+	// + tests that don't care about the hook).
+	permissionSockPath string
+	// permissionHookPath is the absolute path to the rafraf-perm-hook
+	// binary. Resolved via os.Executable() + sibling lookup at
+	// NewRunner-time. Empty → injection disabled.
+	permissionHookPath string
+	// permissionBroker, when non-nil, has its SetRequestHandler hook
+	// flipped on/off around each Run() so per-run envelopes carry the
+	// originating command.claude.run correlation_id. Nil → V1.2
+	// degraded path (broker startup failed); the runner still spawns
+	// claude but the broker resolves every hook request as deny.
+	permissionBroker PermissionBroker
+
 	mu         sync.Mutex
 	activeRuns map[string]activeRun // sessionID → cancel + generation
 	nextGen    uint64               // monotonic, advanced under mu
+	// permHandlerOwner is the sessionID currently owning the broker's
+	// SetRequestHandler slot, or "" when no Run holds it. CAS-guarded
+	// so a second concurrent Run with a non-nil broker fails loud
+	// (ErrRunnerBusy) instead of silently overwriting the first run's
+	// closure — V1.3 reviewer H1 fix.
+	permHandlerOwner atomic.Pointer[string]
 }
 
 // RunRequest is the per-invocation control surface. Empty fields fall
@@ -119,6 +168,13 @@ type RunRequest struct {
 //
 // T0.5.6 wires up dispatch — the Parser now invokes one of these methods
 // per recognised stream-json frame.
+//
+// V1.3 adds OnPermissionRequest. Unlike the other callbacks, this one is
+// NOT driven by the stream-json parser; it is invoked by the
+// permission.Broker via a closure the runner installs at Run-time so
+// the per-run sink (which carries the originating
+// command.claude.run correlation_id) is the egress path. This keeps
+// envelope routing aligned with the rest of the per-RPC events.
 type EventSink interface {
 	OnInit(ev protocol.EventSessionInit) error
 	OnAssistant(ev protocol.EventSessionAssistant) error
@@ -131,6 +187,21 @@ type EventSink interface {
 	OnHookStarted(ev protocol.EventSessionHookStarted) error
 	OnHookResponse(ev protocol.EventSessionHookResponse) error
 	OnResult(ev protocol.EventSessionResult) error
+	OnPermissionRequest(ev protocol.EventSessionPermissionRequest) error
+}
+
+// PermissionBroker is the narrow contract the runner needs from the
+// permission package. It is declared locally (rather than imported from
+// internal/permission) so the claude package never takes a dependency
+// on internal/permission — that import direction would create a cycle
+// the moment internal/permission needs anything from internal/claude.
+//
+// The runner uses SetRequestHandler to install a closure that forwards
+// each broker request through the per-run EventSink. Closures take
+// precedence over previous handlers (LWW); see the V1 invariant note in
+// Run().
+type PermissionBroker interface {
+	SetRequestHandler(fn func(ev protocol.EventSessionPermissionRequest))
 }
 
 // ExecCommandFn matches exec.CommandContext's signature so tests can
@@ -139,6 +210,10 @@ type ExecCommandFn func(ctx context.Context, name string, args ...string) *exec.
 
 // NewRunner constructs a Runner. logger may be nil; a no-op default is
 // substituted in that case so call sites need not check.
+//
+// V1.3 callers should follow up with SetPermissionContext(broker, sock, hook)
+// to enable the PreToolUse hook injection. NewRunner alone preserves
+// the V1.0/V1.1 behaviour (no hook, no settings overlay).
 func NewRunner(cfg *config.Config, logger *slog.Logger) *Runner {
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -148,6 +223,33 @@ func NewRunner(cfg *config.Config, logger *slog.Logger) *Runner {
 		logger:     logger,
 		activeRuns: make(map[string]activeRun),
 	}
+}
+
+// SetPermissionContext configures the V1.2/V1.3 PreToolUse hook
+// injection. broker, when non-nil, gets its SetRequestHandler closure
+// installed at Run-time so per-run envelopes carry the originating
+// command.claude.run correlation_id. sockPath is the broker UDS the
+// hook will dial; hookPath is the absolute path to the rafraf-perm-hook
+// binary. Either path being empty disables --settings injection (the
+// runner logs at first Run() and proceeds plain).
+//
+// The runner stores everything verbatim — it does NOT validate that
+// hookPath exists at SetPermissionContext-time so callers can wire
+// the deferred hook discovery (typical: bridge startup hits this with
+// the path it just resolved via os.Executable() sibling lookup).
+//
+// V1 ships at most one active claude subprocess per bridge process at a
+// time, so the LWW SetRequestHandler discipline (each Run() overwrites,
+// then defers clearing) is safe. If a future iteration multiplexes
+// runners against a single broker this contract has to change — the
+// broker would need a per-correlation map of handlers instead of one
+// process-wide slot.
+func (r *Runner) SetPermissionContext(broker PermissionBroker, sockPath, hookPath string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.permissionBroker = broker
+	r.permissionSockPath = sockPath
+	r.permissionHookPath = hookPath
 }
 
 // Run executes a `claude -p` subprocess and pipes its stdout through the
@@ -180,7 +282,64 @@ func (r *Runner) runWithExec(
 		defer r.unregisterActive(req.SessionID, gen)
 	}
 
-	args := r.buildArgs(req)
+	// V1.2 — write the per-session settings overlay (registers the
+	// PreToolUse hook) and arrange for cleanup on exit. The path is
+	// piped into buildArgs via the optional --settings flag.
+	settingsPath, settingsCleanup := r.preparePermissionOverlay(req)
+	defer settingsCleanup()
+
+	// V1.3 — install the broker→sink closure BEFORE the subprocess
+	// spawn so any PreToolUse hook fired during init is already routed
+	// through the correct per-run envelope path. Cleared on exit so a
+	// late hook firing against a torn-down sink fails silently rather
+	// than panicking.
+	//
+	// LWW invariant: V1 ships at most one active claude subprocess per
+	// bridge, so a single SetRequestHandler slot on the broker is
+	// sufficient. The defer below restores nil when this run exits —
+	// concurrent runs are an explicit V2+ concern that would require a
+	// per-correlation handler map on the broker side.
+	r.mu.Lock()
+	broker := r.permissionBroker
+	r.mu.Unlock()
+	if broker != nil {
+		// V1.3 reviewer H1 fix: CAS-claim the broker's handler slot.
+		// Two concurrent Runs (different SessionIDs OR a same-SessionID
+		// retry during the cancel→exit→register handoff window) would
+		// otherwise silently overwrite each other's closures, misrouting
+		// permission_request envelopes with the wrong correlation_id.
+		// Fail loud instead.
+		runSessionID := req.SessionID
+		ownerToken := runSessionID
+		if !r.permHandlerOwner.CompareAndSwap(nil, &ownerToken) {
+			existing := r.permHandlerOwner.Load()
+			existingID := ""
+			if existing != nil {
+				existingID = *existing
+			}
+			r.logger.Warn("runner: permission handler slot busy",
+				"existing_owner", existingID,
+				"requested_session_id", runSessionID,
+			)
+			return ErrRunnerBusy
+		}
+		broker.SetRequestHandler(func(ev protocol.EventSessionPermissionRequest) {
+			if err := sink.OnPermissionRequest(ev); err != nil {
+				r.logger.Warn("permission_request egress failed",
+					"err", err,
+					"request_id", ev.RequestID,
+					"session_id", ev.SessionID,
+					"run_session_id", runSessionID,
+				)
+			}
+		})
+		defer func() {
+			broker.SetRequestHandler(nil)
+			r.permHandlerOwner.Store(nil)
+		}()
+	}
+
+	args := r.buildArgs(req, settingsPath)
 	cmd := execCmd(runCtx, r.cfg.ClaudeBinary, args...)
 	cmd.Dir = r.resolveProjectDir(req)
 	cmd.Env = r.buildEnv(req)
@@ -277,7 +436,13 @@ func (r *Runner) runWithExec(
 
 // buildArgs assembles the claude CLI argument vector per Doc 11 §5. The
 // prompt is always the trailing positional argument so flags never collide.
-func (r *Runner) buildArgs(req RunRequest) []string {
+//
+// settingsPath, when non-empty, is appended as a "--settings <path>"
+// arg pair so the V1.2 per-session overlay (PreToolUse hook
+// registration) is loaded by claude. We pass the file path verbatim
+// — claude CLI accepts either a path or a JSON literal but the path
+// form keeps the argv vector short.
+func (r *Runner) buildArgs(req RunRequest, settingsPath string) []string {
 	args := []string{
 		"-p",
 		"--output-format", "stream-json",
@@ -293,6 +458,9 @@ func (r *Runner) buildArgs(req RunRequest) []string {
 	}
 	if req.SessionID != "" {
 		args = append(args, "--resume", req.SessionID)
+	}
+	if settingsPath != "" {
+		args = append(args, "--settings", settingsPath)
 	}
 	args = append(args, req.Prompt)
 	return args
@@ -312,12 +480,123 @@ func (r *Runner) resolveProjectDir(req RunRequest) string {
 // ANTHROPIC_API_KEY (forces the claude CLI to use Max-subscription auth)
 // and conditionally injecting CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 // when either the request or config opts in.
+//
+// V1.2 also injects RAFRAF_BRIDGE_PERM_SOCK when the runner has a
+// permission broker configured via SetPermissionContext. The
+// PreToolUse hook reads this variable to find the bridge UDS — leaving
+// it unset is the hook's fail-safe deny path so a misconfigured
+// runner never silently routes around the user.
 func (r *Runner) buildEnv(req RunRequest) []string {
 	env := filterEnv(os.Environ(), "ANTHROPIC_API_KEY")
 	if req.AgentTeams || r.cfg.AgentTeams {
 		env = append(env, "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1")
 	}
+	r.mu.Lock()
+	sock := r.permissionSockPath
+	r.mu.Unlock()
+	if sock != "" {
+		env = filterEnv(env, "RAFRAF_BRIDGE_PERM_SOCK")
+		env = append(env, "RAFRAF_BRIDGE_PERM_SOCK="+sock)
+	}
 	return env
+}
+
+// preparePermissionOverlay generates a per-session settings file that
+// registers the rafraf-perm-hook binary as a PreToolUse hook. The
+// returned cleanup function removes the file (best-effort — a
+// crash-killed bridge will leave the file on disk for the next-start
+// sweep).
+//
+// Returns ("", noop) when the runner has no permission context
+// configured OR when the hook binary is missing on disk. In the
+// latter case we log a warning so the dev workflow surfaces the
+// issue instead of silently shipping an unprotected session.
+func (r *Runner) preparePermissionOverlay(req RunRequest) (string, func()) {
+	noop := func() {}
+	r.mu.Lock()
+	sock := r.permissionSockPath
+	hook := r.permissionHookPath
+	r.mu.Unlock()
+	if sock == "" || hook == "" {
+		return "", noop
+	}
+	if _, err := os.Stat(hook); err != nil {
+		r.logger.Warn("permission overlay: hook binary missing; skipping --settings injection",
+			"err", err,
+			"hook", hook,
+		)
+		return "", noop
+	}
+
+	// File name uses the sessionID when known so a process listing
+	// can map a file to a live session; falls back to a fresh UUID
+	// for the first run of a brand-new session.
+	name := req.SessionID
+	if name == "" {
+		name = randomFileToken()
+	}
+	path := filepath.Join(os.TempDir(), "rafraf-bridge-settings-"+name+".json")
+
+	body := buildSettingsOverlay(hook)
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		r.logger.Warn("permission overlay: write failed; skipping --settings injection",
+			"err", err,
+			"path", path,
+		)
+		return "", noop
+	}
+	cleanup := func() {
+		if rerr := os.Remove(path); rerr != nil && !errors.Is(rerr, fs.ErrNotExist) {
+			r.logger.Debug("permission overlay: cleanup failed",
+				"err", rerr,
+				"path", path,
+			)
+		}
+	}
+	return path, cleanup
+}
+
+// buildSettingsOverlay produces the JSON body for the per-session
+// settings file. Only the hooks.PreToolUse block is populated so the
+// overlay does not clobber any user-installed defaults at merge time
+// (claude CLI deep-merges --settings on top of the regular settings
+// hierarchy).
+func buildSettingsOverlay(hookPath string) []byte {
+	type hookCmd struct {
+		Type    string `json:"type"`
+		Command string `json:"command"`
+	}
+	type matcher struct {
+		Matcher string    `json:"matcher"`
+		Hooks   []hookCmd `json:"hooks"`
+	}
+	type hooks struct {
+		PreToolUse []matcher `json:"PreToolUse"`
+	}
+	type root struct {
+		Hooks hooks `json:"hooks"`
+	}
+	body, _ := json.Marshal(root{
+		Hooks: hooks{
+			PreToolUse: []matcher{{
+				Matcher: ".*",
+				Hooks: []hookCmd{{
+					Type:    "command",
+					Command: hookPath,
+				}},
+			}},
+		},
+	})
+	return body
+}
+
+// randomFileToken returns a short opaque token used in the settings
+// file name when the run has no SessionID yet. We avoid pulling in
+// uuid here because the runner package is otherwise zero-dep on
+// google/uuid; time.Now() with PID gives us enough entropy for a
+// per-process per-spawn unique filename.
+func randomFileToken() string {
+	return strconv.FormatInt(time.Now().UnixNano(), 36) + "-" + strconv.Itoa(os.Getpid())
 }
 
 // filterEnv returns env minus any entry whose key matches removeKey. The

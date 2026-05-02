@@ -1,0 +1,24 @@
+apiVersion: v2
+name: rafraf-backend
+description: |
+  RafRaf Backend (FastAPI WebSocket server + AI orchestrator) Helm chart for
+  AWS EKS deployment. Single-replica per V1 architecture (in-memory
+  bridge_registry singleton). Supports IRSA, ESO ExternalSecrets,
+  Prometheus Operator ServiceMonitor, ALB Ingress with ACM TLS, and
+  alembic migration as Helm pre-install hook.
+type: application
+# Chart version (independent of app version)
+version: 0.1.0
+# Mirrors apps/backend/pyproject.toml `version`. Bump together with backend code.
+appVersion: "0.1.0"
+keywords:
+  - rafraf
+  - backend
+  - fastapi
+  - eks
+home: https://github.com/atknatk/rafraf
+sources:
+  - https://github.com/atknatk/rafraf
+maintainers:
+  - name: RafRaf Team
+    email: team@rafraf.app

@@ -26,7 +26,15 @@ class ApprovalStatus(StrEnum):
 
 
 class ApprovalRequestCreate(BaseModel):
-    """Data needed to create a new approval request."""
+    """Data needed to create a new approval request.
+
+    The bridge-correlation block (V1.4) is optional so the legacy
+    orchestrator-mediated path keeps working unchanged. Bridge-originated
+    requests (``event.session.permission_request``) populate all four
+    optional fields so the awaiter can later dispatch a
+    ``command.claude.permission.{allow,deny}`` envelope back to the right
+    bridge with the right correlation tokens.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -38,10 +46,24 @@ class ApprovalRequestCreate(BaseModel):
     params: dict[str, object] | None = None
     category: ApprovalCategory
     timeout_seconds: int = 300
+    # V1.4 — bridge ``permission_request`` correlation tokens.
+    request_id: str | None = None
+    bridge_host_id: str | None = None
+    rpc_id: str | None = None
+    # V1.4-fix MEDIUM #1: explicit bridge-suggested timeout. Was previously
+    # synthesised from request_id presence — brittle when callers passed
+    # request_id for non-bridge purposes. Now passed explicitly by the
+    # runner's _handle_permission_request; legacy callers leave it None.
+    bridge_timeout_seconds: int | None = None
 
 
 class ApprovalRequestRecord(BaseModel):
-    """Stored approval request record."""
+    """Stored approval request record.
+
+    The bridge-correlation block mirrors :class:`ApprovalRequestCreate`
+    so the in-memory record exposes the same routing trio the awaiter
+    needs (host_id, rpc_id, request_id) without an extra DB lookup.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -58,6 +80,11 @@ class ApprovalRequestRecord(BaseModel):
     timeout_at: datetime
     created_at: datetime
     responded_at: datetime | None = None
+    # V1.4 — bridge correlation tokens (None for legacy in-app rows).
+    request_id: str | None = None
+    bridge_host_id: str | None = None
+    rpc_id: str | None = None
+    bridge_timeout_seconds: int | None = None
 
 
 class ApprovalDecision(BaseModel):

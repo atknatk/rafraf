@@ -23,17 +23,18 @@ import (
 type mockSink struct {
 	mu sync.Mutex
 
-	OnInitFn             func(protocol.EventSessionInit) error
-	OnAssistantFn        func(protocol.EventSessionAssistant) error
-	OnUserFn             func(protocol.EventSessionUser) error
-	OnStreamFn           func(protocol.EventSessionStream) error
-	OnTaskStartedFn      func(protocol.EventSessionTaskStarted) error
-	OnTaskProgressFn     func(protocol.EventSessionTaskProgress) error
-	OnTaskNotificationFn func(protocol.EventSessionTaskNotification) error
-	OnRateLimitFn        func(protocol.EventSessionRateLimit) error
-	OnHookStartedFn      func(protocol.EventSessionHookStarted) error
-	OnHookResponseFn     func(protocol.EventSessionHookResponse) error
-	OnResultFn           func(protocol.EventSessionResult) error
+	OnInitFn              func(protocol.EventSessionInit) error
+	OnAssistantFn         func(protocol.EventSessionAssistant) error
+	OnUserFn              func(protocol.EventSessionUser) error
+	OnStreamFn            func(protocol.EventSessionStream) error
+	OnTaskStartedFn       func(protocol.EventSessionTaskStarted) error
+	OnTaskProgressFn      func(protocol.EventSessionTaskProgress) error
+	OnTaskNotificationFn  func(protocol.EventSessionTaskNotification) error
+	OnRateLimitFn         func(protocol.EventSessionRateLimit) error
+	OnHookStartedFn       func(protocol.EventSessionHookStarted) error
+	OnHookResponseFn      func(protocol.EventSessionHookResponse) error
+	OnResultFn            func(protocol.EventSessionResult) error
+	OnPermissionRequestFn func(protocol.EventSessionPermissionRequest) error
 }
 
 func (m *mockSink) OnInit(ev protocol.EventSessionInit) error {
@@ -139,6 +140,16 @@ func (m *mockSink) OnHookResponse(ev protocol.EventSessionHookResponse) error {
 func (m *mockSink) OnResult(ev protocol.EventSessionResult) error {
 	m.mu.Lock()
 	fn := m.OnResultFn
+	m.mu.Unlock()
+	if fn != nil {
+		return fn(ev)
+	}
+	return nil
+}
+
+func (m *mockSink) OnPermissionRequest(ev protocol.EventSessionPermissionRequest) error {
+	m.mu.Lock()
+	fn := m.OnPermissionRequestFn
 	m.mu.Unlock()
 	if fn != nil {
 		return fn(ev)

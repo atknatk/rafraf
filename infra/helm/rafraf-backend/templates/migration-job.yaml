@@ -1,0 +1,75 @@
+{{- if .Values.migration.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Unique name per release revision so the Job is recreated on each upgrade.
+  name: {{ include "rafraf-backend.fullname" . }}-migrate-{{ .Release.Revision }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rafraf-backend.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+  annotations:
+    # Helm hook: run before install AND before upgrade, with weight ordering
+    # so the Job runs *before* the Deployment rollout.
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    # Don't keep old Jobs cluttering the namespace; keep the most recent for
+    # debugging if it failed.
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migration.backoffLimit | default 2 }}
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds | default 600 }}
+  ttlSecondsAfterFinished: 86400  # auto-cleanup after 24h
+  template:
+    metadata:
+      labels:
+        {{- include "rafraf-backend.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "rafraf-backend.serviceAccountName" . }}
+      {{- with .Values.image.pullSecret }}
+      imagePullSecrets:
+        - name: {{ . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: alembic-upgrade
+          image: {{ include "rafraf-backend.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            {{- toYaml .Values.migration.command | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "rafraf-backend.fullname" . }}-config
+            {{- if .Values.externalSecrets.enabled }}
+            - secretRef:
+                name: {{ include "rafraf-backend.secretName" . }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+          # T3.5-polish-fix (CRITICAL #1): Job inherits readOnlyRootFilesystem
+          # from .Values.securityContext, so any tempfile.gettempdir() write
+          # (asyncpg/SQLAlchemy/cryptography internals during alembic upgrade)
+          # would EROFS without these scratch mounts. /app/logs is included
+          # defensively in case future migration scripts call setup_logging.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: app-logs
+              mountPath: /app/logs
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: app-logs
+          emptyDir:
+            sizeLimit: 32Mi
+{{- end }}

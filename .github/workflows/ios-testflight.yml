@@ -1,15 +1,18 @@
 name: iOS TestFlight Deploy
 
+# Manual-only trigger. The auto-on-push-to-develop trigger was
+# intentionally removed (2026-05-02) so TestFlight uploads are an
+# explicit operator decision — no surprise builds, no wasted App Store
+# Connect upload slots. Release notes are set separately in the App
+# Store Connect UI after the build processes.
+#
+# To deploy: GitHub UI → Actions → "iOS TestFlight Deploy" → "Run workflow"
+# (pick branch + optional build_number_override).
 on:
-  push:
-    branches: [develop]
-    paths:
-      - "apps/ios/**"
-      - ".github/workflows/ios-testflight.yml"
   workflow_dispatch:
     inputs:
       build_number_override:
-        description: "Override build number (leave empty for auto)"
+        description: "Override build number (leave empty to use github.run_number)"
         required: false
         type: string
 
