@@ -402,7 +402,13 @@ func TestRunner_Abort_TerminatesActiveRun(t *testing.T) {
 	r := NewRunner(cfg, silentLogger())
 
 	stub := func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
-		return exec.CommandContext(ctx, "sh", "-c", "sleep 30")
+		// `exec sleep 30` so sh replaces itself with sleep (no fork). On
+		// Ubuntu /bin/sh is dash which always fork+execs the last command,
+		// leaving the orphaned sleep with stdout fd inherited from sh —
+		// parser.Parse(stdout) then blocks until sleep exits naturally
+		// (30s) regardless of Abort. macOS /bin/sh is bash which exec's
+		// the only command directly, so the issue doesn't surface locally.
+		return exec.CommandContext(ctx, "sh", "-c", "exec sleep 30")
 	}
 
 	const sessionID = "long-runner"
@@ -442,11 +448,8 @@ func TestRunner_Abort_TerminatesActiveRun(t *testing.T) {
 			!strings.Contains(err.Error(), "exit") {
 			t.Logf("Abort: returned err = %v (acceptable)", err)
 		}
-	case <-time.After(10 * time.Second):
-		// Local runs return in <1s, but Linux CI under -race bumps this
-		// to ~2-3s on a loaded runner. 10s leaves comfortable margin
-		// while still catching a real hang.
-		t.Fatalf("Abort: Run did not return within 10s of Abort()")
+	case <-time.After(3 * time.Second):
+		t.Fatalf("Abort: Run did not return within 3s of Abort()")
 	}
 }
 
