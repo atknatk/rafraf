@@ -194,7 +194,8 @@ Step-by-step:
 5. **User decision** — iOS sends `approval_response` over its
    WebSocket with `{approval_id, decision: "approved" | "rejected",
    note?}`. The websocket handler validates the payload (4 distinct
-   error codes — see `test_ws_approval.py`) and calls
+   error codes — see
+   `apps/backend/tests/integration/test_websocket/test_ws_approval.py`) and calls
    `submit_decision(...)`.
 6. **Decision propagation** — `submit_decision` resolves the asyncio
    future the orchestrator is awaiting in `wait_for_decision(...)`.
@@ -342,7 +343,8 @@ fixed in T3.2 (per the task scope). Tracked for follow-up:
 - **Bridge → backend `permission_request` event.** Today the bridge
   surfaces denials only on the terminal
   `event.session.result.permission_denials` array (see
-  `parser.go:535`). Real-time per-tool `permission_request` envelope
+  `parser.go:594` — `PermissionDenials` field on the `handleResult`
+  result struct). Real-time per-tool `permission_request` envelope
   surfacing (so iOS gets the prompt **before** the run completes) is
   not yet wired. Approval flow §6 step 1 documents the eventual path;
   the integration tests in `tests/integration/test_permission_flow.py`
@@ -355,6 +357,16 @@ fixed in T3.2 (per the task scope). Tracked for follow-up:
 - **REST `GET /approvals?status=pending`.** Reconnect snapshot
   currently piggy-backs on the WebSocket ack; a typed REST endpoint
   would simplify iOS reconnect logic.
+- **`AuditService.log_tool_call` emit at `submit_decision` call site.**
+  Wire `AuditService.log_tool_call(approval_required=True,
+  output_result={"decision": ...})` at the `submit_decision` call site
+  so approval decisions appear in the audit log alongside tool
+  execution events. Today the audit log only sees the *tool* row when
+  it eventually executes (§8 first bullet); the decision itself —
+  including `rejected` decisions where no tool runs — is recorded only
+  in `_history`. The integration test
+  `test_audit_log_records_each_decision` is `xfail`-marked against
+  this gap and pins the intended contract.
 
 ---
 

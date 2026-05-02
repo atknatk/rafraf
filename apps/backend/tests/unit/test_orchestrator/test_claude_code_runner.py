@@ -269,6 +269,29 @@ async def test_run_sends_command_claude_run_envelope() -> None:
 
 
 @pytest.mark.asyncio
+async def test_rpc_payload_pins_accept_edits_never_skip_permissions() -> None:
+    """Regression guard: the V1 RPC payload's ``permission_mode`` MUST be
+    ``acceptEdits`` and MUST NEVER be ``skipPermissions``.
+
+    The runbook (``docs/runbooks/permission-flow.md`` §10 + §3.4) and Doc
+    10 §8 commit RafRaf to ``acceptEdits`` as the V1 default and forbid
+    ``skipPermissions`` (claude CLI's "dangerous" all-allow mode) in
+    production. This test pins the hard-coded value at the runner so a
+    well-meaning refactor can't quietly demote the security posture.
+    """
+    registry = _FakeRegistry(events=_load_sample_events())
+    runner = ClaudeCodeRunner(bridge_registry=registry)  # type: ignore[arg-type]
+
+    await runner.run(prompt="x")
+
+    assert registry.last_envelope is not None
+    payload = registry.last_envelope["payload"]
+    assert isinstance(payload, dict)
+    assert payload["permission_mode"] == "acceptEdits"
+    assert payload["permission_mode"] != "skipPermissions"
+
+
+@pytest.mark.asyncio
 async def test_run_persists_subagent_lifecycle() -> None:
     """spawned event upserts; completed event updates."""
     registry = _FakeRegistry(events=_load_sample_events())

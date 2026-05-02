@@ -123,6 +123,7 @@ Detayli sistem spesifikasyonlari `docs/` dizininde bulunur:
 Operasyonel akislar `docs/runbooks/` altinda yer alir:
 
 - [Permission Flow](docs/runbooks/permission-flow.md) — Bridge -> backend -> iOS approval cycle (Spike #5 fallback agaci, V1 default `acceptEdits`)
+- [Disaster Recovery](docs/runbooks/disaster-recovery.md) — PostgreSQL/Redis backup + restore drill (T2.6 / T2.8)
 
 ## Lisans
 
