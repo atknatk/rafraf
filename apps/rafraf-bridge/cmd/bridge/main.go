@@ -34,12 +34,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/claude"
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/config"
+	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/permission"
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/protocol"
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/statusline"
 	"github.com/atknatk/rafraf/apps/rafraf-bridge/internal/storage"
@@ -54,6 +56,14 @@ const (
 	telemetryShutdownGrace  = 5 * time.Second
 	postShutdownDrainPause  = 200 * time.Millisecond
 	authCheckTimeoutSeconds = 10
+	// staleArtifactMaxAge is the threshold above which the V1.2
+	// startup sweep deletes leftover settings overlays from prior
+	// crashed bridge runs.
+	staleArtifactMaxAge = time.Hour
+	// permissionHookSibling is the file name of the hook binary
+	// shipped alongside the bridge binary. The runner resolves it via
+	// os.Executable() + sibling lookup at startup.
+	permissionHookSibling = "rafraf-perm-hook"
 )
 
 // run is the testable entrypoint. It returns the desired process exit code
@@ -151,6 +161,42 @@ func run(args []string) int {
 
 	// Claude subprocess runner.
 	runner := claude.NewRunner(cfg, logger)
+
+	// V1.2 — start the permission Broker + UDS listener and wire it
+	// into the runner so the per-session settings overlay can register
+	// the PreToolUse hook.
+	//
+	// The startup sweep drops leftover sock + settings files from a
+	// previously crashed bridge before we bind our own socket. Failures
+	// are non-fatal: the broker also reclaims a stale socket on bind.
+	permission.SweepStaleArtifacts(logger, "", staleArtifactMaxAge)
+	broker, brokerErr := permission.NewBroker("", logger)
+	if brokerErr != nil {
+		// Broker startup failure is degraded-mode but not fatal —
+		// without it tool calls flow without approval prompts (the
+		// runner skips --settings injection). The operator must
+		// restart to recover. Log loudly.
+		logger.Error("permission broker startup failed; running without approval hook",
+			"err", brokerErr,
+		)
+	} else {
+		if err := broker.Start(ctx); err != nil {
+			logger.Error("permission broker start failed", "err", err)
+		}
+		hookPath := resolvePermissionHookPath(logger)
+		runner.SetPermissionContext(broker.Sock(), hookPath)
+		logger.Info("permission broker wired into runner",
+			"sock", broker.Sock(),
+			"hook", hookPath,
+		)
+	}
+	defer func() {
+		if broker != nil {
+			if err := broker.Close(); err != nil {
+				logger.Warn("permission broker close error", "err", err)
+			}
+		}
+	}()
 
 	// Pre-flight auth check. A failure is non-fatal — the bridge stays
 	// alive so the operator can refresh `claude login` without restarting
@@ -518,6 +564,35 @@ func (s *wsStorageSink) OnHookAttachment(ev protocol.EventStorageHookAttachment)
 	}
 	s.ws.Send(env)
 	return nil
+}
+
+// resolvePermissionHookPath returns the absolute path to the
+// rafraf-perm-hook binary that ships alongside the bridge. We
+// discover it via os.Executable() + sibling lookup so the same
+// resolution works in dev (running `go run ./cmd/bridge`), in a
+// hand-built `make build` layout, and in the eventual `.pkg`
+// install layout (/usr/local/bin/{rafraf-bridge,rafraf-perm-hook}).
+//
+// Returns "" when the sibling binary cannot be found; the runner
+// then logs a warning and skips the --settings injection so dev
+// without the hook still works.
+func resolvePermissionHookPath(logger *slog.Logger) string {
+	exe, err := os.Executable()
+	if err != nil {
+		logger.Warn("permission hook resolve: os.Executable failed",
+			"err", err,
+		)
+		return ""
+	}
+	exeDir := filepath.Dir(exe)
+	candidate := filepath.Join(exeDir, permissionHookSibling)
+	if _, statErr := os.Stat(candidate); statErr == nil {
+		return candidate
+	}
+	logger.Debug("permission hook resolve: sibling missing",
+		"candidate", candidate,
+	)
+	return ""
 }
 
 // newWSUsageSink builds a statusline.UsageSink closure that forwards each
