@@ -1,8 +1,8 @@
-name: Backend CI
+name: backend-ci
 
 on:
   push:
-    branches: [develop, main]
+    branches: [develop, main, "feature/**"]
     paths:
       - "apps/backend/**"
       - ".github/workflows/backend-ci.yml"
@@ -10,93 +10,112 @@ on:
     branches: [develop, main]
     paths:
       - "apps/backend/**"
-      - ".github/workflows/backend-ci.yml"
-
-permissions:
-  contents: read
-
-defaults:
-  run:
-    working-directory: apps/backend
 
 jobs:
-  lint:
-    name: Lint (Ruff)
-    runs-on: [self-hosted, rafraf-runner]
+  lint-and-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: rafraf
+          POSTGRES_PASSWORD: rafraf
+          POSTGRES_DB: rafraf
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache pip packages
-        uses: actions/cache@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
         with:
-          path: ~/.cache/pip
-          key: pip-backend-${{ hashFiles('apps/backend/pyproject.toml') }}
-          restore-keys: pip-backend-
+          python-version: "3.12"
+          cache: "pip"
 
-      - name: Setup venv and install dependencies
+      - name: Install dependencies
+        working-directory: apps/backend
         run: |
-          python3 -m venv .venv
-          source .venv/bin/activate
-          pip install --upgrade pip
-          pip install -e ".[dev]"
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -e .
+          .venv/bin/pip install ruff mypy pytest pytest-asyncio pytest-cov pytest-timeout
 
-      - name: Ruff check
+      - name: ruff check
+        working-directory: apps/backend
+        run: .venv/bin/ruff check app/ tests/
+
+      - name: ruff format check
+        working-directory: apps/backend
+        run: .venv/bin/ruff format --check app/
+
+      - name: mypy strict
+        working-directory: apps/backend
+        run: .venv/bin/mypy app/
+
+      - name: alembic upgrade
+        working-directory: apps/backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://rafraf:rafraf@localhost:5432/rafraf
+          REDIS_URL: redis://localhost:6379/0
+        run: .venv/bin/python -m alembic upgrade head
+
+      - name: pytest
+        working-directory: apps/backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://rafraf:rafraf@localhost:5432/rafraf
+          REDIS_URL: redis://localhost:6379/0
+          JWT_PRIVATE_KEY_PATH: ./test_secrets/jwt_private.pem
+          JWT_PUBLIC_KEY_PATH: ./test_secrets/jwt_public.pem
         run: |
-          source .venv/bin/activate
-          ruff check app/
+          # Generate test JWT keypair (T2.9)
+          mkdir -p test_secrets
+          openssl genpkey -algorithm RSA -out test_secrets/jwt_private.pem -pkeyopt rsa_keygen_bits:2048 2>/dev/null
+          openssl rsa -in test_secrets/jwt_private.pem -pubout -out test_secrets/jwt_public.pem 2>/dev/null
+          .venv/bin/python -m pytest -q --cov=app --cov-report=term
 
-      - name: Ruff format check
-        run: |
-          source .venv/bin/activate
-          ruff format --check app/
-
-  typecheck:
-    name: Type Check (MyPy)
-    runs-on: [self-hosted, rafraf-runner]
+  docker-build:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache pip packages
-        uses: actions/cache@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          path: ~/.cache/pip
-          key: pip-backend-${{ hashFiles('apps/backend/pyproject.toml') }}
-          restore-keys: pip-backend-
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup venv and install dependencies
-        run: |
-          python3 -m venv .venv
-          source .venv/bin/activate
-          pip install --upgrade pip
-          pip install -e ".[dev]"
-
-      - name: MyPy strict check
-        run: |
-          source .venv/bin/activate
-          python3 -m mypy app/
-
-  test:
-    name: Test (Pytest)
-    runs-on: [self-hosted, rafraf-runner]
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Cache pip packages
-        uses: actions/cache@v4
+      - name: Build and push
+        uses: docker/build-push-action@v5
         with:
-          path: ~/.cache/pip
-          key: pip-backend-${{ hashFiles('apps/backend/pyproject.toml') }}
-          restore-keys: pip-backend-
-
-      - name: Setup venv and install dependencies
-        run: |
-          python3 -m venv .venv
-          source .venv/bin/activate
-          pip install --upgrade pip
-          pip install -e ".[dev]"
-
-      - name: Run tests with coverage
-        run: |
-          source .venv/bin/activate
-          python3 -m pytest --cov=app --cov-report=term-missing
+          context: ./apps/backend
+          file: ./apps/backend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/backend:${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
