@@ -113,4 +113,105 @@ struct ApprovalMapperTests {
         #expect(dto.decision == "rejected")
         #expect(dto.note == "Timeout - otomatik red")
     }
+
+    // MARK: - V1.5 toQuestion alias
+
+    @Test("toQuestion(dto:) ayni davranisi sergiler (alias)")
+    func toQuestion_isAliasOfToDomain() {
+        let dto = ApprovalTestFactory.makeQuestionDTO(approvalId: "alias-1")
+        let viaAlias = ApprovalMapper.toQuestion(dto: dto)
+        let viaCanonical = ApprovalMapper.toDomain(dto)
+
+        #expect(viaAlias.id == viaCanonical.id)
+        #expect(viaAlias.question == viaCanonical.question)
+        #expect(viaAlias.category == viaCanonical.category)
+    }
+
+    // MARK: - V1.5 toSheetRequest
+
+    @Test("toSheetRequest destructive kategori -> high risk policy")
+    func toSheetRequest_destructiveCategoryHighRisk() {
+        let q = ApprovalTestFactory.makeQuestion(
+            id: "sheet-1",
+            question: "rm -rf /tmp/x",
+            context: "Tool: Bash, Action: rm -rf /tmp/x",
+            category: .destructive,
+            receivedAt: Date()
+        )
+
+        let req = ApprovalMapper.toSheetRequest(question: q)
+
+        #expect(req.id == "sheet-1")
+        #expect(req.toolName == "Bash")
+        #expect(req.inputPreview == "rm -rf /tmp/x")
+        #expect(req.policy == .prompt(risk: .high))
+    }
+
+    @Test("toSheetRequest infrastructure kategori -> medium risk policy")
+    func toSheetRequest_infrastructureCategoryMediumRisk() {
+        let q = ApprovalTestFactory.makeQuestion(
+            id: "sheet-2",
+            context: "Tool: Edit, Action: change config",
+            category: .infrastructure
+        )
+
+        let req = ApprovalMapper.toSheetRequest(question: q)
+
+        #expect(req.policy == .prompt(risk: .medium))
+        #expect(req.toolName == "Edit")
+    }
+
+    @Test("toSheetRequest writeRemote kategori -> medium risk policy")
+    func toSheetRequest_writeRemoteCategoryMediumRisk() {
+        let q = ApprovalTestFactory.makeQuestion(
+            id: "sheet-3",
+            context: nil,
+            category: .writeRemote
+        )
+
+        let req = ApprovalMapper.toSheetRequest(question: q)
+
+        #expect(req.policy == .prompt(risk: .medium))
+        // context nil -> default label fallback
+        #expect(req.toolName == "Remote Write")
+    }
+
+    @Test("toSheetRequest deploy kategori -> high risk policy")
+    func toSheetRequest_deployCategoryHighRisk() {
+        let q = ApprovalTestFactory.makeQuestion(
+            id: "sheet-4",
+            context: "Tool: Deploy, Action: roll out v1.0",
+            category: .deploy
+        )
+
+        let req = ApprovalMapper.toSheetRequest(question: q)
+
+        #expect(req.policy == .prompt(risk: .high))
+    }
+
+    @Test("toSheetRequest timeout backend'den propagate edilir")
+    func toSheetRequest_propagatesTimeout() {
+        let q = ApprovalTestFactory.makeQuestion(
+            id: "sheet-5",
+            timeoutSeconds: 30,
+            category: .destructive
+        )
+
+        let req = ApprovalMapper.toSheetRequest(question: q)
+
+        #expect(req.timeoutSeconds == 30)
+    }
+
+    @Test("parseToolName 'Tool: <X>, Action: ...' formatini ayristirir")
+    func parseToolName_extractsTool() {
+        let result = ApprovalMapper.parseToolName(fromContext: "Tool: WebFetch, Action: GET https://api.example.com")
+        #expect(result == "WebFetch")
+    }
+
+    @Test("parseToolName tool prefix yoksa nil doner")
+    func parseToolName_returnsNilWithoutPrefix() {
+        #expect(ApprovalMapper.parseToolName(fromContext: "image=foo:1.0.0") == nil)
+        #expect(ApprovalMapper.parseToolName(fromContext: nil) == nil)
+        #expect(ApprovalMapper.parseToolName(fromContext: "") == nil)
+    }
 }

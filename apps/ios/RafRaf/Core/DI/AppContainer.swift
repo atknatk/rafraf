@@ -252,6 +252,29 @@ extension Container {
         }
     }
 
+    /// V1.5 — Backend-originated approval question presenter.
+    /// Singleton: WebSocketMessageRouter handler ve root ContentView ayni
+    /// instance'a baglanir, queue durumu process boyunca tek noktada tutulur.
+    var approvalCoordinator: Factory<ApprovalCoordinator> {
+        self { @MainActor in
+            ApprovalCoordinator(
+                submitDecisionUseCase: SubmitApprovalDecisionUseCase(
+                    repository: self.approvalRepository()
+                )
+            )
+        }
+        .singleton
+    }
+
+    /// V1.5 — `question` mesaji icin WebSocket router handler'i.
+    /// Singleton — coordinator gibi process-wide tek instance.
+    var approvalQuestionMessageHandler: Factory<ApprovalQuestionMessageHandler> {
+        self { @MainActor in
+            ApprovalQuestionMessageHandler(coordinator: self.approvalCoordinator())
+        }
+        .singleton
+    }
+
     // MARK: - Notifications Feature
 
     /// Push bildirim yoneticisi.

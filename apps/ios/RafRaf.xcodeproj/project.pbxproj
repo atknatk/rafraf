@@ -110,6 +110,7 @@
 		55FFE6B80055DD880C80680D /* DeviceTokenDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE91FB0E476FF189A678A9DC /* DeviceTokenDTO.swift */; };
 		582BB000412AFCB603200B8A /* AgentMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50022088682D45480D9D0D3A /* AgentMapper.swift */; };
 		585E30AC6F8A289F3E5E6CB6 /* NotificationCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 606199332CEAFAF640318BD1 /* NotificationCenterView.swift */; };
+		58AE56409015367C9E0D87C8 /* ApprovalQuestionMessageHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57DC8935536D06DCD5835297 /* ApprovalQuestionMessageHandler.swift */; };
 		5A4F42682097AF33BB89F144 /* GetClaudeProcessesUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E6D21167CC9E203E10464FD /* GetClaudeProcessesUseCase.swift */; };
 		5AFB5D44BF96A2FCCB667BE5 /* SettingsRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB9277F8FB5FF307653B2DB /* SettingsRepositoryImpl.swift */; };
 		5B6F7CE82B6EBDD641DAB5B6 /* ApprovalTestFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3D573C4FCB2B3CA5F38D93 /* ApprovalTestFactory.swift */; };
@@ -120,6 +121,7 @@
 		5E14E312F16A2169D9269460 /* ConnectionQualityMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F7324953E35C1E18C463BBF /* ConnectionQualityMonitor.swift */; };
 		5ECD4C9BD68F9C09D20F5E20 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F9EF868FB8B3129126B6185 /* HomeViewModel.swift */; };
 		5F054C073A880DCD896A74F2 /* SubagentDetailSheetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B21C3A200C78011D22BE343 /* SubagentDetailSheetTests.swift */; };
+		6193AC34025B78A77954E160 /* ApprovalCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 937CAA89ED548B7E553C28F3 /* ApprovalCoordinator.swift */; };
 		6269EFEFEEECE80A93FDEB24 /* RFShimmerModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CAB4ABB8E67FFA103513EF2 /* RFShimmerModifier.swift */; };
 		6280BF44A48248508AA9A4BE /* AgentStatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498AA5B2E46573607A8ED416 /* AgentStatusBadge.swift */; };
 		6337A21A45BFA590E78846A2 /* SessionTitleMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11FC75739172EB45B2E94B50 /* SessionTitleMapper.swift */; };
@@ -148,6 +150,7 @@
 		77570011D06FBDF6C51CE3E3 /* AgentListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC371455C249B91E7C77722D /* AgentListViewModel.swift */; };
 		7AD12483572390100AC8A782 /* SubagentRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0B16909E13761AC8DA9CFA5 /* SubagentRepositoryImpl.swift */; };
 		7AF4EC15750EC058E9FA2486 /* AITask.swift in Sources */ = {isa = PBXBuildFile; fileRef = C858503FE38D4825CE2653F4 /* AITask.swift */; };
+		7B427CE1119B02E2DB2F0FED /* ApprovalCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77EEEA522182307E5423D66C /* ApprovalCoordinatorTests.swift */; };
 		7D1A8E04BB29843B4DDDC109 /* ProgressRepositoryProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1958BB7A4032A21E1693E062 /* ProgressRepositoryProtocol.swift */; };
 		7E414AE3EF1353AE63B5BBDC /* SessionTitleRepositoryProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5964E2EB9002964731127733 /* SessionTitleRepositoryProtocol.swift */; };
 		7F69C861FBECE104AB7AC76E /* WebSocketMessageRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0562ABFC489C98DF5B80B11F /* WebSocketMessageRouter.swift */; };
@@ -401,6 +404,7 @@
 		554FB5635202438D8C671256 /* AuthMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthMapperTests.swift; sourceTree = "<group>"; };
 		55597F1710AE69FE3EB1CC46 /* CheckProjectStatusIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckProjectStatusIntent.swift; sourceTree = "<group>"; };
 		57AB388A140CFA22E2FB8528 /* SubagentMessageHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubagentMessageHandlers.swift; sourceTree = "<group>"; };
+		57DC8935536D06DCD5835297 /* ApprovalQuestionMessageHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalQuestionMessageHandler.swift; sourceTree = "<group>"; };
 		58B5C79F81BBBAB0FC37BF61 /* RFSpacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFSpacing.swift; sourceTree = "<group>"; };
 		5964E2EB9002964731127733 /* SessionTitleRepositoryProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTitleRepositoryProtocol.swift; sourceTree = "<group>"; };
 		5992E0A0F127905160F54939 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
@@ -424,6 +428,7 @@
 		73EDDECB3A8862452651E8E2 /* RFErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFErrorView.swift; sourceTree = "<group>"; };
 		747F8B6AF88D6C525824A2B4 /* RFLoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFLoadingView.swift; sourceTree = "<group>"; };
 		76FF07A761ED666AB3ABF637 /* RefreshSubscriptionUsageUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshSubscriptionUsageUseCase.swift; sourceTree = "<group>"; };
+		77EEEA522182307E5423D66C /* ApprovalCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalCoordinatorTests.swift; sourceTree = "<group>"; };
 		78D6B9A2EFA0248466C110F5 /* TaskStatusHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskStatusHandler.swift; sourceTree = "<group>"; };
 		79C9096623185819E65CA1D7 /* SaveSettingsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveSettingsUseCase.swift; sourceTree = "<group>"; };
 		7B21C3A200C78011D22BE343 /* SubagentDetailSheetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubagentDetailSheetTests.swift; sourceTree = "<group>"; };
@@ -462,6 +467,7 @@
 		92E34C797F5A1B904C7BE6DE /* BiometricAuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricAuthManager.swift; sourceTree = "<group>"; };
 		93269E459ED3188CC38BD6A0 /* SendMessageUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendMessageUseCaseTests.swift; sourceTree = "<group>"; };
 		933B65B9A297846D979561A1 /* dynamic_island.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = dynamic_island.md; sourceTree = "<group>"; };
+		937CAA89ED548B7E553C28F3 /* ApprovalCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalCoordinator.swift; sourceTree = "<group>"; };
 		945C0EE6B7EE05F06A5414AC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		966E0BFF599142827A0AC6F2 /* RFApprovalSheetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFApprovalSheetTests.swift; sourceTree = "<group>"; };
 		975ABDD02BBE17015B5B12B8 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
@@ -1385,6 +1391,7 @@
 			isa = PBXGroup;
 			children = (
 				0EC84D3332699CFC87E7FC8E /* DTOs */,
+				A8955D5ECA4655A635C7B8BA /* Handlers */,
 				67B58EC2D7DE29D142036D6B /* Mappers */,
 				1C29DFDED6B57F4E06699E7E /* Repositories */,
 			);
@@ -1627,6 +1634,7 @@
 			isa = PBXGroup;
 			children = (
 				7154213E0D87EAD17D1358BF /* Components */,
+				EA606F9B9D6E20B775BCF6CA /* Coordinators */,
 				929417798FEB8917C76E4098 /* ViewModels */,
 				6BB1CB51C38CDDF0638D75CE /* Views */,
 			);
@@ -1679,6 +1687,7 @@
 			children = (
 				E123D689391F5EDCB9E1D919 /* ApprovalCardViewModelTests.swift */,
 				966E0BFF599142827A0AC6F2 /* RFApprovalSheetTests.swift */,
+				AC082F4038CA46A3DAC89321 /* Coordinators */,
 			);
 			path = Presentation;
 			sourceTree = "<group>";
@@ -1710,6 +1719,14 @@
 			path = Mappers;
 			sourceTree = "<group>";
 		};
+		A8955D5ECA4655A635C7B8BA /* Handlers */ = {
+			isa = PBXGroup;
+			children = (
+				57DC8935536D06DCD5835297 /* ApprovalQuestionMessageHandler.swift */,
+			);
+			path = Handlers;
+			sourceTree = "<group>";
+		};
 		AAB9E670EE53446ED80B35E3 /* UseCases */ = {
 			isa = PBXGroup;
 			children = (
@@ -1735,6 +1752,14 @@
 				2C7257C2689A8E6A9F2385F6 /* AuthDTOs.swift */,
 			);
 			path = DTOs;
+			sourceTree = "<group>";
+		};
+		AC082F4038CA46A3DAC89321 /* Coordinators */ = {
+			isa = PBXGroup;
+			children = (
+				77EEEA522182307E5423D66C /* ApprovalCoordinatorTests.swift */,
+			);
+			path = Coordinators;
 			sourceTree = "<group>";
 		};
 		ACA9D791F277DE3F7D1A7140 /* Views */ = {
@@ -2083,6 +2108,14 @@
 			path = Repositories;
 			sourceTree = "<group>";
 		};
+		EA606F9B9D6E20B775BCF6CA /* Coordinators */ = {
+			isa = PBXGroup;
+			children = (
+				937CAA89ED548B7E553C28F3 /* ApprovalCoordinator.swift */,
+			);
+			path = Coordinators;
+			sourceTree = "<group>";
+		};
 		EAF8473B6D95576D04F0228B /* Presentation */ = {
 			isa = PBXGroup;
 			children = (
@@ -2292,10 +2325,12 @@
 				2F3AF5D31BC16ADB2632C01E /* AppLogger.swift in Sources */,
 				43AD14D68F6F2B2A3CBA4503 /* AppSettings.swift in Sources */,
 				CA89DBA76660BDE736B6CE49 /* ApprovalCardViewModel.swift in Sources */,
+				6193AC34025B78A77954E160 /* ApprovalCoordinator.swift in Sources */,
 				ADFE3CD8098A6AD2B1107FA4 /* ApprovalMapper.swift in Sources */,
 				713A4881DF334F581E84388C /* ApprovalOption.swift in Sources */,
 				324142A3F5FBEDC5DB58AE01 /* ApprovalQuestion.swift in Sources */,
 				170305E3526BE2CD9BE0A789 /* ApprovalQuestionDTO.swift in Sources */,
+				58AE56409015367C9E0D87C8 /* ApprovalQuestionMessageHandler.swift in Sources */,
 				ADBD7494FF02D52E57036464 /* ApprovalRepositoryImpl.swift in Sources */,
 				48D6EDC37627B786BA0C66B6 /* ApprovalRepositoryProtocol.swift in Sources */,
 				35A9D0F7A2B7F2F954DDB024 /* ApprovalResponseDTO.swift in Sources */,
@@ -2489,6 +2524,7 @@
 				397062E55ADD9D6034FFAC6C /* AppSettingsModelTests.swift in Sources */,
 				35A0D790EAD344C13F946454 /* AppTabTests.swift in Sources */,
 				2F231408FDDB60ABCC215B2D /* ApprovalCardViewModelTests.swift in Sources */,
+				7B427CE1119B02E2DB2F0FED /* ApprovalCoordinatorTests.swift in Sources */,
 				C04EECE10C7CB20D13384ACD /* ApprovalMapperTests.swift in Sources */,
 				941B0A53882A36B1ED352971 /* ApprovalModelTests.swift in Sources */,
 				03A0DAF73C6811B082C60CE9 /* ApprovalQuestionDTOTests.swift in Sources */,

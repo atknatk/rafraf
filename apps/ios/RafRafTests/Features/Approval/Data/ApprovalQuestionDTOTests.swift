@@ -24,8 +24,10 @@ struct ApprovalQuestionDTOTests {
         }
         """
 
+        // V1.5: ApprovalQuestionDTO artik explicit snake_case CodingKeys'e sahip.
+        // WebSocketMessageRouter pattern'i ile ayni — strategy uygulamiyoruz,
+        // explicit CodingKeys tek dogru kontrat kaynagidir.
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let data = Data(json.utf8)
         let dto = try decoder.decode(ApprovalQuestionDTO.self, from: data)
 
@@ -53,8 +55,10 @@ struct ApprovalQuestionDTOTests {
         }
         """
 
+        // V1.5: ApprovalQuestionDTO artik explicit snake_case CodingKeys'e sahip.
+        // WebSocketMessageRouter pattern'i ile ayni — strategy uygulamiyoruz,
+        // explicit CodingKeys tek dogru kontrat kaynagidir.
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let data = Data(json.utf8)
         let dto = try decoder.decode(ApprovalQuestionDTO.self, from: data)
 
@@ -76,8 +80,8 @@ struct ApprovalQuestionDTOTests {
         }
         """
 
+        // V1.5: explicit CodingKeys — strategy uygulamiyoruz.
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let data = Data(json.utf8)
 
         // context optional oldugundan eksik olabilir
@@ -102,8 +106,10 @@ struct ApprovalQuestionDTOTests {
         }
         """
 
+        // V1.5: ApprovalQuestionDTO artik explicit snake_case CodingKeys'e sahip.
+        // WebSocketMessageRouter pattern'i ile ayni — strategy uygulamiyoruz,
+        // explicit CodingKeys tek dogru kontrat kaynagidir.
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let data = Data(json.utf8)
         let dto = try decoder.decode(ApprovalQuestionDTO.self, from: data)
 
