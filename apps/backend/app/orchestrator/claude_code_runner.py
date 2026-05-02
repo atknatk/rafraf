@@ -299,6 +299,7 @@ class ClaudeCodeRunner:
                     project_dir=project_dir,
                     bridge_id=bridge_id,
                     user_id=user_id,
+                    db_session_id=db_session_id,
                     on_text_delta=on_text_delta,
                     on_tool_progress=on_tool_progress,
                     on_question=on_question,
@@ -323,6 +324,7 @@ class ClaudeCodeRunner:
         project_dir: str | None,
         bridge_id: str | None,
         user_id: str | None,
+        db_session_id: uuid.UUID | None,
         on_text_delta: TextDeltaCallback | None,
         on_tool_progress: ToolProgressCallback | None,
         on_question: QuestionCallback | None,
@@ -527,6 +529,7 @@ class ClaudeCodeRunner:
                     state=state,
                     callbacks=callbacks,
                     bridge_host_id=bridge_host_id,
+                    db_session_id=db_session_id,
                     span=span,
                 )
             except ClaudeCodeError as exc:
@@ -541,6 +544,7 @@ class ClaudeCodeRunner:
         state: _RunState,
         callbacks: _Callbacks,
         bridge_host_id: str,
+        db_session_id: uuid.UUID | None,
         span: trace.Span,
     ) -> bool:
         """Body of :meth:`_dispatch_event`, wrapped by the OTel span."""
