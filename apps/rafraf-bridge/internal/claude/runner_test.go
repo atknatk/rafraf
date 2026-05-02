@@ -183,11 +183,11 @@ func TestRunner_BuildEnv_OmitsBrokerSockByDefault(t *testing.T) {
 // V1.4-followup: buildEnv must inject RAFRAF_BRIDGE_PERM_TIMEOUT_MS
 // (broker timeout in milliseconds) so the hook's UDS deadline tracks
 // the broker's effective ceiling in lockstep. Three branches matter:
-//   1. timeout configured + sock configured → emit env var.
-//   2. timeout configured but sock NOT configured → omit (env var is
-//      meaningless without a sock to dial).
-//   3. timeout zero/unset → omit (hook falls back to its own 190s
-//      default — backwards-compat with V1.0/V1.1 callers).
+//  1. timeout configured + sock configured → emit env var.
+//  2. timeout configured but sock NOT configured → omit (env var is
+//     meaningless without a sock to dial).
+//  3. timeout zero/unset → omit (hook falls back to its own 190s
+//     default — backwards-compat with V1.0/V1.1 callers).
 func TestRunner_BuildEnv_InjectsBrokerTimeoutMsWhenSet(t *testing.T) {
 	t.Parallel()
 	r := NewRunner(&config.Config{PermissionTimeout: 180 * time.Second}, silentLogger())
@@ -339,8 +339,8 @@ func TestBuildSettingsOverlay_TimeoutMatrix(t *testing.T) {
 	cases := []struct {
 		name        string
 		hookTimeout time.Duration
-		wantContain string  // empty -> assert NOT present
-		wantAbsent  string  // empty -> no extra absence check
+		wantContain string // empty -> assert NOT present
+		wantAbsent  string // empty -> no extra absence check
 	}{
 		{
 			name:        "zero_omits",
