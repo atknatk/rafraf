@@ -1,3 +1,6 @@
+{{- if and .Values.prodGuard .Values.prodGuard.enabled -}}
+{{- include "rafraf-backend.validatePlaceholderCIDRs" . -}}
+{{- end -}}
 {{- if .Values.networkPolicy.enabled -}}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -35,6 +38,16 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.service.port }}
+    # T3.5-polish-fix (HIGH #7): allow same-namespace helm test pod to reach
+    # /ready. Without this rule the M5 smoke test would time out on any
+    # cluster that actually enforces NetworkPolicy (Calico/Cilium).
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: test
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.port }}
     {{- end }}
   egress:
     {{- /*
@@ -62,9 +75,15 @@ spec:
       ports:
         - protocol: TCP
           port: 6379
-    # Cluster DNS (CoreDNS lives in any namespace; selector kept wide).
+    # Cluster DNS — CoreDNS pods (any namespace) PLUS NodeLocal DNSCache
+    # link-local IP. T3.5-polish-fix (HIGH #3): NodeLocal DNSCache is
+    # host-networked at 169.254.20.10 and is NOT matched by namespaceSelector
+    # alone; if the cluster enables it, name resolution would silently fail.
+    # The ipBlock peer is harmless on clusters without NodeLocal.
     - to:
         - namespaceSelector: {}
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.nodeLocalDnsCacheCIDR | default "169.254.20.10/32" | quote }}
       ports:
         - protocol: UDP
           port: 53

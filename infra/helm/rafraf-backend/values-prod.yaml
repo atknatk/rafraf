@@ -115,3 +115,11 @@ networkPolicy:
     - 169.254.169.254/32
   albNamespace: kube-system
   prometheusNamespace: monitoring
+
+# T3.5-polish-fix (HIGH #2): fail-fast guard against shipping placeholder
+# RDS/Redis CIDRs to a real prod cluster. With prodGuard.enabled=true the
+# chart refuses to render if rdsCIDRs/redisCIDRs still contain the
+# illustrative 10.10.x.0/24 values from above. Replace those, then the
+# render passes. Bypass for non-prod testing: --set prodGuard.enabled=false.
+prodGuard:
+  enabled: true

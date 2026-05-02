@@ -55,4 +55,21 @@ spec:
             {{- end }}
           resources:
             {{- toYaml .Values.migration.resources | nindent 12 }}
+          # T3.5-polish-fix (CRITICAL #1): Job inherits readOnlyRootFilesystem
+          # from .Values.securityContext, so any tempfile.gettempdir() write
+          # (asyncpg/SQLAlchemy/cryptography internals during alembic upgrade)
+          # would EROFS without these scratch mounts. /app/logs is included
+          # defensively in case future migration scripts call setup_logging.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: app-logs
+              mountPath: /app/logs
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: app-logs
+          emptyDir:
+            sizeLimit: 32Mi
 {{- end }}
