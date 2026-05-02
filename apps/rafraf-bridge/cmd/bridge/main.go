@@ -210,13 +210,12 @@ func run(args []string) int {
 		}()
 	}
 
-	// Inbound dispatcher: drain ws inbound (when supported) and route
-	// command.* envelopes to the runner. The current ws.Client only
-	// reads to keep the socket alive; once it gains an inbound channel
-	// the existing routeInbound() helper will subscribe directly.
-	// Until then this loop exits immediately on ctx cancellation; it
-	// exists so the wiring is in place for T0.5.14+ inbound work
-	// without further main.go churn.
+	// Inbound dispatcher: single consumer of ws.Client.Inbound. V1.1 wired
+	// the channel + JSON decode in the ws reader; this loop fans frames
+	// into dispatchCommand. Each handler is required to be non-blocking
+	// (synchronous work must be moved into a goroutine) so a slow handler
+	// cannot back up the bounded Inbound buffer — V1.3 broker.Resolve
+	// must follow the same contract.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -393,9 +392,14 @@ func dispatchCommand(ctx context.Context, runner *claude.Runner, wsClient *ws.Cl
 			logger.Warn("dispatch: invalid command.claude.abort payload", "err", err, "id", env.ID)
 			return
 		}
-		if err := runner.Abort(cmd.SessionID); err != nil {
-			logger.Warn("abort failed", "err", err, "session_id", cmd.SessionID)
-		}
+		// runner.Abort blocks for ~100ms (abortGracePeriod). Spawn a
+		// goroutine so back-to-back aborts do not wedge the bounded
+		// Inbound buffer. Abort is idempotent + thread-safe.
+		go func() {
+			if err := runner.Abort(cmd.SessionID); err != nil {
+				logger.Warn("abort failed", "err", err, "session_id", cmd.SessionID)
+			}
+		}()
 	default:
 		logger.Debug("dispatch: ignoring envelope", "type", env.Type, "id", env.ID)
 	}

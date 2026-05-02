@@ -46,8 +46,9 @@ type Client struct {
 	// to the bridge's dispatcher loop in cmd/bridge/main.go. Capacity is
 	// inboxCapacity (64); see the inboxCapacity doc comment for the
 	// backpressure rationale. The reader goroutine never blocks on this
-	// channel — overflows are dropped + counted in WSEventsDroppedInbound
-	// so a slow consumer cannot wedge the WSS read loop.
+	// channel — overflows are dropped + counted in telemetry.WSEventsDropped
+	// (TODO V1.4: split outbound vs inbound dropped counters) so a slow
+	// consumer cannot wedge the WSS read loop.
 	Inbound chan protocol.Envelope // ws → app (inbound)
 	Done    chan struct{}          // signal shutdown
 
