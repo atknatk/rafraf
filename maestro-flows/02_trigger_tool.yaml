@@ -1,0 +1,54 @@
+appId: app.rafraf.RafRaf
+name: 02_trigger_tool
+tags:
+  - chat
+  - approval
+---
+# Pre-req: chat session active (project picked, input visible).
+# Action: types a prompt that forces claude to call a tool requiring approval
+#         (Write — read-only tools auto-allow per Doc 10 §8) and sends it.
+# Endpoint: prompt sent (input cleared, message visible in transcript).
+#
+# IMPORTANT — coordinate-based send button tap:
+#   The send button (orange circle, "arrow.up" SF Symbol) has no
+#   accessibilityLabel, so Maestro's text matcher cannot find it. We tap by
+#   coordinate: native button center is at ~87%,57% of screen on iPhone 16 Pro
+#   when keyboard is up + input is single-line. If the prompt wraps to several
+#   lines, the button slides DOWN — re-measure if you change the prompt.
+#
+# IMPORTANT — root-cause warning for tool calls:
+#   At the time of writing, the Go bridge does NOT send `agent_register`
+#   to the backend, so backend/services/orchestrator_service._resolve_agent_for_project
+#   returns None and the chat path falls back to direct API (no claude, no
+#   tools, no approval sheet). Until the bridge sends `agent_register`
+#   with capability=claude_code OR the project's AgentProject.is_active is
+#   set true on a registered agent, this flow will succeed (message sends)
+#   but flow 03 (capture approval) will block on the 30s wait.
+
+- assertVisible: "Type your message..."
+
+- tapOn: "Type your message..."
+- waitForAnimationToEnd:
+    timeout: 800
+
+# Use Write — unambiguously prompts approval (Doc 10 §8 high-risk tool).
+- inputText: "Please use the Write tool to create a new file at /tmp/maestro-rafraf-test.txt with the exact content: hello-from-maestro. Do not list directories first or read existing files. Just call Write directly."
+
+- waitForAnimationToEnd:
+    timeout: 1500
+- takeScreenshot: /tmp/rafraf-02a-prompt-typed
+
+# Tap the send button by coordinate (orange circle, right side of input row).
+# 87%,57% places the tap at the button center on iPhone 16 Pro with keyboard
+# visible. NB: Maestro's `tapOn point` on iOS sometimes registers as a
+# long-press if it lands inside a selectable text field — placing it just
+# OUTSIDE the bubble (87% > the bubble's right edge) avoids this.
+- tapOn:
+    point: "87%,57%"
+- waitForAnimationToEnd:
+    timeout: 3000
+
+- takeScreenshot: /tmp/rafraf-02b-prompt-sent
+
+# Sanity: input is cleared (placeholder visible again confirms message was consumed)
+- assertVisible: "Type your message..."

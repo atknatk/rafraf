@@ -1,0 +1,25 @@
+appId: app.rafraf.RafRaf
+name: 04_tap_allow_once
+tags:
+  - approval
+---
+# Pre-req: RFApprovalSheet currently rendered (flow 03 just passed).
+# Action: taps the "Allow once" decision button.
+# Endpoint: sheet dismissed; chat resumes (assistant continues writing the file).
+#
+# RFApprovalSheet has accessibilityLabel(title) on each decision button so
+# Maestro's text matcher works directly.
+
+- assertVisible:
+    text: "Allow once|Sadece bir kez izin ver"
+
+- tapOn:
+    text: "Allow once|Sadece bir kez izin ver"
+- waitForAnimationToEnd:
+    timeout: 2000
+
+- takeScreenshot: /tmp/rafraf-approval-allowed
+
+# Sanity: sheet dismissed (title no longer visible)
+- assertNotVisible:
+    text: "Approval required|Onay gerekiyor"

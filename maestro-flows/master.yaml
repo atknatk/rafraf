@@ -1,0 +1,19 @@
+appId: app.rafraf.RafRaf
+name: master
+tags:
+  - master
+  - e2e
+---
+# End-to-end orchestrator: 00 → 01 → 02 → 03 → 04.
+# Run: ~/.maestro/bin/maestro --device <UDID> test maestro-flows/master.yaml
+#
+# Each sub-flow is idempotent or guarded; safe to re-run after a partial pass.
+# If 03 times out, see /tmp/rafraf-bridge.stderr.log for `claude_active=0`
+# (means the chat path didn't reach claude — see 02_trigger_tool.yaml header
+# for root-cause diagnostics).
+
+- runFlow: 00_onboarding_login.yaml
+- runFlow: 01_open_chat.yaml
+- runFlow: 02_trigger_tool.yaml
+- runFlow: 03_capture_approval.yaml
+- runFlow: 04_tap_allow_once.yaml

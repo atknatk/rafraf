@@ -1,0 +1,110 @@
+appId: app.rafraf.RafRaf
+name: 01_open_chat
+tags:
+  - chat
+---
+# Pre-req: user is authenticated (flow 00 just ran).
+# Action: ensures Chat tab selected. If any agent has linked projects, opens
+#         RFProjectPicker and picks the first available agent/project so the
+#         orchestrator routes via project metadata. Otherwise stays in
+#         "General Chat" mode — orchestrator falls back to any online
+#         claude_code agent (see _resolve_agent_for_project in
+#         apps/backend/app/services/orchestrator_service.py:644).
+# Endpoint: chat input ("Type your message...") visible.
+#
+# Why this is now permissive: the bridge identifies as `MacBook-Pro-4.local`
+# (or whatever `os.Hostname()` returns), not the historical `atakan-macbook`.
+# AgentProject rows for the new host are empty in the test DB, so the picker
+# only shows "General Chat" — that's fine, fallback routing still reaches
+# the bridge because it's the only online claude_code agent.
+#
+# This flow is a no-op when chat input is already visible.
+
+# Step 1: Navigate to Chat tab if not already there.
+- runFlow:
+    when:
+      notVisible: "Type your message..."
+    commands:
+      - runFlow:
+          when:
+            visible: "Welcome"
+          commands:
+            # Home: "Chat" appears twice (no-op card + tab bar). index:1 = tab bar.
+            - tapOn:
+                text: "Chat"
+                index: 1
+      - runFlow:
+          when:
+            notVisible: "Welcome"
+          commands:
+            - tapOn: "Chat"
+      - waitForAnimationToEnd:
+          timeout: 2000
+
+- takeScreenshot: /tmp/rafraf-01a-chat-tab
+
+# Step 2: try to open the project picker only if "General Chat" is visible
+# AND a real project link exists. We try a permissive selector that matches
+# any agent host name — matches `MacBook-Pro-4.local`, `MacBook-Pro-4`,
+# `atakan-macbook`, lowercase or mixed case. If picker has no agent rows,
+# we fall through silently and rely on General Chat routing.
+- runFlow:
+    when:
+      visible: "General Chat"
+    commands:
+      - tapOn: "General Chat"
+      - waitForAnimationToEnd:
+          timeout: 2500
+      - takeScreenshot: /tmp/rafraf-01b-picker-open
+
+      # Try to tap an agent submenu. The label uses `group.agentId` — full
+      # hostname. Maestro regex matches any of: MacBook, macbook, atakan, Mac.
+      # If no such row exists in the menu (empty agentProjects), this becomes
+      # a no-op courtesy of the inner runFlow guard.
+      - runFlow:
+          when:
+            visible:
+              text: "(?i).*(macbook|atakan|mac-pro).*"
+          commands:
+            - tapOn:
+                text: "(?i).*(macbook|atakan|mac-pro).*"
+            - waitForAnimationToEnd:
+                timeout: 2500
+            - takeScreenshot: /tmp/rafraf-01c-projects-menu
+
+            # Pick the first project we recognize — ai-expensify, rafraf,
+            # ember etc. are all in the test DB. If none are linked, this
+            # whole sub-block is skipped.
+            - runFlow:
+                when:
+                  visible: "ai-expensify"
+                commands:
+                  - tapOn: "ai-expensify"
+                  - waitForAnimationToEnd:
+                      timeout: 3000
+            - runFlow:
+                when:
+                  visible: "rafraf"
+                commands:
+                  - tapOn: "rafraf"
+                  - waitForAnimationToEnd:
+                      timeout: 3000
+
+      # If no agent row is visible (empty AgentProjects list), close the
+      # picker by tapping outside it. Tapping the page header "Chat" works.
+      - runFlow:
+          when:
+            notVisible:
+              text: "(?i).*(macbook|atakan|mac-pro).*"
+          commands:
+            # Dismiss the menu by tapping a safe area near the top — avoids
+            # the tab bar. Coordinate ~50%,15% lands in the navbar/blank area.
+            - tapOn:
+                point: "50%,15%"
+            - waitForAnimationToEnd:
+                timeout: 1000
+
+- takeScreenshot: /tmp/rafraf-01d-ready
+
+# Sanity: chat input visible (the operational endpoint).
+- assertVisible: "Type your message..."

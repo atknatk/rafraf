@@ -1,0 +1,95 @@
+appId: app.rafraf.RafRaf
+name: 00_onboarding_login
+tags:
+  - login
+---
+# Idempotent login flow.
+# Handles three startup states:
+#   A) Already authenticated → tab bar visible immediately, fall through.
+#   B) Onboarding not yet completed → walk 4 onboarding screens, then sign in.
+#   C) Onboarding completed but not signed in → land on Sign In, just sign in.
+#   D) iOS keychain pre-auth (after simctl uninstall+install Apple keeps the
+#      keychain) → onboarding may still appear because @AppStorage was wiped
+#      but tokens persisted; after Get Started the app skips Sign In and lands
+#      directly on Home tab. We handle this by guarding the Sign In block.
+#
+# Endpoint: tab bar with Home/Chat/Agents/Settings visible.
+
+- launchApp:
+    appId: app.rafraf.RafRaf
+    clearKeychain: false
+    clearState: false
+
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# Onboarding screens — only run if Sign In NOT already visible AND tab bar
+# not yet present. Each step is itself guarded so partial-onboarding-completed
+# states are safe to re-enter.
+- runFlow:
+    when:
+      notVisible: "Sign In"
+      visible: "Next"
+    commands:
+      - tapOn: "Next"
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - runFlow:
+          when:
+            visible: "Next"
+          commands:
+            - tapOn: "Next"
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: "Next"
+          commands:
+            - tapOn: "Next"
+            - waitForAnimationToEnd:
+                timeout: 2000
+      - runFlow:
+          when:
+            visible: "Get Started"
+          commands:
+            - tapOn: "Get Started"
+            - waitForAnimationToEnd:
+                timeout: 3000
+
+# Handle "Get Started" alone (case where first 3 Next screens were already
+# walked but Get Started wasn't tapped yet).
+- runFlow:
+    when:
+      visible: "Get Started"
+      notVisible: "Sign In"
+    commands:
+      - tapOn: "Get Started"
+      - waitForAnimationToEnd:
+          timeout: 3000
+
+# Sign In screen — only execute if it actually appeared. With keychain pre-auth
+# the app jumps straight from Get Started to Home, skipping Sign In entirely.
+- runFlow:
+    when:
+      visible: "Sign In"
+      notVisible: "Settings"
+    commands:
+      - tapOn:
+          text: "Email"
+      - inputText: "atknphone@gmail.com"
+      - tapOn:
+          text: "Password"
+      - inputText: "Rafraf2026!"
+      # Sign In button (index:1) — header text is index:0
+      - tapOn:
+          text: "Sign In"
+          index: 1
+      - waitForAnimationToEnd:
+          timeout: 8000
+
+- takeScreenshot: /tmp/rafraf-00-after-login
+
+# Sanity: tab bar present (Settings is the rightmost tab — least ambiguous
+# anchor, never appears outside the authenticated tab bar).
+- assertVisible:
+    text: "Settings"

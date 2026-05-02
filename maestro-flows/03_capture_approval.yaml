@@ -1,0 +1,32 @@
+appId: app.rafraf.RafRaf
+name: 03_capture_approval
+tags:
+  - approval
+---
+# Pre-req: prompt sent (flow 02 just ran).
+# Action: waits up to ~35s for RFApprovalSheet to appear (claude → bridge
+#         broker → backend question envelope → iOS coordinator → root .sheet).
+# Endpoint: sheet visible; screenshot saved at /tmp/rafraf-approval-rendered.png.
+#
+# Detection key: localized title "Approval required" (EN) or "Onay gerekiyor" (TR).
+# We accept either since the simulator's locale may default to either.
+#
+# If this flow times out, root causes (in order of likelihood):
+#   1. Go bridge never sent `agent_register` to backend → orchestrator routed
+#      to API fallback, claude was never invoked. See flow 02 header note.
+#   2. claude binary auth expired (check `auth_expired=N` in
+#      /tmp/rafraf-bridge.stderr.log → run `claude login` on host).
+#   3. PreToolUse hook failed (broker_uds permission denied or stale path).
+#      Check bridge logs for `permission broker listening`.
+
+- extendedWaitUntil:
+    visible:
+      text: "Approval required|Onay gerekiyor"
+    timeout: 35000
+
+- takeScreenshot: /tmp/rafraf-approval-rendered
+
+# Sanity: at least one decision button is visible (per RFApprovalSheet design,
+# Allow Once is always rendered).
+- assertVisible:
+    text: "Allow once|Sadece bir kez izin ver"
