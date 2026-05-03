@@ -255,9 +255,12 @@ struct ChatView: View {
             .keyboardShortcut("f", modifiers: .command)
             .hidden()
 
-            // Escape: Odak kaldir / overlay kapat
+            // Escape: Acik palet veya / on-eki varsa kapat. Yoksa kullanicinin
+            // metnini sessizce silme — sadece odakli paleti dismiss et.
             Button("") {
-                viewModel.messageText = ""
+                if viewModel.messageText.hasPrefix("/") {
+                    viewModel.messageText = ""
+                }
             }
             .keyboardShortcut(.escape, modifiers: [])
             .hidden()
@@ -1407,5 +1410,9 @@ private final class PreviewChatRepository: ChatRepositoryProtocol, @unchecked Se
 
     func rateMessage(id: String, rating: MessageRating) async throws {
         // Preview no-op
+    }
+
+    func loadRecent(limit: Int) async throws -> [ChatMessage] {
+        []
     }
 }

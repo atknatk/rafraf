@@ -159,6 +159,22 @@ async def search_messages(
     ]
 
 
+@router.get("/recent", response_model=ConversationHistoryResponse)
+async def get_recent_messages(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    limit: Annotated[
+        int,
+        Query(ge=1, le=20, description="Donmesi istenen mesaj sayisi"),
+    ] = 1,
+) -> ConversationHistoryResponse:
+    """En son N mesaji dondurur (tum sessionlar arasinda).
+
+    Home ekraninda "son sohbet" preview kartini beslemek icin kullanilir.
+    """
+    svc = ConversationService(session)
+    return await svc.get_recent_messages(limit=limit)
+
+
 @router.get("/missed", response_model=ConversationHistoryResponse)
 async def get_missed_messages(
     session: Annotated[AsyncSession, Depends(get_db)],

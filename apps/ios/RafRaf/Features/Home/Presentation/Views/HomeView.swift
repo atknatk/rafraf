@@ -74,6 +74,11 @@ struct HomeView: View {
                 quickActionsSection
                     .rfEntrance(isAppeared: isAppeared, delay: 0.15)
 
+                if let lastChat = viewModel.lastChat {
+                    lastChatSection(message: lastChat)
+                        .rfEntrance(isAppeared: isAppeared, delay: 0.20)
+                }
+
                 if viewModel.sessions.isEmpty {
                     RFEmptyStateView(
                         systemImage: "folder",
@@ -97,6 +102,85 @@ struct HomeView: View {
                 isAppeared = true
             }
         }
+    }
+
+    // MARK: - Last Chat Preview
+
+    private func lastChatSection(message: ChatMessage) -> some View {
+        VStack(alignment: .leading, spacing: RFSpacing.sm) {
+            RFText(
+                String(localized: "home.lastChat.title"),
+                style: .headline,
+                color: .white
+            )
+
+            RFCard(style: .standard) {
+                VStack(alignment: .leading, spacing: RFSpacing.xs) {
+                    HStack(spacing: RFSpacing.xs) {
+                        Image(systemName: lastChatIcon(for: message.sender))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(RFColors.fallbackPrimary)
+                        RFText(
+                            lastChatRoleLabel(for: message.sender),
+                            style: .captionBold,
+                            color: RFColors.fallbackTextSecondary
+                        )
+                        Spacer()
+                        RFText(
+                            relativeTimestamp(message.timestamp),
+                            style: .caption,
+                            color: RFColors.fallbackTextTertiary
+                        )
+                    }
+
+                    RFText(
+                        lastChatPreview(message.content),
+                        style: .body,
+                        color: RFColors.fallbackTextPrimary
+                    )
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            String(
+                format: String(localized: "home.lastChat.a11y"),
+                lastChatRoleLabel(for: message.sender),
+                lastChatPreview(message.content)
+            )
+        )
+    }
+
+    private func lastChatIcon(for sender: MessageSender) -> String {
+        switch sender {
+        case .user: return "person.fill"
+        case .assistant: return "sparkles"
+        case .system: return "info.circle"
+        }
+    }
+
+    private func lastChatRoleLabel(for sender: MessageSender) -> String {
+        switch sender {
+        case .user: return String(localized: "home.lastChat.role.user")
+        case .assistant: return String(localized: "home.lastChat.role.assistant")
+        case .system: return String(localized: "home.lastChat.role.system")
+        }
+    }
+
+    private func lastChatPreview(_ content: String) -> String {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.count <= 240 {
+            return trimmed
+        }
+        return String(trimmed.prefix(240)) + "…"
+    }
+
+    private func relativeTimestamp(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 
     // MARK: - Hero Section

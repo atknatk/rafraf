@@ -148,19 +148,33 @@ struct RFQuickCommandPalette: View {
     let commands: [QuickCommand]
     let onSelect: (QuickCommand) -> Void
 
+    /// Goruntulenebilecek tek seferde gorunen satir sayisi — fazlasi scroll.
+    private let visibleRowCount: CGFloat = 4
+    private let estimatedRowHeight: CGFloat = 52
+
+    private var maxPaletteHeight: CGFloat {
+        visibleRowCount * estimatedRowHeight
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(commands) { command in
-                commandRow(command)
-                if command.id != commands.last?.id {
-                    Divider()
-                        .padding(.leading, 44)
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(commands) { command in
+                    commandRow(command)
+                    if command.id != commands.last?.id {
+                        Divider()
+                            .padding(.leading, 44)
+                    }
                 }
             }
         }
+        .frame(maxHeight: maxPaletteHeight)
+        .scrollIndicatorsFlash(onAppear: true)
         .background(RFColors.fallbackSurface)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: -4)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(String(localized: "chat.commandPalette.a11y"))
     }
 
     private func commandRow(_ command: QuickCommand) -> some View {

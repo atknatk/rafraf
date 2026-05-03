@@ -36,6 +36,11 @@ protocol ChatRepositoryProtocol: Sendable {
     ///   - id: Degerlendirilen mesajin ID'si
     ///   - rating: up veya down
     func rateMessage(id: String, rating: MessageRating) async throws
+
+    /// Tum sessionlardan en son N mesaji getirir (created_at desc).
+    /// Home ekraninda son sohbet preview kartini beslemek icin kullanilir.
+    /// - Parameter limit: Donmesi istenen mesaj sayisi (1...20)
+    func loadRecent(limit: Int) async throws -> [ChatMessage]
 }
 
 /// Chat gecmisi sonuc modeli.

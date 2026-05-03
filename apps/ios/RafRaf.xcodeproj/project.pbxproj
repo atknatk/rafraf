@@ -146,6 +146,7 @@
 		6F8B12B61BD2D3982605B404 /* RafRafError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0183BBD567C05093A6929B27 /* RafRafError.swift */; };
 		70B8FA119FBB49E118B98E73 /* BookmarkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF59A69ABE80D7C78EC0C42 /* BookmarkService.swift */; };
 		70FBD109CFBA054CAD3A8FCF /* LoadChatHistoryUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EFE790132F623C0887C8BA5 /* LoadChatHistoryUseCase.swift */; };
+		650CFD0CEB344BDF83271C65 /* LoadRecentChatUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F495F9BE7AE55C34B877FEE /* LoadRecentChatUseCase.swift */; };
 		713A4881DF334F581E84388C /* ApprovalOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 319FC08A12062D681D3865ED /* ApprovalOption.swift */; };
 		76C10079D554065D4A3DB548 /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 884DCBB378AB332BCCE7C7E3 /* AuthManager.swift */; };
 		77570011D06FBDF6C51CE3E3 /* AgentListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC371455C249B91E7C77722D /* AgentListViewModel.swift */; };
@@ -483,6 +484,7 @@
 		9DDDFA07B5EA521B249A6404 /* AuthInterceptorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthInterceptorTests.swift; sourceTree = "<group>"; };
 		9E6DE49BB07DEAE985B85556 /* RescanProjectsUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RescanProjectsUseCase.swift; sourceTree = "<group>"; };
 		9EFE790132F623C0887C8BA5 /* LoadChatHistoryUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadChatHistoryUseCase.swift; sourceTree = "<group>"; };
+		0F495F9BE7AE55C34B877FEE /* LoadRecentChatUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadRecentChatUseCase.swift; sourceTree = "<group>"; };
 		9F41288A855FA8C6B4DEA72D /* FetchMissedMessagesUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FetchMissedMessagesUseCase.swift; sourceTree = "<group>"; };
 		A073EB9A2A3FA571F42B0DE2 /* RFQuickCommandPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFQuickCommandPalette.swift; sourceTree = "<group>"; };
 		A0B16909E13761AC8DA9CFA5 /* SubagentRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubagentRepositoryImpl.swift; sourceTree = "<group>"; };
@@ -1735,6 +1737,7 @@
 			children = (
 				9F41288A855FA8C6B4DEA72D /* FetchMissedMessagesUseCase.swift */,
 				9EFE790132F623C0887C8BA5 /* LoadChatHistoryUseCase.swift */,
+				0F495F9BE7AE55C34B877FEE /* LoadRecentChatUseCase.swift */,
 				9888B9C9BDD14DBBCB32C328 /* ObserveProgressUseCase.swift */,
 				53122A6023B9C8527386D149 /* SendMessageUseCase.swift */,
 			);
@@ -2389,6 +2392,7 @@
 				5ECD4C9BD68F9C09D20F5E20 /* HomeViewModel.swift in Sources */,
 				23DDF59C55AA208C878A40FC /* KeychainHelper.swift in Sources */,
 				70FBD109CFBA054CAD3A8FCF /* LoadChatHistoryUseCase.swift in Sources */,
+				650CFD0CEB344BDF83271C65 /* LoadRecentChatUseCase.swift in Sources */,
 				A5ADBE2F9099870860D6B1FA /* LoadProfileUseCase.swift in Sources */,
 				E5ED3D543074B50FD6ED7263 /* LoadSettingsUseCase.swift in Sources */,
 				FC196297F8982111BF52B197 /* LoginUseCase.swift in Sources */,

@@ -22,9 +22,13 @@ final class HomeViewModel {
     /// Bir sessionın `aiTitle` alani `session.title` event'i geldikce guncellenir.
     var sessions: [HomeSession] = []
 
+    /// Tum sessionlardan gelen en son mesaj — home'da "son sohbet" preview kartini besler.
+    var lastChat: ChatMessage?
+
     // MARK: - Private
 
     private let observeSessionTitleUpdatesUseCase: ObserveSessionTitleUpdatesUseCase?
+    private let loadRecentChatUseCase: LoadRecentChatUseCase?
     private let logger = AppLogger.logger(for: "Home")
     /// `nonisolated(unsafe)` — sadece `loadData()` ve `deinit`'ten okunur/yazilir;
     /// ViewModel @MainActor oldugu icin `loadData` zaten serileştirilir, `deinit` ise
@@ -34,14 +38,21 @@ final class HomeViewModel {
     // MARK: - Init
 
     /// Production init — DI tarafindan kullanilir (`AppContainer.homeViewModel`).
-    init(observeSessionTitleUpdatesUseCase: ObserveSessionTitleUpdatesUseCase) {
+    /// `loadRecentChatUseCase` opsiyonel — testlerde stream gozlemi icin
+    /// olusturulan ViewModel'lar nil ile cagiratabilir.
+    init(
+        observeSessionTitleUpdatesUseCase: ObserveSessionTitleUpdatesUseCase,
+        loadRecentChatUseCase: LoadRecentChatUseCase? = nil
+    ) {
         self.observeSessionTitleUpdatesUseCase = observeSessionTitleUpdatesUseCase
+        self.loadRecentChatUseCase = loadRecentChatUseCase
         logger.info("HomeViewModel baslatildi")
     }
 
     /// Preview / test init — observation devre disi.
     init() {
         self.observeSessionTitleUpdatesUseCase = nil
+        self.loadRecentChatUseCase = nil
         logger.info("HomeViewModel baslatildi (gozlemsiz)")
     }
 
@@ -58,6 +69,20 @@ final class HomeViewModel {
 
         logger.info("Home verileri yukleniyor")
         await startObservingTitleUpdates()
+        await loadLastChat()
+    }
+
+    /// Tum sessionlardan en son mesaji yukler — home preview kartini besler.
+    /// Hata durumunda sessizce no-op (preview opsiyonel, blocking degil).
+    func loadLastChat() async {
+        guard let useCase = loadRecentChatUseCase else { return }
+        do {
+            let messages = try await useCase.execute(limit: 1)
+            lastChat = messages.last
+            logger.info("Son mesaj preview yuklendi: \(messages.count) mesaj")
+        } catch {
+            logger.error("Son mesaj preview yuklenemedi: \(error.localizedDescription)")
+        }
     }
 
     /// Test/Preview/Seed amacli bir session listesi yerlestirir.

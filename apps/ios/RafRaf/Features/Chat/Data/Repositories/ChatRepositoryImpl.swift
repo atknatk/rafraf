@@ -137,6 +137,34 @@ final class ChatRepositoryImpl: ChatRepositoryProtocol, @unchecked Sendable {
         logger.info("Kacirilmis mesajlar yuklendi: \(messages.count)")
         return messages
     }
+
+    func loadRecent(limit: Int) async throws -> [ChatMessage] {
+        let clamped = max(1, min(limit, 20))
+        let queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "limit", value: "\(clamped)")
+        ]
+
+        let dto: ConversationHistoryDTO = try await networkClient.get(
+            path: "/conversations/recent",
+            queryItems: queryItems
+        )
+
+        let messages = dto.messages.compactMap { msg -> ChatMessage? in
+            let sender: MessageSender = msg.role == "user" ? .user : .assistant
+            let rating: MessageRating? = msg.rating.flatMap { MessageRating(rawValue: $0) }
+            return ChatMessage(
+                id: msg.id,
+                content: msg.content,
+                sender: sender,
+                timestamp: ISO8601DateFormatter().date(from: msg.createdAt) ?? Date(),
+                type: .text,
+                rating: rating
+            )
+        }
+
+        logger.info("Son mesajlar yuklendi: \(messages.count)")
+        return messages
+    }
 }
 
 /// Chat repository hatalari.

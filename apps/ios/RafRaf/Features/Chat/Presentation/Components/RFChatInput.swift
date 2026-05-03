@@ -43,19 +43,6 @@ struct RFChatInput: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(alignment: .bottom, spacing: RFSpacing.sm) {
-                // + attachment placeholder
-                Button { } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(RFColors.fallbackTextSecondary)
-                        .frame(width: 34, height: 34)
-                        .background(RFColors.fallbackSurface)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(RFColors.divider, lineWidth: 0.5))
-                }
-                .buttonStyle(.plain)
-                .disabled(isProcessing)
-
                 HStack(alignment: .bottom, spacing: RFSpacing.xs) {
                     multiLineTextField
                     actionButton
@@ -138,20 +125,38 @@ struct RFChatInput: View {
             if isRecording {
                 Circle()
                     .stroke(RFColors.error.opacity(0.4), lineWidth: 2)
-                    .scaleEffect(1.0 + CGFloat(audioLevel) * 0.3)
+                    .scaleEffect(1.0 + CGFloat(audioLevel) * 0.2)
                     .animation(RFAnimation.springSnappy, value: audioLevel)
                 Image(systemName: "stop.fill")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.white)
             } else {
+                // Idle: secondary outline gorunum — "send" turuncu butonundan ayri.
+                // Boylece kullanici mesaj gonderdiginde "mic acik kaldi" hissini almaz.
                 Image(systemName: "mic.fill")
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(RFColors.fallbackTextSecondary)
             }
         }
         .frame(width: 36, height: 36)
-        .background(isRecording ? RFColors.error : RFColors.fallbackPrimary)
-        .clipShape(Circle())
+        .background(
+            Circle()
+                .fill(isRecording ? AnyShapeStyle(RFColors.error) : AnyShapeStyle(RFColors.fallbackSurface))
+        )
+        .overlay(
+            Circle()
+                .stroke(
+                    isRecording ? Color.clear : RFColors.divider.opacity(0.6),
+                    lineWidth: isRecording ? 0 : 0.8
+                )
+        )
+        .contentShape(Circle())
+        .accessibilityLabel(
+            isRecording
+                ? String(localized: "chat.mic.recording.a11y")
+                : String(localized: "chat.mic.idle.a11y")
+        )
+        .accessibilityHint(String(localized: "chat.mic.hint.a11y"))
         .onTapGesture {
             RFHaptics.impact(.medium)
             onMicTap()

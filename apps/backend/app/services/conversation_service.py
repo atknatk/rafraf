@@ -231,6 +231,53 @@ class ConversationService:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_recent_messages(
+        self,
+        *,
+        limit: int = 1,
+    ) -> ConversationHistoryResponse:
+        """Tum sessionlardan en son N mesaji dondurur (created_at desc).
+
+        Home ekraninda "son sohbet" preview kartini beslemek icin kullanilir.
+        """
+        clamped = min(max(1, limit), 20)
+        stmt = (
+            select(Message)
+            .order_by(desc(Message.created_at))
+            .limit(clamped)
+        )
+        result = await self._session.execute(stmt)
+        rows = list(result.scalars())
+
+        # Kronolojik siraya cevir (eski -> yeni) — UI tipik tuketim sirasi.
+        rows.reverse()
+
+        responses = [
+            MessageResponse(
+                id=m.id,
+                session_id=m.session_id,
+                user_id=m.user_id,
+                project_id=m.project_id,
+                agent_id=m.agent_id,
+                role=m.role,
+                content=m.content,
+                model_used=m.model_used,
+                tokens_used=m.tokens_used,
+                created_at=m.created_at.isoformat(),
+                rating=m.rating,
+                rating_note=m.rating_note,
+                rated_at=m.rated_at.isoformat() if m.rated_at else None,
+            )
+            for m in rows
+        ]
+
+        return ConversationHistoryResponse(
+            messages=responses,
+            total=len(responses),
+            has_more=False,
+            next_cursor=None,
+        )
+
     async def get_messages_since(
         self,
         *,

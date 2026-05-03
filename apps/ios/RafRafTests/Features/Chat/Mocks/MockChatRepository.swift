@@ -53,4 +53,14 @@ final class MockChatRepository: ChatRepositoryProtocol, @unchecked Sendable {
     }
 
     func rateMessage(id: String, rating: MessageRating) async throws {}
+
+    var loadRecentResult: Result<[ChatMessage], Error> = .success([])
+    var loadRecentCallCount = 0
+    var lastRecentLimit: Int?
+
+    func loadRecent(limit: Int) async throws -> [ChatMessage] {
+        loadRecentCallCount += 1
+        lastRecentLimit = limit
+        return try loadRecentResult.get()
+    }
 }

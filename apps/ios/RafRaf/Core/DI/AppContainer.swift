@@ -223,6 +223,9 @@ extension Container {
             HomeViewModel(
                 observeSessionTitleUpdatesUseCase: ObserveSessionTitleUpdatesUseCase(
                     repository: self.sessionTitleRepository()
+                ),
+                loadRecentChatUseCase: LoadRecentChatUseCase(
+                    repository: self.chatRepository()
                 )
             )
         }
