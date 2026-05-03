@@ -27,6 +27,10 @@ class MessageType(StrEnum):
     QUESTION = "question"
     STATUS = "status"
     APPROVAL_RESPONSE = "approval_response"
+    # V1.x WS reliability ack envelope (server → client). Echoes
+    # metadata.client_message_id so iOS can stop its half-dead-socket retry
+    # loop. See shared/api-contracts/ws/ack-messages.json.
+    ACK = "ack"
     # Streaming response types
     CHAT_STREAM = "chat.stream"
     CHAT_STREAM_END = "chat.stream_end"

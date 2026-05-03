@@ -946,17 +946,13 @@ async def _process_with_orchestrator(
                 with contextlib.suppress(Exception):
                     await manager.send_json(
                         _current_conn(),
-                        _build_message(
-                            MessageType.TYPING_END, {}, session_id=session_id
-                        ),
+                        _build_message(MessageType.TYPING_END, {}, session_id=session_id),
                     )
 
                 # Fail the in-flight task (if any) so Live Activity clears.
                 _tid_too_large = _task_id_ref[0]
                 if _tid_too_large is not None:
-                    await _task_orch_fail(
-                        _tid_too_large, error="message_too_large"
-                    )
+                    await _task_orch_fail(_tid_too_large, error="message_too_large")
 
                 # Honour the file-wide invariant: ALWAYS send CHAT_STREAM_END
                 # so the client never hangs on a stuck progress indicator —

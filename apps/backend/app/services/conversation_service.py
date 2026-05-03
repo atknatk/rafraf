@@ -88,9 +88,7 @@ class ConversationService:
             # conversation remains usable. UTF-8 safe: slice bytes then decode
             # with errors="ignore" to drop any partial trailing code unit.
             keep_bytes = MAX_MESSAGE_CONTENT_BYTES - 200
-            kept = content.encode("utf-8")[:keep_bytes].decode(
-                "utf-8", errors="ignore"
-            )
+            kept = content.encode("utf-8")[:keep_bytes].decode("utf-8", errors="ignore")
             kept_bytes = len(kept.encode("utf-8"))
             sentinel = (
                 f"\n\n[…truncated by server: original was {byte_length} "
@@ -306,11 +304,7 @@ class ConversationService:
         Home ekraninda "son sohbet" preview kartini beslemek icin kullanilir.
         """
         clamped = min(max(1, limit), 20)
-        stmt = (
-            select(Message)
-            .order_by(desc(Message.created_at))
-            .limit(clamped)
-        )
+        stmt = select(Message).order_by(desc(Message.created_at)).limit(clamped)
         result = await self._session.execute(stmt)
         rows = list(result.scalars())
 
