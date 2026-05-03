@@ -34,7 +34,19 @@ class MessageResponse(BaseModel):
 
 
 class ConversationHistoryResponse(BaseModel):
-    """GET /conversations/history yaniti."""
+    """GET /conversations/history (and /conversations/messages-since) yaniti.
+
+    Pagination contract:
+    - ``has_more=True`` means more rows exist beyond the returned page.
+    - ``next_cursor`` is the ISO 8601 ``created_at`` of the LAST returned
+      message; pass it back as ``since`` (for messages-since) or as
+      ``cursor`` (for history) to fetch the subsequent page.
+    - ``next_cursor`` is ``None`` whenever ``has_more=False``.
+
+    The field is named ``next_cursor`` for backwards compatibility with the
+    existing iOS history-fetch code; the messages-since spec also refers
+    to it as ``next_since``.
+    """
 
     messages: list[MessageResponse]
     total: int

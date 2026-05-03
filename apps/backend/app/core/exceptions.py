@@ -55,6 +55,28 @@ class ConflictError(AppError):
         )
 
 
+class MessageTooLargeError(AppError):
+    """Raised when a user-supplied message body exceeds the server cap.
+
+    Maps to HTTP 413 Payload Too Large.
+
+    Motivation: Prevents iOS clients from being forced to JSON-decode
+    arbitrarily-large message bodies, which can OOM/crash older devices.
+    Assistant-side messages take a different path (truncation with sentinel)
+    so the conversation remains usable even when the model emits a very
+    long response.
+    """
+
+    def __init__(
+        self,
+        message: str = "Message content exceeds maximum allowed size",
+    ) -> None:
+        super().__init__(
+            message=message,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+        )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register global exception handlers on the FastAPI app."""
 

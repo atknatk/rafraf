@@ -15,6 +15,7 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from app.core import metrics as _metrics
 from app.core.config import get_settings
 from app.core.database import async_session_factory
+from app.core.exceptions import MessageTooLargeError
 from app.core.security import SecurityError, verify_access_token
 from app.core.websocket import ConnectionManager
 from app.orchestrator.claude_code_runner import ToolProgressEvent
@@ -50,6 +51,53 @@ _active_streams: dict[str, asyncio.Task[object]] = {}
 # key: "{user_id}:{project_id or 'global'}"
 _user_streams: dict[str, asyncio.Task[object]] = {}
 _user_connections: dict[str, str] = {}  # user_project_key → current connection_id
+
+# V1.x WS reliability: per-connection LRU of seen client_message_id values for
+# critical client→server messages (currently only ``approval_response``). When
+# iOS sends an ``approval_response`` over a half-dead socket the bytes can be
+# silently dropped; iOS retries with the SAME ``client_message_id`` until it
+# receives an ``ack`` envelope echoing that id. Backend dedups via this map so
+# the second arrival re-acks (so iOS stops retrying) without double-processing
+# the underlying business logic. Bounded at 100 ids per connection — the
+# oldest id is evicted on overflow. Cleared on disconnect.
+_SEEN_CLIENT_MSG_IDS_MAX = 100
+_seen_client_msg_ids: dict[str, list[str]] = {}
+
+
+def _record_client_message_id(connection_id: str, client_message_id: str) -> bool:
+    """Record a ``client_message_id`` for dedup.
+
+    Returns ``True`` if this id was newly recorded, ``False`` if already seen
+    on this connection. Maintains a bounded LRU per connection_id (oldest id
+    evicted on overflow). Caller is responsible for cleanup via
+    :func:`_clear_seen_client_msg_ids` on disconnect.
+    """
+    seen = _seen_client_msg_ids.setdefault(connection_id, [])
+    if client_message_id in seen:
+        return False
+    seen.append(client_message_id)
+    if len(seen) > _SEEN_CLIENT_MSG_IDS_MAX:
+        # FIFO eviction to keep the bound.
+        del seen[0 : len(seen) - _SEEN_CLIENT_MSG_IDS_MAX]
+    return True
+
+
+def _clear_seen_client_msg_ids(connection_id: str) -> None:
+    """Drop the per-connection LRU of seen ``client_message_id`` values."""
+    _seen_client_msg_ids.pop(connection_id, None)
+
+
+def _extract_client_message_id(raw_data: dict[str, object]) -> str | None:
+    """Extract ``client_message_id`` from message metadata (iOS sends it there)."""
+    metadata = raw_data.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    cmid = metadata.get("client_message_id") or metadata.get("clientMessageId")
+    if cmid is None:
+        return None
+    if not isinstance(cmid, str):
+        return str(cmid)
+    return cmid
 
 
 def _build_message(
@@ -91,6 +139,39 @@ def _build_error_message(
         payload.model_dump(exclude_none=True),
         session_id=session_id,
     )
+
+
+def _build_ack_message(
+    client_message_id: str,
+    ack_for_type: str,
+    *,
+    session_id: str | None = None,
+) -> dict[str, object]:
+    """Build an ``ack`` envelope for a critical client→server message.
+
+    Emitted at the top of the handler (before any business logic) so the ack
+    means "I received your bytes and accepted them for processing", NOT
+    "fully processed". iOS uses this to stop its half-dead-socket retry
+    loop. See V1.x WS reliability design.
+
+    The ack envelope intentionally carries the dedup id in ``metadata`` (not
+    ``content``) so the iOS ack-router can match on the envelope shape it
+    already inspects for ``session_id`` / direction. Mirrors the contract in
+    ``shared/api-contracts/ws/ack-messages.json``.
+    """
+    now = datetime.now(tz=UTC).isoformat()
+    return {
+        "id": str(uuid4()),
+        "type": MessageType.ACK.value,
+        "content": {},
+        "metadata": {
+            "timestamp": now,
+            "session_id": session_id,
+            "direction": MessageDirection.SERVER_TO_CLIENT.value,
+            "client_message_id": client_message_id,
+            "ack_for_type": ack_for_type,
+        },
+    }
 
 
 @router.websocket("/ws")
@@ -189,6 +270,7 @@ async def websocket_endpoint(
             user_id=user_id,
         )
     finally:
+        _clear_seen_client_msg_ids(connection_id)
         await manager.disconnect(connection_id)
 
 
@@ -838,6 +920,63 @@ async def _process_with_orchestrator(
                         agent_id=agent_id,
                     )
                     await _db.commit()
+            except MessageTooLargeError as too_large:
+                # Targeted carve-out: payload exceeded the server cap. Notify
+                # the iOS client with a structured error so it can render a
+                # "message too large" indicator instead of silently dropping
+                # the request, then short-circuit the orchestrator path —
+                # there is no point in spending Claude tokens on a payload
+                # the DB has already rejected.
+                logger.warning(
+                    "user_message_too_large",
+                    session_id=session_id,
+                    user_id=user_id,
+                    detail=too_large.message,
+                )
+                err_msg = _build_error_message(
+                    error_code="MESSAGE_TOO_LARGE",
+                    message=too_large.message,
+                    recoverable=True,
+                    session_id=session_id,
+                )
+                with contextlib.suppress(Exception):
+                    await manager.send_json(_current_conn(), err_msg)
+
+                # Always release typing indicator so the UI doesn't hang.
+                with contextlib.suppress(Exception):
+                    await manager.send_json(
+                        _current_conn(),
+                        _build_message(
+                            MessageType.TYPING_END, {}, session_id=session_id
+                        ),
+                    )
+
+                # Fail the in-flight task (if any) so Live Activity clears.
+                _tid_too_large = _task_id_ref[0]
+                if _tid_too_large is not None:
+                    await _task_orch_fail(
+                        _tid_too_large, error="message_too_large"
+                    )
+
+                # Honour the file-wide invariant: ALWAYS send CHAT_STREAM_END
+                # so the client never hangs on a stuck progress indicator —
+                # even when task creation failed silently and _task_orch_fail
+                # has nothing to clear.
+                with contextlib.suppress(Exception):
+                    await manager.send_json(
+                        _current_conn(),
+                        _build_message(
+                            MessageType.CHAT_STREAM_END,
+                            ChatStreamEndPayload(
+                                message_id=str(_uuid_mod.uuid4()),
+                                full_text="",
+                                model_used="",
+                                tokens_used={"input": 0, "output": 0},
+                            ).model_dump(),
+                            session_id=session_id,
+                        ),
+                    )
+                return
             except Exception:
                 logger.warning("user_message_save_failed", session_id=session_id)
 
@@ -1045,7 +1184,39 @@ async def _handle_approval_response(
     submit_decision call site so each user-supplied decision (allow / deny)
     lands in the audit log alongside tool execution events. Resolves
     runbook §11 wiring gap #4 (`docs/runbooks/permission-flow.md`).
+
+    V1.x WS reliability: emits an ``ack`` envelope at the TOP of the handler
+    (before any business logic) when the incoming message carries a
+    ``metadata.client_message_id``. The ack means "I received your bytes",
+    not "I accepted your decision" — invalid-shape error paths still ack so
+    iOS halts its half-dead-socket retry loop. Repeat ``client_message_id``
+    values are deduped per connection: the second arrival re-acks but the
+    underlying ``submit_decision`` call is skipped to prevent double
+    processing (the awaiter is single-shot but the not-found error path is
+    not idempotent — it would surface a spurious ``APPROVAL_NOT_FOUND`` on
+    the retry).
     """
+    # --- Ack-first contract (V1.x WS reliability) ---
+    # Emit ack BEFORE any validation so iOS halts its retry loop even when
+    # the payload is malformed. Skip silently if no client_message_id is
+    # present (older iOS clients — they fall back to timeout-based retry).
+    client_message_id = _extract_client_message_id(raw_data)
+    is_duplicate = False
+    if client_message_id is not None:
+        ack_msg = _build_ack_message(
+            client_message_id=client_message_id,
+            ack_for_type=MessageType.APPROVAL_RESPONSE.value,
+            session_id=session_id,
+        )
+        await manager.send_json(connection_id, ack_msg)
+        is_duplicate = not _record_client_message_id(connection_id, client_message_id)
+        if is_duplicate:
+            logger.info(
+                "approval_response_dedup_skipped",
+                connection_id=connection_id,
+                client_message_id=client_message_id,
+            )
+
     content = raw_data.get("content")
     if not isinstance(content, dict):
         error_msg = _build_error_message(
@@ -1075,6 +1246,11 @@ async def _handle_approval_response(
             session_id=session_id,
         )
         await manager.send_json(connection_id, error_msg)
+        return
+
+    # Dedup short-circuit: ack already sent above, swallow business logic so
+    # we don't re-emit APPROVAL_NOT_FOUND or double-fire the audit log.
+    if is_duplicate:
         return
 
     note = content.get("note")

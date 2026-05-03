@@ -9,6 +9,7 @@ import structlog
 from sqlalchemy import asc, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import MessageTooLargeError
 from app.models.message import Message
 from app.schemas.conversation import (
     ConversationHistoryResponse,
@@ -20,6 +21,25 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
 _DEFAULT_LIMIT = 50
 _MAX_LIMIT = 200
+
+# Hard cap (bytes, UTF-8) on a single Message.content row.
+#
+# Why this exists:
+# - Postgres TEXT has no length cap, so without a service-side guard a single
+#   huge assistant response (or a malicious crafted payload) would persist and
+#   later be downloaded by every client that fetches history.
+# - iOS uses JSONDecoder which loads the entire string in memory; on older
+#   devices a 10MB+ message can OOM the chat view.
+# - User input is already capped on iOS (SendMessageUseCase 4096 chars), but
+#   assistant output is NOT capped anywhere on the iOS side, so it MUST be
+#   capped here.
+#
+# Two enforcement modes (decided at the call site by `role`):
+# - "user"      -> raise MessageTooLargeError (HTTP 413)
+# - "assistant" -> truncate to (cap - 200 byte sentinel margin) and append a
+#                  human-readable sentinel; emit a structlog warning event
+#                  `assistant_message_truncated` with original byte size.
+MAX_MESSAGE_CONTENT_BYTES = 1_000_000  # 1 MB
 
 
 class ConversationService:
@@ -40,7 +60,52 @@ class ConversationService:
         model_used: str | None = None,
         tokens_used: int | None = None,
     ) -> Message:
-        """Mesaji veritabanina kaydeder."""
+        """Mesaji veritabanina kaydeder.
+
+        Enforces ``MAX_MESSAGE_CONTENT_BYTES`` per role:
+        - ``role == "user"``: oversize payloads raise ``MessageTooLargeError``
+          (HTTP 413). The DB layer is never touched on the rejection path.
+        - any other role (assistant, system, tool, ...): oversize payloads
+          are truncated UTF-8-safely to ``MAX_MESSAGE_CONTENT_BYTES - 200``
+          bytes and a human-readable sentinel is appended so the client
+          can render a "truncated" indicator. A ``assistant_message_truncated``
+          structlog warning is emitted with original/kept byte counts.
+        """
+        byte_length = len(content.encode("utf-8"))
+        if byte_length > MAX_MESSAGE_CONTENT_BYTES:
+            if role == "user":
+                # Reject before touching the DB so the rejected payload is
+                # never persisted.
+                raise MessageTooLargeError(
+                    message=(
+                        f"User message content is {byte_length} bytes, "
+                        f"which exceeds the maximum allowed "
+                        f"{MAX_MESSAGE_CONTENT_BYTES} bytes."
+                    ),
+                )
+
+            # Non-user (assistant/tool/system): truncate with a sentinel so the
+            # conversation remains usable. UTF-8 safe: slice bytes then decode
+            # with errors="ignore" to drop any partial trailing code unit.
+            keep_bytes = MAX_MESSAGE_CONTENT_BYTES - 200
+            kept = content.encode("utf-8")[:keep_bytes].decode(
+                "utf-8", errors="ignore"
+            )
+            kept_bytes = len(kept.encode("utf-8"))
+            sentinel = (
+                f"\n\n[…truncated by server: original was {byte_length} "
+                f"bytes, kept first {kept_bytes} bytes…]"
+            )
+            content = kept + sentinel
+            logger.warning(
+                "assistant_message_truncated",
+                session_id=session_id,
+                role=role,
+                original_bytes=byte_length,
+                kept_bytes=kept_bytes,
+                project_id=str(project_id) if project_id else None,
+            )
+
         msg = Message(
             session_id=session_id,
             user_id=user_id,
@@ -289,8 +354,26 @@ class ConversationService:
         """Return messages created after the given ISO timestamp.
 
         Used for offline sync: iOS fetches missed messages on reconnect.
+
+        Pagination contract (so iOS can keep paging without silent loss):
+        - The query over-fetches by one row (``LIMIT limit + 1``) to detect
+          whether more rows exist beyond the caller's window.
+        - If ``len(rows) > limit`` the extra row is trimmed and
+          ``has_more=True``.
+        - ``next_cursor`` is the ISO 8601 ``created_at`` of the LAST DELIVERED
+          row when (and only when) ``has_more=True``. The next call should
+          pass ``since=next_cursor`` to receive the subsequent page.
+        - When ``has_more=False`` the response carries ``next_cursor=None``.
+
+        The schema field name is ``next_cursor`` (kept for backwards-compat
+        with existing iOS history-fetch code that already reads this field
+        on ``ConversationHistoryResponse``).
         """
         since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+        # Clamp caller's limit defensively (mirrors get_history at line 141).
+        # Today the missed-messages route does not expose `limit`, but a future
+        # caller passing 10_000_000 would otherwise OOM both DB and serializer.
+        limit = min(max(1, limit), _MAX_LIMIT)
         stmt = select(Message).where(Message.created_at > since_dt)
 
         if project_id is not None:
@@ -298,9 +381,22 @@ class ConversationService:
         elif session_id is not None:
             stmt = stmt.where(Message.session_id == session_id)
 
-        stmt = stmt.order_by(asc(Message.created_at)).limit(limit)
+        # Honor the caller's limit; over-fetch by one to detect more pages.
+        # TODO: tie-breaker on created_at — under burst load multiple rows can
+        # share the same microsecond and the cursor (created_at only, no `id`
+        # secondary key) would skip ties. Add ORDER BY created_at, id ASC and
+        # a composite cursor when burst-load tests show the regression.
+        stmt = stmt.order_by(asc(Message.created_at)).limit(limit + 1)
         result = await self._session.execute(stmt)
         rows = list(result.scalars())
+
+        has_more = len(rows) > limit
+        if has_more:
+            rows = rows[:limit]
+
+        next_cursor: str | None = None
+        if has_more and rows:
+            next_cursor = rows[-1].created_at.isoformat()
 
         responses = [
             MessageResponse(
@@ -324,6 +420,6 @@ class ConversationService:
         return ConversationHistoryResponse(
             messages=responses,
             total=len(responses),
-            has_more=False,
-            next_cursor=None,
+            has_more=has_more,
+            next_cursor=next_cursor,
         )
