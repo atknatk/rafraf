@@ -67,6 +67,8 @@ class TestMessageType:
             "question",
             "action_result",
             "approval_response",
+            # V1.x WS reliability ack envelope (server → client)
+            "ack",
             "chat.stream",
             "chat.stream_end",
             "code.diff",

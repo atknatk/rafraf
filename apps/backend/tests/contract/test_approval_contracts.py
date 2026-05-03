@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from app.api.routes.websocket import _build_ack_message
 from app.schemas.approval import ApprovalCategory
 from app.schemas.messages import (
     ApprovalResponsePayload,
@@ -18,12 +19,20 @@ from app.schemas.messages import (
 
 # Path is relative to apps/backend/ since tests run from there
 CONTRACT_FILE = Path("../../shared/api-contracts/ws/approval-messages.json")
+ACK_CONTRACT_FILE = Path("../../shared/api-contracts/ws/ack-messages.json")
 
 
 @pytest.fixture
 def approval_contract() -> dict[str, object]:
     """Load the approval messages contract."""
     with open(CONTRACT_FILE) as f:
+        return json.load(f)  # type: ignore[no-any-return]
+
+
+@pytest.fixture
+def ack_contract() -> dict[str, object]:
+    """Load the ack messages contract (V1.x WS reliability)."""
+    with open(ACK_CONTRACT_FILE) as f:
         return json.load(f)  # type: ignore[no-any-return]
 
 
@@ -180,3 +189,56 @@ class TestApprovalCategoryMatchesContract:
             assert cat_value in [c.value for c in ApprovalCategory], (
                 f"Contract category '{cat_value}' not in ApprovalCategory enum"
             )
+
+
+class TestAckEnvelopeMatchesContract:
+    """V1.x WS reliability — verify ack envelope shape matches the contract."""
+
+    def test_ack_type_exists_in_enum(self) -> None:
+        """``MessageType.ACK`` should be ``ack``."""
+        assert MessageType.ACK == "ack"
+
+    def test_ack_message_defined_in_contract(self, ack_contract: dict[str, object]) -> None:
+        """The ack-messages.json contract should define exactly one server→client ack message."""
+        msg = _find_message(ack_contract, "ack")
+        assert msg is not None
+        assert msg["direction"] == "server_to_client"
+
+    def test_ack_envelope_shape_matches_contract(self, ack_contract: dict[str, object]) -> None:
+        """The runtime ack envelope must satisfy every required key in the contract."""
+        ack_msg = _find_message(ack_contract, "ack")
+        assert ack_msg is not None
+        envelope_schema = ack_msg.get("envelope")
+        assert isinstance(envelope_schema, dict)
+
+        # Build a real ack via the same helper the WS handler uses.
+        envelope = _build_ack_message(
+            client_message_id="test-client-uuid-123",
+            ack_for_type=MessageType.APPROVAL_RESPONSE.value,
+            session_id="test-session-id",
+        )
+
+        # Top-level required fields per contract.
+        required_top = envelope_schema.get("required", [])
+        assert isinstance(required_top, list)
+        for key in required_top:
+            assert key in envelope, f"Ack envelope missing required top-level field '{key}'"
+
+        # Envelope shape sanity.
+        assert envelope["type"] == "ack"
+        assert envelope["content"] == {}
+        assert isinstance(envelope["metadata"], dict)
+
+        # Required metadata fields.
+        meta_props = envelope_schema["properties"]["metadata"]
+        assert isinstance(meta_props, dict)
+        meta_required = meta_props.get("required", [])
+        assert isinstance(meta_required, list)
+        for key in meta_required:
+            assert key in envelope["metadata"], f"Ack metadata missing required field '{key}'"
+
+        # Echo + ack-for-type semantics.
+        assert envelope["metadata"]["client_message_id"] == "test-client-uuid-123"
+        assert envelope["metadata"]["ack_for_type"] == "approval_response"
+        assert envelope["metadata"]["direction"] == "server_to_client"
+        assert envelope["metadata"]["session_id"] == "test-session-id"

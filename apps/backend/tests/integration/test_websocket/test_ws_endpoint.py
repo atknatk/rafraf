@@ -1,7 +1,7 @@
 """Integration tests for WebSocket endpoint."""
 
 from collections.abc import Generator
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -305,3 +305,154 @@ class TestWebSocketMultipleMessages:
             )
             response = ws.receive_json()
             assert response["metadata"]["direction"] == "server_to_client"
+
+
+class TestApprovalResponseAckEnvelope:
+    """V1.x WS reliability — ack envelope emission for approval_response.
+
+    iOS sends ``approval_response`` with a ``metadata.client_message_id`` UUID
+    over a half-dead WebSocket and waits for a backend ``ack`` echoing that
+    id before clearing its pending-ack table. On ack timeout iOS retries
+    with the SAME id; backend dedups so the second arrival re-acks but does
+    not double-process the underlying business logic.
+    """
+
+    def test_approval_response_emits_ack_when_client_message_id_present(
+        self, client: TestClient, valid_token: str
+    ) -> None:
+        """ack envelope MUST be the first message after a valid approval_response."""
+        approval_id = "ack-test-approval-001"
+        client_msg_id = "client-uuid-abc"
+
+        # Mock submit_decision to short-circuit the bridge fallback path
+        # (so we get a deterministic post-ack response).
+        with patch(
+            "app.api.routes.websocket.get_approval_service",
+        ) as mock_get_svc:
+            mock_svc = AsyncMock()
+            # get_pending_approval is SYNC on the real service; AsyncMock would
+            # return a coroutine and break the `pending_snapshot is not None`
+            # branch downstream. Replace with a plain MagicMock returning None.
+            mock_svc.get_pending_approval = MagicMock(return_value=None)
+            mock_svc.submit_decision.return_value = True  # "submitted" so no bridge fallback
+            mock_get_svc.return_value = mock_svc
+
+            with client.websocket_connect(f"/ws?token={valid_token}") as ws:
+                ws.receive_json()  # connection_ack
+
+                ws.send_json(
+                    {
+                        "id": "msg-ack-001",
+                        "type": "approval_response",
+                        "content": {
+                            "approval_id": approval_id,
+                            "decision": "approved",
+                        },
+                        "metadata": {
+                            "client_message_id": client_msg_id,
+                        },
+                    }
+                )
+
+                # ack MUST arrive first — before any business-logic response.
+                first = ws.receive_json()
+                assert first["type"] == "ack", f"Expected ack first, got {first['type']}"
+                assert first["metadata"]["client_message_id"] == client_msg_id
+                assert first["metadata"]["ack_for_type"] == "approval_response"
+                assert first["metadata"]["direction"] == "server_to_client"
+                assert first["content"] == {}
+
+    def test_approval_response_no_ack_when_client_message_id_absent(
+        self, client: TestClient, valid_token: str
+    ) -> None:
+        """Backwards-compat: older iOS clients omit client_message_id → NO ack."""
+        with client.websocket_connect(f"/ws?token={valid_token}") as ws:
+            ws.receive_json()  # connection_ack
+
+            ws.send_json(
+                {
+                    "id": "msg-no-cmid",
+                    "type": "approval_response",
+                    "content": {
+                        "approval_id": "no-such-id",
+                        "decision": "approved",
+                    },
+                    # No metadata.client_message_id — older iOS shape.
+                }
+            )
+
+            response = ws.receive_json()
+            # First (and only) response is the existing APPROVAL_NOT_FOUND error,
+            # NOT an ack. This proves the ack emission is gated on cmid presence.
+            assert response["type"] == "error"
+            assert response["content"]["error_code"] == "APPROVAL_NOT_FOUND"
+
+    def test_approval_response_dedup_via_repeat_client_message_id(
+        self, client: TestClient, valid_token: str
+    ) -> None:
+        """Same client_message_id twice → both ack, but submit_decision called once."""
+        approval_id = "dedup-test-approval-002"
+        client_msg_id = "client-uuid-dedup"
+
+        with patch(
+            "app.api.routes.websocket.get_approval_service",
+        ) as mock_get_svc:
+            mock_svc = AsyncMock()
+            # get_pending_approval is SYNC on the real service; AsyncMock would
+            # return a coroutine and break the `pending_snapshot is not None`
+            # branch downstream. Replace with a plain MagicMock returning None.
+            mock_svc.get_pending_approval = MagicMock(return_value=None)
+            mock_svc.submit_decision.return_value = True
+            mock_get_svc.return_value = mock_svc
+
+            with client.websocket_connect(f"/ws?token={valid_token}") as ws:
+                ws.receive_json()  # connection_ack
+
+                payload = {
+                    "id": "msg-dedup-001",
+                    "type": "approval_response",
+                    "content": {
+                        "approval_id": approval_id,
+                        "decision": "approved",
+                    },
+                    "metadata": {
+                        "client_message_id": client_msg_id,
+                    },
+                }
+
+                # First send: ack + business logic (submit_decision called once).
+                ws.send_json(payload)
+                first_ack = ws.receive_json()
+                assert first_ack["type"] == "ack"
+                assert first_ack["metadata"]["client_message_id"] == client_msg_id
+
+                # Second send (iOS retry on missed ack): ack again, but no
+                # double-processing. Send a probe ping after to drain any
+                # spurious error envelope that would indicate double-processing.
+                ws.send_json(payload)
+                second_ack = ws.receive_json()
+                assert second_ack["type"] == "ack", (
+                    f"Expected ack on retry, got {second_ack['type']}"
+                )
+                assert second_ack["metadata"]["client_message_id"] == client_msg_id
+
+                # Probe: send a ping; if the next message is the pong, no
+                # spurious error envelope was emitted between the two acks.
+                ws.send_json(
+                    {
+                        "id": "probe-ping",
+                        "type": "ping",
+                        "content": {"timestamp": "2026-05-03T00:00:00Z"},
+                    }
+                )
+                probe = ws.receive_json()
+                assert probe["type"] == "pong", (
+                    f"Expected pong after retry-ack, got {probe['type']} "
+                    f"— suggests dedup did not short-circuit business logic"
+                )
+
+            # submit_decision MUST have been called only ONCE despite two retries.
+            assert mock_svc.submit_decision.call_count == 1, (
+                f"Expected submit_decision called exactly once "
+                f"(dedup short-circuit), got {mock_svc.submit_decision.call_count}"
+            )

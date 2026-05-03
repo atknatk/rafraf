@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AckMessages",
+  "description": "WebSocket mesajlari: V1.x Application-layer ACK envelope (kritik client→server mesajlari icin teslimat onayi)",
+  "notes": [
+    {
+      "id": "ack-contract-rationale",
+      "scope": "ack",
+      "description": "iOS, half-dead WebSocket baglantilari uzerinden gonderdigi kritik mesajlar (suanda yalnizca approval_response) icin metadata.client_message_id (UUID) gomer ve backend'in ayni id'yi yansitan bir 'ack' envelope'u dondurmesini bekler. Backend ack'i handler'in TEPESINDE — hicbir is mantigi calismadan once — gonderir; yani ack 'baytlarini aldim ve isleme aldim' anlamina gelir, 'kararini kabul ettim' degil. INVALID_APPROVAL_RESPONSE / INVALID_APPROVAL_DECISION hata yollari da ack uretir. Eger gelen mesajda metadata.client_message_id YOKSA (eski iOS surumleri) backend ack uretmez ve mevcut davranis korunur."
+    },
+    {
+      "id": "ack-dedup",
+      "scope": "ack",
+      "description": "Backend, baglanti basina son N (=100) gorulen client_message_id degerini bounded LRU'da tutar. Iki kez gelen ayni id icin: ikinci kez ack tekrar gonderilir (iOS retry'i durdurmasi icin) ANCAK altta yatan is mantigi (approval_service.submit_decision, audit log, error envelope) calistirilmaz. Disconnect aninda LRU temizlenir. Bu, awaiter idempotent olsa bile not-found error path'inin tekrar uretilmemesini garanti eder."
+    },
+    {
+      "id": "ack-scope",
+      "scope": "ack",
+      "description": "V1.x'te yalnizca approval_response icin ack uretilir. Tasarim, ileride text/cancel_stream/ping gibi diger kritik mesaj tiplerine genisletilebilecek sekilde olusturuldu (metadata.ack_for_type alani gelen mesaj tipini tasir)."
+    }
+  ],
+  "messages": [
+    {
+      "direction": "server_to_client",
+      "type": "ack",
+      "description": "Kritik client→server mesajinin teslim alindigini ve isleme alindigini onaylar. Envelope'un top-level 'metadata' alaninda echo edilmis 'client_message_id' ve gelen mesajin tipi olan 'ack_for_type' bulunur.",
+      "envelope": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Server tarafinda uretilen ack mesaj ID'si (UUID v4)"
+          },
+          "type": {
+            "type": "string",
+            "const": "ack",
+            "description": "Sabit 'ack'"
+          },
+          "content": {
+            "type": "object",
+            "description": "Bos obje — ack tasidigi tum bilgiyi metadata uzerinden tasir.",
+            "additionalProperties": true
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Server tarafinda ack uretildigi an (ISO 8601 UTC)"
+              },
+              "session_id": {
+                "type": ["string", "null"],
+                "description": "Mevcut WS oturum ID'si"
+              },
+              "direction": {
+                "type": "string",
+                "const": "server_to_client"
+              },
+              "client_message_id": {
+                "type": "string",
+                "description": "Gelen kritik mesajin metadata.client_message_id degerinin echo'su (UUID). iOS bu degeri kendi pending-ack tablosundaki anahtarla eslestirir."
+              },
+              "ack_for_type": {
+                "type": "string",
+                "description": "Ack'lenen mesajin tipi (ornek: 'approval_response'). Gelecekteki genisletme icin string birakilmistir.",
+                "examples": ["approval_response"]
+              }
+            },
+            "required": ["timestamp", "direction", "client_message_id", "ack_for_type"],
+            "additionalProperties": true
+          }
+        },
+        "required": ["id", "type", "content", "metadata"],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "client_message_id_carrier": {
+    "description": "Gelen kritik client→server mesajlari (yalnizca approval_response su an icin) opsiyonel olarak metadata.client_message_id (UUID v4) tasiyabilir. iOS-tarafli ack-yoneticisi ack alindiginda pending-ack tablosundan ilgili kaydi siler; ack timeout olursa ayni client_message_id ile retry yapar.",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "client_message_id": {
+              "type": "string",
+              "description": "iOS tarafinda uretilen UUID — backend dedup ve ack echo icin kullanir."
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}
