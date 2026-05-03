@@ -28,6 +28,9 @@ struct ChatView: View {
     }
     @State private var isAtBottom = true
     @State private var unreadCount = 0
+    /// Streaming sirasinda scrollToBottom tetiklemelerini 100ms ile throttle eder.
+    /// `chat.stream_end` veya `messages.count` artisinda `forceFire()` ile bypass.
+    @State private var streamScrollThrottle = StreamScrollThrottle(interval: .milliseconds(100))
     private let webSocketManager = Container.shared.webSocketConnectionManager()
     private let agentRepository: AgentRepositoryProtocol = Container.shared.agentRepository()
 
@@ -353,6 +356,8 @@ struct ChatView: View {
                     }
                     .onChange(of: viewModel.messages.count) {
                         if isAtBottom {
+                            // Yeni mesaj geldi — throttle reset + hemen scroll
+                            streamScrollThrottle.forceFire()
                             scrollToBottom(proxy: proxy)
                         } else {
                             unreadCount += 1
@@ -361,11 +366,22 @@ struct ChatView: View {
                     .onChange(of: viewModel.isTyping) {
                         if viewModel.isTyping && isAtBottom {
                             scrollToBottom(proxy: proxy)
+                        } else if !viewModel.isTyping {
+                            // Stream bitti — son scroll'u garanti et
+                            if isAtBottom {
+                                streamScrollThrottle.forceFire()
+                                scrollToBottom(proxy: proxy)
+                            }
                         }
                     }
                     .onChange(of: viewModel.messages.last?.content) {
-                        // Streaming icerik buyurken en alta kaydır
-                        if isAtBottom, let last = viewModel.messages.last, last.isStreaming {
+                        // Streaming icerik buyurken en alta kaydir — 100ms throttle
+                        // ile spring animasyon thrash'ini onler. stream_end'te
+                        // (`isTyping == false`) yukaridaki branch zaten force-fire eder.
+                        guard isAtBottom,
+                              let last = viewModel.messages.last,
+                              last.isStreaming else { return }
+                        if streamScrollThrottle.shouldFire() {
                             scrollToBottom(proxy: proxy)
                         }
                     }

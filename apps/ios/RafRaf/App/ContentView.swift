@@ -20,6 +20,9 @@ struct ContentView: View {
     private let webSocketManager = Container.shared.webSocketConnectionManager()
     private let subagentRepository = Container.shared.subagentRepository()
     private let approvalQuestionMessageHandler = Container.shared.approvalQuestionMessageHandler()
+    /// V1.x SHIP BLOCKER fix — backend `ack` envelope handler.
+    /// Singleton DI ile `ApprovalRepositoryImpl` ile ayni inbox'a baglanir.
+    private let approvalDeliveryAckMessageHandler = Container.shared.approvalDeliveryAckMessageHandler()
 
     init() {
         configureTabBarAppearance()
@@ -62,6 +65,11 @@ struct ContentView: View {
             // V1.5: Backend-originated approval question handler'ini router'a bagla.
             // `question` envelope decode edildiginde coordinator queue'ya itilir.
             await registerApprovalQuestionHandler()
+
+            // V1.x SHIP BLOCKER fix: backend `ack` envelope handler'ini router'a bagla.
+            // ApprovalRepositoryImpl ile ayni singleton inbox'i paylasir; ack
+            // geldiginde bekleyen `awaitAck` continuation'i cozulur.
+            await registerApprovalDeliveryAckHandler()
 
             await authManager.checkExistingAuth()
             // Auth basarili ise hemen WebSocket bagla
@@ -163,6 +171,16 @@ struct ContentView: View {
         await webSocketManager.registerHandler(
             type: WebSocketMessageType.question.rawValue,
             handler: approvalQuestionMessageHandler
+        )
+    }
+
+    /// V1.x SHIP BLOCKER fix — backend `ack` envelope'ini
+    /// `ApprovalDeliveryAckInbox`'a tasiyan handler kaydi.
+    /// `type: "ack"` raw string — kontrat: shared/api-contracts/ws/ack-messages.json.
+    private func registerApprovalDeliveryAckHandler() async {
+        await webSocketManager.registerHandler(
+            type: "ack",
+            handler: approvalDeliveryAckMessageHandler
         )
     }
 

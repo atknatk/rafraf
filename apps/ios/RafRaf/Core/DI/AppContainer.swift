@@ -233,14 +233,33 @@ extension Container {
 
     // MARK: - Approval Feature
 
+    /// V1.x ship blocker fix — backend `ack` envelope inbox'i.
+    /// Singleton: `ApprovalRepositoryImpl` (gonderim) ve
+    /// `ApprovalDeliveryAckMessageHandler` (alim) ayni instance'i paylasmali
+    /// ki ack envelope geldiginde dogru continuation cozulsun.
+    var approvalDeliveryAckInbox: Factory<ApprovalDeliveryAckInbox> {
+        self { ApprovalDeliveryAckInbox() }
+            .singleton
+    }
+
     /// Approval repository.
     var approvalRepository: Factory<ApprovalRepositoryProtocol> {
         self {
             ApprovalRepositoryImpl(
                 webSocketClient: self.webSocketClient(),
-                messageRouter: self.webSocketMessageRouter()
+                messageRouter: self.webSocketMessageRouter(),
+                ackInbox: self.approvalDeliveryAckInbox()
             )
         }
+    }
+
+    /// V1.x ship blocker fix — `ack` envelope WebSocket router handler'i.
+    /// Singleton — inbox ile ayni yasam suresi.
+    var approvalDeliveryAckMessageHandler: Factory<ApprovalDeliveryAckMessageHandler> {
+        self {
+            ApprovalDeliveryAckMessageHandler(inbox: self.approvalDeliveryAckInbox())
+        }
+        .singleton
     }
 
     /// Approval card ViewModel.

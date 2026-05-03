@@ -378,6 +378,12 @@ struct WebSocketMessageMetadata: Codable, Sendable {
     let agentId: String?
     let messageId: String?
     let direction: String
+    /// V1.x ship blocker fix — critical client→server mesajlarda
+    /// application-layer ACK id'si. Backend ack envelope bu degeri echo'lar
+    /// (`shared/api-contracts/ws/ack-messages.json`). `messageId`'den ayri
+    /// tutuluyor cunku `messageId` chat persistence amacli; bu alan sadece
+    /// teslim onayi (delivery guarantee) icin.
+    let clientMessageId: String?
 
     enum CodingKeys: String, CodingKey {
         case timestamp
@@ -386,6 +392,7 @@ struct WebSocketMessageMetadata: Codable, Sendable {
         case agentId = "agent_id"
         case messageId = "message_id"
         case direction
+        case clientMessageId = "client_message_id"
     }
 
     init(
@@ -394,7 +401,8 @@ struct WebSocketMessageMetadata: Codable, Sendable {
         projectId: String? = nil,
         agentId: String? = nil,
         messageId: String? = nil,
-        direction: String = WebSocketMessageDirection.clientToServer.rawValue
+        direction: String = WebSocketMessageDirection.clientToServer.rawValue,
+        clientMessageId: String? = nil
     ) {
         self.timestamp = timestamp
         self.sessionId = sessionId
@@ -402,6 +410,7 @@ struct WebSocketMessageMetadata: Codable, Sendable {
         self.agentId = agentId
         self.messageId = messageId
         self.direction = direction
+        self.clientMessageId = clientMessageId
     }
 }
 

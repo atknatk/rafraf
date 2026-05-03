@@ -47,6 +47,11 @@ actor WebSocketClient {
     /// State degisiklik callback'i
     private var onStateChange: (@Sendable (WebSocketConnectionState) -> Void)?
 
+    /// V1.x SHIP BLOCKER fix — `forceReconnect` tarafindan bekletilen
+    /// continuation'lar. State `.connected`'e dondugunde tumunu basariyla
+    /// resume eder; timeout'ta kaldirilir ve hata firlatilir.
+    private var connectionWaiters: [(id: UUID, cont: CheckedContinuation<Void, Error>)] = []
+
     /// Gelen mesaj callback'i
     private var onMessage: (@Sendable (String) -> Void)?
 
@@ -169,6 +174,85 @@ actor WebSocketClient {
     func send(message: WebSocketBaseMessage) async throws {
         let jsonString = try await messageRouter.encode(message)
         try await send(jsonString)
+    }
+
+    /// V1.x SHIP BLOCKER fix — repository tarafindan tetiklenen zorunlu reconnect.
+    ///
+    /// Application-layer ack timeout durumunda `ApprovalRepositoryImpl` bu
+    /// metodu cagirir: TCP yarim-olu olabilir, heartbeat 32s sonra farkedecek
+    /// ama o sirede critical mesaj kaybolur. Davranis:
+    /// 1. Eger state `.connected` veya `.connecting` ise mevcut socket
+    ///    `.abnormalClosure` ile kapatilir, `scheduleReconnect` tetiklenir.
+    /// 2. Eger state `.disconnected` ise ayni sekilde reconnect tetiklenir
+    ///    (kullanici stranded kalmasin — reviewer #4).
+    /// 3. State `.connected`'e DONENE kadar bekler (en cok `connectTimeout`).
+    ///    `submitDecision` retry'i ancak baglanti kuruldugunda send dener;
+    ///    boylece "always notConnected" race olusmaz.
+    ///
+    /// - Parameter connectTimeout: Yeniden baglanti icin ust sinir (default 5s).
+    /// - Throws: `WebSocketError.connectionFailed` timeout veya iptal durumunda.
+    ///   Caller (repository) bu hatayi `deliveryFailed`'e map eder.
+    func forceReconnect(connectTimeout: Duration = .seconds(5)) async throws {
+        // .reconnecting durumunda zaten bir reconnect Task'i var; ek bir
+        // reconnect tetikleme — sadece connected'e donmeyi bekle.
+        if state == .connected || state == .connecting {
+            logger.warning("forceReconnect tetiklendi (application-layer ack timeout)")
+            webSocketTask?.cancel(with: .abnormalClosure, reason: nil)
+            webSocketTask = nil
+            stopReceiving()
+            stopHeartbeat()
+            scheduleReconnect()
+        } else if state == .disconnected {
+            // Reviewer #4: kullanici stranded olmasin — reconnect tetikle.
+            logger.info("forceReconnect cagrildi state=disconnected — reconnect tetikleniyor")
+            scheduleReconnect()
+        } else {
+            // .reconnecting — backoff'u bekle, ek tetikleme yok.
+            logger.info("forceReconnect cagrildi state=reconnecting — mevcut reconnect bekleniyor")
+        }
+
+        try await waitForConnected(timeout: connectTimeout)
+    }
+
+    /// State `.connected`'e donene kadar bekler. Timeout durumunda
+    /// `WebSocketError.connectionFailed("forceReconnect timeout")` firlatir.
+    /// Continuation atomik olarak (actor isolation icinde) `connectionWaiters`'a
+    /// yazilir; `updateState(.connected)` tumunu resume eder.
+    private func waitForConnected(timeout: Duration) async throws {
+        if state == .connected {
+            return
+        }
+        let waiterID = UUID()
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            connectionWaiters.append((id: waiterID, cont: cont))
+            Task { [weak self] in
+                try? await Task.sleep(for: timeout)
+                await self?.timeoutConnectionWaiter(id: waiterID)
+            }
+        }
+    }
+
+    /// `waitForConnected` timeout Task'inden cagirilir. Idempotent: connected
+    /// state degisimi onceden resume etmisse no-op.
+    private func timeoutConnectionWaiter(id: UUID) {
+        if let idx = connectionWaiters.firstIndex(where: { $0.id == id }) {
+            let waiter = connectionWaiters.remove(at: idx)
+            waiter.cont.resume(throwing: WebSocketError.connectionFailed("forceReconnect timeout"))
+        }
+    }
+
+    /// `updateState(.connected)` veya kalici disconnect anlarinda tum
+    /// bekleyen waiter'lari sonuclandirir.
+    private func resolveConnectionWaiters(success: Bool) {
+        let waiters = connectionWaiters
+        connectionWaiters.removeAll()
+        for waiter in waiters {
+            if success {
+                waiter.cont.resume(returning: ())
+            } else {
+                waiter.cont.resume(throwing: WebSocketError.connectionFailed("forceReconnect aborted"))
+            }
+        }
     }
 
     /// Metin mesaji gonderir.
@@ -393,14 +477,32 @@ actor WebSocketClient {
             logger.info("State degisimi: \(String(describing: oldState)) -> \(String(describing: newState))")
             onStateChange?(newState)
         }
+
+        // V1.x ship blocker fix — forceReconnect waiters'i .connected'a
+        // dondugumuzde resume et. shouldReconnect kapaliyken (kalici
+        // disconnect) waiters'i hata ile sonuclandir — sonsuza dek
+        // beklemesinler.
+        if newState == .connected {
+            resolveConnectionWaiters(success: true)
+        } else if newState == .disconnected && !shouldReconnect {
+            resolveConnectionWaiters(success: false)
+        }
     }
 }
 
 /// WebSocket hatalari.
-enum WebSocketError: Error, Sendable {
+enum WebSocketError: Error, Sendable, Equatable {
     case notConnected
     case invalidData
     case unknownMessageType
     case connectionFailed(String)
     case heartbeatTimeout
+    /// V1.x ship blocker fix — backend ack `client_message_id` icin
+    /// belirlenen sure icinde alinmadi. UI bu hata uzerine "tekrar dene"
+    /// gosterebilir.
+    case deliveryTimeout
+    /// V1.x ship blocker fix — kabul edilen retry adimi sonrasi ikinci
+    /// denemede de teslim onaylanmadi. Repository bu noktada loud failure
+    /// firlatmak ZORUNDA — sessiz kayip yasak.
+    case deliveryFailed
 }

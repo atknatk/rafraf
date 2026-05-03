@@ -66,6 +66,35 @@ final class ChatViewModel {
     private var isLoadingMore: Bool = false
     private let logger = AppLogger.logger(for: "Chat")
 
+    // MARK: - Stream Delta Coalescing
+    //
+    // PERFORMANCE: Claude per-token deltas arrive at hundreds of chunks per
+    // second. Mutating `messages[idx]` for each chunk triggers full Observable
+    // invalidation + SwiftUI diff over the entire bubble tree, plus an O(n^2)
+    // string concat cost on long responses (~10^8 char copies for a 100KB
+    // assistant message). We coalesce all deltas that arrive within a single
+    // 60Hz display frame (~16ms) into one `messages[idx]` mutation per
+    // message_id. Authoritative content is verified against `chat.stream_end`
+    // `full_text` (see `handleStreamEnd`).
+    //
+    // Approach: parallel `[messageId: String]` buffer. Avoids changing the
+    // immutable `ChatMessage` struct shape (no `var content` refactor) and
+    // SwiftUI sees a single content change per frame instead of per token.
+
+    /// Per-message-id accumulated delta buffer waiting to be flushed.
+    private var streamBuffers: [String: String] = [:]
+    /// Currently scheduled flush task (16ms window). `nil` when no flush pending.
+    private var flushTask: Task<Void, Never>?
+    /// Configurable flush window — 16ms = one display frame at 60Hz.
+    /// Exposed `internal` for tests; production code does not override.
+    let streamFlushInterval: Duration
+
+    // MARK: - Diagnostics (testing only)
+
+    /// Number of times `messages[idx]` has been mutated due to stream delta flush.
+    /// Tests use this to verify coalescing behaviour. Production code never reads it.
+    private(set) var streamFlushCount: Int = 0
+
     /// UserDefaults key — son basarili mesaj timestamp'i.
     private var lastTimestampKey: String {
         "chat_last_message_timestamp_\(sessionId)"
@@ -80,7 +109,8 @@ final class ChatViewModel {
         chatRepository: (any ChatRepositoryProtocol)? = nil,
         sessionId: String = UUID().uuidString,
         projectId: String? = nil,
-        agentId: String? = nil
+        agentId: String? = nil,
+        streamFlushInterval: Duration = .milliseconds(16)
     ) {
         self.sendMessageUseCase = sendMessageUseCase
         self.loadHistoryUseCase = loadHistoryUseCase
@@ -89,8 +119,14 @@ final class ChatViewModel {
         self.sessionId = sessionId
         self.projectId = projectId
         self.agentId = agentId
+        self.streamFlushInterval = streamFlushInterval
         logger.info("ChatViewModel baslatildi - session: \(sessionId), project: \(projectId ?? "genel"), agent: \(agentId ?? "none")")
     }
+
+    // NOTE: `flushTask` deliberately not cancelled in `deinit` — it is `@MainActor`
+    // isolated and Swift 6 prohibits cross-isolation access from nonisolated deinit.
+    // The task captures `[weak self]`; once self deallocates, the closure becomes
+    // a safe no-op (no double-trigger, no leak — Task is single-shot).
 
     // MARK: - Actions
 
@@ -216,32 +252,97 @@ final class ChatViewModel {
     }
 
     /// Streaming mesaj parcasini isler.
+    ///
+    /// Delta'lar bir 16ms penceresine coalesce edilir — `messages[idx]` mutasyonu
+    /// frame basina en fazla bir kez tetiklenir (bkz. `streamFlushInterval`,
+    /// `flushStreamBuffersIfNeeded`). Bu sayede 100KB'lik bir cevap icin
+    /// O(n^2) string concat ve 1000+ Observable invalidasyonu yerine
+    /// frame basina tek mutasyon olur.
+    ///
     /// - Parameters:
     ///   - messageId: Streaming mesajin ID'si
     ///   - delta: Gelen metin parcasi
     func handleStreamDelta(messageId: String, delta: String) {
-        if let index = messages.firstIndex(where: { $0.id == messageId }) {
+        // Mesaj henuz listede yoksa (ilk delta) bos placeholder olustur ki
+        // sonraki flush in-place mutasyonu calissin. Bu append uniktir, bir
+        // mesaj basina sadece bir kez calisir.
+        if !messages.contains(where: { $0.id == messageId }) {
+            let placeholder = ChatMessage(
+                id: messageId,
+                content: "",
+                sender: .assistant,
+                type: .text,
+                isStreaming: true
+            )
+            messages.append(placeholder)
+        }
+
+        // Tek string append — Swift COW ile bos buffer'a ilk yazimda allocate;
+        // sonrasinda exclusive olunca String.append amortize O(1).
+        streamBuffers[messageId, default: ""] += delta
+
+        scheduleFlushIfNeeded()
+    }
+
+    /// 16ms gecikmeli flush'i programlar; zaten programlanmis ise no-op.
+    private func scheduleFlushIfNeeded() {
+        guard flushTask == nil else { return }
+        let interval = streamFlushInterval
+        flushTask = Task { [weak self] in
+            try? await Task.sleep(for: interval)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                self?.flushTask = nil
+                self?.flushStreamBuffers()
+            }
+        }
+    }
+
+    /// Buffer'da bekleyen tum delta'lari ilgili `messages[idx]`'lere uygular.
+    /// Her message_id icin tam olarak BIR `messages[idx]` mutasyonu yapilir
+    /// (Swift COW + tek append => String level minimum allocation).
+    private func flushStreamBuffers() {
+        guard !streamBuffers.isEmpty else { return }
+        let pending = streamBuffers
+        streamBuffers.removeAll(keepingCapacity: true)
+
+        for (messageId, accumulated) in pending where !accumulated.isEmpty {
+            guard let index = messages.firstIndex(where: { $0.id == messageId }) else {
+                // Mesaj kaybolmus (ornek: stream_end finalize sonrasi gec gelen
+                // delta) — sessizce dus.
+                continue
+            }
             let existing = messages[index]
+            // Whole-struct replace (let-only ChatMessage) — ama frame basina
+            // sadece BIR kez. Eski koddaki per-token mutation'a gore O(n) -> O(1)
+            // SwiftUI invalidasyon kazanci.
             messages[index] = ChatMessage(
                 id: existing.id,
-                content: existing.content + delta,
+                content: existing.content + accumulated,
                 sender: existing.sender,
                 timestamp: existing.timestamp,
                 type: existing.type,
                 attachments: existing.attachments,
                 isStreaming: true
             )
-        } else {
-            // Yeni streaming mesaj baslat
-            let newMessage = ChatMessage(
-                id: messageId,
-                content: delta,
-                sender: .assistant,
-                type: .text,
-                isStreaming: true
-            )
-            messages.append(newMessage)
+            streamFlushCount += 1
         }
+    }
+
+    /// Bekleyen flush'i iptal eder ve buffer'i hemen senkron uygular.
+    /// `handleStreamEnd` icin: stream_end geldiginde buffered delta'larin
+    /// finalizasyondan once mesaja yansimasini garanti eder.
+    private func forceFlushStreamBuffers() {
+        flushTask?.cancel()
+        flushTask = nil
+        flushStreamBuffers()
+    }
+
+    /// Test-only — buffered delta'lari senkron uygulamak icin.
+    /// Production kodu `flushTask`'in 16ms tetigine guvenir; testler ise
+    /// non-deterministic sleep'lerden kacinmak icin bu helper'i cagirir.
+    func flushPendingStreamDeltasForTesting() {
+        forceFlushStreamBuffers()
     }
 
     /// Streaming tamamlandiginda mesaji finalize eder.
@@ -258,6 +359,13 @@ final class ChatViewModel {
         tokensUsed: Int? = nil,
         modelUsed: String? = nil
     ) {
+        // Bekleyen delta'lari hemen uygula — `fullText` authoritative kontrat
+        // olsa da observability ve test acisindan coalesced state'in tam olmasi
+        // gerekir. Sonrasinda `fullText` ile finalize ediyoruz, dolayisi ile
+        // bu adim functional olarak overwrite ediliyor; ancak buffered residue
+        // birakmamak icin onemli (memory leak / sonraki mesajla karismayi onler).
+        forceFlushStreamBuffers()
+
         if let index = messages.firstIndex(where: { $0.id == messageId }) {
             let existing = messages[index]
             messages[index] = ChatMessage(

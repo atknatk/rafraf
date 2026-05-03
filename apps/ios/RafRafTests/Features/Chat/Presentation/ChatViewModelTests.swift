@@ -200,6 +200,8 @@ struct ChatViewModelTests {
         let (vm, _) = makeSUT()
 
         vm.handleStreamDelta(messageId: "stream-1", delta: "Merhaba")
+        // Coalesce: deltalar 16ms penceresine buffer'a alinir; testte senkron flush
+        vm.flushPendingStreamDeltasForTesting()
 
         #expect(vm.messages.count == 1)
         #expect(vm.messages.first?.content == "Merhaba")
@@ -214,6 +216,7 @@ struct ChatViewModelTests {
 
         vm.handleStreamDelta(messageId: "stream-1", delta: "Mer")
         vm.handleStreamDelta(messageId: "stream-1", delta: "haba")
+        vm.flushPendingStreamDeltasForTesting()
 
         #expect(vm.messages.count == 1)
         #expect(vm.messages.first?.content == "Merhaba")

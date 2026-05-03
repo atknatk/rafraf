@@ -112,6 +112,7 @@
 		582BB000412AFCB603200B8A /* AgentMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50022088682D45480D9D0D3A /* AgentMapper.swift */; };
 		585E30AC6F8A289F3E5E6CB6 /* NotificationCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 606199332CEAFAF640318BD1 /* NotificationCenterView.swift */; };
 		58AE56409015367C9E0D87C8 /* ApprovalQuestionMessageHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57DC8935536D06DCD5835297 /* ApprovalQuestionMessageHandler.swift */; };
+		7964A54A6E834CE8BFE85F0E /* ApprovalDeliveryAckMessageHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF7CF327137E470D86A8127A /* ApprovalDeliveryAckMessageHandler.swift */; };
 		5A4F42682097AF33BB89F144 /* GetClaudeProcessesUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E6D21167CC9E203E10464FD /* GetClaudeProcessesUseCase.swift */; };
 		5AFB5D44BF96A2FCCB667BE5 /* SettingsRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB9277F8FB5FF307653B2DB /* SettingsRepositoryImpl.swift */; };
 		5B6F7CE82B6EBDD641DAB5B6 /* ApprovalTestFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3D573C4FCB2B3CA5F38D93 /* ApprovalTestFactory.swift */; };
@@ -201,6 +202,9 @@
 		A98693C70B9BBE3979DA0685 /* AppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7907F9B240D2B0A7723AFE0 /* AppContainer.swift */; };
 		AB143F694F6B24ED66CE28F7 /* CancelAgentTaskUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90FDEAEC55E0EF2669F0EE8D /* CancelAgentTaskUseCase.swift */; };
 		ADBD7494FF02D52E57036464 /* ApprovalRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 154B32F3E66E7DD27646B928 /* ApprovalRepositoryImpl.swift */; };
+		B723BDF569E6F2B21AF9B540 /* ApprovalDeliveryChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB1CBB3D8272B139930C432F /* ApprovalDeliveryChannel.swift */; };
+		FA2787BBC2BE2493A6E037C5 /* ApprovalDeliveryAckInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312753BA767C979AA3866058 /* ApprovalDeliveryAckInbox.swift */; };
+		416FDF292B65715CCA6C4295 /* ApprovalDeliveryGuaranteeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C2BD25BE2B382E2F0FDF40 /* ApprovalDeliveryGuaranteeTests.swift */; };
 		ADFE3CD8098A6AD2B1107FA4 /* ApprovalMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDF2C47869AE1620A3BBEC2A /* ApprovalMapper.swift */; };
 		AE78026CAD68EE7743A9CF0B /* RFTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2839C39830CCECEE80290942 /* RFTypography.swift */; };
 		AECAC1C68D46FD67182E0DE8 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F752599A11956764AC8B10 /* AuthViewModel.swift */; };
@@ -220,6 +224,8 @@
 		BFE6B5CA480FA05F3D6CFAD8 /* ProactiveNotificationType.swift in Sources */ = {isa = PBXBuildFile; fileRef = A612D44CA65EA4A1506A422B /* ProactiveNotificationType.swift */; };
 		C042AD76CA2A2AD4F64FDC4F /* UserProfileMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBDC3315500C75ABF09F2FF1 /* UserProfileMapper.swift */; };
 		C04EECE10C7CB20D13384ACD /* ApprovalMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 422F209F30ED7BFB450E98E0 /* ApprovalMapperTests.swift */; };
+		C0FFEE1234567890ABCDEF12 /* StreamScrollThrottle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE1234567890ABCDEF34 /* StreamScrollThrottle.swift */; };
+		C0FFEE1234567890ABCDEF56 /* ChatViewModelStreamDeltaTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE1234567890ABCDEF78 /* ChatViewModelStreamDeltaTests.swift */; };
 		C1CC0EB0386F7B80DF0AD0D1 /* NotificationRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 249EF47971A35E816A840720 /* NotificationRouterTests.swift */; };
 		C3A47B0310FFDF600EF8CF42 /* AgentProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A819F37DCA3CBBC7DBE5594 /* AgentProject.swift */; };
 		C607C0AA986DB4D8F2CB494F /* TaskStatusHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78D6B9A2EFA0248466C110F5 /* TaskStatusHandler.swift */; };
@@ -327,6 +333,9 @@
 		1300B9E4D3FA43121BEB6891 /* AgentRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRepositoryImpl.swift; sourceTree = "<group>"; };
 		146A075096B010BB559405F3 /* HomeSkeletonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeSkeletonView.swift; sourceTree = "<group>"; };
 		154B32F3E66E7DD27646B928 /* ApprovalRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalRepositoryImpl.swift; sourceTree = "<group>"; };
+		DB1CBB3D8272B139930C432F /* ApprovalDeliveryChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalDeliveryChannel.swift; sourceTree = "<group>"; };
+		312753BA767C979AA3866058 /* ApprovalDeliveryAckInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalDeliveryAckInbox.swift; sourceTree = "<group>"; };
+		B2C2BD25BE2B382E2F0FDF40 /* ApprovalDeliveryGuaranteeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalDeliveryGuaranteeTests.swift; sourceTree = "<group>"; };
 		167E2BAB096263999135B970 /* AgentTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentTask.swift; sourceTree = "<group>"; };
 		17C0B926BBA0C8F6EBBAA19C /* LoadSettingsUseCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadSettingsUseCaseTests.swift; sourceTree = "<group>"; };
 		17CA42060BA899A8CE690BB4 /* RFTransitions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFTransitions.swift; sourceTree = "<group>"; };
@@ -407,6 +416,7 @@
 		55597F1710AE69FE3EB1CC46 /* CheckProjectStatusIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckProjectStatusIntent.swift; sourceTree = "<group>"; };
 		57AB388A140CFA22E2FB8528 /* SubagentMessageHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubagentMessageHandlers.swift; sourceTree = "<group>"; };
 		57DC8935536D06DCD5835297 /* ApprovalQuestionMessageHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalQuestionMessageHandler.swift; sourceTree = "<group>"; };
+		BF7CF327137E470D86A8127A /* ApprovalDeliveryAckMessageHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalDeliveryAckMessageHandler.swift; sourceTree = "<group>"; };
 		58B5C79F81BBBAB0FC37BF61 /* RFSpacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFSpacing.swift; sourceTree = "<group>"; };
 		5964E2EB9002964731127733 /* SessionTitleRepositoryProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTitleRepositoryProtocol.swift; sourceTree = "<group>"; };
 		5992E0A0F127905160F54939 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
@@ -524,6 +534,8 @@
 		BFDAA9F81B14E7D8A13DEC7E /* MockApprovalRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockApprovalRepository.swift; sourceTree = "<group>"; };
 		C187324456AD9CD5097804E6 /* AuthInterceptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthInterceptor.swift; sourceTree = "<group>"; };
 		C2B241BEBF311F27A4CA4CFC /* CostSummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CostSummaryCard.swift; sourceTree = "<group>"; };
+		C0FFEE1234567890ABCDEF34 /* StreamScrollThrottle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamScrollThrottle.swift; sourceTree = "<group>"; };
+		C0FFEE1234567890ABCDEF78 /* ChatViewModelStreamDeltaTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelStreamDeltaTests.swift; sourceTree = "<group>"; };
 		C488AFE6604F338D2EAD20A5 /* RafRaf.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RafRaf.entitlements; sourceTree = "<group>"; };
 		C4CA274CAF914666753FD934 /* WidgetDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataService.swift; sourceTree = "<group>"; };
 		C6189AB90C5A36F4D3442ACC /* ProgressEventDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressEventDTO.swift; sourceTree = "<group>"; };
@@ -775,6 +787,8 @@
 		1C29DFDED6B57F4E06699E7E /* Repositories */ = {
 			isa = PBXGroup;
 			children = (
+				312753BA767C979AA3866058 /* ApprovalDeliveryAckInbox.swift */,
+				DB1CBB3D8272B139930C432F /* ApprovalDeliveryChannel.swift */,
 				154B32F3E66E7DD27646B928 /* ApprovalRepositoryImpl.swift */,
 			);
 			path = Repositories;
@@ -1379,6 +1393,7 @@
 				A2C3114147DA6E2C905C4D61 /* BookmarksView.swift */,
 				81630FDE47EBC23FBD8DF532 /* ChatSearchView.swift */,
 				F503BC69A6F011BBD9C5C7A1 /* ChatView.swift */,
+				C0FFEE1234567890ABCDEF34 /* StreamScrollThrottle.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1423,6 +1438,7 @@
 		85C189F6284E2EF49BF1FF04 /* Data */ = {
 			isa = PBXGroup;
 			children = (
+				B2C2BD25BE2B382E2F0FDF40 /* ApprovalDeliveryGuaranteeTests.swift */,
 				422F209F30ED7BFB450E98E0 /* ApprovalMapperTests.swift */,
 				88476BCA795924931C66A42B /* ApprovalQuestionDTOTests.swift */,
 				A475FE8F3B5D46B7CB021FB8 /* ApprovalRepositoryWireShapeTests.swift */,
@@ -1727,6 +1743,7 @@
 		A8955D5ECA4655A635C7B8BA /* Handlers */ = {
 			isa = PBXGroup;
 			children = (
+				BF7CF327137E470D86A8127A /* ApprovalDeliveryAckMessageHandler.swift */,
 				57DC8935536D06DCD5835297 /* ApprovalQuestionMessageHandler.swift */,
 			);
 			path = Handlers;
@@ -2093,6 +2110,7 @@
 				5561F4DEE7688E31841105C0 /* Domain */,
 				EB4B2E6D582F056718520E8D /* Mocks */,
 				2AB3DEF8486E7338DC7A094D /* Presentation */,
+				C0FFEE1234567890ABCDEF78 /* ChatViewModelStreamDeltaTests.swift */,
 			);
 			path = Chat;
 			sourceTree = "<group>";
@@ -2337,6 +2355,9 @@
 				324142A3F5FBEDC5DB58AE01 /* ApprovalQuestion.swift in Sources */,
 				170305E3526BE2CD9BE0A789 /* ApprovalQuestionDTO.swift in Sources */,
 				58AE56409015367C9E0D87C8 /* ApprovalQuestionMessageHandler.swift in Sources */,
+				7964A54A6E834CE8BFE85F0E /* ApprovalDeliveryAckMessageHandler.swift in Sources */,
+				FA2787BBC2BE2493A6E037C5 /* ApprovalDeliveryAckInbox.swift in Sources */,
+				B723BDF569E6F2B21AF9B540 /* ApprovalDeliveryChannel.swift in Sources */,
 				ADBD7494FF02D52E57036464 /* ApprovalRepositoryImpl.swift in Sources */,
 				48D6EDC37627B786BA0C66B6 /* ApprovalRepositoryProtocol.swift in Sources */,
 				35A9D0F7A2B7F2F954DDB024 /* ApprovalResponseDTO.swift in Sources */,
@@ -2493,6 +2514,7 @@
 				E7574480EB35E3895E822873 /* SettingsView.swift in Sources */,
 				32657889244D50961E14014B /* SettingsViewModel.swift in Sources */,
 				B39F98014AD44F56F1087300 /* ShareSheet.swift in Sources */,
+				C0FFEE1234567890ABCDEF12 /* StreamScrollThrottle.swift in Sources */,
 				31A8FE5356AFF4AA6249B7AF /* Subagent.swift in Sources */,
 				63FB2CBEAE62BA942DBBE1BE /* SubagentDetailSheet.swift in Sources */,
 				4FCB73221D94219C8980CC89 /* SubagentLiveActivityCoordinator.swift in Sources */,
@@ -2534,6 +2556,7 @@
 				7B427CE1119B02E2DB2F0FED /* ApprovalCoordinatorTests.swift in Sources */,
 				C04EECE10C7CB20D13384ACD /* ApprovalMapperTests.swift in Sources */,
 				941B0A53882A36B1ED352971 /* ApprovalModelTests.swift in Sources */,
+				416FDF292B65715CCA6C4295 /* ApprovalDeliveryGuaranteeTests.swift in Sources */,
 				03A0DAF73C6811B082C60CE9 /* ApprovalQuestionDTOTests.swift in Sources */,
 				57369B286B072224FAE4850A /* ApprovalRepositoryWireShapeTests.swift in Sources */,
 				5B6F7CE82B6EBDD641DAB5B6 /* ApprovalTestFactory.swift in Sources */,
@@ -2546,6 +2569,7 @@
 				DFA161097F54448F3606E4F4 /* ChatMessageMapperTests.swift in Sources */,
 				A6E9039247DC4A73D17DD09E /* ChatMessageModelTests.swift in Sources */,
 				FB1623A4889699FE2BCB3C4C /* ChatViewModelTests.swift in Sources */,
+				C0FFEE1234567890ABCDEF56 /* ChatViewModelStreamDeltaTests.swift in Sources */,
 				E033ECD6FDB5F442243A5D54 /* HandleNotificationUseCaseTests.swift in Sources */,
 				CCABAE6C1D0350F09A27AE99 /* HomeViewModelTests.swift in Sources */,
 				00A429AD9984993125CFFE5F /* KeychainHelperTests.swift in Sources */,
