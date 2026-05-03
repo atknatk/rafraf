@@ -87,6 +87,15 @@ class TestMessageType:
             "session.title",
             "session.pr_opened",
             "usage.report",
+            # V1.x Claude Subprocess Supervisor (Item 11) — bridge → backend → iOS
+            "event.claude.process.spawned",
+            "event.claude.process.healthcheck",
+            "event.claude.process.stalled",
+            "event.claude.process.crashed",
+            "event.claude.process.recovered",
+            "event.claude.process.diagnosed",
+            # V1.x Claude Subprocess Supervisor — iOS → backend → bridge
+            "command.claude.process.retry",
         }
         actual = {t.value for t in MessageType}
         assert actual == expected

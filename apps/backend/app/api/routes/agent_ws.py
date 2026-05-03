@@ -23,6 +23,7 @@ from app.schemas.agent import (
 )
 from app.services.agent_project_service import AgentProjectService
 from app.services.bridge_registry_service import bridge_registry
+from app.services.claude_process_forwarder import get_claude_process_forwarder
 from app.services.claude_stream_manager import ClaudeStreamManager
 from app.services.project_service import ProjectService
 from app.services.task_manager_service import TaskManager
@@ -197,6 +198,23 @@ async def agent_websocket_endpoint(
                 # (T1.2-fix H-1). MUST be matched before the generic
                 # ``event.*`` branch.
                 await _handle_session_pr_opened(raw_data, registered_host_id)
+            elif msg_type == "event.claude.process.spawned":
+                # V1.x supervisor (Item 11) — bridge-originated, NOT RPC-
+                # correlated. Resolves session→user via SessionRepository
+                # and forwards a typed ``event.claude.process.spawned``
+                # to that owner's iOS connections. MUST be matched before
+                # the generic ``event.*`` branch.
+                await _handle_claude_process_spawned(raw_data, registered_host_id)
+            elif msg_type == "event.claude.process.healthcheck":
+                await _handle_claude_process_healthcheck(raw_data, registered_host_id)
+            elif msg_type == "event.claude.process.stalled":
+                await _handle_claude_process_stalled(raw_data, registered_host_id)
+            elif msg_type == "event.claude.process.crashed":
+                await _handle_claude_process_crashed(raw_data, registered_host_id)
+            elif msg_type == "event.claude.process.recovered":
+                await _handle_claude_process_recovered(raw_data, registered_host_id)
+            elif msg_type == "event.claude.process.diagnosed":
+                await _handle_claude_process_diagnosed(raw_data, registered_host_id)
             elif isinstance(msg_type, str) and msg_type.startswith("event."):
                 # Bridge → backend RPC events (T1.1). Routed to the
                 # ClaudeCodeRunner subscriber that owns the matching
@@ -988,3 +1006,140 @@ async def _handle_session_pr_opened(
         pr_number=pr_number,
         sessions_reached=sent,
     )
+
+
+# ------------------------------------------------------------------
+# Claude subprocess supervisor (V1.x — Item 11) bridge events.
+#
+# All 6 envelopes are bridge-originated, NOT correlated with a
+# specific RPC, so they MUST be matched ahead of the generic
+# ``event.*`` branch. Each handler delegates to the typed
+# :class:`ClaudeProcessForwarder` which:
+#
+#   1. Validates the payload via the matching Pydantic model.
+#   2. Resolves session_id → user_id via SessionRepository.
+#   3. Pushes the typed envelope to that user's iOS connections.
+#   4. For terminal-bad states (stalled / crashed) persists a
+#      :class:`ProactiveNotificationModel` row.
+#
+# ``bridge_id`` is the bridge's registered ``host_id`` (or ``None``
+# when registration was skipped) — currently passed through for
+# observability symmetry with the storage handlers; the forwarder
+# itself doesn't need it because the user_id is recovered from the
+# DB row, not the bridge.
+# ------------------------------------------------------------------
+
+
+def _extract_claude_process_payload(
+    raw_data: dict[str, object],
+) -> dict[str, object] | None:
+    """Return the typed payload dict, accepting either ``payload`` or ``content``."""
+    body = raw_data.get("payload")
+    if isinstance(body, dict):
+        return body
+    body = raw_data.get("content")
+    if isinstance(body, dict):
+        return body
+    return None
+
+
+async def _handle_claude_process_spawned(
+    raw_data: dict[str, object],
+    bridge_id: str | None = None,
+) -> None:
+    """Forward a `event.claude.process.spawned` envelope to the session owner."""
+    body = _extract_claude_process_payload(raw_data)
+    if body is None:
+        await logger.awarning(
+            "claude_process_spawned_missing_payload",
+            keys=list(raw_data.keys()),
+            bridge_id=bridge_id,
+        )
+        return
+    forwarder = get_claude_process_forwarder()
+    await forwarder.forward_spawned(body)
+
+
+async def _handle_claude_process_healthcheck(
+    raw_data: dict[str, object],
+    bridge_id: str | None = None,
+) -> None:
+    """Forward a `event.claude.process.healthcheck` envelope (with dedup)."""
+    body = _extract_claude_process_payload(raw_data)
+    if body is None:
+        await logger.awarning(
+            "claude_process_healthcheck_missing_payload",
+            keys=list(raw_data.keys()),
+            bridge_id=bridge_id,
+        )
+        return
+    forwarder = get_claude_process_forwarder()
+    await forwarder.forward_healthcheck(body)
+
+
+async def _handle_claude_process_stalled(
+    raw_data: dict[str, object],
+    bridge_id: str | None = None,
+) -> None:
+    """Forward a `event.claude.process.stalled` envelope + persist a notification."""
+    body = _extract_claude_process_payload(raw_data)
+    if body is None:
+        await logger.awarning(
+            "claude_process_stalled_missing_payload",
+            keys=list(raw_data.keys()),
+            bridge_id=bridge_id,
+        )
+        return
+    forwarder = get_claude_process_forwarder()
+    await forwarder.forward_stalled(body)
+
+
+async def _handle_claude_process_crashed(
+    raw_data: dict[str, object],
+    bridge_id: str | None = None,
+) -> None:
+    """Forward a `event.claude.process.crashed` envelope + persist an urgent notification."""
+    body = _extract_claude_process_payload(raw_data)
+    if body is None:
+        await logger.awarning(
+            "claude_process_crashed_missing_payload",
+            keys=list(raw_data.keys()),
+            bridge_id=bridge_id,
+        )
+        return
+    forwarder = get_claude_process_forwarder()
+    await forwarder.forward_crashed(body)
+
+
+async def _handle_claude_process_recovered(
+    raw_data: dict[str, object],
+    bridge_id: str | None = None,
+) -> None:
+    """Forward a `event.claude.process.recovered` envelope to the session owner."""
+    body = _extract_claude_process_payload(raw_data)
+    if body is None:
+        await logger.awarning(
+            "claude_process_recovered_missing_payload",
+            keys=list(raw_data.keys()),
+            bridge_id=bridge_id,
+        )
+        return
+    forwarder = get_claude_process_forwarder()
+    await forwarder.forward_recovered(body)
+
+
+async def _handle_claude_process_diagnosed(
+    raw_data: dict[str, object],
+    bridge_id: str | None = None,
+) -> None:
+    """Forward a `event.claude.process.diagnosed` envelope to the session owner."""
+    body = _extract_claude_process_payload(raw_data)
+    if body is None:
+        await logger.awarning(
+            "claude_process_diagnosed_missing_payload",
+            keys=list(raw_data.keys()),
+            bridge_id=bridge_id,
+        )
+        return
+    forwarder = get_claude_process_forwarder()
+    await forwarder.forward_diagnosed(body)

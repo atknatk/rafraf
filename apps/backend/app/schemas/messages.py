@@ -56,6 +56,19 @@ class MessageType(StrEnum):
     SESSION_TITLE = "session.title"
     SESSION_PR_OPENED = "session.pr_opened"
     USAGE_REPORT = "usage.report"
+    # V1.x Claude Subprocess Supervisor (Item 11) — bridge → backend → iOS.
+    # Mirrors the Go bridge envelope types in
+    # ``apps/rafraf-bridge/internal/protocol/messages.go``. See
+    # ``shared/feature-specs/V1x-claude-supervisor.md`` §4 for the wire shape
+    # contract that all three layers must agree on.
+    CLAUDE_PROCESS_SPAWNED = "event.claude.process.spawned"
+    CLAUDE_PROCESS_HEALTHCHECK = "event.claude.process.healthcheck"
+    CLAUDE_PROCESS_STALLED = "event.claude.process.stalled"
+    CLAUDE_PROCESS_CRASHED = "event.claude.process.crashed"
+    CLAUDE_PROCESS_RECOVERED = "event.claude.process.recovered"
+    CLAUDE_PROCESS_DIAGNOSED = "event.claude.process.diagnosed"
+    # V1.x Claude Subprocess Supervisor — iOS → backend → bridge.
+    CLAUDE_PROCESS_RETRY = "command.claude.process.retry"
 
 
 class MessageAttachment(BaseModel):
@@ -386,3 +399,127 @@ class UsageReportPayload(BaseModel):
     five_hour_resets_at: int  # unix timestamp (seconds)
     seven_day_resets_at: int
     reported_at: int  # usage.json yazilma zamani (stale detection icin)
+
+
+# ---------------------------------------------------------------------------
+# Claude Subprocess Supervisor payloads (V1.x — Item 11)
+#
+# Wire-shape contract:
+#   - All snake_case keys on the wire (matches the Go bridge JSON marshal).
+#   - All payloads ``frozen=True`` (immutable per project rules).
+#   - ``populate_by_name=True`` (defensive — accept the snake_case form even
+#     when the iOS DTOs round-trip through camelCase via aliases).
+#
+# Source-of-truth field list lives in
+# ``shared/feature-specs/V1x-claude-supervisor.md`` §4. Bridge protocol structs
+# in ``apps/rafraf-bridge/internal/protocol/messages.go`` MUST match these
+# field-for-field (drift guard:
+# ``shared/api-contracts/ws/claude-process-messages.json``).
+# ---------------------------------------------------------------------------
+
+
+class ClaudeProcessSpawnedPayload(BaseModel):
+    """Payload for `event.claude.process.spawned` (§4.1)."""
+
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
+
+    session_id: str
+    pid: int = Field(gt=0)
+    started_at: datetime
+    model: str
+    args: list[str]
+    permission_mode: str
+    project_dir: str
+
+
+class ClaudeProcessHealthcheckPayload(BaseModel):
+    """Payload for `event.claude.process.healthcheck` (§4.2).
+
+    `status` ∈ {starting, running, idle, stale, rate_limited, completed}.
+    """
+
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
+
+    session_id: str
+    pid: int = Field(gt=0)
+    status: str
+    last_stdout_age_ms: int
+    current_tokens: int
+    memory_rss_kb: int
+    cpu_percent_1s: float
+    observed_at: datetime
+
+
+class ClaudeProcessStalledPayload(BaseModel):
+    """Payload for `event.claude.process.stalled` (§4.3)."""
+
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
+
+    session_id: str
+    pid: int = Field(gt=0)
+    last_activity_at: datetime
+    stale_for_ms: int
+    stderr_tail: str  # bridge caps at 8 KiB
+    stderr_tail_truncated: bool
+    self_heal_pending: bool
+
+
+class ClaudeProcessCrashedPayload(BaseModel):
+    """Payload for `event.claude.process.crashed` (§4.4)."""
+
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
+
+    session_id: str
+    pid: int = Field(gt=0)
+    exit_code: int
+    signal: str  # "" when exit was clean-but-nonzero
+    stderr_tail: str
+    duration_ms: int
+    crashed_at: datetime
+
+
+class ClaudeProcessRecoveredPayload(BaseModel):
+    """Payload for `event.claude.process.recovered` (§4.5).
+
+    `recovery_reason` ∈ {diagnostic_recommended_wait, rate_limit_window_expired,
+    manual_retry, stdout_resumed}. `old_session_id == new_session_id` on
+    self-recovery; differs only on a manual retry that issues a new run.
+    """
+
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
+
+    old_session_id: str
+    new_session_id: str
+    recovery_reason: str
+    recovered_at: datetime
+
+
+class ClaudeProcessDiagnosedPayload(BaseModel):
+    """Payload for `event.claude.process.diagnosed` (§4.6).
+
+    `recommended_action` ∈ {retry, wait, manual}. `diagnosis_text` capped at
+    4 KiB by the bridge. `diagnostic_tokens_used` ≤ 500 (cost guard).
+    """
+
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
+
+    session_id: str
+    diagnosis_text: str  # bridge caps at 4 KiB
+    recommended_action: str
+    diagnostic_tokens_used: int
+    diagnostic_duration_ms: int
+    diagnosed_at: datetime
+
+
+class ClaudeProcessRetryCommand(BaseModel):
+    """Payload for `command.claude.process.retry` (§4.7) — iOS → backend.
+
+    `user_id` is iOS-supplied for traceability but the backend's `websocket.py`
+    handler MUST cross-check it against the JWT-authenticated `user_id` of the
+    connection before forwarding to the bridge (no impersonation).
+    """
+
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
+
+    session_id: str
+    user_id: str

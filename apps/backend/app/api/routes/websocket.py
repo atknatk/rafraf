@@ -320,6 +320,14 @@ async def _handle_message(
         await _handle_approval_response(raw_data, connection_id, session_id, user_id)
     elif msg_type == MessageType.CANCEL_STREAM:
         await _handle_cancel_stream(connection_id, session_id)
+    elif msg_type == MessageType.CLAUDE_PROCESS_RETRY:
+        # V1.x supervisor (Item 11) — iOS Retry button. The iOS payload
+        # includes a ``user_id`` field but we IGNORE it and use the JWT-
+        # authenticated ``user_id`` of this connection instead, then
+        # cross-check that the supplied ``session_id`` actually belongs to
+        # that user before forwarding the bridge command (no
+        # cross-tenant impersonation).
+        await _handle_claude_process_retry(raw_data, connection_id, session_id, user_id)
     else:
         error_msg = _build_error_message(
             error_code="UNSUPPORTED_CLIENT_MESSAGE",
@@ -1355,3 +1363,158 @@ async def _emit_approval_audit_log(
             tool_name=tool_name,
             decision=decision,
         )
+
+
+async def _handle_claude_process_retry(
+    raw_data: dict[str, object],
+    connection_id: str,
+    session_id: str,
+    user_id: str,
+) -> None:
+    """Process an iOS-originated `command.claude.process.retry` envelope.
+
+    V1.x supervisor (Item 11). The user tapped the Retry button on the
+    iOS-side Claude process diagnostic banner. We:
+
+    1. Extract the supervised ``session_id`` the user wants to retry from
+       the payload.
+    2. **Cross-check** the session belongs to the JWT-authenticated
+       ``user_id`` of THIS connection (the iOS-supplied ``user_id`` field
+       is IGNORED — we never trust it for authorization). The
+       :class:`SessionRepository.get_by_id` lookup returns the row's
+       owning ``user_id``; if it doesn't match the connection's
+       authenticated user we return an error and skip the bridge dispatch
+       (no cross-tenant impersonation).
+    3. Broadcast the typed ``command.claude.process.retry`` envelope to
+       every online bridge. Only the bridge whose supervisor map holds
+       this ``session_id`` will act on it; other bridges are no-op
+       receivers (they don't know the session). The bridge re-issues a
+       fresh ``Run()`` with the same prompt cached on its supervisor
+       record (per spec §4.7).
+
+    Failures (DB unreachable, bridge offline) emit a structured error to
+    the client and are logged but do NOT raise — keeps the WS loop alive.
+    """
+    content = raw_data.get("content")
+    if not isinstance(content, dict):
+        # Some clients still wrap the payload under ``payload`` (legacy
+        # naming). Accept both for forwards-compat with the bridge struct
+        # naming convention.
+        payload_field = raw_data.get("payload")
+        if isinstance(payload_field, dict):
+            content = payload_field
+        else:
+            error_msg = _build_error_message(
+                error_code="INVALID_CLAUDE_PROCESS_RETRY",
+                message="claude_process_retry content must be a JSON object",
+                session_id=session_id,
+            )
+            await manager.send_json(connection_id, error_msg)
+            return
+
+    target_session_raw = content.get("session_id")
+    if not isinstance(target_session_raw, str) or not target_session_raw:
+        error_msg = _build_error_message(
+            error_code="INVALID_CLAUDE_PROCESS_RETRY",
+            message="claude_process_retry payload must include a 'session_id' string",
+            session_id=session_id,
+        )
+        await manager.send_json(connection_id, error_msg)
+        return
+
+    try:
+        target_session_uuid = _uuid_mod.UUID(target_session_raw)
+    except ValueError:
+        error_msg = _build_error_message(
+            error_code="INVALID_CLAUDE_PROCESS_RETRY",
+            message=f"session_id must be a valid UUID: {target_session_raw}",
+            session_id=session_id,
+        )
+        await manager.send_json(connection_id, error_msg)
+        return
+
+    # --- Authorization cross-check ---
+    # NEVER trust ``content['user_id']`` from the iOS payload. The
+    # connection's JWT-derived ``user_id`` is the only authoritative
+    # subject. Look up the session row and verify its owner matches.
+    from app.repositories.session_repo import SessionRepository  # noqa: PLC0415
+
+    try:
+        async with async_session_factory() as db:
+            session_record = await SessionRepository(db).get_by_id(target_session_uuid)
+    except Exception:
+        logger.exception(
+            "claude_process_retry_db_lookup_failed",
+            connection_id=connection_id,
+            target_session_id=target_session_raw,
+        )
+        error_msg = _build_error_message(
+            error_code="CLAUDE_PROCESS_RETRY_FAILED",
+            message="Sunucu hatası: oturum doğrulanamadı",
+            session_id=session_id,
+        )
+        await manager.send_json(connection_id, error_msg)
+        return
+
+    if session_record is None or str(session_record.user_id) != user_id:
+        logger.warning(
+            "claude_process_retry_unauthorized",
+            connection_id=connection_id,
+            jwt_user_id=user_id,
+            target_session_id=target_session_raw,
+            session_owner=(str(session_record.user_id) if session_record else None),
+        )
+        error_msg = _build_error_message(
+            error_code="CLAUDE_PROCESS_RETRY_FORBIDDEN",
+            message="Bu oturumun sahibi siz değilsiniz",
+            recoverable=False,
+            session_id=session_id,
+        )
+        await manager.send_json(connection_id, error_msg)
+        return
+
+    # --- Bridge dispatch ---
+    # Build the outbound envelope using the spec §4.7 wire shape. The
+    # backend always uses the JWT user_id as the authoritative subject
+    # (NOT the iOS-supplied content['user_id']).
+    envelope: dict[str, object] = {
+        "id": str(uuid4()),
+        "type": "command.claude.process.retry",
+        "ts": datetime.now(tz=UTC).isoformat(),
+        "payload": {
+            "session_id": target_session_raw,
+            "user_id": user_id,
+        },
+    }
+
+    # Resolve owning bridge by broadcasting to every online bridge — only
+    # the bridge whose supervisor map holds this session will act on it,
+    # the rest will silently no-op (per spec §4.7 Bridge handler). This
+    # avoids needing a backend-side session→bridge index, which the
+    # registry doesn't currently maintain for supervised processes.
+    sent_count = 0
+    bridge_count = 0
+    for record in list(bridge_registry._bridges.values()):
+        if record.connection_id is None:
+            continue
+        bridge_count += 1
+        sent = await bridge_registry.send_to_bridge(record.host_id, envelope)
+        if sent:
+            sent_count += 1
+
+    logger.info(
+        "claude_process_retry_dispatched",
+        connection_id=connection_id,
+        user_id=user_id,
+        target_session_id=target_session_raw,
+        bridge_count=bridge_count,
+        sent_count=sent_count,
+    )
+
+    if bridge_count == 0:
+        error_msg = _build_error_message(
+            error_code="CLAUDE_PROCESS_RETRY_NO_BRIDGE",
+            message="Aktif bridge bağlantısı yok — yeniden denenemiyor",
+            session_id=session_id,
+        )
+        await manager.send_json(connection_id, error_msg)
