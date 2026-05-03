@@ -52,6 +52,16 @@ enum WebSocketMessageType: String, Codable, Sendable {
     // Backend reference: `apps/backend/app/services/approval_service.py::build_question_message`.
     // `shared/api-contracts/ws/approval-messages.json` kontratina uygun.
     case question = "question"
+    // V1.x SLIM (Item 11): Claude subprocess supervisor envelopes — bridge originated.
+    // Spec: `shared/feature-specs/V1x-claude-supervisor.md` §4 (wire shapes).
+    case claudeProcessSpawned = "event.claude.process.spawned"
+    case claudeProcessHealthcheck = "event.claude.process.healthcheck"
+    case claudeProcessStalled = "event.claude.process.stalled"
+    case claudeProcessCrashed = "event.claude.process.crashed"
+    case claudeProcessRecovered = "event.claude.process.recovered"
+    case claudeProcessDiagnosed = "event.claude.process.diagnosed"
+    /// Outbound (iOS → bridge) — Retry button.
+    case claudeProcessRetry = "command.claude.process.retry"
 }
 
 /// Mesaj yonu.
@@ -186,6 +196,56 @@ struct WebSocketBaseMessage: Codable, Sendable {
                 webSocketMessageLogger.warning("question payload decode failed: \(String(describing: error))")
                 self.content = nil
             }
+        } else if self.type == WebSocketMessageType.claudeProcessSpawned.rawValue {
+            // V1.x SLIM (Item 11) — bridge supervisor spawned envelope.
+            // Spec §4.1. Explicit DTO + CodingKeys disiplini (convertFromSnakeCase YASAK).
+            do {
+                let payload = try container.decodeIfPresent(ClaudeProcessSpawnedDTO.self, forKey: .content)
+                self.content = payload.map { .claudeProcessSpawned($0) }
+            } catch {
+                webSocketMessageLogger.warning("claude.process.spawned decode failed: \(String(describing: error))")
+                self.content = nil
+            }
+        } else if self.type == WebSocketMessageType.claudeProcessHealthcheck.rawValue {
+            do {
+                let payload = try container.decodeIfPresent(ClaudeProcessHealthcheckDTO.self, forKey: .content)
+                self.content = payload.map { .claudeProcessHealthcheck($0) }
+            } catch {
+                webSocketMessageLogger.warning("claude.process.healthcheck decode failed: \(String(describing: error))")
+                self.content = nil
+            }
+        } else if self.type == WebSocketMessageType.claudeProcessStalled.rawValue {
+            do {
+                let payload = try container.decodeIfPresent(ClaudeProcessStalledDTO.self, forKey: .content)
+                self.content = payload.map { .claudeProcessStalled($0) }
+            } catch {
+                webSocketMessageLogger.warning("claude.process.stalled decode failed: \(String(describing: error))")
+                self.content = nil
+            }
+        } else if self.type == WebSocketMessageType.claudeProcessCrashed.rawValue {
+            do {
+                let payload = try container.decodeIfPresent(ClaudeProcessCrashedDTO.self, forKey: .content)
+                self.content = payload.map { .claudeProcessCrashed($0) }
+            } catch {
+                webSocketMessageLogger.warning("claude.process.crashed decode failed: \(String(describing: error))")
+                self.content = nil
+            }
+        } else if self.type == WebSocketMessageType.claudeProcessRecovered.rawValue {
+            do {
+                let payload = try container.decodeIfPresent(ClaudeProcessRecoveredDTO.self, forKey: .content)
+                self.content = payload.map { .claudeProcessRecovered($0) }
+            } catch {
+                webSocketMessageLogger.warning("claude.process.recovered decode failed: \(String(describing: error))")
+                self.content = nil
+            }
+        } else if self.type == WebSocketMessageType.claudeProcessDiagnosed.rawValue {
+            do {
+                let payload = try container.decodeIfPresent(ClaudeProcessDiagnosedDTO.self, forKey: .content)
+                self.content = payload.map { .claudeProcessDiagnosed($0) }
+            } catch {
+                webSocketMessageLogger.warning("claude.process.diagnosed decode failed: \(String(describing: error))")
+                self.content = nil
+            }
         } else {
             self.content = try? container.decodeIfPresent(WebSocketContent.self, forKey: .content)
         }
@@ -242,6 +302,16 @@ enum WebSocketContent: Codable, Sendable {
     // (`isinstance(content, dict)` kontrolu). Bu case ile DTO dogrudan dict olarak
     // serialize edilir (`shared/api-contracts/ws/approval-messages.json` kontrati).
     case approvalResponse(ApprovalResponseDTO)
+    // V1.x SLIM (Item 11) — Claude subprocess supervisor envelopes.
+    // Spec: `shared/feature-specs/V1x-claude-supervisor.md` §4.
+    case claudeProcessSpawned(ClaudeProcessSpawnedDTO)
+    case claudeProcessHealthcheck(ClaudeProcessHealthcheckDTO)
+    case claudeProcessStalled(ClaudeProcessStalledDTO)
+    case claudeProcessCrashed(ClaudeProcessCrashedDTO)
+    case claudeProcessRecovered(ClaudeProcessRecoveredDTO)
+    case claudeProcessDiagnosed(ClaudeProcessDiagnosedDTO)
+    /// Outbound — iOS → bridge Retry button.
+    case claudeProcessRetry(ClaudeProcessRetryRequestDTO)
 
     // MARK: M1 (deferred — Faz 1 polish queue)
     // Asagidaki singleValueContainer fall-through 8 yeni Agent Teams Content
@@ -363,6 +433,20 @@ enum WebSocketContent: Codable, Sendable {
         case .question(let value):
             try container.encode(value)
         case .approvalResponse(let value):
+            try container.encode(value)
+        case .claudeProcessSpawned(let value):
+            try container.encode(value)
+        case .claudeProcessHealthcheck(let value):
+            try container.encode(value)
+        case .claudeProcessStalled(let value):
+            try container.encode(value)
+        case .claudeProcessCrashed(let value):
+            try container.encode(value)
+        case .claudeProcessRecovered(let value):
+            try container.encode(value)
+        case .claudeProcessDiagnosed(let value):
+            try container.encode(value)
+        case .claudeProcessRetry(let value):
             try container.encode(value)
         }
     }

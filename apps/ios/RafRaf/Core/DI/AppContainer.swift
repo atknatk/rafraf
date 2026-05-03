@@ -391,6 +391,55 @@ extension Container {
         }
     }
 
+    // MARK: - Claude Subprocess Supervisor (V1.x SLIM — Item 11)
+
+    /// Lokal bildirim factory'si — stalled / crashed / rate_limited durumlarinda
+    /// 1 adet OS-level banner planlar (de-dupe by sessionId).
+    var claudeProcessNotificationFactory: Factory<ClaudeProcessNotificationFactoryProtocol> {
+        self { ClaudeProcessNotificationFactory() }
+            .singleton
+    }
+
+    /// Supervise edilen claude subprocess repository'si.
+    /// Singleton: WS handler'lari ve banner ayni in-memory state'i paylasmali.
+    var claudeProcessRepository: Factory<ClaudeProcessRepository> {
+        self {
+            ClaudeProcessRepositoryImpl(
+                webSocketClient: self.webSocketClient(),
+                notificationFactory: self.claudeProcessNotificationFactory()
+            )
+        }
+        .singleton
+    }
+
+    /// Banner Retry butonu use case'i.
+    var retryClaudeProcessUseCase: Factory<RetryClaudeProcessUseCase> {
+        self { RetryClaudeProcessUseCase(repository: self.claudeProcessRepository()) }
+    }
+
+    /// Banner stream gozlemleme use case'i.
+    var observeClaudeProcessBannerUseCase: Factory<ObserveClaudeProcessBannerUseCase> {
+        self { ObserveClaudeProcessBannerUseCase(repository: self.claudeProcessRepository()) }
+    }
+
+    /// V1.x SLIM — 6 inbound `event.claude.process.*` mesajlarini repository'ye
+    /// tasiyan WS handler'larin koleksiyonu (ContentView app start'inda router'a
+    /// register edilir).
+    var claudeProcessMessageHandlers: Factory<ClaudeProcessMessageHandlerSet> {
+        self {
+            let repo = self.claudeProcessRepository()
+            return ClaudeProcessMessageHandlerSet(
+                spawned: ClaudeProcessSpawnedHandler(repository: repo),
+                healthcheck: ClaudeProcessHealthcheckHandler(repository: repo),
+                stalled: ClaudeProcessStalledHandler(repository: repo),
+                crashed: ClaudeProcessCrashedHandler(repository: repo),
+                recovered: ClaudeProcessRecoveredHandler(repository: repo),
+                diagnosed: ClaudeProcessDiagnosedHandler(repository: repo)
+            )
+        }
+        .singleton
+    }
+
     // MARK: - Proactive Notifications Feature
 
     /// Proaktif bildirim repository.

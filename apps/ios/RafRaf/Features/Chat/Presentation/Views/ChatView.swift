@@ -98,6 +98,11 @@ struct ChatView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
+                // V1.x SLIM (Item 11) — Claude subprocess supervisor banner.
+                // Banner kendi state'ini AsyncStream ile dinler; gizli durumlarda
+                // (running/idle/completed/starting) hicbir layout yer kaplamaz.
+                RFClaudeProcessBanner(sessionId: viewModel.sessionId)
+
                 chatInputView
             }
             .background(RFColors.fallbackBackground)

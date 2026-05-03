@@ -23,6 +23,10 @@ struct ContentView: View {
     /// V1.x SHIP BLOCKER fix — backend `ack` envelope handler.
     /// Singleton DI ile `ApprovalRepositoryImpl` ile ayni inbox'a baglanir.
     private let approvalDeliveryAckMessageHandler = Container.shared.approvalDeliveryAckMessageHandler()
+    /// V1.x SLIM (Item 11) — Claude subprocess supervisor handler bundle.
+    /// 6 inbound `event.claude.process.*` envelope'i app start'inda
+    /// `WebSocketMessageRouter`'a kaydedilir.
+    private let claudeProcessMessageHandlers = Container.shared.claudeProcessMessageHandlers()
 
     init() {
         configureTabBarAppearance()
@@ -70,6 +74,11 @@ struct ContentView: View {
             // ApprovalRepositoryImpl ile ayni singleton inbox'i paylasir; ack
             // geldiginde bekleyen `awaitAck` continuation'i cozulur.
             await registerApprovalDeliveryAckHandler()
+
+            // V1.x SLIM (Item 11): Claude subprocess supervisor handler'lari.
+            // Bridge'den gelen 6 `event.claude.process.*` envelope'i tek bir DI
+            // bundle ile router'a baglanir.
+            await registerClaudeProcessHandlers()
 
             await authManager.checkExistingAuth()
             // Auth basarili ise hemen WebSocket bagla
@@ -181,6 +190,35 @@ struct ContentView: View {
         await webSocketManager.registerHandler(
             type: "ack",
             handler: approvalDeliveryAckMessageHandler
+        )
+    }
+
+    /// V1.x SLIM (Item 11) — Claude subprocess supervisor envelope handler'lari.
+    /// Spec §4: spawned / healthcheck / stalled / crashed / recovered / diagnosed.
+    private func registerClaudeProcessHandlers() async {
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.claudeProcessSpawned.rawValue,
+            handler: claudeProcessMessageHandlers.spawned
+        )
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.claudeProcessHealthcheck.rawValue,
+            handler: claudeProcessMessageHandlers.healthcheck
+        )
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.claudeProcessStalled.rawValue,
+            handler: claudeProcessMessageHandlers.stalled
+        )
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.claudeProcessCrashed.rawValue,
+            handler: claudeProcessMessageHandlers.crashed
+        )
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.claudeProcessRecovered.rawValue,
+            handler: claudeProcessMessageHandlers.recovered
+        )
+        await webSocketManager.registerHandler(
+            type: WebSocketMessageType.claudeProcessDiagnosed.rawValue,
+            handler: claudeProcessMessageHandlers.diagnosed
         )
     }
 

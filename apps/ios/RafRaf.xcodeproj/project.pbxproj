@@ -302,6 +302,19 @@
 		FD5942735290C54C524FC1EB /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C7784CE2B4AF352D0F3FB36 /* FlowLayout.swift */; };
 		FE9DD255E14A8684F283232B /* Factory in Frameworks */ = {isa = PBXBuildFile; productRef = ECB3212567B4D6E2AE1748D8 /* Factory */; };
 		FFF07533B53FC9F056179983 /* NotificationCategoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 384E4B954363B2EE0FDCDB7C /* NotificationCategoryTests.swift */; };
+		78E9D0F67FAF36A2D8D1F516 /* SupervisedClaudeProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = C312BD36735E4717BA494E81 /* SupervisedClaudeProcess.swift */; };
+		28B09DBDE722FAD27E08CDE3 /* ClaudeProcessState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6809369E2800F1E2F4BEEFAF /* ClaudeProcessState.swift */; };
+		68B4E5233372951422D6E405 /* ClaudeProcessRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25CD995B484B30C33B7E5087 /* ClaudeProcessRepository.swift */; };
+		037BB307022AEFE82738710B /* RetryClaudeProcessUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E0D2C1C87E94A583C3CE8F /* RetryClaudeProcessUseCase.swift */; };
+		BCF6F10063526F50B9F523D0 /* ObserveClaudeProcessBannerUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A63E2D73AC6B37631088AB /* ObserveClaudeProcessBannerUseCase.swift */; };
+		CC0E05E1E7207387D8D11F8A /* ClaudeProcessEventDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = E48C9F7FA417FE0090EBB608 /* ClaudeProcessEventDTOs.swift */; };
+		766C0B3F89F3C8D26E1CD8FF /* ClaudeProcessRepositoryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2759820ADD8EFB176F290E02 /* ClaudeProcessRepositoryImpl.swift */; };
+		2D5AD578FB26FE66209927F6 /* ClaudeProcessMessageHandlers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA7E0BC26B65E61F3EF2D58D /* ClaudeProcessMessageHandlers.swift */; };
+		8C7CD613A56A206318E0E872 /* RFClaudeProcessBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B646B0CD70C3AF0B08F39BD /* RFClaudeProcessBanner.swift */; };
+		6D36CE057B88E3C38BBD0570 /* ClaudeProcessNotificationFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E309916EFDF401DE639FD90 /* ClaudeProcessNotificationFactory.swift */; };
+		6BBDB789D04F20A94A5C698D /* ClaudeProcessRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BD4525306028AD87A7B7A46 /* ClaudeProcessRepositoryTests.swift */; };
+		D89CCA43ABA5D65FD460A3B0 /* RFClaudeProcessBannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9074FD5DBCC3EFEE813C0776 /* RFClaudeProcessBannerTests.swift */; };
+		607D1784B91AB2B9F3944CA5 /* ClaudeProcessNotificationFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04F5FD1C3C203D628895B726 /* ClaudeProcessNotificationFactoryTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -610,6 +623,19 @@
 		FDF2C47869AE1620A3BBEC2A /* ApprovalMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApprovalMapper.swift; sourceTree = "<group>"; };
 		FF3E05119E588957102E442F /* AuthMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthMapper.swift; sourceTree = "<group>"; };
 		FF99CD33F6857E5A6CB3BE1F /* AgentListSkeletonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentListSkeletonView.swift; sourceTree = "<group>"; };
+		C312BD36735E4717BA494E81 /* SupervisedClaudeProcess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupervisedClaudeProcess.swift; sourceTree = "<group>"; };
+		6809369E2800F1E2F4BEEFAF /* ClaudeProcessState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeProcessState.swift; sourceTree = "<group>"; };
+		25CD995B484B30C33B7E5087 /* ClaudeProcessRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeProcessRepository.swift; sourceTree = "<group>"; };
+		A6E0D2C1C87E94A583C3CE8F /* RetryClaudeProcessUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetryClaudeProcessUseCase.swift; sourceTree = "<group>"; };
+		E7A63E2D73AC6B37631088AB /* ObserveClaudeProcessBannerUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObserveClaudeProcessBannerUseCase.swift; sourceTree = "<group>"; };
+		E48C9F7FA417FE0090EBB608 /* ClaudeProcessEventDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeProcessEventDTOs.swift; sourceTree = "<group>"; };
+		2759820ADD8EFB176F290E02 /* ClaudeProcessRepositoryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeProcessRepositoryImpl.swift; sourceTree = "<group>"; };
+		DA7E0BC26B65E61F3EF2D58D /* ClaudeProcessMessageHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeProcessMessageHandlers.swift; sourceTree = "<group>"; };
+		0B646B0CD70C3AF0B08F39BD /* RFClaudeProcessBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFClaudeProcessBanner.swift; sourceTree = "<group>"; };
+		2E309916EFDF401DE639FD90 /* ClaudeProcessNotificationFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeProcessNotificationFactory.swift; sourceTree = "<group>"; };
+		8BD4525306028AD87A7B7A46 /* ClaudeProcessRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeProcessRepositoryTests.swift; sourceTree = "<group>"; };
+		9074FD5DBCC3EFEE813C0776 /* RFClaudeProcessBannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RFClaudeProcessBannerTests.swift; sourceTree = "<group>"; };
+		04F5FD1C3C203D628895B726 /* ClaudeProcessNotificationFactoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeProcessNotificationFactoryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1122,6 +1148,7 @@
 				6AF975E23D5CC28945FC7254 /* RFProjectPicker.swift */,
 				A073EB9A2A3FA571F42B0DE2 /* RFQuickCommandPalette.swift */,
 				506A8129D75EC0B08AA1A4D4 /* RFStepProgressView.swift */,
+				0B646B0CD70C3AF0B08F39BD /* RFClaudeProcessBanner.swift */,
 				64E8AEBC40435F1731AF4E70 /* RFSubagentInlinePill.swift */,
 				3DF1EBF3412FE42D0007A1EF /* RFToolActivityCard.swift */,
 				F1A07F0BFB9BF3C28723B0FE /* RFToolStatusView.swift */,
@@ -1242,6 +1269,7 @@
 				07166AE876A8733981FE37D9 /* Agent */,
 				CFD22DA06A96016F7C96E4DE /* Approval */,
 				95CF02677BA990463DE21AF3 /* Auth */,
+				56DDB6A9FFBD8F399FA4A0DC /* ClaudeProcess */,
 				D63817B372E2117ECFD9F8B8 /* Chat */,
 				D14F9A966DB22E931488DEE9 /* Home */,
 				3AB8D2BC83D07BF369195A17 /* Notifications */,
@@ -1713,6 +1741,7 @@
 				5D89F2F4FBDB12491ADB3748 /* Agent */,
 				3F0FA47DE12760C99F6BCE6E /* Approval */,
 				5DD9A7473C765C12598D89BF /* Auth */,
+				E564512FC40CB813014D6508 /* ClaudeProcess */,
 				E5E0D47BDDA14AD48FAD2CF2 /* Chat */,
 				49D8925FD3E04F5821CA1D8D /* Home */,
 				9C3924380667E803AC24E6E8 /* Notifications */,
@@ -1948,6 +1977,7 @@
 		BF2C977A8D58E6C89567562F /* Notifications */ = {
 			isa = PBXGroup;
 			children = (
+				2E309916EFDF401DE639FD90 /* ClaudeProcessNotificationFactory.swift */,
 				073B5D01B9C1C155E7F5A50C /* NotificationRouter.swift */,
 				71C93280E1D8CE2C3ED37AB6 /* PushNotificationManager.swift */,
 			);
@@ -2230,6 +2260,119 @@
 				4A210A596B6ECA8FA67B0037 /* ProactiveNotificationRepositoryImpl.swift */,
 			);
 			path = Repositories;
+			sourceTree = "<group>";
+		};
+		2DF5CF7E52569A6B4F5FFE7D /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				6809369E2800F1E2F4BEEFAF /* ClaudeProcessState.swift */,
+				C312BD36735E4717BA494E81 /* SupervisedClaudeProcess.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		5C2FA37C14BE372AC1E9ACA2 /* Repositories */ = {
+			isa = PBXGroup;
+			children = (
+				25CD995B484B30C33B7E5087 /* ClaudeProcessRepository.swift */,
+			);
+			path = Repositories;
+			sourceTree = "<group>";
+		};
+		BC5D7AC188E07A42F3572659 /* UseCases */ = {
+			isa = PBXGroup;
+			children = (
+				E7A63E2D73AC6B37631088AB /* ObserveClaudeProcessBannerUseCase.swift */,
+				A6E0D2C1C87E94A583C3CE8F /* RetryClaudeProcessUseCase.swift */,
+			);
+			path = UseCases;
+			sourceTree = "<group>";
+		};
+		E8531AA2DF490A0C2DB9ECFD /* Domain */ = {
+			isa = PBXGroup;
+			children = (
+				2DF5CF7E52569A6B4F5FFE7D /* Models */,
+				5C2FA37C14BE372AC1E9ACA2 /* Repositories */,
+				BC5D7AC188E07A42F3572659 /* UseCases */,
+			);
+			path = Domain;
+			sourceTree = "<group>";
+		};
+		9DACB7E5715ACB762C3C105D /* DTOs */ = {
+			isa = PBXGroup;
+			children = (
+				E48C9F7FA417FE0090EBB608 /* ClaudeProcessEventDTOs.swift */,
+			);
+			path = DTOs;
+			sourceTree = "<group>";
+		};
+		871C8A8098CF2757BE6D6CA8 /* Repositories */ = {
+			isa = PBXGroup;
+			children = (
+				2759820ADD8EFB176F290E02 /* ClaudeProcessRepositoryImpl.swift */,
+			);
+			path = Repositories;
+			sourceTree = "<group>";
+		};
+		90274A8CDCC32FC97A847A60 /* Handlers */ = {
+			isa = PBXGroup;
+			children = (
+				DA7E0BC26B65E61F3EF2D58D /* ClaudeProcessMessageHandlers.swift */,
+			);
+			path = Handlers;
+			sourceTree = "<group>";
+		};
+		AF070607661C3F0BD43973DC /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				9DACB7E5715ACB762C3C105D /* DTOs */,
+				90274A8CDCC32FC97A847A60 /* Handlers */,
+				871C8A8098CF2757BE6D6CA8 /* Repositories */,
+			);
+			path = Data;
+			sourceTree = "<group>";
+		};
+		56DDB6A9FFBD8F399FA4A0DC /* ClaudeProcess */ = {
+			isa = PBXGroup;
+			children = (
+				AF070607661C3F0BD43973DC /* Data */,
+				E8531AA2DF490A0C2DB9ECFD /* Domain */,
+			);
+			path = ClaudeProcess;
+			sourceTree = "<group>";
+		};
+		8209145C65F4A902F0A6929E /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				8BD4525306028AD87A7B7A46 /* ClaudeProcessRepositoryTests.swift */,
+			);
+			path = Data;
+			sourceTree = "<group>";
+		};
+		AD52CF795A8EA86BE1303B15 /* Presentation */ = {
+			isa = PBXGroup;
+			children = (
+				9074FD5DBCC3EFEE813C0776 /* RFClaudeProcessBannerTests.swift */,
+			);
+			path = Presentation;
+			sourceTree = "<group>";
+		};
+		F61EA9329571A8BFDFF5232F /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				04F5FD1C3C203D628895B726 /* ClaudeProcessNotificationFactoryTests.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
+		E564512FC40CB813014D6508 /* ClaudeProcess */ = {
+			isa = PBXGroup;
+			children = (
+				8209145C65F4A902F0A6929E /* Data */,
+				F61EA9329571A8BFDFF5232F /* Notifications */,
+				AD52CF795A8EA86BE1303B15 /* Presentation */,
+			);
+			path = ClaudeProcess;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -2562,6 +2705,16 @@
 				5D6D478EB4B39272CAC3207C /* WebSocketMessage.swift in Sources */,
 				7F69C861FBECE104AB7AC76E /* WebSocketMessageRouter.swift in Sources */,
 				ECE6B96798FA89276F65F964 /* WidgetDataService.swift in Sources */,
+				78E9D0F67FAF36A2D8D1F516 /* SupervisedClaudeProcess.swift in Sources */,
+				28B09DBDE722FAD27E08CDE3 /* ClaudeProcessState.swift in Sources */,
+				68B4E5233372951422D6E405 /* ClaudeProcessRepository.swift in Sources */,
+				037BB307022AEFE82738710B /* RetryClaudeProcessUseCase.swift in Sources */,
+				BCF6F10063526F50B9F523D0 /* ObserveClaudeProcessBannerUseCase.swift in Sources */,
+				CC0E05E1E7207387D8D11F8A /* ClaudeProcessEventDTOs.swift in Sources */,
+				766C0B3F89F3C8D26E1CD8FF /* ClaudeProcessRepositoryImpl.swift in Sources */,
+				2D5AD578FB26FE66209927F6 /* ClaudeProcessMessageHandlers.swift in Sources */,
+				8C7CD613A56A206318E0E872 /* RFClaudeProcessBanner.swift in Sources */,
+				6D36CE057B88E3C38BBD0570 /* ClaudeProcessNotificationFactory.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2640,6 +2793,9 @@
 				0B5FB16B40876EC1C8C81C17 /* WebSocketMessageDecodingTests.swift in Sources */,
 				E03DDF57418D07DA468DE23C /* WebSocketMessageRouterTests.swift in Sources */,
 				683999A7AAA0173449BEE8BF /* WebSocketMessageTests.swift in Sources */,
+				6BBDB789D04F20A94A5C698D /* ClaudeProcessRepositoryTests.swift in Sources */,
+				D89CCA43ABA5D65FD460A3B0 /* RFClaudeProcessBannerTests.swift in Sources */,
+				607D1784B91AB2B9F3944CA5 /* ClaudeProcessNotificationFactoryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
