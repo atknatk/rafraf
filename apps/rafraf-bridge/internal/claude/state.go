@@ -96,7 +96,24 @@ type StreamState struct {
 	TotalCostUSD      float64
 	PermissionDenials []json.RawMessage
 
+	// resultObserved is true once the parser has dispatched at least
+	// one terminal `result` frame. Used by the V1.x supervisor to
+	// distinguish "claude exited 0 + Result emitted" from "claude
+	// exited 0 but stream-json never produced a result frame".
+	resultObserved bool
+
 	mu sync.Mutex
+}
+
+// HasResult reports whether the parser has observed a terminal
+// `result` stream-json frame. Set by AddCost (which is the canonical
+// per-result entry point). Used by the V1.x Claude Subprocess
+// Supervisor to drive the completed-vs-soft-anomaly distinction on
+// Unregister.
+func (s *StreamState) HasResult() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.resultObserved
 }
 
 // NewStreamState constructs a StreamState with non-nil maps/slices so the
@@ -185,6 +202,7 @@ func (s *StreamState) AddCost(amount float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.TotalCostUSD += amount
+	s.resultObserved = true
 }
 
 // AppendPermissionDenial appends a raw permission denial payload to the

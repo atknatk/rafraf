@@ -39,7 +39,9 @@
 package telemetry
 
 import (
+	"expvar"
 	"net/http"
+	"strconv"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -147,12 +149,23 @@ type bridgeCollector struct {
 	statuslineLastReportAgeDesc *prometheus.Desc
 	statuslineFiveHourPctDesc   *prometheus.Desc
 	statuslineSevenDayPctDesc   *prometheus.Desc
+
+	// V1.x Claude Subprocess Supervisor
+	supervisorInstancesDesc   *prometheus.Desc
+	supervisorDiagnosticsDesc *prometheus.Desc
+	supervisorSelfHealsDesc   *prometheus.Desc
 }
 
 func newBridgeCollector() *bridgeCollector {
 	labels := []string{"bridge_version", "host_id"}
 	d := func(name, help string) *prometheus.Desc {
 		return prometheus.NewDesc(name, help, labels, nil)
+	}
+	// dWithLabel adds a single dynamic label (state | outcome) on top
+	// of the static (bridge_version, host_id) labelset. Used by the
+	// V1.x supervisor metrics.
+	dWithLabel := func(name, help, label string) *prometheus.Desc {
+		return prometheus.NewDesc(name, help, append([]string{label}, labels...), nil)
 	}
 	return &bridgeCollector{
 		uptimeSecondsDesc: d(
@@ -254,6 +267,23 @@ func newBridgeCollector() *bridgeCollector {
 			"statusline_seven_day_pct",
 			"Most recently observed 7-day usage percentage.",
 		),
+
+		supervisorInstancesDesc: dWithLabel(
+			"claude_supervisor_instances_total",
+			"V1.x supervisor: per-state count of supervised claude "+
+				"subprocess instances (gauge).",
+			"state",
+		),
+		supervisorDiagnosticsDesc: d(
+			"claude_supervisor_diagnostics_total",
+			"V1.x supervisor: total diagnostic spawns (counter).",
+		),
+		supervisorSelfHealsDesc: dWithLabel(
+			"claude_supervisor_self_heals_total",
+			"V1.x supervisor: per-outcome count of self-heal "+
+				"attempts (counter).",
+			"outcome",
+		),
 	}
 }
 
@@ -281,6 +311,9 @@ func (c *bridgeCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.statuslineLastReportAgeDesc
 	ch <- c.statuslineFiveHourPctDesc
 	ch <- c.statuslineSevenDayPctDesc
+	ch <- c.supervisorInstancesDesc
+	ch <- c.supervisorDiagnosticsDesc
+	ch <- c.supervisorSelfHealsDesc
 }
 
 // Collect snapshots every atomic counter/gauge and emits one sample
@@ -325,4 +358,49 @@ func (c *bridgeCollector) Collect(ch chan<- prometheus.Metric) {
 	gauge(c.statuslineLastReportAgeDesc, float64(StatuslineLastReportAge.Load()))
 	gauge(c.statuslineFiveHourPctDesc, float64(StatuslineFiveHourPct.Load()))
 	gauge(c.statuslineSevenDayPctDesc, float64(StatuslineSevenDayPct.Load()))
+
+	// V1.x supervisor metrics.
+	emitMapGauge := func(desc *prometheus.Desc, m *expvar.Map) {
+		m.Do(func(kv expvar.KeyValue) {
+			val := mapValueAsFloat(kv.Value)
+			ch <- prometheus.MustNewConstMetric(
+				desc, prometheus.GaugeValue, val, kv.Key, bv, hid,
+			)
+		})
+	}
+	emitMapCounter := func(desc *prometheus.Desc, m *expvar.Map) {
+		m.Do(func(kv expvar.KeyValue) {
+			val := mapValueAsFloat(kv.Value)
+			ch <- prometheus.MustNewConstMetric(
+				desc, prometheus.CounterValue, val, kv.Key, bv, hid,
+			)
+		})
+	}
+	emitMapGauge(c.supervisorInstancesDesc, ClaudeSupervisorInstancesTotal)
+	counter(c.supervisorDiagnosticsDesc, float64(ClaudeSupervisorDiagnosticsTotal.Load()))
+	emitMapCounter(c.supervisorSelfHealsDesc, ClaudeSupervisorSelfHealsTotal)
+}
+
+// mapValueAsFloat extracts a float64 from an expvar.Var. Both expvar.Int
+// (the supervisor's expected entries) and expvar.Float are supported;
+// anything else falls back to 0 so a stray Set() call from elsewhere
+// cannot panic the collector.
+func mapValueAsFloat(v expvar.Var) float64 {
+	switch x := v.(type) {
+	case *expvar.Int:
+		return float64(x.Value())
+	case *expvar.Float:
+		return x.Value()
+	default:
+		// Last-ditch parse — expvar.Var.String() returns a JSON literal.
+		s := v.String()
+		if s == "" {
+			return 0
+		}
+		f, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return 0
+		}
+		return f
+	}
 }

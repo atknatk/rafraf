@@ -35,3 +35,20 @@ expvar_enabled = true
 expvar_addr = "127.0.0.1:9090"  # /debug/vars
 log_level = "info"
 log_file = "~/Library/Logs/rafraf-bridge/bridge.log"
+
+# V1.x Claude Subprocess Supervisor (per spec
+# shared/feature-specs/V1x-claude-supervisor.md §10 — staged rollout).
+# Disabled by default in V1.x; flip enabled = true to opt in. The
+# defaults below match the spec and survive Validate() so that flipping
+# the flag never lands in a broken state.
+[supervisor]
+enabled = false
+probe_interval = "5s"
+idle_threshold = "30s"
+stale_threshold = "90s"
+max_concurrent = 3
+max_diagnostic_depth = 1
+self_heal_enabled = true
+diagnostic_max_tokens = 500
+diagnostic_timeout = "30s"
+healthcheck_coalesce = "30s"

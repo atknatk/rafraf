@@ -161,7 +161,7 @@ func TestDispatchCommand_PermissionAllow_ResolvesBroker(t *testing.T) {
 	waitForPending(t, broker, reqID, time.Second)
 
 	env := buildDecisionEnvelope(t, protocol.TypeCommandClaudePermissionAllow, reqID)
-	dispatchCommand(context.Background(), runner, client, logger, broker, env)
+	dispatchCommand(context.Background(), runner, client, logger, broker, nil, env)
 
 	select {
 	case d := <-decisionCh:
@@ -196,7 +196,7 @@ func TestDispatchCommand_PermissionDeny_ResolvesBroker(t *testing.T) {
 	waitForPending(t, broker, reqID, time.Second)
 
 	env := buildDecisionEnvelope(t, protocol.TypeCommandClaudePermissionDeny, reqID)
-	dispatchCommand(context.Background(), runner, client, logger, broker, env)
+	dispatchCommand(context.Background(), runner, client, logger, broker, nil, env)
 
 	select {
 	case d := <-decisionCh:
@@ -299,7 +299,7 @@ func TestDispatchCommand_PermissionDenyBurst_NonBlocking(t *testing.T) {
 
 	start := time.Now()
 	for _, env := range envelopes {
-		dispatchCommand(context.Background(), runner, client, logger, broker, env)
+		dispatchCommand(context.Background(), runner, client, logger, broker, nil, env)
 	}
 	elapsed := time.Since(start)
 
@@ -333,7 +333,7 @@ func TestDispatchCommand_PermissionAllow_MissingRequestID_NoPanic(t *testing.T) 
 
 	env := buildDecisionEnvelope(t, protocol.TypeCommandClaudePermissionAllow, "")
 	// Must not panic.
-	dispatchCommand(context.Background(), runner, client, logger, broker, env)
+	dispatchCommand(context.Background(), runner, client, logger, broker, nil, env)
 
 	// The sentinel waiter should time out (DecisionExpired), proving
 	// that dispatchCommand did NOT forward the malformed allow.
@@ -360,7 +360,7 @@ func TestDispatchCommand_PermissionAllow_MalformedJSON_NoPanic(t *testing.T) {
 		TS:      protocol.NowISO(),
 		Payload: json.RawMessage(`{"this is": not json}`),
 	}
-	dispatchCommand(context.Background(), runner, client, logger, broker, env)
+	dispatchCommand(context.Background(), runner, client, logger, broker, nil, env)
 	// No assertion needed — we just need this to return without panic.
 	// A panic would surface as a test runtime failure.
 }
@@ -383,8 +383,8 @@ func TestDispatchCommand_PermissionAllow_NilBroker_NoPanic(t *testing.T) {
 
 	// Both must return without panicking. The compiled-in nil guard is
 	// the load-bearing assertion.
-	dispatchCommand(context.Background(), runner, client, logger, nil, allowEnv)
-	dispatchCommand(context.Background(), runner, client, logger, nil, denyEnv)
+	dispatchCommand(context.Background(), runner, client, logger, nil, nil, allowEnv)
+	dispatchCommand(context.Background(), runner, client, logger, nil, nil, denyEnv)
 }
 
 // ---------------------------------------------------------------------------

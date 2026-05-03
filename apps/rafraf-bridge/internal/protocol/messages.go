@@ -23,6 +23,11 @@ const (
 	TypeCommandClaudeAbort           = "command.claude.abort"
 	TypeCommandClaudePermissionAllow = "command.claude.permission.allow"
 	TypeCommandClaudePermissionDeny  = "command.claude.permission.deny"
+	// V1.x Claude Subprocess Supervisor — inbound retry RPC.
+	// Originator: iOS (Retry button tap). Consumers: Backend → bridge runner.
+	// Bridge handler aborts any zombie supervised instance keyed by
+	// session_id and re-issues a fresh Run() with the cached prompt.
+	TypeCommandClaudeProcessRetry = "command.claude.process.retry"
 
 	// Session events (bridge → backend).
 	TypeEventSessionInit              = "event.session.init"
@@ -49,6 +54,20 @@ const (
 	// Bridge meta events (bridge → backend).
 	TypeEventBridgeAlive       = "event.bridge.alive"
 	TypeEventBridgeAuthExpired = "event.bridge.auth_expired"
+
+	// V1.x Claude Subprocess Supervisor — outbound process lifecycle events.
+	//
+	// All six envelopes are bridge-originated, backend-relayed,
+	// iOS-consumed. Outer envelope target is "session:<sessionID>" so
+	// the backend dispatcher routes via the existing per-session
+	// subscriber map; correlation_id mirrors the originating
+	// command.claude.run rpc id.
+	TypeEventClaudeProcessSpawned     = "event.claude.process.spawned"
+	TypeEventClaudeProcessHealthcheck = "event.claude.process.healthcheck"
+	TypeEventClaudeProcessStalled     = "event.claude.process.stalled"
+	TypeEventClaudeProcessCrashed     = "event.claude.process.crashed"
+	TypeEventClaudeProcessRecovered   = "event.claude.process.recovered"
+	TypeEventClaudeProcessDiagnosed   = "event.claude.process.diagnosed"
 )
 
 // ---------------------------------------------------------------------------
@@ -70,6 +89,18 @@ type CommandClaudeRun struct {
 // CommandClaudeAbort signals the bridge to terminate an in-flight session.
 type CommandClaudeAbort struct {
 	SessionID string `json:"session_id"`
+}
+
+// CommandClaudeProcessRetry is the inbound payload for the V1.x
+// Claude Subprocess Supervisor manual-retry RPC. iOS emits this when
+// the user taps the Retry button on the Stalled banner / Diagnosed
+// banner / Crashed push notification. Backend forwards verbatim. The
+// bridge handler aborts any zombie supervised instance keyed by
+// SessionID and re-issues a fresh Run() with the cached prompt
+// captured at Register time.
+type CommandClaudeProcessRetry struct {
+	SessionID string `json:"session_id"`
+	UserID    string `json:"user_id"`
 }
 
 // CommandClaudePermissionDecision is the inbound RPC payload for the
@@ -250,6 +281,101 @@ type EventSessionPermissionRequest struct {
 	Reason       string          `json:"reason,omitempty"`
 	TimeoutMs    int             `json:"timeout_ms"`
 	ParentTaskID string          `json:"parent_task_id,omitempty"`
+}
+
+// ---------------------------------------------------------------------------
+// Outbound: V1.x Claude Subprocess Supervisor process-lifecycle events.
+//
+// All six structs serialise to snake_case keys to match the V1.x spec
+// shared/feature-specs/V1x-claude-supervisor.md §4. Backend (Pydantic)
+// + iOS (Codable) decode field-for-field.
+// ---------------------------------------------------------------------------
+
+// EventClaudeProcessSpawned fires once per supervised instance when
+// cmd.Start() succeeds. Args excludes the prompt itself (PII guard —
+// the orchestrator instruction never leaves the bridge through this
+// channel). PID is the OS process id, StartedAt is ISO-8601 UTC.
+type EventClaudeProcessSpawned struct {
+	SessionID      string   `json:"session_id"`
+	PID            int      `json:"pid"`
+	StartedAt      string   `json:"started_at"`
+	Model          string   `json:"model"`
+	Args           []string `json:"args"`
+	PermissionMode string   `json:"permission_mode"`
+	ProjectDir     string   `json:"project_dir"`
+}
+
+// EventClaudeProcessHealthcheck is emitted on probe ticks, coalesced to
+// at most one per same-state per session per healthcheck_coalesce
+// window (default 30s) per spec §4.2 + Q6 default. Status is one of
+// {starting, running, idle, stale, rate_limited, completed}.
+// CurrentTokens is best-effort from the parser tally (zero when unknown).
+// CPUPercent1s is computed from two getrusage samples per probe; falls
+// back to 0 on platform errors.
+type EventClaudeProcessHealthcheck struct {
+	SessionID       string  `json:"session_id"`
+	PID             int     `json:"pid"`
+	Status          string  `json:"status"`
+	LastStdoutAgeMs int64   `json:"last_stdout_age_ms"`
+	CurrentTokens   int     `json:"current_tokens"`
+	MemoryRSSKB     int64   `json:"memory_rss_kb"`
+	CPUPercent1s    float64 `json:"cpu_percent_1s"`
+	ObservedAt      string  `json:"observed_at"`
+}
+
+// EventClaudeProcessStalled is emitted exactly once per stale episode
+// (re-entry into stale after a running blip restarts the counter and
+// re-emits). StderrTail is capped at 8 KiB; StderrTailTruncated signals
+// overflow. SelfHealPending is true when a diagnostic spawn is about
+// to fire; false when rate-limit cache short-circuited.
+type EventClaudeProcessStalled struct {
+	SessionID           string `json:"session_id"`
+	PID                 int    `json:"pid"`
+	LastActivityAt      string `json:"last_activity_at"`
+	StaleForMs          int64  `json:"stale_for_ms"`
+	StderrTail          string `json:"stderr_tail"`
+	StderrTailTruncated bool   `json:"stderr_tail_truncated"`
+	SelfHealPending     bool   `json:"self_heal_pending"`
+}
+
+// EventClaudeProcessCrashed is emitted on cmd.Wait() non-zero exit OR
+// when a diagnostic confirms the lead process is dead. Signal is the
+// empty string when the exit was clean-but-nonzero (no signal). ExitCode
+// is the OS-level exit status (-1 if unknown).
+type EventClaudeProcessCrashed struct {
+	SessionID  string `json:"session_id"`
+	PID        int    `json:"pid"`
+	ExitCode   int    `json:"exit_code"`
+	Signal     string `json:"signal"`
+	StderrTail string `json:"stderr_tail"`
+	DurationMs int64  `json:"duration_ms"`
+	CrashedAt  string `json:"crashed_at"`
+}
+
+// EventClaudeProcessRecovered fires on stale→running OR
+// rate_limited→running OR after a manual retry. RecoveryReason ∈
+// {diagnostic_recommended_wait, rate_limit_window_expired, manual_retry,
+// stdout_resumed}. OldSessionID == NewSessionID for self-recovery and
+// differs only on a manual retry that issued a fresh command.claude.run.
+type EventClaudeProcessRecovered struct {
+	OldSessionID   string `json:"old_session_id"`
+	NewSessionID   string `json:"new_session_id"`
+	RecoveryReason string `json:"recovery_reason"`
+	RecoveredAt    string `json:"recovered_at"`
+}
+
+// EventClaudeProcessDiagnosed fires when the diagnostic claude
+// completes. RecommendedAction ∈ {retry, wait, manual}. DiagnosisText
+// capped at 4 KiB. DiagnosticTokensUsed informational, derived from
+// the diagnostic claude's EventSessionResult; bridge enforces the
+// ≤500 cost guard.
+type EventClaudeProcessDiagnosed struct {
+	SessionID            string `json:"session_id"`
+	DiagnosisText        string `json:"diagnosis_text"`
+	RecommendedAction    string `json:"recommended_action"`
+	DiagnosticTokensUsed int    `json:"diagnostic_tokens_used"`
+	DiagnosticDurationMs int64  `json:"diagnostic_duration_ms"`
+	DiagnosedAt          string `json:"diagnosed_at"`
 }
 
 // ---------------------------------------------------------------------------

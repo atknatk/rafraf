@@ -47,6 +47,14 @@ func NewCommandClaudeAbort(target, correlationID string, payload CommandClaudeAb
 	return newEvent(TypeCommandClaudeAbort, target, correlationID, payload)
 }
 
+// NewCommandClaudeProcessRetry builds a `command.claude.process.retry`
+// envelope (V1.x supervisor manual-retry RPC). Used by tests + the
+// local CLI replay path; the production wire path is iOS → backend →
+// bridge inbound dispatcher.
+func NewCommandClaudeProcessRetry(target, correlationID string, payload CommandClaudeProcessRetry) (Envelope, error) {
+	return newEvent(TypeCommandClaudeProcessRetry, target, correlationID, payload)
+}
+
 // NewCommandClaudePermissionAllow builds a
 // `command.claude.permission.allow` envelope. The bridge's inbound
 // dispatcher routes these to the permission Broker, which resolves the
@@ -135,6 +143,46 @@ func NewEventSessionHookResponse(target, correlationID string, payload EventSess
 // the inbound command.claude.permission.allow|deny RPC.
 func NewEventSessionPermissionRequest(target, correlationID string, payload EventSessionPermissionRequest) (Envelope, error) {
 	return newEvent(TypeEventSessionPermissionRequest, target, correlationID, payload)
+}
+
+// ---------------------------------------------------------------------------
+// Outbound — V1.x Claude Subprocess Supervisor process-lifecycle events.
+// ---------------------------------------------------------------------------
+
+// NewEventClaudeProcessSpawned builds an
+// `event.claude.process.spawned` envelope.
+func NewEventClaudeProcessSpawned(target, correlationID string, payload EventClaudeProcessSpawned) (Envelope, error) {
+	return newEvent(TypeEventClaudeProcessSpawned, target, correlationID, payload)
+}
+
+// NewEventClaudeProcessHealthcheck builds an
+// `event.claude.process.healthcheck` envelope.
+func NewEventClaudeProcessHealthcheck(target, correlationID string, payload EventClaudeProcessHealthcheck) (Envelope, error) {
+	return newEvent(TypeEventClaudeProcessHealthcheck, target, correlationID, payload)
+}
+
+// NewEventClaudeProcessStalled builds an
+// `event.claude.process.stalled` envelope.
+func NewEventClaudeProcessStalled(target, correlationID string, payload EventClaudeProcessStalled) (Envelope, error) {
+	return newEvent(TypeEventClaudeProcessStalled, target, correlationID, payload)
+}
+
+// NewEventClaudeProcessCrashed builds an
+// `event.claude.process.crashed` envelope.
+func NewEventClaudeProcessCrashed(target, correlationID string, payload EventClaudeProcessCrashed) (Envelope, error) {
+	return newEvent(TypeEventClaudeProcessCrashed, target, correlationID, payload)
+}
+
+// NewEventClaudeProcessRecovered builds an
+// `event.claude.process.recovered` envelope.
+func NewEventClaudeProcessRecovered(target, correlationID string, payload EventClaudeProcessRecovered) (Envelope, error) {
+	return newEvent(TypeEventClaudeProcessRecovered, target, correlationID, payload)
+}
+
+// NewEventClaudeProcessDiagnosed builds an
+// `event.claude.process.diagnosed` envelope.
+func NewEventClaudeProcessDiagnosed(target, correlationID string, payload EventClaudeProcessDiagnosed) (Envelope, error) {
+	return newEvent(TypeEventClaudeProcessDiagnosed, target, correlationID, payload)
 }
 
 // ---------------------------------------------------------------------------

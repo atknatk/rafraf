@@ -106,6 +106,31 @@ func AddClaudeCostUSD(amount float64) {
 	ClaudeTotalCostUSDx1000.Add(int64(amount * 1000))
 }
 
+// ---- Section: V1.x Claude Subprocess Supervisor ----------------------------
+//
+// Three metrics track the supervisor layer (per spec §5.2):
+//   - claude_supervisor_instances_total{state} — gauge per state.
+//   - claude_supervisor_diagnostics_total — counter (fired diagnostics).
+//   - claude_supervisor_self_heals_total{outcome} — counter per recovery outcome.
+//
+// The {state} / {outcome} fan-out is implemented via expvar.Map on the
+// expvar surface (the bridge's existing pattern, see
+// StorageWatcherEventsTotal). The Prometheus collector mirrors them with
+// per-state / per-outcome label values.
+var (
+	// ClaudeSupervisorInstancesTotal is a per-state gauge keyed by the
+	// supervisor State string. Mutated by the supervisor on every state
+	// transition; emitted on /metrics with one sample per known state.
+	ClaudeSupervisorInstancesTotal = expvar.NewMap("claude_supervisor_instances_total")
+	// ClaudeSupervisorDiagnosticsTotal counts every diagnostic spawn
+	// (regardless of outcome).
+	ClaudeSupervisorDiagnosticsTotal atomic.Int64
+	// ClaudeSupervisorSelfHealsTotal is a per-outcome counter
+	// ("recovered", "failed", "rate_limited", "depth_capped"). Same
+	// expvar.Map pattern as above.
+	ClaudeSupervisorSelfHealsTotal = expvar.NewMap("claude_supervisor_self_heals_total")
+)
+
 // ---- Section: Subagent (Task tool) ------------------------------------------
 
 var (
@@ -186,6 +211,7 @@ func init() {
 	expvar.Publish("claude_rate_limit_exceeded_total", expvar.Func(func() any { return ClaudeRateLimitExceeded.Load() }))
 	expvar.Publish("claude_auth_expired_total", expvar.Func(func() any { return ClaudeAuthExpired.Load() }))
 	expvar.Publish("claude_total_cost_usd_x1000", expvar.Func(func() any { return ClaudeTotalCostUSDx1000.Load() }))
+	expvar.Publish("claude_supervisor_diagnostics_total", expvar.Func(func() any { return ClaudeSupervisorDiagnosticsTotal.Load() }))
 
 	expvar.Publish("subagent_spawned_total", expvar.Func(func() any { return SubagentSpawnedTotal.Load() }))
 	expvar.Publish("subagent_completed_total", expvar.Func(func() any { return SubagentCompletedTotal.Load() }))

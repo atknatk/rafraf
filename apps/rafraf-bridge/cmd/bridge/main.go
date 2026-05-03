@@ -173,6 +173,40 @@ func run(args []string) int {
 	// Claude subprocess runner.
 	runner := claude.NewRunner(cfg, logger)
 
+	// V1.x Claude Subprocess Supervisor — wired only when the
+	// operator opts in via [supervisor].enabled = true (default
+	// false; staged rollout per spec §10). The supervisor's
+	// SupervisorSink adapter marshals each per-instance lifecycle
+	// callback into the matching event.claude.process.* envelope so
+	// the backend forwarder fans them out to iOS.
+	supervisor := claude.NewSupervisor(ctx, &cfg.Supervisor, logger)
+	supervisor.SetSink(newWSSupervisorSink(wsClient))
+	runner.SetSupervisor(supervisor)
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), telemetryShutdownGrace)
+		defer shutdownCancel()
+		if err := supervisor.Shutdown(shutdownCtx); err != nil {
+			logger.Warn("supervisor shutdown error", "err", err)
+		}
+	}()
+	if cfg.Supervisor.Enabled {
+		// Best-effort orphan adoption — the V1.x scanner shells out
+		// to pgrep so failures are non-fatal. Run async to avoid
+		// blocking startup on a slow pgrep.
+		go func() {
+			adopted, scanErr := supervisor.AdoptOrphans(ctx)
+			if scanErr != nil {
+				logger.Warn("supervisor orphan scan failed", "err", scanErr)
+				return
+			}
+			if adopted > 0 {
+				logger.Info("supervisor adopted orphan claude processes",
+					"count", adopted,
+				)
+			}
+		}()
+	}
+
 	// V1.2 — start the permission Broker + UDS listener and wire it
 	// into the runner so the per-session settings overlay can register
 	// the PreToolUse hook.
@@ -287,7 +321,7 @@ func run(args []string) int {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		runInboundDispatcher(ctx, runner, wsClient, logger, broker)
+		runInboundDispatcher(ctx, runner, wsClient, logger, broker, supervisor)
 	}()
 
 	logger.Info("rafraf-bridge ready",
@@ -405,10 +439,11 @@ func runMetricsPrinter(ctx context.Context, wg *sync.WaitGroup, logger *slog.Log
 // envelope with correlation_id = command.claude.run rpc id, the
 // backend awaiter echoes it back on the decision RPC, and the broker
 // resolves by the payload-level RequestID.
-func runInboundDispatcher(ctx context.Context, runner *claude.Runner, wsClient *ws.Client, logger *slog.Logger, broker *permission.Broker) {
+func runInboundDispatcher(ctx context.Context, runner *claude.Runner, wsClient *ws.Client, logger *slog.Logger, broker *permission.Broker, supervisor *claude.Supervisor) {
 	logger.Debug("inbound dispatcher started",
 		"inbound_capacity", cap(wsClient.Inbound),
 		"broker_attached", broker != nil,
+		"supervisor_attached", supervisor != nil,
 	)
 	for {
 		select {
@@ -418,7 +453,7 @@ func runInboundDispatcher(ctx context.Context, runner *claude.Runner, wsClient *
 			if !ok {
 				return
 			}
-			dispatchCommand(ctx, runner, wsClient, logger, broker, env)
+			dispatchCommand(ctx, runner, wsClient, logger, broker, supervisor, env)
 		}
 	}
 }
@@ -439,7 +474,7 @@ func runInboundDispatcher(ctx context.Context, runner *claude.Runner, wsClient *
 // bridge runs in degraded mode without approval prompts. The new
 // permission cases short-circuit with a warn log when broker == nil
 // rather than panicking.
-func dispatchCommand(ctx context.Context, runner *claude.Runner, wsClient *ws.Client, logger *slog.Logger, broker *permission.Broker, env protocol.Envelope) {
+func dispatchCommand(ctx context.Context, runner *claude.Runner, wsClient *ws.Client, logger *slog.Logger, broker *permission.Broker, supervisor *claude.Supervisor, env protocol.Envelope) {
 	switch env.Type {
 	case protocol.TypeCommandClaudeRun:
 		var cmd protocol.CommandClaudeRun
@@ -541,6 +576,58 @@ func dispatchCommand(ctx context.Context, runner *claude.Runner, wsClient *ws.Cl
 			return
 		}
 		broker.Resolve(cmd.RequestID, permission.DecisionDeny)
+	case protocol.TypeCommandClaudeProcessRetry:
+		// V1.x supervisor manual-retry RPC. iOS originates, backend
+		// forwards. The bridge handler aborts any zombie supervised
+		// instance keyed by SessionID and re-issues a fresh Run()
+		// with the prompt cached on the supervisor record.
+		var cmd protocol.CommandClaudeProcessRetry
+		if err := json.Unmarshal(env.Payload, &cmd); err != nil {
+			logger.Warn("dispatch: invalid command.claude.process.retry payload",
+				"err", err,
+				"id", env.ID,
+			)
+			return
+		}
+		if supervisor == nil {
+			logger.Warn("dispatch: process.retry received but supervisor is nil (degraded path)",
+				"id", env.ID,
+				"correlation_id", env.CorrelationID,
+			)
+			return
+		}
+		prompt, ok := supervisor.CachedPrompt(cmd.SessionID)
+		if !ok {
+			logger.Warn("dispatch: process.retry for unknown session",
+				"session_id", cmd.SessionID,
+				"id", env.ID,
+			)
+			return
+		}
+		// Best-effort abort of the zombie instance so the new Run
+		// owns the supervisor slot. Errors are non-fatal — Abort
+		// returns ErrUnknown when the entry was already cleared.
+		if err := runner.Abort(cmd.SessionID); err != nil {
+			logger.Debug("dispatch: process.retry abort returned",
+				"err", err,
+				"session_id", cmd.SessionID,
+			)
+		}
+		req := claude.RunRequest{
+			Prompt:    prompt,
+			SessionID: cmd.SessionID,
+			UserID:    cmd.UserID,
+		}
+		sink := &wsEventSink{ws: wsClient, correlationID: env.CorrelationID}
+		go func() {
+			if err := runner.Run(ctx, req, sink); err != nil {
+				logger.Warn("claude runner retry exited with error",
+					"err", err,
+					"session_id", req.SessionID,
+					"correlation_id", env.CorrelationID,
+				)
+			}
+		}()
 	default:
 		logger.Debug("dispatch: ignoring envelope", "type", env.Type, "id", env.ID)
 	}
@@ -712,6 +799,64 @@ func resolvePermissionHookPath(logger *slog.Logger) string {
 		"candidate", candidate,
 	)
 	return ""
+}
+
+// wsSupervisorSink adapts the V1.x claude.SupervisorSink contract to
+// ws.Client.Send. Each callback marshals its payload into the
+// matching event.claude.process.* envelope using the package
+// builders (so type tags can never drift) and hands it to
+// ws.Client.Send.
+//
+// Target follows the existing per-session subscriber convention
+// ("session:<sessionID>"); correlation_id is left empty because the
+// supervisor's per-instance lifecycle does not have a single
+// originating RPC id (the spawned envelope traces back to the lead
+// command.claude.run, but subsequent healthchecks and the eventual
+// crashed envelope can outlive it).
+type wsSupervisorSink struct {
+	ws *ws.Client
+}
+
+func newWSSupervisorSink(c *ws.Client) *wsSupervisorSink {
+	return &wsSupervisorSink{ws: c}
+}
+
+func (s *wsSupervisorSink) target(sessionID string) string {
+	if sessionID == "" {
+		return ""
+	}
+	return "session:" + sessionID
+}
+
+func (s *wsSupervisorSink) emit(env protocol.Envelope, err error) {
+	if err != nil {
+		return
+	}
+	s.ws.Send(env)
+}
+
+func (s *wsSupervisorSink) OnSpawned(ev protocol.EventClaudeProcessSpawned) {
+	s.emit(protocol.NewEventClaudeProcessSpawned(s.target(ev.SessionID), "", ev))
+}
+
+func (s *wsSupervisorSink) OnHealthcheck(ev protocol.EventClaudeProcessHealthcheck) {
+	s.emit(protocol.NewEventClaudeProcessHealthcheck(s.target(ev.SessionID), "", ev))
+}
+
+func (s *wsSupervisorSink) OnStalled(ev protocol.EventClaudeProcessStalled) {
+	s.emit(protocol.NewEventClaudeProcessStalled(s.target(ev.SessionID), "", ev))
+}
+
+func (s *wsSupervisorSink) OnCrashed(ev protocol.EventClaudeProcessCrashed) {
+	s.emit(protocol.NewEventClaudeProcessCrashed(s.target(ev.SessionID), "", ev))
+}
+
+func (s *wsSupervisorSink) OnRecovered(ev protocol.EventClaudeProcessRecovered) {
+	s.emit(protocol.NewEventClaudeProcessRecovered(s.target(ev.NewSessionID), "", ev))
+}
+
+func (s *wsSupervisorSink) OnDiagnosed(ev protocol.EventClaudeProcessDiagnosed) {
+	s.emit(protocol.NewEventClaudeProcessDiagnosed(s.target(ev.SessionID), "", ev))
 }
 
 // newWSUsageSink builds a statusline.UsageSink closure that forwards each

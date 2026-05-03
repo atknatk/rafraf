@@ -126,6 +126,14 @@ type Runner struct {
 	// claude but the broker resolves every hook request as deny.
 	permissionBroker PermissionBroker
 
+	// supervisor, when non-nil, is the V1.x Claude Subprocess
+	// Supervisor. The runner calls Register/Touch/Unregister around
+	// each Run() so the supervisor can drive its state machine and
+	// emit per-instance lifecycle envelopes. Optional — when nil the
+	// runner behaves identically to V1.0/V1.1 (no envelopes, no
+	// concurrent-instance cap, no diagnostics).
+	supervisor *Supervisor
+
 	mu         sync.Mutex
 	activeRuns map[string]activeRun // sessionID → cancel + generation
 	nextGen    uint64               // monotonic, advanced under mu
@@ -252,6 +260,34 @@ func (r *Runner) SetPermissionContext(broker PermissionBroker, sockPath, hookPat
 	r.permissionHookPath = hookPath
 }
 
+// SetSupervisor installs the V1.x Claude Subprocess Supervisor. Called
+// once at bridge startup from cmd/bridge/main.go. The runner uses the
+// supervisor to:
+//   - Reserve a slot (TryReserveSlot) before spawning, so the
+//     concurrent-instance cap can fail loud with ErrSupervisorSaturated.
+//   - Register/Unregister per-Run, so the supervisor's state machine
+//     observes every spawned subprocess.
+//   - Touch on every parsed stdout line, so idle/stale evaluation
+//     has accurate stdout-age signal.
+//   - RecordStderr in the stderr drain goroutine, so the
+//     stalled/crashed envelopes ship a useful tail.
+//
+// Pass nil to disable the supervisor wiring (legacy V1.0/V1.1
+// compatibility).
+func (r *Runner) SetSupervisor(s *Supervisor) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.supervisor = s
+}
+
+// Supervisor returns the wired Supervisor (may be nil). Test-only
+// accessor — production code never reads this back.
+func (r *Runner) Supervisor() *Supervisor {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.supervisor
+}
+
 // Run executes a `claude -p` subprocess and pipes its stdout through the
 // parser, which dispatches typed events to sink. Run blocks until the
 // subprocess exits or ctx is cancelled. Stderr is drained to the runner
@@ -268,6 +304,18 @@ func (r *Runner) runWithExec(
 	sink EventSink,
 	execCmd ExecCommandFn,
 ) error {
+	// V1.x supervisor: reserve a slot BEFORE we touch any subprocess
+	// state so a saturated supervisor fails loud (typed
+	// ErrSupervisorSaturated) instead of silently bypassing the cap.
+	r.mu.Lock()
+	supervisor := r.supervisor
+	r.mu.Unlock()
+	if supervisor != nil {
+		if err := supervisor.TryReserveSlot(); err != nil {
+			return err
+		}
+	}
+
 	telemetry.ClaudeSubprocessActive.Add(1)
 	telemetry.ClaudeSubprocessTotal.Add(1)
 	defer telemetry.ClaudeSubprocessActive.Add(-1)
@@ -393,13 +441,47 @@ func (r *Runner) runWithExec(
 		"cwd", cmd.Dir,
 	)
 
+	// V1.x supervisor: register the spawned instance so the state
+	// machine + probe loop start observing. We register only when a
+	// session ID is present (anonymous one-shot Run() calls fall
+	// through legacy unsupervised). The supervisor's Touch /
+	// Unregister are no-ops when supervisor.Enabled = false.
+	var supGen uint64
+	supervisorActive := false
+	if supervisor != nil && req.SessionID != "" && cmd.Process != nil {
+		supGen = supervisor.Register(RegisterInput{
+			SessionID:      req.SessionID,
+			PID:            cmd.Process.Pid,
+			Prompt:         req.Prompt,
+			Model:          "", // OnInit will populate the parser-side model; spawned envelope leaves it blank.
+			Args:           args,
+			PermissionMode: req.PermissionMode,
+			ProjectDir:     cmd.Dir,
+			Cancel:         cancel,
+		})
+		supervisorActive = supervisor.cfg != nil && supervisor.cfg.Enabled
+	}
+
+	// Wrap the sink with a Touch interceptor so every parser-emitted
+	// event also bumps the supervisor's lastStdoutAt. Cheap — Touch
+	// is a single map lookup + small mutation behind a sync.Mutex.
+	if supervisorActive {
+		sink = &supervisorTouchSink{inner: sink, sup: supervisor, sessionID: req.SessionID}
+	}
+
 	// Drain stderr concurrently so a chatty subprocess never blocks on a
 	// full pipe buffer. The goroutine returns when stderr is closed at
-	// process exit.
+	// process exit. When the supervisor is wired we also feed every
+	// stderr chunk into the per-instance ring buffer so the next
+	// stalled / crashed envelope ships a useful tail.
 	stderrDone := make(chan struct{})
 	go func() {
 		defer close(stderrDone)
-		r.drainStderr(stderr)
+		if supervisorActive {
+			r.drainStderrWithSupervisor(stderr, supervisor, req.SessionID)
+		} else {
+			r.drainStderr(stderr)
+		}
 	}()
 
 	parser := NewParser(sink, r.logger)
@@ -420,6 +502,17 @@ func (r *Runner) runWithExec(
 	waitErr := cmd.Wait()
 	<-stderrDone
 
+	if supervisor != nil && req.SessionID != "" && supGen != 0 {
+		// completedCleanly is true iff cmd.Wait() succeeded AND the
+		// parser observed an EventSessionResult frame (tracked via
+		// the parser's internal StreamState). The supervisor uses
+		// this to distinguish "claude exited 0 + Result emitted"
+		// from "claude exited 0 but stream-json never produced a
+		// result frame".
+		completedCleanly := waitErr == nil && parser.State() != nil && parser.State().HasResult()
+		supervisor.Unregister(req.SessionID, supGen, waitErr, completedCleanly)
+	}
+
 	if parseErr != nil {
 		return fmt.Errorf("claude: parse: %w", parseErr)
 	}
@@ -432,6 +525,104 @@ func (r *Runner) runWithExec(
 		return fmt.Errorf("claude: subprocess wait: %w", waitErr)
 	}
 	return nil
+}
+
+// drainStderrWithSupervisor mirrors drainStderr but also forwards
+// every chunk to supervisor.RecordStderr so the per-instance ring
+// buffer accumulates the tail shipped on stalled / crashed envelopes.
+func (r *Runner) drainStderrWithSupervisor(stderr io.Reader, sup *Supervisor, sessionID string) {
+	buf := make([]byte, stderrDrainBufSize)
+	for {
+		n, err := stderr.Read(buf)
+		if n > 0 {
+			r.logger.Debug("claude stderr", "data", string(buf[:n]))
+			sup.RecordStderr(sessionID, append([]byte(nil), buf[:n]...))
+		}
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				r.logger.Debug("claude stderr drain finished", "err", err)
+			}
+			return
+		}
+	}
+}
+
+// supervisorTouchSink wraps an EventSink so every parser callback
+// also bumps the supervisor's lastStdoutAt. The wrapping is
+// transparent — only the EventSink contract matters to the parser.
+//
+// MarkRateLimit is dispatched on every OnRateLimit so the
+// supervisor's stale-trigger short-circuit always sees the most
+// recent reset window.
+type supervisorTouchSink struct {
+	inner     EventSink
+	sup       *Supervisor
+	sessionID string
+}
+
+func (s *supervisorTouchSink) touch() { s.sup.Touch(s.sessionID) }
+
+func (s *supervisorTouchSink) OnInit(ev protocol.EventSessionInit) error {
+	s.touch()
+	return s.inner.OnInit(ev)
+}
+
+func (s *supervisorTouchSink) OnAssistant(ev protocol.EventSessionAssistant) error {
+	s.touch()
+	return s.inner.OnAssistant(ev)
+}
+
+func (s *supervisorTouchSink) OnUser(ev protocol.EventSessionUser) error {
+	s.touch()
+	return s.inner.OnUser(ev)
+}
+
+func (s *supervisorTouchSink) OnStream(ev protocol.EventSessionStream) error {
+	s.touch()
+	return s.inner.OnStream(ev)
+}
+
+func (s *supervisorTouchSink) OnTaskStarted(ev protocol.EventSessionTaskStarted) error {
+	s.touch()
+	return s.inner.OnTaskStarted(ev)
+}
+
+func (s *supervisorTouchSink) OnTaskProgress(ev protocol.EventSessionTaskProgress) error {
+	s.touch()
+	return s.inner.OnTaskProgress(ev)
+}
+
+func (s *supervisorTouchSink) OnTaskNotification(ev protocol.EventSessionTaskNotification) error {
+	s.touch()
+	return s.inner.OnTaskNotification(ev)
+}
+
+func (s *supervisorTouchSink) OnRateLimit(ev protocol.EventSessionRateLimit) error {
+	s.touch()
+	if ev.ResetsAt > 0 {
+		s.sup.MarkRateLimit(ev.SessionID, ev.ResetsAt)
+	}
+	return s.inner.OnRateLimit(ev)
+}
+
+func (s *supervisorTouchSink) OnHookStarted(ev protocol.EventSessionHookStarted) error {
+	s.touch()
+	return s.inner.OnHookStarted(ev)
+}
+
+func (s *supervisorTouchSink) OnHookResponse(ev protocol.EventSessionHookResponse) error {
+	s.touch()
+	return s.inner.OnHookResponse(ev)
+}
+
+func (s *supervisorTouchSink) OnResult(ev protocol.EventSessionResult) error {
+	s.touch()
+	return s.inner.OnResult(ev)
+}
+
+func (s *supervisorTouchSink) OnPermissionRequest(ev protocol.EventSessionPermissionRequest) error {
+	s.touch()
+	return s.inner.OnPermissionRequest(ev)
 }
 
 // buildArgs assembles the claude CLI argument vector per Doc 11 §5. The
