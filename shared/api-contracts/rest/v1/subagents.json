@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SubagentEndpoints",
+  "description": "Claude Agent Teams subagent REST hydration endpoint'i (V1.x Item 9). iOS SubagentRepositoryImpl bu endpoint ile cold-start sonrasi persisted subagent state'i yukler. WS push DTO'lariyla ayni anahtarlama (id = bridge task_id) — REST + WS ayni satira merge eder.",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/v1/sessions/{session_id}/subagents",
+      "description": "Bir claude session'unda kaydedilmis tum subagent'lari kronolojik (started_at ASC) sirayla dondurur. Auth: JWT zorunlu, ama V1.x'te per-user filter YOK (bridges tablosunda user_id sutunu yok; T1.x'te tighten edilecek). Bos session 200 ile [] doner; 404 yok cunku subagents tablosu sessions'a FK ile bagli degil.",
+      "pathParams": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Claude session id (bridge stream parser'dan gelen serbest string)."
+          }
+        },
+        "required": ["session_id"]
+      },
+      "responseBody": {
+        "type": "array",
+        "description": "Subagent kayitlari, started_at ASC siralanmis. En fazla 500 satir (defensive cap; pagination V2'ye ertelendi).",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Bridge task_id — iOS canonical cache key. WS push 'content.task_id' ile AYNI deger; REST + WS ayni satira merge eder. SQL primary key DEGIL — onun icin db_id alani var."
+            },
+            "db_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Server-side SQL primary key (subagents tablosu). Backend admin/debug icin; iOS bu alani okumaz."
+            },
+            "parent_id": {
+              "type": ["string", "null"],
+              "description": "Orchestrator (parent) claude session id varsa, yoksa null. Model column: parent_session_id."
+            },
+            "session_id": {
+              "type": "string",
+              "description": "Subagent'in cikti claude session id'si. URL path param ile ayni deger."
+            },
+            "status": {
+              "type": "string",
+              "enum": ["spawned", "in_progress", "completed", "failed"],
+              "description": "Yasam dongusu durumu. Bilinmeyen / future bir status persisted ise service 'failed'a coerce eder ve subagent_status_coerced warning emit eder."
+            },
+            "name": {
+              "type": ["string", "null"],
+              "description": "Kisa subagent etiketi (ornek: 'developer', 'tester'). Null olabilir."
+            },
+            "description": {
+              "type": ["string", "null"],
+              "description": "Spawn aninda saglanan uzun aciklama. Null olabilir."
+            },
+            "prompt_preview": {
+              "type": ["string", "null"],
+              "description": "Spawn prompt'unun kisa onizlemesi (~200 char, bridge tarafinda truncated). Null olabilir."
+            },
+            "subagent_type": {
+              "type": ["string", "null"],
+              "description": "Bridge subagent_type etiketi (ornek: 'general-purpose', 'Explore'). Null olabilir."
+            },
+            "isolation": {
+              "type": ["string", "null"],
+              "description": "'worktree' eger izole worktree'de calistiysa, yoksa null."
+            },
+            "activity": {
+              "type": ["string", "null"],
+              "description": "In-flight aktivite etiketi (ornek: 'Editing config.toml'). REST'te HER ZAMAN null bugun (CLI seldom emits task_progress; column persisted degil). iOS canli WS subagent.progress ile alir."
+            },
+            "progress_percent": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Best-effort progress (0..100). REST'te HER ZAMAN null bugun; iOS null'i 'no progress info' olarak yorumlar."
+            },
+            "summary": {
+              "type": ["string", "null"],
+              "description": "system/task_notification'dan gelen terminal ozet. JSON anahtari 'summary' (output_summary DEGIL — iOS dto.summary ile decode eder)."
+            },
+            "total_tokens": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "description": "Subagent'in tukettigi toplam token. Tamamlanana kadar null."
+            },
+            "tool_uses": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "description": "Subagent'in yaptigi tool cagrisi sayisi. Tamamlanana kadar null."
+            },
+            "duration_ms": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "description": "Wall-clock sure (milisaniye). Tamamlanana kadar null."
+            },
+            "started_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Bridge'in spawn'i gozlemledigi an (UTC, ISO 8601). Model: spawned_at."
+            },
+            "updated_at": {
+              "type": ["string", "null"],
+              "format": "date-time",
+              "description": "Son in-flight progress mutasyonu (UTC), yoksa null."
+            },
+            "completed_at": {
+              "type": ["string", "null"],
+              "format": "date-time",
+              "description": "Bridge'in terminasyon gozlemledigi an (UTC), hala calisiyorsa null."
+            }
+          },
+          "required": [
+            "id",
+            "db_id",
+            "session_id",
+            "status",
+            "started_at"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "errors": {
+        "401": "JWT eksik veya gecersiz",
+        "403": "JWT format sorunu (FastAPI default)"
+      }
+    }
+  ]
+}

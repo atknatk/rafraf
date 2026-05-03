@@ -32,6 +32,7 @@ import pytest
 from app.core.exceptions import MessageTooLargeError
 from app.models.message import Message
 from app.services.conversation_service import (
+    EXPORT_MESSAGE_LIMIT,
     MAX_MESSAGE_CONTENT_BYTES,
     ConversationService,
 )
@@ -385,3 +386,160 @@ def _read_next_cursor(resp: Any) -> str | None:
         return str(next_since)
     next_cursor = getattr(resp, "next_cursor", None)
     return str(next_cursor) if next_cursor is not None else None
+
+
+# ---------------------------------------------------------------------------
+# export_conversation — V1.x Item 10 truncation contract
+# ---------------------------------------------------------------------------
+
+
+class TestExportConversationTruncation:
+    """``export_conversation`` must surface truncation when row count > cap.
+
+    Pre-V1.x behaviour: silent ``LIMIT 500`` — long conversations exported
+    only the most recent 500 messages with NO indicator. V1.x Item 10 bumps
+    the cap to ``EXPORT_MESSAGE_LIMIT`` (5000), appends a markdown footer
+    when the cap is hit, and emits a ``conversation_export_truncated``
+    structlog warning so operators can spot real-world hits.
+    """
+
+    async def test_export_under_limit_no_truncation_footer(self) -> None:
+        """100 messages → no footer, no truncation warning."""
+        import structlog.testing
+
+        session = _make_session()
+        service = ConversationService(session)
+
+        base = datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC)
+        rows = [
+            _make_message_row(content=f"m{i}", created_at=base + timedelta(seconds=i))
+            for i in range(100)
+        ]
+        _wire_execute_returning(session, rows)
+
+        with structlog.testing.capture_logs() as captured:
+            output = await service.export_conversation(
+                project_id=None,
+                session_id="sess-1",
+            )
+
+        # No truncation footer — the marker phrase MUST NOT appear.
+        assert "export contains the first" not in output.lower()
+        # And no structlog warning.
+        truncation_logs = [e for e in captured if e.get("event") == "conversation_export_truncated"]
+        assert truncation_logs == []
+        # Sanity: header is present.
+        assert "Konusma Gecmisi" in output
+
+    async def test_export_at_limit_no_truncation_footer(self) -> None:
+        """Exactly EXPORT_MESSAGE_LIMIT rows → no footer (boundary case).
+
+        The service over-fetches by one (limit+1) so it can detect "more
+        rows exist". When the DB returns exactly ``EXPORT_MESSAGE_LIMIT``
+        rows, the ``> EXPORT_MESSAGE_LIMIT`` check is false and we MUST
+        NOT emit the footer.
+        """
+        import structlog.testing
+
+        session = _make_session()
+        service = ConversationService(session)
+
+        base = datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC)
+        rows = [
+            _make_message_row(content=f"m{i}", created_at=base + timedelta(seconds=i))
+            for i in range(EXPORT_MESSAGE_LIMIT)
+        ]
+        _wire_execute_returning(session, rows)
+
+        with structlog.testing.capture_logs() as captured:
+            output = await service.export_conversation(
+                project_id=None,
+                session_id="sess-1",
+            )
+
+        assert "export contains the first" not in output.lower()
+        truncation_logs = [e for e in captured if e.get("event") == "conversation_export_truncated"]
+        assert truncation_logs == []
+
+    async def test_export_over_limit_appends_truncation_footer(self) -> None:
+        """LIMIT+1 rows → footer present, only LIMIT messages rendered."""
+        import structlog.testing
+
+        session = _make_session()
+        service = ConversationService(session)
+
+        base = datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC)
+        # Service over-fetches by one (limit+1) — feed exactly that many
+        # rows to simulate "5001 messages exist".
+        rows = [
+            _make_message_row(content=f"m{i}", created_at=base + timedelta(seconds=i))
+            for i in range(EXPORT_MESSAGE_LIMIT + 1)
+        ]
+        _wire_execute_returning(session, rows)
+
+        with structlog.testing.capture_logs() as captured:
+            output = await service.export_conversation(
+                project_id=None,
+                session_id="sess-1",
+            )
+
+        # Footer present.
+        assert "export contains the first" in output.lower()
+        # The cap should be mentioned in the footer for user clarity.
+        assert str(EXPORT_MESSAGE_LIMIT) in output
+
+        # Header reports the trimmed count, NOT the over-fetched total.
+        assert f"Mesaj Sayisi: {EXPORT_MESSAGE_LIMIT}" in output
+
+        # Only EXPORT_MESSAGE_LIMIT messages were rendered (the over-fetched
+        # row is trimmed). Easy proxy: the LAST rendered message in the body
+        # is m{LIMIT-1}, NOT m{LIMIT}.
+        assert f"m{EXPORT_MESSAGE_LIMIT - 1}" in output
+        assert f"m{EXPORT_MESSAGE_LIMIT}\n" not in output
+
+        # structlog warning emitted exactly once with the right shape.
+        truncation_logs = [e for e in captured if e.get("event") == "conversation_export_truncated"]
+        assert len(truncation_logs) == 1
+        evt = truncation_logs[0]
+        assert evt["log_level"] == "warning"
+        assert evt["delivered"] == EXPORT_MESSAGE_LIMIT
+        assert evt["cap"] == EXPORT_MESSAGE_LIMIT
+        assert evt["session_id"] == "sess-1"
+        assert evt.get("more_than_cap") is True
+
+    async def test_export_over_limit_logs_warning(self) -> None:
+        """Truncation MUST emit a structlog warning event for observability.
+
+        Independent of footer rendering — operators rely on the
+        ``conversation_export_truncated`` event to alert when real users
+        hit the cap. Pinning the event name + level here keeps drive-by
+        edits from accidentally lowering it to ``info``.
+        """
+        import structlog.testing
+
+        session = _make_session()
+        service = ConversationService(session)
+
+        # Use project_id (uuid) path to confirm the warning carries it.
+        project_id = uuid.uuid4()
+        base = datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC)
+        rows = [
+            _make_message_row(content=f"m{i}", created_at=base + timedelta(seconds=i))
+            for i in range(EXPORT_MESSAGE_LIMIT + 1)
+        ]
+        _wire_execute_returning(session, rows)
+
+        with structlog.testing.capture_logs() as captured:
+            await service.export_conversation(
+                project_id=project_id,
+                session_id=None,
+            )
+
+        truncation_logs = [e for e in captured if e.get("event") == "conversation_export_truncated"]
+        assert len(truncation_logs) == 1
+        evt = truncation_logs[0]
+        assert evt["log_level"] == "warning"
+        # project_id was supplied — must be reported (as a string).
+        assert evt["project_id"] == str(project_id)
+        # session_id was None — must serialise as None.
+        assert evt["session_id"] is None

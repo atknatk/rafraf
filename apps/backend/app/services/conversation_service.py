@@ -22,6 +22,21 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 _DEFAULT_LIMIT = 50
 _MAX_LIMIT = 200
 
+# Hard cap on rows returned by ``export_conversation``. Bumped from the
+# legacy 500 (V1.x Item 10) so users with longer conversations get the
+# bulk of their history, with a markdown footer warning when the cap is
+# hit so the truncation is no longer silent. We picked option **A** from
+# the orchestrator brief (markdown footer + structlog warning) because:
+#
+# - The export endpoint returns a single ``PlainTextResponse`` body
+#   consumed by the iOS client as one string. Streaming (option B) would
+#   force a contract change on the client.
+# - 5000 messages at a generous ~2KB each is ~10MB — well within iOS
+#   string-decoder limits and ~10x the realistic V1.x conversation length.
+# - Cursor-based stitching (option C) adds round-trip complexity for a
+#   feature whose 99th percentile user never approaches the cap.
+EXPORT_MESSAGE_LIMIT = 5000
+
 # Hard cap (bytes, UTF-8) on a single Message.content row.
 #
 # Why this exists:
@@ -202,18 +217,37 @@ class ConversationService:
         """Konusmayi markdown formatinda disa aktar.
 
         Returns the conversation as a formatted string.
+
+        Truncation contract (V1.x Item 10):
+            - Capped at ``EXPORT_MESSAGE_LIMIT`` (5000) messages, ordered
+              by ``created_at ASC`` so the *oldest* messages are preferred
+              over recent noise. This matches user expectation when
+              archiving a long-running thread.
+            - When the conversation has more than 5000 messages, a
+              markdown footer is appended noting how many earlier rows
+              were dropped, and a ``conversation_export_truncated``
+              structlog warning is emitted with the original total + the
+              delivered count for observability.
+            - When the row count is at or under the cap, the export is
+              returned verbatim with no footer.
         """
-        stmt = select(Message).order_by(Message.created_at.asc()).limit(500)
+        # Over-fetch by one to detect "more rows exist" without a second
+        # COUNT(*) query. The extra row is trimmed from the rendered
+        # output but counted to drive the footer warning.
+        stmt = select(Message).order_by(Message.created_at.asc()).limit(EXPORT_MESSAGE_LIMIT + 1)
         if project_id:
             stmt = stmt.where(Message.project_id == project_id)
         elif session_id:
             stmt = stmt.where(Message.session_id == session_id)
 
         result = await self._session.execute(stmt)
-        messages = list(result.scalars().all())
+        all_rows = list(result.scalars().all())
 
-        if not messages:
+        if not all_rows:
             return "# Konusma Gecmisi\n\nMesaj bulunamadi.\n"
+
+        truncated = len(all_rows) > EXPORT_MESSAGE_LIMIT
+        messages = all_rows[:EXPORT_MESSAGE_LIMIT] if truncated else all_rows
 
         lines: list[str] = [
             "# Konusma Gecmisi",
@@ -238,6 +272,34 @@ class ConversationService:
             lines.append("")
             lines.append("---")
             lines.append("")
+
+        if truncated:
+            # We only know "more than EXPORT_MESSAGE_LIMIT exist" — not the
+            # exact total — because we capped the SELECT at limit+1 to
+            # avoid a separate COUNT(*) pass. The footer reports the
+            # cap + a "more than" qualifier; the structlog event also
+            # carries ``delivered`` for a precise machine-readable signal.
+            footer_lines = [
+                "",
+                (
+                    f"*Note: This export contains the first {EXPORT_MESSAGE_LIMIT} "
+                    "messages (oldest-first). Earlier messages were not included "
+                    "because the conversation exceeded the export cap.*"
+                ),
+                "",
+            ]
+            lines.extend(footer_lines)
+            logger.warning(
+                "conversation_export_truncated",
+                project_id=str(project_id) if project_id else None,
+                session_id=session_id,
+                cap=EXPORT_MESSAGE_LIMIT,
+                delivered=len(messages),
+                # We did not COUNT(*) so we cannot report the original
+                # total; "more_than_cap=True" is the strongest signal we
+                # have without a second round trip.
+                more_than_cap=True,
+            )
 
         return "\n".join(lines)
 

@@ -33,6 +33,8 @@ from app.schemas.sessions import (
     SessionCostBreakdownItem,
     SessionCostSummary,
 )
+from app.schemas.subagents import SubagentResponse
+from app.services.subagent_service import SubagentService
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger()
 
@@ -133,3 +135,43 @@ async def get_cost_summary(
         total_cache_read_tokens=total_cache_read,
         by_session=breakdown,
     )
+
+
+@router.get("/{session_id}/subagents", response_model=list[SubagentResponse])
+async def list_session_subagents(
+    session_id: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> list[SubagentResponse]:
+    """Return every persisted subagent for a claude session (REST hydration).
+
+    Cold-start path for the iOS ``SubagentRepositoryImpl``. The bridge
+    re-emits live ``subagent.*`` WS events on the next claude turn, but
+    pre-existing rows would otherwise be invisible until then.
+
+    Pagination is intentionally NOT exposed in V1.x — the service caps
+    results at 500 rows defensively, which comfortably covers typical
+    sessions (< 50 subagents, see docs/10 §6.1.1). Returns ``[]`` for
+    sessions with no subagents (no 404 — the ``subagents`` table has no
+    referential constraint to ``sessions``, and the claude session id is
+    a free-form string from the bridge's stream parser).
+
+    Auth posture (V1.x — open across users)
+    ---------------------------------------
+    The route is JWT-gated (any authenticated user can call it) but does
+    **NOT** filter by per-user ownership. The ``bridges`` table has no
+    ``user_id`` column today (see ``app/models/bridge.py``), so a
+    bridges→user JOIN cannot be added without a schema migration that
+    is out of V1.x scope. Reviewer feedback (Important #3) flagged this
+    as theoretical IDOR; in practice the deployment is single-tenant
+    TestFlight so the risk is effectively zero in the V1.x window. T1.x
+    will land a ``bridges.user_id`` FK and tighten the filter here. This
+    is **explicitly NOT parity** with ``get_cost_summary`` (which DOES
+    filter by ``user_id=current_user.id`` because ``sessions`` carries
+    that column directly).
+    """
+    # ``current_user`` is required so the route is JWT-gated. The handle is
+    # not used for filtering (see docstring re: V1.x auth posture).
+    del current_user
+    svc = SubagentService(session)
+    return await svc.list_for_session(session_id)
