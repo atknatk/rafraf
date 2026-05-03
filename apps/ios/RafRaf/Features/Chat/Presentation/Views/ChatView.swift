@@ -31,8 +31,12 @@ struct ChatView: View {
     /// Streaming sirasinda scrollToBottom tetiklemelerini 100ms ile throttle eder.
     /// `chat.stream_end` veya `messages.count` artisinda `forceFire()` ile bypass.
     @State private var streamScrollThrottle = StreamScrollThrottle(interval: .milliseconds(100))
+    /// Item 8 — subagent inline pill tap edildiginde acilan SubagentTreeView sheet'i.
+    @State private var showSubagentTree = false
     private let webSocketManager = Container.shared.webSocketConnectionManager()
     private let agentRepository: AgentRepositoryProtocol = Container.shared.agentRepository()
+    /// Item 8 / Item 9 — subagent state read + REST hydrate icin shared singleton.
+    private let subagentRepository: SubagentRepository = Container.shared.subagentRepository()
 
     /// Aktif ChatViewModel (session manager uzerinden).
     private var viewModel: ChatViewModel {
@@ -82,6 +86,17 @@ struct ChatView: View {
 
                 suggestionChipsView
                 commandPaletteView
+
+                // Item 8 — aktif subagent varsa input'un ustunde inline pill goster
+                if viewModel.activeSubagentCount > 0 {
+                    RFSubagentInlinePill(
+                        count: viewModel.activeSubagentCount,
+                        onTap: { showSubagentTree = true }
+                    )
+                    .padding(.horizontal, RFSpacing.sm)
+                    .padding(.bottom, RFSpacing.xxs)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
 
                 chatInputView
             }
@@ -138,6 +153,16 @@ struct ChatView: View {
                     ShareSheet(items: [text])
                 }
             }
+            .sheet(isPresented: $showSubagentTree) {
+                NavigationStack {
+                    SubagentTreeView(
+                        sessionId: viewModel.sessionId,
+                        viewModel: Container.shared.subagentTreeViewModel()
+                    )
+                }
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
             .task {
                 setupConnectionMonitor()
                 await registerMessageHandlers()
@@ -147,6 +172,15 @@ struct ChatView: View {
                 // Aktif task'lar varsa Live Activity baslat
                 await loadActiveTasks()
             }
+            .task(id: viewModel.sessionId) {
+                // Item 8 — aktif subagent sayisini repository'den canli izle
+                await observeSubagentCount(sessionId: viewModel.sessionId)
+            }
+            .task(id: viewModel.sessionId) {
+                // Item 9 — backend kaldigi yerden subagent state'ini geri yukle
+                await hydrateSubagents(sessionId: viewModel.sessionId)
+            }
+            .animation(RFAnimation.springResponsive, value: viewModel.activeSubagentCount)
             .onChange(of: webSocketManager.isConnected) { _, isConnected in
                 if isConnected {
                     connectionMonitor.connectionEstablished()
@@ -399,16 +433,30 @@ struct ChatView: View {
     }
 
     private var loadMoreButton: some View {
-        RFButton(
-            String(localized: "chat.loadMore"),
-            style: .ghost,
-            size: .small
-        ) {
-            Task {
-                await viewModel.loadMoreMessages()
+        VStack(spacing: 0) {
+            // Item 6 — Auto-paginate sentinel: kullanici scroll'da bu satira
+            // ulastiginda otomatik fetch tetiklenir. Manuel buton fallback
+            // olarak hala goruntulenir (auto-fetch fail ederse aciklanir).
+            Color.clear
+                .frame(height: 1)
+                .onAppear {
+                    Task { await viewModel.loadMoreMessages() }
+                }
+
+            RFButton(
+                viewModel.isLoadingMore
+                    ? String(localized: "chat.loadingMore")
+                    : String(localized: "chat.loadMore"),
+                style: .ghost,
+                size: .small
+            ) {
+                Task {
+                    await viewModel.loadMoreMessages()
+                }
             }
+            .disabled(viewModel.isLoadingMore)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
-        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private func scrollToBottomFAB(proxy: ScrollViewProxy) -> some View {
@@ -1224,6 +1272,39 @@ struct ChatView: View {
     private func scrollToBottom(proxy: ScrollViewProxy) {
         withAnimation(RFAnimation.springGentle) {
             proxy.scrollTo("scroll-bottom", anchor: .bottom)
+        }
+    }
+
+    // MARK: - Subagent Observation (Item 8)
+
+    /// Aktif (in_progress / spawned) subagent sayisini repository AsyncStream'inden
+    /// canli izler. ChatView'in `.task(id:)` icinden cagirilir; sessionId
+    /// degisirse iptal edilip yeniden baslatilir.
+    @MainActor
+    private func observeSubagentCount(sessionId: String) async {
+        let stream = await subagentRepository.observeSubagents(sessionId: sessionId)
+        for await snapshot in stream {
+            // Active = spawned veya inProgress
+            let active = snapshot.lazy.filter { sub in
+                sub.status == .spawned || sub.status == .inProgress
+            }.count
+            // ChatViewModel @MainActor — direkt assign guvenli
+            viewModel.activeSubagentCount = active
+        }
+    }
+
+    // MARK: - Subagent Hydration (Item 9)
+
+    /// Cold-start veya session degisiminde backend'in son bilinen subagent
+    /// state'ini geri yukler. Backend endpoint'i live olmayabilir — defensive
+    /// catch ile in-memory state'e dokunmadan devam ederiz.
+    @MainActor
+    private func hydrateSubagents(sessionId: String) async {
+        do {
+            try await subagentRepository.hydrate(sessionId: sessionId)
+        } catch {
+            // Backend henuz canli olmayabilir — in-memory state'e dokunma.
+            print("Subagent hydrate atlandi (in-memory state korunuyor): \(error)")
         }
     }
 }

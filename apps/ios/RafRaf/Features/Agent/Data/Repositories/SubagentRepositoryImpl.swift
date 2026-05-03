@@ -1,6 +1,34 @@
 import Foundation
 import os
 
+// MARK: - REST Hydration DTOs (Item 9)
+
+/// Item 9 — `GET /api/v1/sessions/{session_id}/subagents` response satiri.
+/// Backend dev paralel olarak endpoint'i ekliyor. Sema spec'te belirtildigi
+/// gibi WS push DTO'lariyla ayni sekil; defensive: tum opsiyonel alanlar
+/// nullable, decoder snake_case -> camelCase otomatik cevirir
+/// (NetworkClient).
+struct SubagentRestDTO: Decodable, Sendable {
+    let id: String
+    let parentId: String?
+    let sessionId: String
+    let status: String
+    let name: String?
+    let description: String?
+    let promptPreview: String?
+    let subagentType: String?
+    let isolation: String?
+    let summary: String?
+    let totalTokens: Int?
+    let toolUses: Int?
+    let durationMs: Int?
+    let activity: String?
+    let startedAt: String?
+    let completedAt: String?
+    let updatedAt: String?
+    let progressPercent: Double?
+}
+
 /// `SubagentRepository` implementasyonu.
 ///
 /// In-memory actor cache uzerine kuruludur — bridge mesajlari `apply(update:)`
@@ -15,6 +43,13 @@ import os
 final class SubagentRepositoryImpl: SubagentRepository, @unchecked Sendable {
     private let state = SubagentState()
     private let logger = AppLogger.logger(for: "SubagentRepository")
+    /// Item 9 — REST hydration icin opsiyonel network istemcisi. nil verilirse
+    /// `hydrate(sessionId:)` no-op (test / preview yolu).
+    private let networkClient: NetworkClient?
+
+    init(networkClient: NetworkClient? = nil) {
+        self.networkClient = networkClient
+    }
 
     func observeSubagents(sessionId: String) async -> AsyncStream<[Subagent]> {
         await state.subscribe(sessionId: sessionId)
@@ -47,6 +82,71 @@ final class SubagentRepositoryImpl: SubagentRepository, @unchecked Sendable {
     func clear(sessionId: String) async {
         await state.clear(sessionId: sessionId)
         logger.info("Subagent state temizlendi - session: \(sessionId)")
+    }
+
+    // MARK: - Item 9 — REST Hydration
+
+    /// Backend snapshot'ini in-memory store'a merge eder. Idempotent:
+    ///   - Mevcut id'li entry varsa korunur (in-memory state oncelikli, cunku
+    ///     o WS push'tan yazildi — server snapshot eski olabilir).
+    ///   - Mevcut entry yoksa REST satiri spawn olarak eklenir.
+    func hydrate(sessionId: String) async throws {
+        guard let networkClient else {
+            logger.debug("hydrate: networkClient yok, no-op (test path)")
+            return
+        }
+
+        let path = "/sessions/\(sessionId)/subagents"
+        let dtos: [SubagentRestDTO] = try await networkClient.get(path: path)
+        logger.info("hydrate: backend'den \(dtos.count) subagent geldi - session: \(sessionId)")
+
+        for dto in dtos {
+            // sessionId backend'den de gelir; defensive: parametreyi tercih et
+            let canonicalSessionId = dto.sessionId.isEmpty ? sessionId : dto.sessionId
+            let subagent = Self.subagent(from: dto, sessionId: canonicalSessionId)
+            await state.mergeIfAbsent(subagent)
+        }
+    }
+
+    // MARK: - DTO -> Domain mapping
+
+    private static func subagent(from dto: SubagentRestDTO, sessionId: String) -> Subagent {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        // Fallback formatter — backend bazi alanlarda fractionalSeconds vermez.
+        let fallbackFormatter = ISO8601DateFormatter()
+        fallbackFormatter.formatOptions = [.withInternetDateTime]
+
+        func parseDate(_ raw: String?) -> Date? {
+            guard let raw, !raw.isEmpty else { return nil }
+            return formatter.date(from: raw) ?? fallbackFormatter.date(from: raw)
+        }
+
+        let spawnedAt = parseDate(dto.startedAt) ?? Date()
+        let updatedAt = parseDate(dto.updatedAt)
+        let completedAt = parseDate(dto.completedAt)
+        let status = SubagentStatus.from(rawString: dto.status)
+
+        return Subagent(
+            id: dto.id,
+            sessionId: sessionId,
+            parentTaskId: dto.parentId,
+            name: dto.name ?? dto.subagentType ?? "subagent",
+            description: dto.description,
+            promptPreview: dto.promptPreview ?? "",
+            subagentType: dto.subagentType,
+            isolation: dto.isolation,
+            status: status,
+            summary: dto.summary,
+            totalTokens: dto.totalTokens,
+            toolUses: dto.toolUses,
+            durationMs: dto.durationMs,
+            activity: dto.activity,
+            spawnedAt: spawnedAt,
+            updatedAt: updatedAt,
+            completedAt: completedAt
+        )
     }
 }
 
@@ -162,6 +262,18 @@ private actor SubagentState {
     func clear(sessionId: String) {
         storage[sessionId] = nil
         yieldUpdate(for: sessionId)
+    }
+
+    /// Item 9 — REST hydration helper.
+    /// In-memory entry varsa korur (cunku WS push daha taze), yoksa ekler.
+    /// Idempotent: ayni id ikinci kez gelirse no-op.
+    func mergeIfAbsent(_ subagent: Subagent) {
+        var bucket = storage[subagent.sessionId] ?? [:]
+        if bucket[subagent.id] == nil {
+            bucket[subagent.id] = subagent
+            storage[subagent.sessionId] = bucket
+            yieldUpdate(for: subagent.sessionId)
+        }
     }
 
     // MARK: - Private

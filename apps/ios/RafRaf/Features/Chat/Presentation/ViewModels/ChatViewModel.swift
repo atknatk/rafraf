@@ -52,6 +52,8 @@ final class ChatViewModel {
     var messageQueue = MessageQueue()
     /// Aktif AI calisma durumu — inline tool aktivite karti icin.
     var currentActivity: ToolActivityModel?
+    /// Aktif subagent sayisi (in_progress / spawned). Inline pill icin observe edilir.
+    var activeSubagentCount: Int = 0
 
     // MARK: - Private
 
@@ -59,12 +61,29 @@ final class ChatViewModel {
     private let loadHistoryUseCase: LoadChatHistoryUseCase
     private let fetchMissedMessagesUseCase: FetchMissedMessagesUseCase?
     private let chatRepository: (any ChatRepositoryProtocol)?
-    private let sessionId: String
+    /// Public — hydration / LRU eviction (ChatSessionManager) gibi yardimci akislar
+    /// tarafindan okunur. Mutable yok — init'de set edilir.
+    let sessionId: String
     let projectId: String?
     let agentId: String?
     private var nextCursor: String?
-    private var isLoadingMore: Bool = false
+    /// Pagination koruyucu. View'da auto-paginate sentinel `.onAppear`
+    /// tetigi double-fetch yapmasin diye observable.
+    private(set) var isLoadingMore: Bool = false
     private let logger = AppLogger.logger(for: "Chat")
+
+    // MARK: - LRU Eviction
+
+    /// Item 5 — LRU eviction sonrasi pagination cursor'u rebuild edebilmek
+    /// icin gereken minimum mesaj sayisi (en yeni mesajlar her zaman korunur).
+    static let lruMinimumRetainedMessages: Int = 100
+
+    /// Eviction sonrasi `loadMoreMessages` cagrildiginda eski mesajlari
+    /// yeniden cekmek icin kullanilan cursor. Re-hydrate path'inde server
+    /// pagination tabanli oldugu icin bu degeri ChatRepository turunde
+    /// tutmuyoruz — `hasMoreMessages` flag'ini kullanicinin yukari kaydirma
+    /// jest'inde yine de tetikler ve REST sayfa sayfa eski mesajlari getirir.
+    private(set) var wasEvicted: Bool = false
 
     // MARK: - Stream Delta Coalescing
     //
@@ -547,5 +566,54 @@ final class ChatViewModel {
                 forKey: lastTimestampKey
             )
         }
+    }
+
+    // MARK: - LRU Eviction (Item 5)
+
+    /// Item 5 — Memory pressure altinda eski (oldest-half) mesajlari atar.
+    ///
+    /// Kural:
+    ///   - Mesaj sayisi `lruMinimumRetainedMessages` esiginin altinda ise no-op.
+    ///   - Esigin uzerinde ise mesajlarin eski yarisi atilir; ancak en az
+    ///     `lruMinimumRetainedMessages` mesaj her zaman korunur.
+    ///   - Eviction yapildiginda `wasEvicted = true` ve `hasMoreMessages = true`
+    ///     atanir, boylece kullanici yukari kaydirinca `loadMoreMessages` REST
+    ///     uzerinden eski mesajlari yeniden cekebilir.
+    ///
+    /// Returns: Atilan mesaj sayisi (test / observability).
+    @discardableResult
+    func evictOldestMessages() -> Int {
+        guard messages.count > Self.lruMinimumRetainedMessages else { return 0 }
+        // Eski yarisi at — ancak son `lruMinimumRetainedMessages` her zaman kalsin.
+        let halfPoint = messages.count / 2
+        let evictCount = min(halfPoint, messages.count - Self.lruMinimumRetainedMessages)
+        guard evictCount > 0 else { return 0 }
+
+        messages.removeFirst(evictCount)
+        wasEvicted = true
+        // Yukari kaydirildiginda REST'ten eski mesajlar yeniden gelsin.
+        hasMoreMessages = true
+        // Coalesce buffer ve diger volatile state korunur — sadece eski
+        // mesajlar atilir.
+        logger.info("LRU eviction: \(evictCount) eski mesaj atildi (kalan: \(self.messages.count))")
+        return evictCount
+    }
+
+    /// Item 5 — Bir session inactive olduktan sonra clean baseline'a doner.
+    /// Mesaj listesini ve volatile state'i sifirlar; sessionId / projectId
+    /// (immutable) korunur.
+    func resetForInactiveSession() {
+        let oldCount = messages.count
+        messages.removeAll(keepingCapacity: false)
+        currentActivity = nil
+        pendingSuggestions.removeAll()
+        suggestionMessageId = nil
+        nextCursor = nil
+        hasMoreMessages = false
+        wasEvicted = false
+        flushTask?.cancel()
+        flushTask = nil
+        streamBuffers.removeAll(keepingCapacity: false)
+        logger.info("Session inactive — baseline reset (atilan mesaj: \(oldCount))")
     }
 }

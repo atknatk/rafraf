@@ -38,6 +38,15 @@ protocol SubagentRepository: Sendable {
     /// Bir session'a ait tum subagent kayitlarini temizle (logout / oturum
     /// kapanisi).
     func clear(sessionId: String) async
+
+    /// Item 9 — Cold-start sonrasi backend'in son bilinen subagent state'ini
+    /// REST uzerinden cek ve in-memory store'a merge et (idempotent: ayni id
+    /// icin mevcut entry oncelikli — server snapshot'i sadece yoksa ekler).
+    ///
+    /// Implementasyon defensively coded: backend henuz endpoint'i serve
+    /// etmiyor olabilir. Hata firlatabilir; cagiran tarafin try? veya catch
+    /// ile silently degerlendirmesi beklenir.
+    func hydrate(sessionId: String) async throws
 }
 
 /// Bridge -> Domain seviyesindeki subagent guncelleme tipi.

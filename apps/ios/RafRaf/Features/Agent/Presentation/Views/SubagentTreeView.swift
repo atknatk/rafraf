@@ -386,6 +386,7 @@ private final class PreviewSubagentRepository: SubagentRepository, @unchecked Se
     func currentAllSubagents() async -> [Subagent] { [] }
     func apply(update: SubagentUpdate) async {}
     func clear(sessionId: String) async {}
+    func hydrate(sessionId: String) async throws {}
 }
 
 /// Preview icin ornek subagent verisi: 1 kok + 2 child + 1 completed + 1 failed.

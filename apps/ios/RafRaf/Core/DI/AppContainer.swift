@@ -373,8 +373,9 @@ extension Container {
     }
 
     /// Subagent state repository (Claude Agent Teams subagent tree — T1.7).
+    /// Item 9 — `networkClient` enjekte edilir, REST hydration desteklenir.
     var subagentRepository: Factory<SubagentRepository> {
-        self { SubagentRepositoryImpl() }
+        self { SubagentRepositoryImpl(networkClient: self.networkClient()) }
             .singleton
     }
 

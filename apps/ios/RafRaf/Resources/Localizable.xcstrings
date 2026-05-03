@@ -3451,6 +3451,23 @@
         }
       }
     },
+    "chat.loadingMore" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading more…"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daha fazla yukleniyor…"
+          }
+        }
+      }
+    },
     "chat.loading" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3991,6 +4008,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sohbet"
+          }
+        }
+      }
+    },
+    "chat.subagent.pill.singular" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 subagent active"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 alt ajan aktif"
+          }
+        }
+      }
+    },
+    "chat.subagent.pill.plural" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d subagents active"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d alt ajan aktif"
+          }
+        }
+      }
+    },
+    "chat.subagent.pill.hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to view subagent tree"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alt ajan agacini gormek icin dokunun"
           }
         }
       }
